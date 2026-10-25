@@ -9,6 +9,7 @@
 - (sem ID): Narciso revisa o que acontece com a senha guardada no chaveiro quando o usuário troca de certificado (recomendação do CTO: apagar a antiga no mesmo ato) e o limite de emissores por instalação (recomendação do CTO: sem limite fixo). Fonte: docs/superpowers/plans/2026-10-25-notalivre-plano.md, NL-4.3.
 - (sem ID): Narciso e o CTO decidem a recuperação da numeração depois de perder o banco, e o cadastro de tomadores que não volta pelo ADN. Fonte: plano, seção 9 (spec 4.4), prevista para a Onda 3.
 - (sem ID): Capitolino e Celso tratam suporte ao usuário, o "por que agora" e a métrica de sucesso (spec seções 1 e 3.4). Fonte: plano, seção 9.
+- —: segundo portão de camadas lendo os arquivos .d (-MD) do próprio build, complemento do A2 (pega macro, __has_include, header gerado); sugerido na revisão de NL-0.3
 
 ## Backlog
 
@@ -104,4 +105,3 @@
 | NL-12.2 | W12 | Operação | Release 1.0.0 só com o go do líder: tag, publicação no Flathub com o app-id da rodada 6, notas de versão pelo technical-writer. Plano, seção 2, NL-12.2. | Média (inferido) | NL-12.1 | Média (inferido) | ⏳ Pendente | — |
 | NL-12.3 | W12 | Operação | Limpeza de builds e temporários do próprio trabalho, depois do QA da onda (L-53). Plano, seção 2, NL-12.3. | Média (inferido) | NL-12.2 | Média (inferido) | ⏳ Pendente | — |
 | NL-13.1 | W13 | Documentação | Wiki nativa do GitHub e documentação .md extensa para iniciante em computação, derivada de docs/ (linka, não duplica); executor technical-writer com ux-writer. A wiki só existe depois da primeira página criada pela interface web (gotcha da L-63). Plano, seções 2 e 10, Onda 13; L-63. | Média (inferido) | NL-12.2 (tag v1.0.0 publicada) | Média (inferido) | ⏳ Pendente | — |
-- —: segundo portão de camadas lendo os arquivos .d (-MD) do próprio build, complemento do A2 (pega macro, __has_include, header gerado); sugerido na revisão de NL-0.3
