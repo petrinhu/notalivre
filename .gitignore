@@ -15,3 +15,6 @@ worktrees/
 
 # Log de ferramenta
 aqtinstall.log
+
+# estado local de ferramentas do Claude Code (A0-11)
+.claude/
