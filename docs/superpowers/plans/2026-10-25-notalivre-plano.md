@@ -45,6 +45,7 @@
 - **Arquivos de terceiros que o build e os testes precisam** (XSD, Anexos A e B para conversão, fontes da spec visual): baixados de URL fixa e conferidos contra o SHA-256 versionado no repositório; o primeiro SHA-256 é registrado como confiança no primeiro uso. Autorizados pela lista complementar do ponto L9; baixados quando NL-1.6, NL-1.8 e NL-1.10 começarem, com tamanho medido no relatório.
 - TDD estrito, sem meta numérica de cobertura (L-35). Portão só conta depois de visto vermelho (L-36).
 - Commit por fatia com o ID e o `Status` do `TODO.md` no mesmo commit, implementação vira `🔍` (L-24, L-63).
+- **Versionamento (DECISÃO DO LÍDER, 25/10/2026, verbatim: "E faca versionamento = tag com 4 numeros, mesmo estilo de glintfx").** Tag `vA.B.C.D`. A: quebra, que no NotaLivre é incompatibilidade com os dados do usuário ou com formato salvo sem migração; B: recurso novo compatível; C: correção; D: build ou empacotamento sem mudança de código. `project(... VERSION A.B.C.D)` do CMake com quatro componentes, hoje `0.1.0.0`. Tag e release só com aval explícito do líder (L-24). Tag de marco a cada onda fechada, sem release nem publicação antes da `v1.0.0.0` (ponto L12, tabela de tags na seção 2).
 - **Fluxo de branch (DECISÃO DO LÍDER, 25/10/2026: "Branch de onda, push por fatia").** Cada onda tem branch própria (`onda-0`, `onda-1` e assim por diante). Cada fatia commitada é empurrada para a branch da onda só para o CI rodar (L-24, tempo 2). `main` só recebe a onda fechada pela definição de fechamento dela, com autorização explícita de merge do líder (L-24, tempo 4). Push conferido por `git ls-remote`, nunca pela mensagem do push.
 
 ## Review Focus
@@ -160,11 +161,26 @@ O trade-off já registrado no spec 4.4 (quem tem o .pfx, a senha dele e uma cóp
 
 Convenções de cada fatia: **Executor** é o agente bigtech que implementa. **Revisão** tem três camadas (L-12): revisor especialista distinto do executor, que executa o código em contêiner local e confere o CI (mutação pelo protocolo da L-27, sabotagem, oráculo independente); re-verificação do main (leitura do log local entregue pelo executor e do log do job do SHA empurrado, mutação própria diferente da do revisor, integridade de árvore e commit, spot-check arquivo:linha); e o `internal-auditor` no fechamento da onda, sempre depois de código e teste. **Testes primeiro** lista nomes e asserções; a ordem de serviço exige o trecho do log local com o vermelho e depois com o verde, mais o link do job do CI, cada um com o SHA (L-35). **Paralelo** só com arquivos disjuntos e um trabalho pesado por vez nesta máquina (L-11).
 
-**Mutação e sabotagem (L-27):** localmente, o revisor commita antes de sabotar, extrai uma cópia para `/var/tmp`, fora da árvore, sabota só a cópia, roda a suíte em contêiner e declara o SHA; quem verifica lê o blob commitado, nunca a working tree. No CI, o job `mutacao` do workflow recebe o SHA a verificar e uma lista de mutações (arquivo, linha, troca). O revisor grava a lista em `tests/mutacoes/<fatia>.txt` num commit próprio; o main dispara a dele pela entrada `workflow_dispatch`, sem tocar a árvore. O job copia o checkout para fora do workspace, aplica uma mutação por vez sobre a cópia, roda a suíte e imprime `encontradas / aplicadas / mortas / sobreviventes` sempre, mesmo zero (L-36); conferir `aplicadas == encontradas` prova que cada mutação chegou ao código. Mutação sobrevivente reprova a fatia. Nenhum arquivo rastreado é sabotado em lugar nenhum.
+**Mutação e sabotagem (L-27):** localmente, o revisor commita antes de sabotar, extrai uma cópia para `/var/tmp`, fora da árvore, sabota só a cópia, roda a suíte em contêiner e declara o SHA; quem verifica lê o blob commitado, nunca a working tree. No CI, o job `mutacao` roda a cada push (DECISÃO DO LÍDER, 25/10/2026, achado A0-03 da auditoria da Onda 0: "opcao um"), com o código em `tools/mutacao/`. Ele recebe o SHA do push e as listas de mutações (arquivo, linha, troca) versionadas em `tools/mutacao/`; o revisor grava a lista da fatia num commit próprio, e o main pode disparar uma mutação extra pela entrada `workflow_dispatch`, sem tocar a árvore. O job copia o checkout para fora do workspace, aplica uma mutação por vez sobre a cópia, roda a suíte e imprime `encontradas / aplicadas / mortas / sobreviventes` sempre, mesmo zero (L-36); conferir `aplicadas == encontradas` prova que cada mutação chegou ao código. Mutação sobrevivente reprova a fatia. Nenhum arquivo rastreado é sabotado em lugar nenhum.
 
 **Captura de tela (L-13):** gerada offscreen em contêiner local (e repetida no job, publicada como artefato com o md5 no resumo); o qa-engineer confere o md5 nas duas pontas.
 
 Cada onda abre com uma **pesquisa de abertura** (L-22), despachada pelo main com o problema e a pergunta, nunca com a solução. Depois dela, Caetano pode refatiar a onda; quem refatia é o C-level, nunca o main nem o executor (L-16). As Ondas 0 a 2 estão detalhadas; as seguintes são provisórias até a pesquisa delas.
+
+### Tags por onda (DECISÃO DO LÍDER, 25/10/2026, ponto L12: "Tag a cada onda fechada")
+
+Cada onda fechada pela própria definição de fechamento e mesclada em `main` ganha tag de marco `vA.B.C.D`, sempre com aval explícito do líder no contexto. Nenhum GitHub Release e nenhuma publicação no Flathub antes de `v1.0.0.0`.
+
+| Momento | Tag de marco |
+|---|---|
+| Fechamento da Onda 0 | `v0.1.0.0` (CMake já em `0.1.0.0`) |
+| Fechamento da Onda N, de 1 a 11 | `v0.(N+1).0.0`: Onda 1 `v0.2.0.0`, Onda 2 `v0.3.0.0`, e assim por diante até a Onda 11 `v0.12.0.0`; o CMake sobe junto no merge |
+| Correção liberada entre marcos | C sobe (por exemplo `v0.3.1.0`) |
+| Rebuild ou reempacotamento sem mudar código | D sobe (por exemplo `v0.3.1.1`) |
+| Go da Onda 12 | `v1.0.0.0`, primeira com GitHub Release e publicação no Flathub |
+| Onda 13 (só documentação) e depois | pela mesma regra; A só sobe se houver quebra de dados sem migração, e mudança de schema, autenticação ou chave passa antes pela L-70 (ponto L3) |
+
+Toda tag é conferida por `git ls-remote` (L-24).
 
 ### Onda 0: fundação de engenharia (Fase 5)
 
@@ -181,7 +197,7 @@ Cada onda abre com uma **pesquisa de abertura** (L-22), despachada pelo main com
 - **Paralelo:** com NL-0.2.
 
 #### NL-0.2 Esqueleto CMake por camadas
-- **Objetivo:** alvos `nl_foundation_base`, `nl_foundation`, `nl_back`, `nl_mid`, `notalivre-cli`, `notalivre-gui`, cada um linkando só para baixo; presets `debug` (com `assert` ativo), `release`, `asan-ubsan` com `halt_on_error=1` e `-fno-sanitize-recover=all` (L-36); avisos tratados como erro; cabeçalho SPDX em todo fonte (`SPDX-License-Identifier: GPL-3.0-or-later` e `SPDX-FileCopyrightText` com o nome completo do líder, NL-0.1), conferido por portão; CTest com QtTest.
+- **Objetivo:** `project(NotaLivre VERSION 0.1.0.0)` com quatro componentes (versionamento do líder); alvos `nl_foundation_base`, `nl_foundation`, `nl_back`, `nl_mid`, `notalivre-cli`, `notalivre-gui`, cada um linkando só para baixo; presets `debug` (com `assert` ativo), `release`, `asan-ubsan` com `halt_on_error=1` e `-fno-sanitize-recover=all` (L-36); avisos tratados como erro; cabeçalho SPDX em todo fonte (`SPDX-License-Identifier: GPL-3.0-or-later` e `SPDX-FileCopyrightText` com o nome completo do líder, NL-0.1), conferido por portão; CTest com QtTest.
 - **Testes primeiro:** `tst_sanidade::falhaAntesDeExistir` (vermelho com o alvo vazio), depois verde. Prova que o executor de testes está ligado.
 - **Aceite:** build limpo nos presets `debug` e `asan-ubsan` em contêiner local e depois no CI, lido nos dois logs; um include proposital de `nl_mid` dentro de `nl_back`, aplicado numa cópia (L-27), quebra o link.
 - **Executor:** devops-sre. **Revisão:** software-architect (matriz), main.
@@ -459,7 +475,7 @@ Executor das telas: frontend-engineer. Revisão: qa-engineer (capturas em contê
 - **NL-10.2 Jurídico:** cabeçalhos e `LICENSE`, obrigações LGPL do Qt embutido (se houver), módulos Qt só GPL, termos de uso e política de privacidade (app local, sem telemetria), papéis LGPD, art. 24, IV, e art. 341-G, V e VI, da LC 214/2025 no texto primário (spec 6.3). Executor compliance-legal; assinatura de Cláudio, main.
 - **NL-10.3 Dossiê de auditoria (A10):** livro em `docs/auditoria/`, com achados por severidade, depois de código e teste. Executor internal-auditor; revisão main.
 
-**Definição de fechamento da Onda 10:** zero CRÍTICO aberto em NL-10.1 a NL-10.3; assinaturas de Narciso e Cláudio registradas; nenhuma tag pública antes disto (gatilhos K1 a K3).
+**Definição de fechamento da Onda 10:** zero CRÍTICO aberto em NL-10.1 a NL-10.3; assinaturas de Narciso e Cláudio registradas. Nenhum GitHub Release nem publicação no Flathub antes da `v1.0.0.0` (gatilhos K1 a K3); as tags de marco por onda não entram nesse veto (ponto L12).
 
 ### Onda 11: beta técnico com A1 real em Produção Restrita (Fase 9)
 
@@ -475,7 +491,7 @@ Executor das telas: frontend-engineer. Revisão: qa-engineer (capturas em contê
 
 - **NL-12.1 Dossiê de decisão:** recomendação de Celso, assinaturas de Narciso e Cláudio, pontos do contador (spec 6.4) respondidos, e o checklist das 7 fases da L-70 anotado [PASSOU], [FALHOU] ou [BLOQUEADO], porque esta é a liberação de emissão real a terceiros e a primeira versão publicada, que cria schema e chaves (DECISÃO DO LÍDER, 25/10/2026, ponto L3: "Cancelo: L-70 inteira"; INFERÊNCIA do CTO: a v1 conta como versão que muda schema e chave, a leitura mais conservadora). A Fase 2 é a "dupla validação manual em staging (Produção Restrita)" escrita no `CLAUDE.md` do projeto (NL-0.1); as demais fases como a L-70 manda, com as adaptações que o líder tiver dado no ponto L11. Assinatura nominal da sub-fase 5.3 em `docs/auditoria/deploys/`. Qualquer [FALHOU] ou [BLOQUEADO] aborta a virada. A decisão de go/no-go é do líder, por `AskUserQuestion` (LEI ZERO).
 - **Versões depois da 1.0:** toda versão que mude schema, autenticação ou chave abre o mesmo checklist da L-70 antes da tag (ponto L3).
-- **NL-12.2 Release:** destravar Produção só se o líder disse go; tag `v1.0.0` com autorização dele (L-24); publicação no Flathub (ponto L6) com o app-id `io.github.petrinhu.notalivre`; notas de versão pelo technical-writer.
+- **NL-12.2 Release:** destravar Produção só se o líder disse go; tag `v1.0.0.0` com aval explícito dele (L-24, versionamento de quatro números); publicação no Flathub (ponto L6) com o app-id `io.github.petrinhu.notalivre`; notas de versão pelo technical-writer.
 - **NL-12.3 Limpeza:** builds e temporários do próprio trabalho, depois do QA da onda (L-53; CONTRACT 11).
 
 **Definição de fechamento da Onda 12:** decisão do líder registrada; tag conferida por `git ls-remote`; artefato publicado; limpeza feita.
@@ -503,7 +519,7 @@ Executor das telas: frontend-engineer. Revisão: qa-engineer (capturas em contê
 | N11 | Narciso | Assinatura pré-beta e pré-Produção | Ondas 10 e 12 | NL-10.1, NL-12.1 |
 | K1 | Cláudio | `LICENSE` GPL-3.0 e cabeçalhos SPDX, com `SPDX-FileCopyrightText` no nome completo do líder | Onda 0 | NL-0.1, NL-0.2 |
 | K2 | Cláudio | Licença de cada dependência nova e de cada arquivo governamental redistribuído (XSD, anexos) | no commit que traz a dependência, junto com T12 | toda fatia que adiciona dependência |
-| K3 | Cláudio | Qt LGPL embutido (se a decisão do líder no início da Onda 9 levar a isso) e módulos Qt só GPL (P5) | antes de NL-9.1 e da primeira tag pública | NL-9.1, NL-10.2 |
+| K3 | Cláudio | Qt LGPL embutido (se a decisão do líder no início da Onda 9 levar a isso) e módulos Qt só GPL (P5) | antes de NL-9.1 e do primeiro GitHub Release ou publicação (a `v1.0.0.0`); tags de marco não entram no veto | NL-9.1, NL-10.2 |
 | K4 | Cláudio | LGPD: inventário de dados pessoais, papéis, direitos do titular, consentimento, termos de BrasilAPI e CNPJ.ws | antes de NL-6.2 e NL-6.3 | NL-6.2, NL-6.3 |
 | K5 | Cláudio | Responsabilidade do fornecedor de software (LC 214/2025, art. 24, IV; art. 341-G, V e VI) no texto primário. Restrição de desenho desde já: nenhuma função que altere valor de nota depois de emitida ou que permita suprimir valor | antes de NL-12.1; a restrição vale desde a Onda 1 | NL-10.2 |
 | K6 | Cláudio | Termos de uso e política de privacidade | antes de release com Produção | NL-10.2 |
@@ -516,7 +532,7 @@ Executor das telas: frontend-engineer. Revisão: qa-engineer (capturas em contê
 
 - **Matriz nativa:** núcleo e CLI (a GUI só compila) em `fedora:44`, `ubuntu:26.04`, `manjarolinux/base` e `linuxmintd/mint22.3-amd64`, fixados por digest, com Qt 6.12 pelo método de D0.4a (FATO: nenhuma das quatro traz Qt 6.12 como pacote, spec 4.3). Versões das distros: as da pesquisa, aceitas com a opção recomendada do ponto L6 (DECISÃO DO LÍDER, 25/10/2026).
 - **Onde roda (ponto L7):** primeiro no espelho local em contêiner, com a lista fechada; depois no GitHub Actions, disparado pelo push de cada fatia na branch da onda (L-36).
-- **Jobs fixos:** unidade e integração (MySQL 8.4 e MariaDB 11.8, em contêiner local e como `services` do job; ponto L5); e2e com servidor falso; ASan e UBSan em uma distro; portões A2, gitleaks, travessão, hex fora do `Theme.qml` e PII em log; `mutacao` (seção 2, convenções), disparado por `workflow_dispatch` e pelos arquivos `tests/mutacoes/`.
+- **Jobs fixos:** unidade e integração (MySQL 8.4 e MariaDB 11.8, em contêiner local e como `services` do job; ponto L5); e2e com servidor falso; ASan e UBSan em uma distro; portões A2, gitleaks, travessão, hex fora do `Theme.qml` e PII em log; `mutacao` em `tools/mutacao/`, a cada push (DECISÃO DO LÍDER, A0-03), mais `workflow_dispatch` para mutação extra do main (seção 2, convenções).
 - **Flatpak:** construído contra o SDK KDE 6.11 (FATO: o Flathub não tem 6.12), localmente e no runner com flatpak-github-actions v6, e testado no host do runner (plano B padrão). O teste nas quatro distros em contêiner com `--privileged` roda como medição, sem bloquear, até ser visto verde e depois vermelho por sabotagem; só então vira portão.
 - **Risco medido:** FATO em `flatpak.md` Q8: bwrap em Docker exige relaxar capacidades ou `--privileged`, há relato de falha mesmo privilegiado, e `CAP_SYS_ADMIN` sozinho não basta. Nenhum exemplo de teste de bundle em contêiner Fedora, Ubuntu, Manjaro ou Mint foi achado.
 - **Plano B:** teste do bundle no host Ubuntu do runner. **Plano C (INFERÊNCIA do CTO, a medir):** máquina virtual por KVM no runner para Fedora e Ubuntu, que publicam imagem de nuvem; Mint e Manjaro não têm imagem pronta. **Plano D:** o líder aceita a matriz Flatpak reduzida. B, C ou D é escolha do líder no início da Onda 9 (ponto L6: "Medir agora, decidir na Onda 9"); até lá, o plano B é o padrão.
@@ -560,7 +576,10 @@ Cada ponto vai por `AskUserQuestion`, com a recomendação primeiro. Ordem de bl
 | L2 | "Seguir o plano completo": o plano não encurta pelo prazo de 01/11/2026; quem precisar emitir antes usa o emissor público nacional | plano inteiro |
 | L3 | "Cancelo: L-70 inteira" (pelo rito da LEI DAS LEIS): as 7 fases valem para a virada fiscal de Produção e para toda versão que mude schema do banco, autenticação ou chave criptográfica; só a Fase 2 vira "dupla validação manual em staging (Produção Restrita)"; fases que não couberem num app desktop voltam ao líder, uma a uma, antes da Onda 3 (L11) | NL-0.1, P1, P4, NL-3.1, NL-3.3, Onda 3, NL-12.1 |
 | Convenção de nomes | ratificada | 1.1, NL-0.1 |
+| Gatilho do `mutacao` (A0-03) | "opcao um": roda a cada push; caminho `tools/mutacao/` | seção 2 (convenções), seção 4 |
+| Versionamento | "E faca versionamento = tag com 4 numeros, mesmo estilo de glintfx": `vA.B.C.D`, CMake `0.1.0.0`, tag e release só com aval explícito | Global Constraints, tabela de tags por onda, NL-0.2, NL-12.2 |
 | README sim, `.env.example` não | ratificado | NL-0.1 |
+| L12 | "Tag a cada onda fechada": tag de marco `vA.B.C.D` em cada onda fechada e mesclada em `main` (`v0.1.0.0` na Onda 0, `v0.2.0.0` na Onda 1, e assim por diante); sem GitHub Release nem Flathub antes da `v1.0.0.0`; cada tag com aval explícito | tabela de tags na seção 2, seção 3 (K3), Onda 10 |
 | Copyright | titular é o líder, nome completo, `SPDX-FileCopyrightText` em todo fonte | NL-0.1, NL-0.2, K1 |
 | L4 (forma) | "Em bloco, após os ADRs", antes da Onda 3 | 6.1, NL-P.2, Onda 3 |
 | L5 | "Script para colar + MariaDB aceito" | NL-3.6, N7, seção 4 |
