@@ -10,6 +10,7 @@
 - (sem ID): Narciso e o CTO decidem a recuperação da numeração depois de perder o banco, e o cadastro de tomadores que não volta pelo ADN. Fonte: plano, seção 9 (spec 4.4), prevista para a Onda 3.
 - (sem ID): Capitolino e Celso tratam suporte ao usuário, o "por que agora" e a métrica de sucesso (spec seções 1 e 3.4). Fonte: plano, seção 9.
 - —: segundo portão de camadas lendo os arquivos .d (-MD) do próprio build, complemento do A2 (pega macro, __has_include, header gerado); sugerido na revisão de NL-0.3
+- —: install() no CMake, .desktop, metainfo.xml (AppStream) e ícone para o Flatpak (sugerido na revisão de NL-0.5)
 
 ## Backlog
 
@@ -22,7 +23,7 @@
 | NL-0.2 | W0 | Engenharia | Esqueleto CMake por camadas (nl_foundation_base, nl_foundation, nl_back, nl_mid, notalivre-cli, notalivre-gui), presets debug, release e asan-ubsan, CTest com QtTest; teste de sanidade visto vermelho antes do verde. Plano, seção 2, NL-0.2. | Média (inferido) | — | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-0.3 | W0 | Engenharia | Portão A2 de camadas (tools/portoes/camadas) varrendo includes contra a matriz da seção 1.1; autoteste com três controles e sabotagem de estreia vista vermelha. Plano, seção 2, NL-0.3; L-36. | Média (inferido) | NL-0.2 | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-0.4 | W0 | Engenharia | Spike medido do CI nativo nas quatro distros: Qt 6.12 por aqt, versões de GCC, CMake, Qt, OpenSSL com kdf, libsodium, xmlsec1, libxml2 e zlib; resultado em docs/pesquisa/ci_medicao.md. Plano, seção 2, NL-0.4. | Média (inferido) | NL-0.2 | Média (inferido) | 🔍 Pendente verificação | — |
-| NL-0.5 | W0 | Engenharia | Spike medido do Flatpak com org.kde.Sdk e org.kde.Platform 6.11; resultado em docs/pesquisa/ci_medicao.md; decide D0.5. Plano, seção 2, NL-0.5. | Média (inferido) | — | Média (inferido) | ⏳ Pendente | — |
+| NL-0.5 | W0 | Engenharia | Spike medido do Flatpak com org.kde.Sdk e org.kde.Platform 6.11; resultado em docs/pesquisa/ci_medicao.md; decide D0.5. Plano, seção 2, NL-0.5. | Média (inferido) | — | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-0.6 | W0 | Segurança | Portões de higiene: gitleaks no CI, varredura de travessão e meia-risca em QML e .ts, cada um com exit 1 antes da ação protegida. Plano, seção 2, NL-0.6. | Média (inferido) | — | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-1.1 | W1 | Engenharia | Identificação fiscal no Back: Cnpj (alfanumérico, com o DV da pesquisa W1 a), Cpf, Inscricao, CodigoMunicipio de 7 dígitos, Cep. Plano, seção 2, NL-1.1; spec R6. | Média (inferido) | Pesquisa W1 (a) | Média (inferido) | ⏳ Pendente | — |
 | NL-1.2 | W1 | Engenharia | Valor monetário no Back em centavos inteiros (int64), com parse pt-BR e aritmética sem ponto flutuante. Plano, seção 2, NL-1.2. | Média (inferido) | — | Média (inferido) | ⏳ Pendente | — |

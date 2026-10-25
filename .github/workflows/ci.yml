@@ -176,3 +176,119 @@ jobs:
           cat "$RUNNER_TEMP/autoteste.log"
           { echo "## Autoteste de camadas"; echo '```'; tail -n 3 "$RUNNER_TEMP/autoteste.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
+
+  # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
+  # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.
+  flatpak:
+    name: flatpak (build contra SDK KDE 6.11 e bundle)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    # Exemplo oficial da action: o builder precisa de --privileged para o bwrap do flatpak-builder (medido na NL-0.5).
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.11
+      options: --privileged
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build do manifesto e bundle (flatpak-builder)
+        id: builder
+        # Action fixada pelo commit do tag v6 (flatpak-github-actions). Sem restore-keys na action:
+        # o cache só casa com a chave exata, então a chave é estável por manifesto e pelo código do smoke.
+        uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6
+        with:
+          manifest-path: flatpak/io.github.petrinhu.notalivre.yml
+          cache-key: flatpak-builder-kde-6.11-${{ hashFiles('flatpak/io.github.petrinhu.notalivre.yml', 'flatpak/smoke/**') }}
+          bundle: notalivre.flatpak
+          artifact-name: notalivre-bundle
+
+      - name: Resumo do build Flatpak
+        if: always()
+        run: |
+          {
+            echo "## Flatpak (NL-0.5): build contra SDK 6.11"
+            echo "| Etapa | Resultado |"
+            echo "| --- | --- |"
+            echo "| Build e bundle (flatpak-builder) | ${{ steps.builder.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Plano B padrão (NL-0.5, D0.5): bundle instalado no host do runner, sem contêiner e sem --privileged.
+  # Portão: smoke QML offscreen (Qt 6.11.2), TCP 127.0.0.1 e os-release, todos dentro do sandbox.
+  smoke-host:
+    name: smoke no host do runner (plano B, sandbox)
+    needs: flatpak
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: notalivre-bundle
+          path: ${{ runner.temp }}/bundle
+
+      - name: Instalar flatpak no host
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak
+
+      - name: Runtime KDE 6.11 e bundle (instalação de usuário)
+        id: instalar
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.kde.Platform//6.11
+          flatpak install --user -y --bundle "$RUNNER_TEMP/bundle/notalivre.flatpak"
+
+      - name: Smoke QML offscreen dentro do sandbox
+        id: smoke
+        run: |
+          flatpak run --user --env=QT_QPA_PLATFORM=offscreen --command=notalivre-qml-smoke io.github.petrinhu.notalivre
+
+      - name: TCP 127.0.0.1 dentro do sandbox
+        id: tcp
+        run: |
+          python3 -m http.server --bind 127.0.0.1 47891 > "$RUNNER_TEMP/servidor.log" 2>&1 &
+          srv=$!
+          flatpak run --user --command=bash io.github.petrinhu.notalivre -c 'for i in $(seq 1 30); do exec 3<>/dev/tcp/127.0.0.1/47891 && break; sleep 0.5; done; printf "GET / HTTP/1.0\r\n\r\n" >&3; head -n 1 <&3' > "$RUNNER_TEMP/tcp.log" 2>&1
+          rc=$?
+          kill "$srv" 2>/dev/null
+          cat "$RUNNER_TEMP/tcp.log"
+          test "$rc" -eq 0 && grep -q 'HTTP/1.0 200' "$RUNNER_TEMP/tcp.log"
+
+      - name: os-release visto pelo sandbox
+        id: osrelease
+        run: flatpak run --user --command=cat io.github.petrinhu.notalivre /run/host/os-release
+
+      - name: Resumo do smoke no host
+        if: always()
+        run: |
+          {
+            echo "## Flatpak (NL-0.5): smoke no host do runner (plano B)"
+            echo "| Etapa | Resultado |"
+            echo "| --- | --- |"
+            echo "| Runtime e bundle | ${{ steps.instalar.outcome }} |"
+            echo "| Smoke QML offscreen | ${{ steps.smoke.outcome }} |"
+            echo "| TCP 127.0.0.1 | ${{ steps.tcp.outcome }} |"
+            echo "| os-release | ${{ steps.osrelease.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Mutação dos portões (definição de fechamento da Onda 0, L-36 e L-27): cada portão TEM de reprovar a própria
+  # sabotagem, pelo motivo esperado. Sabota só cópias em $RUNNER_TEMP. O job passa só se os quatro reprovarem.
+  mutacao:
+    name: mutação dos portões (A2, gitleaks, travessão, Flatpak 6.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Imagem de higiene (mesma do job higiene)
+        run: docker build -t notalivre-higiene:ci -f tools/portoes/higiene.Dockerfile tools/portoes
+
+      - name: Sabotagens e veredito dos quatro portões
+        id: mutacao
+        env:
+          HIGIENE_IMAGEM: notalivre-higiene:ci
+        run: bash tools/mutacao/sabotar_portoes.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/mutacao" docker

@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# NotaLivre: manifesto Flatpak mínimo da NL-0.5 (spike medido, plano 0.5). App-id da rodada 6 (spec 4.1).
+# Runtime KDE 6.11: o mais novo publicado no Flathub em 25/10/2026 (FATO medido; 6.12 não existe lá).
+# CMake raiz pede Qt 6.11 como mínimo (decisão do orquestrador, cumprindo o plano: portão da Onda 9).
+# Permissões: só as da lista da NL-0.5. Sem --filesystem=home e sem --socket=session-bus.
+app-id: io.github.petrinhu.notalivre
+runtime: org.kde.Platform
+runtime-version: '6.11'
+sdk: org.kde.Sdk
+command: notalivre-gui
+finish-args:
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+modules:
+  - name: notalivre
+    buildsystem: simple
+    build-commands:
+      - cmake -S . -B _build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - cmake --build _build
+      - install -Dm755 _build/apps/gui/notalivre-gui /app/bin/notalivre-gui
+      - install -Dm755 _build/apps/cli/notalivre-cli /app/bin/notalivre-cli
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - .git
+          - tools/conteiner
+  - name: notalivre-qml-smoke
+    buildsystem: cmake-ninja
+    sources:
+      - type: dir
+        path: smoke

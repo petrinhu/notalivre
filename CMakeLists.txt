@@ -12,8 +12,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_AUTOMOC ON)
 
-# Qt 6.12 com a lista de módulos do plano (NL-0.2). Não usar API exclusiva do 6.12 ainda (compatível com 6.11).
-find_package(Qt6 6.12 REQUIRED COMPONENTS Core Test Quick Qml Network)
+# Qt 6.11 como mínimo (NL-0.5): o build Flatpak roda contra o SDK KDE 6.11, portão da Onda 9. O CI nativo usa Qt 6.12.
+# API exclusiva do 6.12 quebra o build Flatpak (sabotagem no job mutacao do ci.yml).
+find_package(Qt6 6.11 REQUIRED COMPONENTS Core Test Quick Qml Network)
 
 # Avisos como erro, aplicados por alvo através deste INTERFACE (L-36: portão só conta depois de visto vermelho).
 add_library(nl_warnings INTERFACE)

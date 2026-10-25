@@ -120,3 +120,109 @@ O diagnóstico roda como root porque o índice do gerenciador só atualiza com r
 - `tools/conteiner/{fedora44,ubuntu26.04,manjaro,mint22.3}-build.Dockerfile`
 - `.github/workflows/ci.yml`
 - `docs/pesquisa/ci_medicao.md` (este arquivo)
+
+## Flatpak (NL-0.5)
+
+**ID:** NL-0.5 (spike medido do Flatpak). **Data:** 25/10/2026. **Branch:** `onda-0`.
+**Resultado:** o build Flatpak do manifesto contra o SDK KDE 6.11 fecha (rc=0), o bundle é gerado, e dentro do sandbox passam o smoke QML (Qt 6.11.2), o cliente TCP a 127.0.0.1 e a leitura de `/run/host/os-release`. O job `flatpak` e o job `mutacao` estão no `ci.yml`, mas o CI remoto ainda não rodou (sem push desta branch).
+
+### Ferramentas e runtime
+
+| Item | Medido | Log (rc no próprio log, salvo indicação) |
+| --- | --- | --- |
+| Download do SDK 6.11 | 1,2 GB | NL-0.5-remote-info-sdk.log (rc=0) |
+| Download do Platform 6.11 | 409,9 MB; instalado 1,1 GB | NL-0.5-remote-info-platform.log (rc=0) |
+| Instalação do runtime (usuário, host) | rc=0; SDK 3,2 GB instalado | NL-0.5-flatpak-install-runtime.log (rc=0) |
+| `org.flatpak.Builder` (Flathub, autorizado pelo líder) | download 136,8 MB; instalado 360,1 MB | NL-0.5-remote-info-builder.log (rc=0); instalação concluída em NL-0.5-flatpak-install-builder.log (sem linha rc); verificação em NL-0.5-builder-verificacao.log (rc=0) |
+| `flatpak-builder` dentro do Builder | 1.4.9 | NL-0.5-builder-version.log (rc=0) |
+| Instalação isolada (`FLATPAK_USER_DIR` em pasta fora do repositório): runtime 6.11 e bundle | 2,7 GB em disco | NL-0.5-isolada-list.log (rc=0); NL-0.5-isolada-install-bundle.log (rc=0) |
+
+**Por que o Platform aparece com 87 MB em uma medição antiga:** essa leitura foi `du` com o SDK e o Platform na mesma chamada. O `du` conta cada inode uma vez, e o SDK já contém os arquivos do Platform, então o número era só o que o Platform acrescentava. Lido sozinho, `du` dá 1,1 GB, igual ao `remote-info`.
+
+### Build e bundle
+
+- Build pelo `org.flatpak.Builder`, com `--disable-rofiles-fuse --force-clean`, manifesto `flatpak/io.github.petrinhu.notalivre.yml`, cópia limpa da árvore: **rc=0** (NL-0.5-flatpak-builder-build.log). Compila os 28 alvos com `-Werror` contra o Qt 6.11, sem patch.
+- Bundle `notalivre.flatpak` gerado com `flatpak build-bundle`: **rc=0** (NL-0.5-bundle.log), **18,5 KB**. O bundle traz só o app; o runtime não entra nele.
+- O flatpak-builder adiciona uma extensão de debug (`io.github.petrinhu.notalivre.Debug`) que não está no manifesto.
+
+### Sandbox (medido dentro do `flatpak run`, instalação isolada)
+
+| Teste | rc | Saída | Log |
+| --- | --- | --- | --- |
+| Smoke QML, `--env=QT_QPA_PLATFORM=offscreen --command=notalivre-qml-smoke` | 0 | `qt_em_execucao=6.11.2`, `raizes_qml=1` | NL-0.5-sandbox-smoke.log |
+| `notalivre-gui` (stub) | 0 | sem saída | NL-0.5-sandbox-gui.log |
+| `notalivre-cli` (stub) | 0 | sem saída | NL-0.5-sandbox-cli.log |
+| TCP `127.0.0.1:47891` (servidor `http.server` no host, cliente `bash /dev/tcp` no sandbox) | 0 | `HTTP/1.0 200 OK` | NL-0.5-sandbox-tcp-cliente.log |
+| `cat /run/host/os-release` no sandbox | 0 | `Fedora Linux 44 (Forty Four)` | NL-0.5-sandbox-os-release.log |
+
+Nenhuma janela foi aberta (L-50): o smoke roda só com `offscreen`, e os stubs não criam janela.
+
+### Compilação e testes contra o Qt 6.11 (medição histórica, fora do sandbox)
+
+Medida em contêiner `notalivre/build-fedora44:nl-0.4` (GCC 16.2.1, CMake 4.3.0), com runtimes copiados para fora do repositório. Os rc estão em NL-0.5-compilacao-resumo.log, que é o registro do script de medição (script removido depois que o patch saiu do repositório).
+
+| Etapa | rc |
+| --- | --- |
+| (a) `find_package(Qt6 6.12)` contra o Qt 6.11.2 | 1 (configure: versão 6.12 não compatível) |
+| (b) configure, build com `-Werror` e `tst_sanidade` (com patch 6.11, equivalente ao estado atual) | 0, 0, 0 (3 de 3 testes passam) |
+| (c) harness QML, build e execução | 0, 0 |
+| (d) TCP e os-release fora do sandbox | 0, 0 (referência, não vale como medição do Flatpak) |
+
+A mudança para 6.11 está no `CMakeLists.txt` raiz (uma linha, e o comentário ao lado). O CI nativo continua com 6.12.
+
+### Job `flatpak` e job `smoke-host` no `ci.yml`
+
+- `flatpak`: build contra o SDK 6.11 pela action `flatpak/flatpak-github-actions/flatpak-builder` (commit `79327416609af08178ad73b352877e51450790b3`, tag `v6`), no contêiner `ghcr.io/flathub-infra/flatpak-github-actions:kde-6.11` com `options: --privileged` (exemplo oficial da action). Artefato `notalivre-bundle` com o arquivo `notalivre.flatpak`. A action não tem `restore-keys`; a `cache-key` é estável por manifesto e pelo código do smoke, então só casa com a chave exata.
+- `smoke-host` (plano B padrão, D0.5): instala o bundle no host do runner, sem contêiner e sem `--privileged`, e roda smoke, TCP e os-release dentro do sandbox. Primeira execução no GitHub pendente. Pode ser que o Ubuntu do runner restrinja o bwrap por AppArmor; isso só o CI mostra.
+- A matriz das quatro distros saiu do ci.yml: um job com `echo` não mede nada. A medição do bwrap nas distros fica como pendência, sem job.
+
+### Job `mutacao` (definição de fechamento da Onda 0, passo 2)
+
+Script `tools/mutacao/sabotar_portoes.sh`, que sabota só cópias em pasta de rascunho. Cada portão tem de reprovar pelo motivo esperado. Execução local (`flatpak` no modo do Builder), rc do script = 0:
+
+| Portão | rc da sabotagem | Motivo |
+| --- | --- | --- |
+| A2 (`camadas.py`) | 1 | `VIOLACAO src/back/camada.cpp:8: back inclui nl/mid/camada.h` |
+| gitleaks (`higiene_segredos.sh`) | 1 | `REPROVA: segredo detectado`, chave gerada na hora |
+| Travessão (`higiene_travessao.py`) | 1 | `VIOLACAO README.md:36: travessao U+2014` |
+| Flatpak 6.11 (build) | 1 | `qSharedPointerStaticCast` não declarado no Qt 6.11 |
+
+Log: NL-0.5-mutacao-local.log. No CI, o mesmo script roda com o contêiner `flathub kde-6.11` (modo `docker`). Esse modo ainda não rodou no GitHub.
+
+### Permissões: de onde vêm
+
+O manifesto pede só `--share=network`, `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc` e `--device=dri`. Medido com `flatpak info --show-permissions` na instalação isolada (NL-0.5-permissoes-app.log, rc=0), o app também mostra `filesystems=xdg-config/kdeglobals:ro` e as três linhas de `[Session Bus Policy]` (`com.canonical.AppMenu.Registrar`, `org.kde.kconfig.notify`, `org.kde.KGlobalSettings`), que o manifesto não tem. Essas mesmas linhas estão no metadata do runtime `org.kde.Platform//6.11` (NL-0.5-permissoes-platform.log, rc=0). Então vêm do runtime KDE, não do manifesto. A origem exata no código do flatpak-builder não foi lida; a afirmação se apoia na comparação dos metadados.
+
+Para o dossiê da Onda 9: o acesso a `kdeglobals` e os talk-names do KDE são herança do runtime, e mudar o runtime muda essas permissões.
+
+### Ponto de decisão D0.5 (resolvido no que cabia)
+
+- O sandbox fechou com o `org.flatpak.Builder` autorizado pelo líder. A opção de contêiner com cap-add e a de `flatpak-builder` no host saíram da lista.
+- O CI nativo (Qt 6.12) segue como estava. O build Flatpak (6.11) é portão novo, ativo.
+- Pendente: a primeira execução remota dos jobs `flatpak`, `smoke-host` e `mutacao`.
+
+### Desvios de execução
+
+1. O Builder não enxergava o SDK da instalação do usuário: corrigido com `--filesystem=xdg-data/flatpak:ro` e `FLATPAK_USER_DIR` no `flatpak run` do Builder, só para aquela execução.
+2. Acesso à pasta de rascunho dado com `--filesystem` no mesmo `flatpak run`, também só para aquela execução.
+3. O `cmake-ninja` falhou em `ninja install` (rc=1), porque o projeto não tem regra de install. O módulo `notalivre` passou a `buildsystem: simple`, com `install` explícito de `notalivre-gui` e `notalivre-cli`.
+4. A instalação isolada baixou o runtime de novo (2,7 GB em disco no total).
+5. Na compilação de medição, o runtime precisou de cópia fora do repositório por causa do SELinux, de `CMAKE_SKIP_RPATH` e de isolamento do glibc (`stack smashing detected` em rodadas anteriores).
+
+### Disco e limpeza
+
+- btrfs (`btrfs filesystem usage /`, sem sudo): `Used` 123,15 GiB, `Free (estimated) min` 59,52 GiB, `Device unallocated` 2,09 GiB (sem mudança). `df` mostra 60 GB livres, só como indicativo.
+- Para remover depois do QA da onda (L-53): a pasta de rascunho `notalivre-nl05` (4,3 GB) e a instalação isolada `notalivre-flatpak-user` (2,7 GB), ambas fora do repositório. Os logs `NL-0.5-*` ficam na pasta `notalivre-logs`.
+- Os runtimes e o Builder do usuário ficam instalados.
+
+### Comandos exatos
+
+```
+flock <trava> nice -n 5 flatpak install --user -y flathub org.flatpak.Builder
+flock <trava> nice -n 5 flatpak run --user --filesystem=<rascunho> --filesystem=xdg-data/flatpak:ro --env=FLATPAK_USER_DIR=<home>/.local/share/flatpak --command=flatpak-builder org.flatpak.Builder --disable-rofiles-fuse --force-clean --repo=<rascunho>/repo --state-dir=<rascunho>/state <rascunho>/build <rascunho>/fonte/flatpak/io.github.petrinhu.notalivre.yml
+flatpak build-bundle <rascunho>/repo <rascunho>/notalivre.flatpak io.github.petrinhu.notalivre master
+FLATPAK_USER_DIR=<isolada> flatpak run --user --env=QT_QPA_PLATFORM=offscreen --command=notalivre-qml-smoke io.github.petrinhu.notalivre
+tools/mutacao/sabotar_portoes.sh <raiz> <trabalho> flatpak
+```
+
+`<trava>` é a trava compartilhada do NL-0.4 (`flock`). `<rascunho>`, `<isolada>` e `<trabalho>` são pastas fora do repositório. `<raiz>` é a árvore do repositório.
