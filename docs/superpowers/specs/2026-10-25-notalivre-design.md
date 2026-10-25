@@ -14,7 +14,7 @@
 - **EM ABERTO:** o líder ainda não decidiu. Não preencher por presunção.
 - **JÁ RESPONDIDO (rodada N):** item que estava EM ABERTO e que o líder decidiu depois. Traz a rodada de origem. Quando a rodada não consta no arquivo de memória, a linha diz isso.
 
-**Fontes de decisão:** arquivo de memória do projeto memÃ³ria local do projeto (nÃ£o versionada) (rodadas 1 a 8 e rodada do builder check). **Brief original:** `prompt-emissor-nfse-nacional.md` (raiz do repositÃ³rio). **Pesquisa fiscal aprofundada (25/10/2026):** `docs/pesquisa/fiscal_aprofundada.md`, usada na seção 6. Quando brief e memória conflitam, a memória prevalece (ver 4.0).
+**Fontes de decisão:** memória local do projeto, não versionada (rodadas 1 a 8 e rodada do builder check). **Brief original:** `docs/origem/prompt-emissor-nfse-nacional.md`. **Pesquisa fiscal aprofundada (25/10/2026):** `docs/pesquisa/fiscal_aprofundada.md`, usada na seção 6. Quando brief e memória conflitam, a memória prevalece (ver 4.0).
 
 ## 1. Intenção e porquê
 
