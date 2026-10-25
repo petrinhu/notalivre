@@ -6,7 +6,8 @@
 Grupos varridos:
   UI   : .qml e .ts (conteúdo inteiro); .cpp e .h (somente o texto dentro de tr("...") e qsTr("...")).
   DOCS : README.md da raiz e docs/**/*.md voltados ao usuário. Excluídos (documentação interna
-         de desenvolvimento): docs/superpowers/, docs/pesquisa/, docs/design/ e TODO.md.
+         de desenvolvimento): docs/superpowers/, docs/pesquisa/, docs/design/, docs/origem/, docs/auditoria/,
+         docs/adr/ e TODO.md.
 
 Allowlist ancorada na raiz: o caminho relativo que COMEÇA por tests/fixtures/higiene/
 (prefixo exato, não substring). Esses arquivos contam em ignorados_allowlist.
@@ -37,7 +38,10 @@ PREFIXO_ALLOWLIST = "tests/fixtures/higiene/"
 DIRETORIOS_IGNORADOS = (".git",)
 EXT_UI_INTEIRO = (".qml", ".ts")
 EXT_UI_LITERAL = (".cpp", ".h")
-DOCS_EXCLUIDOS = ("docs/superpowers/", "docs/pesquisa/", "docs/design/")
+# Documentação interna, fora do grupo DOCS (decisão do orquestrador, 25/10/2026): desenvolvimento (superpowers,
+# pesquisa, design), brief de origem de terceiro (docs/origem: texto de origem fica, exceção da L-32),
+# auditoria e ADRs.
+DOCS_EXCLUIDOS = ("docs/superpowers/", "docs/pesquisa/", "docs/design/", "docs/origem/", "docs/auditoria/", "docs/adr/")
 RE_TR = re.compile(rb'\b(?:tr|qsTr)\(\s*"((?:[^"\\]|\\.)*)"')
 
 

@@ -12,9 +12,10 @@
 #   distro: fedora44 | ubuntu26.04 | manjaro | mint22.3
 #
 # Variáveis de ambiente:
-#   NL_LOG         log do run (padrão: /var/tmp/notalivre-logs/NL-0.4-<distro>-<preset>.log)
+#   NL_TMP_BASE    base de temporários e de build no host (padrão: /var/tmp; o preset exige a variável)
+#   NL_LOG         log do run (padrão: $NL_TMP_BASE/notalivre-logs/NL-0.4-<distro>-<preset>.log)
 #   NL_FONTE       árvore de origem do build (padrão: a raiz do repositório)
-#   NL_BUILD_ROOT  diretório de build no host (padrão: /var/tmp/notalivre-build-<distro>)
+#   NL_BUILD_ROOT  diretório de build no host (padrão: $NL_TMP_BASE/notalivre-build-<distro>)
 #
 # Regras aplicadas (L-11, L-45, L-49):
 #   - um trabalho pesado por vez: cópia do rascunho E docker run ficam DENTRO da mesma trava flock $TRAVA;
@@ -25,18 +26,21 @@
 #   - o contêiner roda com --user 1000:1000 e sem --privileged.
 set -euo pipefail
 
-export TMPDIR=/var/tmp
+# Base de temporários e de build no HOST (A0-08). Padrão /var/tmp; trocável pela variável NL_TMP_BASE.
+NL_TMP_BASE="${NL_TMP_BASE:-/var/tmp}"
+export NL_TMP_BASE
+export TMPDIR="$NL_TMP_BASE"
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$RAIZ/tools/conteiner/build_local.sh"
 VOLUME_QT="notalivre-qt-6120"
 QT_PREFIXO="/opt/qt/6.12.0/gcc_64"
-# SELinux Enforcing: a árvore do IDrive é unlabeled_t e o contêiner não a lê por bind mount.
+# SELinux Enforcing: a árvore de origem (pasta sincronizada com a nuvem) é unlabeled_t e o contêiner não a lê por bind mount.
 # Por isso o contêiner recebe uma cópia de rascunho em /var/tmp (rótulo do próprio usuário, :z),
 # refeita a cada build. Não se relabela a árvore sincronizada do líder.
-SRC_COPIA="/var/tmp/notalivre-src"
-LOG_DIR="/var/tmp/notalivre-logs"
-TRAVA="/var/tmp/notalivre-heavy.lock"
+SRC_COPIA="$NL_TMP_BASE/notalivre-src"
+LOG_DIR="$NL_TMP_BASE/notalivre-logs"
+TRAVA="$NL_TMP_BASE/notalivre-heavy.lock"
 THREADS=13
 
 # Distros aceitas: cada uma tem <distro>-build.Dockerfile e instalar/<distro>.sh (ver ci.yml).
@@ -54,9 +58,15 @@ imagem_de()
 }
 
 # Executa um comando pesado sob a trava compartilhada e com prioridade reduzida.
+# Se o chamador já detém a trava (NL_TRAVA_DETIDA=1), não pede de novo: flock aninhado no mesmo arquivo
+# trava o próprio processo (medido em 25/10/2026: um flock órfão esperou a própria trava por 18 min).
 pesado()
 {
-    flock "$TRAVA" nice -n 5 "$@"
+    if [ "${NL_TRAVA_DETIDA:-}" = 1 ]; then
+        nice -n 5 "$@"
+    else
+        flock "$TRAVA" nice -n 5 "$@"
+    fi
 }
 
 construir_imagem()
@@ -82,7 +92,7 @@ qt_instalar()
     pesado docker run --rm -u 0:0 -v "$VOLUME_QT:/opt/qt" "$(imagem_de fedora44)" chown 1000:1000 /opt/qt
     # HOME em /tmp/home (gravável pelo uid 1000 no contêiner; /var/tmp da imagem é do root e aqt falha ali).
     # aqt pode terminar com status 0 mesmo após erro: a conferência final mede o artefato no volume.
-    pesado docker run --rm --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp \
+    pesado docker run --rm --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
         -v "$VOLUME_QT:/opt/qt" "$(imagem_de fedora44)" \
         sh -c 'mkdir -p "$HOME" && cd "$HOME" && aqt install-qt -O /opt/qt linux desktop 6.12.0 linux_gcc_64 -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets && test -f /opt/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake'
 }
@@ -99,10 +109,17 @@ copiar_fonte()
 
 # Trava própria do build: o subcomando "executar" a adquire aqui, antes de tocar em qualquer coisa.
 # Assim, mesmo chamado direto (sem construir), ele não roda fora da trava (L-11: um trabalho pesado por vez).
+# Se o chamador já detém a trava (NL_TRAVA_DETIDA=1), não pega de novo (ver pesado).
 adquirir_trava()
 {
+    if [ "${NL_TRAVA_DETIDA:-}" = 1 ]; then
+        return 0
+    fi
     exec 9> "$TRAVA"
     flock 9
+    # Quem adquire exporta a marca: nenhum filho readquire o mesmo arquivo.
+    NL_TRAVA_DETIDA=1
+    export NL_TRAVA_DETIDA
 }
 
 # Corpo do build. Adquire a trava por conta própria e só então copia o rascunho e roda o contêiner.
@@ -112,7 +129,7 @@ executar()
     local fonte="${NL_FONTE:-$RAIZ}"
 
     adquirir_trava
-    local build_host="${NL_BUILD_ROOT:-/var/tmp/notalivre-build-$distro}"
+    local build_host="${NL_BUILD_ROOT:-$NL_TMP_BASE/notalivre-build-$distro}"
 
     local imagem
     checar_distro "$distro"
@@ -128,7 +145,7 @@ executar()
     fi
     # Etapa 2, como 1000:1000: configure, build e ctest. Arquivos do build ficam com o dono do host.
     docker run --rm --cpus "$THREADS" --memory 20g --memory-swap 20g \
-        --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp \
+        --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
         -e CMAKE_PREFIX_PATH="$QT_PREFIXO" -e CMAKE_BUILD_PARALLEL_LEVEL="$THREADS" \
         -v "$SRC_COPIA:/src:ro,z" -v "$build_host:/var/tmp/notalivre-build:z" -v "$VOLUME_QT:/opt/qt:ro" \
         -w /src "$imagem" \

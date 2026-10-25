@@ -6,9 +6,10 @@
       "name": "base",
       "hidden": true,
       "generator": "Ninja",
-      "binaryDir": "/var/tmp/notalivre-build/${presetName}",
+      "binaryDir": "$env{NL_TMP_BASE}/notalivre-build/${presetName}",
+      "condition": { "type": "notEquals", "lhs": "$env{NL_TMP_BASE}", "rhs": "" },
       "cacheVariables": { "CMAKE_EXPORT_COMPILE_COMMANDS": "ON" },
-      "environment": { "TMPDIR": "/var/tmp" }
+      "environment": { "TMPDIR": "$env{NL_TMP_BASE}" }
     },
     {
       "name": "debug",

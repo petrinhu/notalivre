@@ -65,17 +65,17 @@ atualizar_indice()
 {
     local rc=0
     case "$(famiglia_distro)" in
-        deb)  apt-get update -qq > /var/tmp/medir_indice.$$ 2>&1 || rc=$? ;;
-        arch) pacman -Sy --noconfirm > /var/tmp/medir_indice.$$ 2>&1 || rc=$? ;;
-        dnf)  dnf -q makecache > /var/tmp/medir_indice.$$ 2>&1 || rc=$? ;;
+        deb)  apt-get update -qq > ${TMPDIR:-/var/tmp}/medir_indice.$$ 2>&1 || rc=$? ;;
+        arch) pacman -Sy --noconfirm > ${TMPDIR:-/var/tmp}/medir_indice.$$ 2>&1 || rc=$? ;;
+        dnf)  dnf -q makecache > ${TMPDIR:-/var/tmp}/medir_indice.$$ 2>&1 || rc=$? ;;
         *)    rc=1 ;;
     esac
     if [ "$rc" -ne 0 ]; then
         INDICE_OK=0
         echo "AVISO medir_versoes: falha ao atualizar o índice de pacotes (rc=$rc); candidatos marcados sem-indice"
-        sed -n '1,5p' /var/tmp/medir_indice.$$ 2>/dev/null | sed 's/^/  indice: /'
+        sed -n '1,5p' ${TMPDIR:-/var/tmp}/medir_indice.$$ 2>/dev/null | sed 's/^/  indice: /'
     fi
-    rm -f /var/tmp/medir_indice.$$
+    rm -f ${TMPDIR:-/var/tmp}/medir_indice.$$
 }
 
 # Versão candidata de um pacote no repositório: o que o gerenciador instalaria hoje.

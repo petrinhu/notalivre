@@ -226,3 +226,10 @@ tools/mutacao/sabotar_portoes.sh <raiz> <trabalho> flatpak
 ```
 
 `<trava>` é a trava compartilhada do NL-0.4 (`flock`). `<rascunho>`, `<isolada>` e `<trabalho>` são pastas fora do repositório. `<raiz>` é a árvore do repositório.
+
+## Remediação da auditoria da Onda 0 (25/10/2026)
+
+- **Flatpak local (ratificado pelo orquestrador):** o build local usa `org.flatpak.Builder` (sandbox autorizado pelo líder na NL-0.5), sem `--privileged`. Espelho: `tools/espelho/job_flatpak.sh`. O CI segue no contêiner com `--privileged` (ADR 0001).
+- **Sabotagem do tst_sanidade (ratificado):** fica como step do job `nativo` (não do job `mutacao`, que não tem Qt). O step `tools/conteiner/sabotar_sanidade.sh` exige o vermelho da cópia sabotada pelo motivo (`FAIL!` em `nomeCamadaDaBaseConfere`) e sai 1 caso contrário. O resumo do job mostra o outcome do step; o rc de build e de ctest fica no log do step.
+- **Espelho local:** `tools/espelho_local.txt` e `tools/espelho/rodar_espelho.sh`; a comparação com o workflow e o último run empurrado é `tools/espelho/comparar_jobs.sh` (run 40236959902, SHA 60748ca, 9 de 9 batem).
+- **Status desta seção:** implementação entregue, pendente verificação. Os rc dos jobs do espelho completo ainda não foram medidos neste registro.

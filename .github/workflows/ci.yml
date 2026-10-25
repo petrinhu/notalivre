@@ -16,6 +16,10 @@ on:
 permissions:
   contents: read
 
+# Base de temporários e de build (A0-08): padrão /var/tmp, trocável por variável; o preset exige NL_TMP_BASE.
+env:
+  NL_TMP_BASE: /var/tmp
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -88,6 +92,12 @@ jobs:
         id: ctest
         run: ctest --preset debug --output-on-failure
 
+      # A0-05 (L-36): o build nativo tem de REPROVAR uma sabotagem do próprio tst_sanidade, pelo motivo esperado.
+      # Roda no mesmo contêiner, sobre uma cópia em NL_TMP_BASE. Este step passa só se a sabotagem reprovar.
+      - name: Sabotagem de estreia do tst_sanidade (deve reprovar)
+        id: sabotagem_sanidade
+        run: bash tools/conteiner/sabotar_sanidade.sh
+
       - name: Resumo do build e do ctest
         if: always()
         run: |
@@ -98,6 +108,7 @@ jobs:
             echo "| Configure (debug) | ${{ steps.configure.outcome }} |"
             echo "| Build (debug) | ${{ steps.build.outcome }} |"
             echo "| ctest (debug) | ${{ steps.ctest.outcome }} |"
+            echo "| Sabotagem do tst_sanidade (deve reprovar) | ${{ steps.sabotagem_sanidade.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   higiene:
@@ -136,6 +147,18 @@ jobs:
           docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             python3 -I /src/tools/portoes/higiene_travessao.py /src
 
+      - name: Cabeçalho SPDX (portão e autoteste, A0-06)
+        id: spdx
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/spdx.py /src && bash /src/tools/portoes/autoteste_spdx.sh'
+
+      - name: Fixação do CI (digest, SHA e privilégio; ADR 0001, A0-07)
+        id: fixacao
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'python3 -I /src/tools/portoes/fixacao_ci.py /src && python3 -I /src/tools/portoes/fixacao_ci.py --autoteste'
+
       - name: Resumo da higiene
         if: always()
         run: |
@@ -146,6 +169,8 @@ jobs:
             echo "| Segredos no histórico (gitleaks git) | ${{ steps.segredos_historico.outcome }} |"
             echo "| Segredos na árvore (gitleaks dir) | ${{ steps.segredos_arvore.outcome }} |"
             echo "| Travessão e meia-risca | ${{ steps.travessao.outcome }} |"
+            echo "| Cabeçalho SPDX (portão e autoteste) | ${{ steps.spdx.outcome }} |"
+            echo "| Fixação do CI (digest, SHA e privilégio) | ${{ steps.fixacao.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   camadas:
@@ -187,7 +212,8 @@ jobs:
       contents: read
     # Exemplo oficial da action: o builder precisa de --privileged para o bwrap do flatpak-builder (medido na NL-0.5).
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.11
+      # Fixada por digest do índice multi-arch (A0-07, R6). Decisão de risco: docs/adr/0001-flatpak-privileged.md.
+      image: ghcr.io/flathub-infra/flatpak-github-actions@sha256:b0a8a2acb9e420dd0e3e083ff552bea5a817e17e41532f1d2287ff49ef9aae0e
       options: --privileged
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -291,4 +317,17 @@ jobs:
         id: mutacao
         env:
           HIGIENE_IMAGEM: notalivre-higiene:ci
-        run: bash tools/mutacao/sabotar_portoes.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/mutacao" docker
+        run: bash tools/mutacao/sabotar_portoes.sh "$GITHUB_SHA" "$RUNNER_TEMP/mutacao" docker
+
+      # A0-15 (L-36): o próprio harness precisa reprovar quando um portão não reprova. Sabota o harness
+      # (o a2 roda sem sabotagem) e exige rc 1. Se der rc diferente de 1, o harness é verde falso e o job cai.
+      - name: Controle do harness (o veredito tem de sair 1)
+        id: controle_harness
+        env:
+          HIGIENE_IMAGEM: notalivre-higiene:ci
+          MUTACAO_CONTROLE_HARNESS: "1"
+        run: |
+          rc=0
+          bash tools/mutacao/sabotar_portoes.sh "$GITHUB_SHA" "$RUNNER_TEMP/mutacao-controle" docker || rc=$?
+          echo "rc do controle do harness: $rc (esperado 1)"
+          test "$rc" -eq 1

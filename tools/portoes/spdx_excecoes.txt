@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Exceções declaradas do portão SPDX (NL-0.2, achado A0-06). Formato: caminho|motivo.
+# JSON não tem comentário, então não leva cabeçalho SPDX; a licença desses arquivos é a do repositório (LICENSE).
+# Arquivo declarado aqui que não existir na árvore reprova o portão (exceção obsoleta).
+CMakePresets.json|JSON sem comentário; licença do repositório (LICENSE, GPL-3.0-or-later)
+tools/portoes/travessao_config.json|JSON sem comentário; licença do repositório (LICENSE, GPL-3.0-or-later)

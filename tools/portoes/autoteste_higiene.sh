@@ -43,7 +43,7 @@ formato_trav() {
 
 # formato_seg SAIDA: a linha de contagem obrigatória do portão de segredos existe
 formato_seg() {
-    /usr/bin/grep -qE '^encontrados=[0-9]+ gitleaks_rc=' "$1"
+    /usr/bin/grep -qE '^encontrados=[0-9]+ analisados=[0-9]+ segredos=[0-9]+ gitleaks_rc=(-|[0-9]+)' "$1"
 }
 
 # roda_trav SAIDA ARGS...: roda o portão de travessão; RC recebe o status
@@ -201,6 +201,25 @@ roda_trav "$WORK/t18.out" "$WORK/t18"
 vio=$(campo "$WORK/t18.out" violacoes); docs=$(campo "$WORK/t18.out" encontrados_docs)
 falha=0; [ "$vio" -eq 0 ] && [ "$docs" -eq 1 ] || falha=1; formato_trav "$WORK/t18.out" || falha=1
 veredito "T18 travessao docs/design (interno) com U+2014 passa" 0 "$RC" "$falha" "violacoes=$vio encontrados_docs=$docs"
+
+# T19: documentação interna de origem, auditoria e ADR (docs/origem, docs/auditoria, docs/adr) com U+2014 PASSA
+raiz_limpa t19; mkdir -p "$WORK/t19/docs/origem" "$WORK/t19/docs/auditoria" "$WORK/t19/docs/adr"
+printf 'Brief \xe2\x80\x94 texto de origem\n' > "$WORK/t19/docs/origem/x.md"
+printf 'Achado \xe2\x80\x94 auditoria\n' > "$WORK/t19/docs/auditoria/y.md"
+printf 'Decisao \xe2\x80\x94 ADR\n' > "$WORK/t19/docs/adr/z.md"
+roda_trav "$WORK/t19.out" "$WORK/t19"
+vio=$(campo "$WORK/t19.out" violacoes)
+falha=0; [ "$vio" -eq 0 ] || falha=1; formato_trav "$WORK/t19.out" || falha=1
+veredito "T19 travessao docs/origem, docs/auditoria e docs/adr (internos) passam" 0 "$RC" "$falha" "violacoes=$vio"
+
+# T20: a exclusão não vaza para o README: README.md com U+2014 reprova mesmo com docs/origem presente
+raiz_limpa t20; mkdir -p "$WORK/t20/docs/origem"
+printf 'Brief \xe2\x80\x94 texto de origem\n' > "$WORK/t20/docs/origem/x.md"
+printf 'Projeto \xe2\x80\x94 README\n' >> "$WORK/t20/README.md"
+roda_trav "$WORK/t20.out" "$WORK/t20"
+vio=$(campo "$WORK/t20.out" violacoes)
+falha=0; [ "$vio" -ge 1 ] || falha=1; formato_trav "$WORK/t20.out" || falha=1
+veredito "T20 travessao README com U+2014 reprova com docs/origem presente" 1 "$RC" "$falha" "violacoes=$vio"
 
 # T14: docs voltados ao usuário com U+2014 reprovam
 raiz_limpa t14; mkdir -p "$WORK/t14/docs"
