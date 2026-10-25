@@ -1,0 +1,178 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+---
+# CI nativo do NotaLivre (NL-0.4, spike). Matriz das quatro distros, cada job num contêiner fixado por digest.
+# Espelha tools/conteiner/build_local.sh: os mesmos scripts (instalar/<distro>.sh, medir_versoes.sh,
+# precheque_qt.sh, executar_no_conteiner.sh), na mesma ordem. Tabela de versões no $GITHUB_STEP_SUMMARY (L-17).
+# Actions fixadas por SHA de commit (decisão do orquestrador); o comentário ao lado é a versão.
+# Estado: escrito e NÃO rodado no GitHub (CI remoto pendente de push da branch onda-0; ver docs/pesquisa/ci_medicao.md).
+name: ci
+
+on:
+  push:
+    branches: ['onda-*', main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nativo:
+    name: nativo (${{ matrix.distro }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: fedora44
+            imagem: fedora@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
+          - distro: ubuntu26.04
+            imagem: ubuntu@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944
+          - distro: manjaro
+            imagem: manjarolinux/base@sha256:bbf1f1d746f28e138eea610e140d2f28cbb5b7c5da2fbff034b883527aa604e9
+          - distro: mint22.3
+            imagem: linuxmintd/mint22.3-amd64@sha256:304bbf7ec2a61252962c5210467d231a141661490e8962f52fd4df7688370369
+    container:
+      image: ${{ matrix.imagem }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Ferramentas de build (mesmo script do Dockerfile)
+        run: |
+          bash tools/conteiner/instalar/${{ matrix.distro }}.sh
+          echo "/opt/aqt/bin" >> "$GITHUB_PATH"
+
+      - name: Caminho do Qt 6.12 (fixo por RUNNER_TEMP, o mesmo que o cache usa)
+        run: |
+          echo "QT_PREFIXO=$RUNNER_TEMP/qt/6.12.0/gcc_64" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$RUNNER_TEMP/qt/6.12.0/gcc_64" >> "$GITHUB_ENV"
+
+      - name: Cache do Qt 6.12 (aqt)
+        id: qt-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/qt
+          key: qt-6.12.0-linux_gcc_64-qtnetworkauth-qthttpserver-qtimageformats-qtshadertools-qtwebsockets-v1
+
+      - name: Qt 6.12 com aqt (só em cache miss)
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/qt"
+          aqt install-qt -O "$RUNNER_TEMP/qt" linux desktop 6.12.0 linux_gcc_64 \
+            -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets
+          test -f "$RUNNER_TEMP/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake"
+
+      - name: Tabela de versões e pré-cheque do Qt
+        run: |
+          bash tools/conteiner/medir_versoes.sh --markdown >> "$GITHUB_STEP_SUMMARY"
+          bash tools/conteiner/precheque_qt.sh
+
+      - name: Configure (preset debug)
+        id: configure
+        run: cmake --preset debug
+
+      - name: Build (preset debug)
+        id: build
+        run: cmake --build --preset debug
+
+      - name: ctest (preset debug)
+        id: ctest
+        run: ctest --preset debug --output-on-failure
+
+      - name: Resumo do build e do ctest
+        if: always()
+        run: |
+          {
+            echo "## Build e ctest: ${{ matrix.distro }}"
+            echo "| Etapa | Resultado |"
+            echo "| --- | --- |"
+            echo "| Configure (debug) | ${{ steps.configure.outcome }} |"
+            echo "| Build (debug) | ${{ steps.build.outcome }} |"
+            echo "| ctest (debug) | ${{ steps.ctest.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  higiene:
+    name: higiene (segredos e travessão)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # histórico inteiro, obrigatório para o modo git do gitleaks (L-28)
+
+      - name: Workspace seguro para o git do host
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Construir imagem de higiene
+        run: docker build -t notalivre-higiene:ci -f tools/portoes/higiene.Dockerfile tools/portoes
+
+      - name: Segredos no histórico (gitleaks git)
+        id: segredos_historico
+        # O contêiner roda como root sobre um workspace de outro dono (L-49): o safe.directory vai dentro dele.
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'git config --global --add safe.directory /src && gitleaks git /src --config /src/.gitleaks.toml --redact --no-banner --exit-code 1'
+
+      - name: Segredos na árvore (gitleaks dir)
+        id: segredos_arvore
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            bash /src/tools/portoes/higiene_segredos.sh /src
+
+      - name: Travessão e meia-risca (UI e docs)
+        id: travessao
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            python3 -I /src/tools/portoes/higiene_travessao.py /src
+
+      - name: Resumo da higiene
+        if: always()
+        run: |
+          {
+            echo "## Higiene (NL-0.6)"
+            echo "| Portão | Resultado |"
+            echo "| --- | --- |"
+            echo "| Segredos no histórico (gitleaks git) | ${{ steps.segredos_historico.outcome }} |"
+            echo "| Segredos na árvore (gitleaks dir) | ${{ steps.segredos_arvore.outcome }} |"
+            echo "| Travessão e meia-risca | ${{ steps.travessao.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  camadas:
+    name: camadas (portão A2 e autoteste)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Portão de camadas (camadas.py)
+        id: camadas
+        run: |
+          set +e
+          python3 -I tools/portoes/camadas.py "$GITHUB_WORKSPACE" > "$RUNNER_TEMP/camadas.log" 2>&1
+          rc=$?
+          cat "$RUNNER_TEMP/camadas.log"
+          { echo "## Camadas (NL-0.3)"; echo '```'; tail -n 3 "$RUNNER_TEMP/camadas.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
+      - name: Autoteste do portão de camadas (controles e sabotagem)
+        id: autoteste
+        run: |
+          set +e
+          bash tools/portoes/autoteste_camadas.sh > "$RUNNER_TEMP/autoteste.log" 2>&1
+          rc=$?
+          cat "$RUNNER_TEMP/autoteste.log"
+          { echo "## Autoteste de camadas"; echo '```'; tail -n 3 "$RUNNER_TEMP/autoteste.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
