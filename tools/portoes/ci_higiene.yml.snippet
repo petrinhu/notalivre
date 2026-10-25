@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+#
+# TRECHO de job para o ci.yml, a ser integrado pela fatia NL-0.4. NÃO é workflow: não rodar sozinho.
+# Portões de higiene do NotaLivre (NL-0.6). Sem allowlist de caminho: nenhuma fixture versiona segredo.
+# Três passos: segredos no histórico (gitleaks git, L-28), segredos na árvore (gitleaks dir) e travessão.
+# Os três rodam na imagem de higiene, construída de tools/portoes/higiene.Dockerfile, com a árvore montada só para leitura.
+  higiene:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # histórico inteiro, obrigatório para o modo git
+      - name: Construir imagem de higiene
+        run: docker build -t notalivre-higiene:ci -f tools/portoes/higiene.Dockerfile tools/portoes
+      - name: Segredos no histórico (gitleaks git)
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            gitleaks git /src --config /src/.gitleaks.toml --redact --no-banner --exit-code 1
+      - name: Segredos na árvore (gitleaks dir)
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            bash /src/tools/portoes/higiene_segredos.sh /src
+      - name: Travessão e meia-risca (UI e DOCS)
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            python3 -I /src/tools/portoes/higiene_travessao.py /src

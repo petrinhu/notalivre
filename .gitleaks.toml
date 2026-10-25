@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+#
+# Configuração do gitleaks da higiene do NotaLivre (NL-0.6).
+# Sem allowlist de caminho: nenhum diretório é isento. Os autotestes geram chaves falsas
+# na hora, fora do repositório, e NUNCA versionam chave ou senha de fixture.
+# Regra própria senha-literal: senha, password ou passwd atribuída a literal, inclusive em CMake set().
+
+title = "NotaLivre higiene de segredos"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "senha-literal"
+description = "Senha, password ou passwd atribuída a literal, inclusive em CMake set()"
+regex = '''(?i)\b(senha|password|passwd)\w*\s*(?:=|:|\(|\s)\s*"[^"\s${}]{4,}"'''

@@ -1,0 +1,333 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+---
+# CI nativo do NotaLivre (NL-0.4, spike). Matriz das quatro distros, cada job num contêiner fixado por digest.
+# Espelha tools/conteiner/build_local.sh: os mesmos scripts (instalar/<distro>.sh, medir_versoes.sh,
+# precheque_qt.sh, executar_no_conteiner.sh), na mesma ordem. Tabela de versões no $GITHUB_STEP_SUMMARY (L-17).
+# Actions fixadas por SHA de commit (decisão do orquestrador); o comentário ao lado é a versão.
+# Estado: rodado no GitHub (runs https://github.com/petrinhu/notalivre/actions/runs/40235050696, .../40236959902 e .../40241779760; o último, 40241779760, em fb264f5, 9 jobs success; ver docs/pesquisa/ci_medicao.md).
+name: ci
+
+on:
+  push:
+    branches: ['onda-*', main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Base de temporários e de build (A0-08): padrão /var/tmp, trocável por variável; o preset exige NL_TMP_BASE.
+env:
+  NL_TMP_BASE: /var/tmp
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nativo:
+    name: nativo (${{ matrix.distro }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: fedora44
+            imagem: fedora@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
+          - distro: ubuntu26.04
+            imagem: ubuntu@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944
+          - distro: manjaro
+            imagem: manjarolinux/base@sha256:bbf1f1d746f28e138eea610e140d2f28cbb5b7c5da2fbff034b883527aa604e9
+          - distro: mint22.3
+            imagem: linuxmintd/mint22.3-amd64@sha256:304bbf7ec2a61252962c5210467d231a141661490e8962f52fd4df7688370369
+    container:
+      image: ${{ matrix.imagem }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Ferramentas de build (mesmo script do Dockerfile)
+        run: |
+          bash tools/conteiner/instalar/${{ matrix.distro }}.sh
+          echo "/opt/aqt/bin" >> "$GITHUB_PATH"
+
+      - name: Caminho do Qt 6.12 (fixo por RUNNER_TEMP, o mesmo que o cache usa)
+        run: |
+          echo "QT_PREFIXO=$RUNNER_TEMP/qt/6.12.0/gcc_64" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$RUNNER_TEMP/qt/6.12.0/gcc_64" >> "$GITHUB_ENV"
+
+      - name: Cache do Qt 6.12 (aqt)
+        id: qt-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/qt
+          key: qt-6.12.0-linux_gcc_64-qtnetworkauth-qthttpserver-qtimageformats-qtshadertools-qtwebsockets-v1
+
+      - name: Qt 6.12 com aqt (só em cache miss)
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/qt"
+          aqt install-qt -O "$RUNNER_TEMP/qt" linux desktop 6.12.0 linux_gcc_64 \
+            -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets
+          test -f "$RUNNER_TEMP/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake"
+
+      - name: Tabela de versões e pré-cheque do Qt
+        run: |
+          bash tools/conteiner/medir_versoes.sh --markdown >> "$GITHUB_STEP_SUMMARY"
+          bash tools/conteiner/precheque_qt.sh
+
+      - name: Configure (preset debug)
+        id: configure
+        run: cmake --preset debug
+
+      - name: Build (preset debug)
+        id: build
+        run: cmake --build --preset debug
+
+      - name: ctest (preset debug)
+        id: ctest
+        run: ctest --preset debug --output-on-failure
+
+      # A0-05 (L-36): o build nativo tem de REPROVAR uma sabotagem do próprio tst_sanidade, pelo motivo esperado.
+      # Roda no mesmo contêiner, sobre uma cópia em NL_TMP_BASE. Este step passa só se a sabotagem reprovar.
+      - name: Sabotagem de estreia do tst_sanidade (deve reprovar)
+        id: sabotagem_sanidade
+        run: bash tools/conteiner/sabotar_sanidade.sh
+
+      - name: Resumo do build e do ctest
+        if: always()
+        run: |
+          {
+            echo "## Build e ctest: ${{ matrix.distro }}"
+            echo "| Etapa | Resultado |"
+            echo "| --- | --- |"
+            echo "| Configure (debug) | ${{ steps.configure.outcome }} |"
+            echo "| Build (debug) | ${{ steps.build.outcome }} |"
+            echo "| ctest (debug) | ${{ steps.ctest.outcome }} |"
+            echo "| Sabotagem do tst_sanidade (deve reprovar) | ${{ steps.sabotagem_sanidade.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  higiene:
+    name: higiene (segredos e travessão)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # histórico inteiro, obrigatório para o modo git do gitleaks (L-28)
+
+      - name: Workspace seguro para o git do host
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Construir imagem de higiene
+        run: docker build -t notalivre-higiene:ci -f tools/portoes/higiene.Dockerfile tools/portoes
+
+      - name: Segredos no histórico (gitleaks git)
+        id: segredos_historico
+        # O contêiner roda como root sobre um workspace de outro dono (L-49): o safe.directory vai dentro dele.
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'git config --global --add safe.directory /src && gitleaks git /src --config /src/.gitleaks.toml --redact --no-banner --exit-code 1'
+
+      - name: Segredos na árvore (gitleaks dir)
+        id: segredos_arvore
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            bash /src/tools/portoes/higiene_segredos.sh /src
+
+      - name: Travessão e meia-risca (UI e docs)
+        id: travessao
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            python3 -I /src/tools/portoes/higiene_travessao.py /src
+
+      - name: Cabeçalho SPDX (portão e autoteste, A0-06)
+        id: spdx
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/spdx.py /src && bash /src/tools/portoes/autoteste_spdx.sh'
+
+      - name: Fixação do CI (digest, SHA e privilégio; ADR 0001, A0-07)
+        id: fixacao
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'python3 -I /src/tools/portoes/fixacao_ci.py /src && python3 -I /src/tools/portoes/fixacao_ci.py --autoteste'
+
+      - name: Resumo da higiene
+        if: always()
+        run: |
+          {
+            echo "## Higiene (NL-0.6)"
+            echo "| Portão | Resultado |"
+            echo "| --- | --- |"
+            echo "| Segredos no histórico (gitleaks git) | ${{ steps.segredos_historico.outcome }} |"
+            echo "| Segredos na árvore (gitleaks dir) | ${{ steps.segredos_arvore.outcome }} |"
+            echo "| Travessão e meia-risca | ${{ steps.travessao.outcome }} |"
+            echo "| Cabeçalho SPDX (portão e autoteste) | ${{ steps.spdx.outcome }} |"
+            echo "| Fixação do CI (digest, SHA e privilégio) | ${{ steps.fixacao.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  camadas:
+    name: camadas (portão A2 e autoteste)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Portão de camadas (camadas.py)
+        id: camadas
+        run: |
+          set +e
+          python3 -I tools/portoes/camadas.py "$GITHUB_WORKSPACE" > "$RUNNER_TEMP/camadas.log" 2>&1
+          rc=$?
+          cat "$RUNNER_TEMP/camadas.log"
+          { echo "## Camadas (NL-0.3)"; echo '```'; tail -n 3 "$RUNNER_TEMP/camadas.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
+      - name: Autoteste do portão de camadas (controles e sabotagem)
+        id: autoteste
+        run: |
+          set +e
+          bash tools/portoes/autoteste_camadas.sh > "$RUNNER_TEMP/autoteste.log" 2>&1
+          rc=$?
+          cat "$RUNNER_TEMP/autoteste.log"
+          { echo "## Autoteste de camadas"; echo '```'; tail -n 3 "$RUNNER_TEMP/autoteste.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
+  # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
+  # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.
+  flatpak:
+    name: flatpak (build contra SDK KDE 6.11 e bundle)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    # Exemplo oficial da action: o builder precisa de --privileged para o bwrap do flatpak-builder (medido na NL-0.5).
+    container:
+      # Fixada por digest do índice multi-arch (A0-07, R6). Decisão de risco: docs/adr/0001-flatpak-privileged.md.
+      image: ghcr.io/flathub-infra/flatpak-github-actions@sha256:b0a8a2acb9e420dd0e3e083ff552bea5a817e17e41532f1d2287ff49ef9aae0e
+      options: --privileged
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build do manifesto e bundle (flatpak-builder)
+        id: builder
+        # Action fixada pelo commit do tag v6 (flatpak-github-actions). Sem restore-keys na action:
+        # o cache só casa com a chave exata, então a chave é estável por manifesto e pelo código do smoke.
+        uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6
+        with:
+          manifest-path: flatpak/io.github.petrinhu.notalivre.yml
+          cache-key: flatpak-builder-kde-6.11-${{ hashFiles('flatpak/io.github.petrinhu.notalivre.yml', 'flatpak/smoke/**') }}
+          bundle: notalivre.flatpak
+          artifact-name: notalivre-bundle
+
+      - name: Resumo do build Flatpak
+        if: always()
+        run: |
+          {
+            echo "## Flatpak (NL-0.5): build contra SDK 6.11"
+            echo "| Etapa | Resultado |"
+            echo "| --- | --- |"
+            echo "| Build e bundle (flatpak-builder) | ${{ steps.builder.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Plano B padrão (NL-0.5, D0.5): bundle instalado no host do runner, sem contêiner e sem --privileged.
+  # Portão: smoke QML offscreen (Qt 6.11.2), TCP 127.0.0.1 e os-release, todos dentro do sandbox.
+  smoke-host:
+    name: smoke no host do runner (plano B, sandbox)
+    needs: flatpak
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: notalivre-bundle
+          path: ${{ runner.temp }}/bundle
+
+      - name: Instalar flatpak no host
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak
+
+      - name: Runtime KDE 6.11 e bundle (instalação de usuário)
+        id: instalar
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.kde.Platform//6.11
+          flatpak install --user -y --bundle "$RUNNER_TEMP/bundle/notalivre.flatpak"
+
+      - name: Smoke QML offscreen dentro do sandbox
+        id: smoke
+        run: |
+          flatpak run --user --env=QT_QPA_PLATFORM=offscreen --command=notalivre-qml-smoke io.github.petrinhu.notalivre
+
+      - name: TCP 127.0.0.1 dentro do sandbox
+        id: tcp
+        run: |
+          python3 -m http.server --bind 127.0.0.1 47891 > "$RUNNER_TEMP/servidor.log" 2>&1 &
+          srv=$!
+          flatpak run --user --command=bash io.github.petrinhu.notalivre -c 'for i in $(seq 1 30); do exec 3<>/dev/tcp/127.0.0.1/47891 && break; sleep 0.5; done; printf "GET / HTTP/1.0\r\n\r\n" >&3; head -n 1 <&3' > "$RUNNER_TEMP/tcp.log" 2>&1
+          rc=$?
+          kill "$srv" 2>/dev/null
+          cat "$RUNNER_TEMP/tcp.log"
+          test "$rc" -eq 0 && grep -q 'HTTP/1.0 200' "$RUNNER_TEMP/tcp.log"
+
+      - name: os-release visto pelo sandbox
+        id: osrelease
+        run: flatpak run --user --command=cat io.github.petrinhu.notalivre /run/host/os-release
+
+      - name: Resumo do smoke no host
+        if: always()
+        run: |
+          {
+            echo "## Flatpak (NL-0.5): smoke no host do runner (plano B)"
+            echo "| Etapa | Resultado |"
+            echo "| --- | --- |"
+            echo "| Runtime e bundle | ${{ steps.instalar.outcome }} |"
+            echo "| Smoke QML offscreen | ${{ steps.smoke.outcome }} |"
+            echo "| TCP 127.0.0.1 | ${{ steps.tcp.outcome }} |"
+            echo "| os-release | ${{ steps.osrelease.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Mutação dos portões (definição de fechamento da Onda 0, L-36 e L-27): cada portão TEM de reprovar a própria
+  # sabotagem, pelo motivo esperado. Sabota só cópias em $RUNNER_TEMP. O job passa só se os quatro reprovarem.
+  mutacao:
+    name: mutação dos portões (A2, gitleaks, travessão, Flatpak 6.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Imagem de higiene (mesma do job higiene)
+        run: docker build -t notalivre-higiene:ci -f tools/portoes/higiene.Dockerfile tools/portoes
+
+      - name: Sabotagens e veredito dos quatro portões
+        id: mutacao
+        env:
+          HIGIENE_IMAGEM: notalivre-higiene:ci
+        run: bash tools/mutacao/sabotar_portoes.sh "$GITHUB_SHA" "$RUNNER_TEMP/mutacao" docker
+
+      # A0-15 (L-36): o próprio harness precisa reprovar quando um portão não reprova. Sabota o harness
+      # (o a2 roda sem sabotagem) e exige rc 1. Se der rc diferente de 1, o harness é verde falso e o job cai.
+      - name: Controle do harness (o veredito tem de sair 1)
+        id: controle_harness
+        env:
+          HIGIENE_IMAGEM: notalivre-higiene:ci
+          MUTACAO_CONTROLE_HARNESS: "1"
+        run: |
+          rc=0
+          bash tools/mutacao/sabotar_portoes.sh "$GITHUB_SHA" "$RUNNER_TEMP/mutacao-controle" docker || rc=$?
+          echo "rc do controle do harness: $rc (esperado 1)"
+          test "$rc" -eq 1

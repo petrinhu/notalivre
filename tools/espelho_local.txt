@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Espelho local do CI (R2, achado A0-02; L-36). Uma linha por job do ci.yml: NOME DO JOB NO CI | COMANDO LOCAL.
+# Os nomes são os do GitHub (matriz expandida). tools/espelho/comparar_jobs.py confere esta lista contra os jobs
+# do ci.yml e contra os nomes do último run empurrado. Executar tudo: tools/espelho/rodar_espelho.sh.
+# Cada comando roda o próprio trabalho dentro de contêiner (L-50) e pega a trava flock (L-11).
+nativo (fedora44) | bash tools/conteiner/build_local.sh fedora44 debug && bash tools/conteiner/build_local.sh fedora44 sabotagem-sanidade
+nativo (ubuntu26.04) | bash tools/conteiner/build_local.sh ubuntu26.04 debug && bash tools/conteiner/build_local.sh ubuntu26.04 sabotagem-sanidade
+nativo (manjaro) | bash tools/conteiner/build_local.sh manjaro debug && bash tools/conteiner/build_local.sh manjaro sabotagem-sanidade
+nativo (mint22.3) | bash tools/conteiner/build_local.sh mint22.3 debug && bash tools/conteiner/build_local.sh mint22.3 sabotagem-sanidade
+higiene (segredos e travessão) | bash tools/espelho/job_higiene.sh
+camadas (portão A2 e autoteste) | bash tools/espelho/job_camadas.sh
+flatpak (build contra SDK KDE 6.11 e bundle) | bash tools/espelho/job_flatpak.sh
+smoke no host do runner (plano B, sandbox) | bash tools/espelho/job_smoke.sh
+mutação dos portões (A2, gitleaks, travessão, Flatpak 6.11) | bash tools/espelho/job_mutacao.sh

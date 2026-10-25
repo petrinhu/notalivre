@@ -1,0 +1,56 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "$env{NL_TMP_BASE}/notalivre-build/${presetName}",
+      "condition": { "type": "notEquals", "lhs": "$env{NL_TMP_BASE}", "rhs": "" },
+      "cacheVariables": { "CMAKE_EXPORT_COMPILE_COMMANDS": "ON" },
+      "environment": { "TMPDIR": "$env{NL_TMP_BASE}" }
+    },
+    {
+      "name": "debug",
+      "inherits": "base",
+      "displayName": "Debug (assert ativo)",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "release",
+      "inherits": "base",
+      "displayName": "Release (assert desligado, NDEBUG)",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "asan-ubsan",
+      "inherits": "base",
+      "displayName": "Debug + AddressSanitizer + UBSan (sem recuperação)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "asan-ubsan", "configurePreset": "asan-ubsan" }
+  ],
+  "testPresets": [
+    { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
+    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } },
+    {
+      "name": "asan-ubsan",
+      "configurePreset": "asan-ubsan",
+      "output": { "outputOnFailure": true },
+      "environment": {
+        "ASAN_OPTIONS": "halt_on_error=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+      }
+    }
+  ]
+}

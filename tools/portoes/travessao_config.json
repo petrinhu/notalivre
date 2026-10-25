@@ -1,0 +1,4 @@
+{
+  "piso_ui_ligado": false,
+  "comentario": "Piso do grupo UI do portao de travessao (.qml, .ts, tr/qsTr em .cpp e .h). DESLIGADO ate a fatia NL-1.8: ligar em NL-1.8 (trocar para true). O grupo DOCS (README e docs voltados ao usuario) tem piso sempre ligado, independente desta chave."
+}
