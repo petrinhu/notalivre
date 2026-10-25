@@ -5,7 +5,7 @@
 # Espelha tools/conteiner/build_local.sh: os mesmos scripts (instalar/<distro>.sh, medir_versoes.sh,
 # precheque_qt.sh, executar_no_conteiner.sh), na mesma ordem. Tabela de versões no $GITHUB_STEP_SUMMARY (L-17).
 # Actions fixadas por SHA de commit (decisão do orquestrador); o comentário ao lado é a versão.
-# Estado: escrito e NÃO rodado no GitHub (CI remoto pendente de push da branch onda-0; ver docs/pesquisa/ci_medicao.md).
+# Estado: rodado no GitHub (runs https://github.com/petrinhu/notalivre/actions/runs/40235050696, .../40236959902 e .../40241779760; o último, 40241779760, em fb264f5, 9 jobs success; ver docs/pesquisa/ci_medicao.md).
 name: ci
 
 on:

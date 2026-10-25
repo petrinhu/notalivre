@@ -120,3 +120,60 @@ Nenhum.
 **Estado Auditado sugerido ao main** (o main grava no `TODO.md`; esta auditoria não edita o arquivo): NL-0.2, NL-0.3, NL-0.4, NL-0.5 e NL-0.6 em estado de aviso, pelos achados acima. NL-0.1 fica como não auditado nesta rodada (o conteúdo do canon não foi lido em profundidade; a licença foi conferida por hash).
 
 **Entrega do líder:** a decisão de fechar, o gatilho do `mutacao` (A0-03), o caminho padrão local (A0-08), o nome do titular (A0-13) e a permanência de arquivos no repositório público (A0-12) são decisões dele, levadas por AskUserQuestion.
+
+---
+
+## Re-teste 25/10/2026
+
+**Escopo:** HEAD `fb264f5` (remediação) em `onda-0`, confirmado por `git ls-remote origin` (`refs/heads/onda-0` = `fb264f5`). `main` segue em `06d4022`. Não há tag local nem remota. Leitura apenas, sem git de escrita.
+**CI:** run `40241779760`, SHA `fb264f5`, 9 jobs, todos `success`. Logs lidos por `gh run view --log` (L-49).
+**Logs locais:** pasta de logs da máquina, fora do repositório (R1, R2, R-autoteste e espelho-01 a espelho-09).
+
+### Itens da definição
+
+| # | Veredito | Evidência |
+|---|---|---|
+| 1 | **SIM** | Run 40241779760: os quatro nativos `success`. Em cada um, `Test #1 tst_sanidade Passed` (100%) e `sabotagem=tst_sanidade build_rc=0 ctest_rc=8 motivo=ok`, ou seja, sabotagem vermelha pelo motivo `nomeCamadaDaBaseConfere`. Qt 6.12.0 no prefixo do runner. |
+| 2 | **NÃO** (falta uma execução) | CI com SHA `fb264f5`: job `mutacao` com `fonte=git-archive sha=fb264f5`, e `a2`, `gitleaks`, `travessao`, `spdx` e `flatpak611` com `rc=1 motivo=ok`. Local: o R1 (A2, gitleaks e travessão, `rc=1 motivo=ok`) foi rodado no SHA `0cd5a29`, commit anterior. O espelho local 9/9 verde foi rodado em árvore suja (`0cd5a29+sujo`). Nenhuma execução local está no SHA `fb264f5`. Entre os dois SHAs mudaram `higiene_segredos.sh`, `higiene_travessao.py` e `sabotar_portoes.sh`, então o registro local não cobre o SHA fechado. |
+| 3 | **SIM** (pela letra) | D0.5 registrado em `docs/pesquisa/ci_medicao.md`. O texto ainda está defasado (A0-04). |
+| 4 | **SIM** | Os nove nomes de `tools/espelho_local.txt` são idênticos aos nove nomes do run 40241779760 (conferido por `diff`). O comparador tem controle: `R2-controle-sabotagem-comparador.log` reprova quando falta um job. O registro automático (`R2-comparar-jobs.log`) cita o run 40236959902; convém repetir contra 40241779760, mas não bloqueia. |
+| 5 | **SIM** | Os seis commits NL-0 têm ID e o `TODO.md` marca NL-0.1 a NL-0.6 como "Pendente verificação". `fb264f5` está no remoto. Ressalva: nenhum achado A0 foi para a INBOX (A0-17). |
+| 6 | **SIM** | Nenhum CRÍTICO nesta re-auditoria. |
+| 7 | **SIM** | Run 40241779760 (`fb264f5`), 9 jobs `success`. |
+| 8 | **SIM** | Sem merge (`main` = `06d4022`). Sem tag. `v0.1.0.0` está no `CMakeLists.txt` e no commit; a tag depende do aval do líder. |
+
+**A Onda 0 pode fechar hoje?** **Não.** Faltam a execução local do item 2 no SHA `fb264f5` (A0-01) e a correção do documento de medição (A0-04). O item 2 depende de uma execução local: repetir o R1 com `git archive fb264f5` no contêiner. O A0-16 precisa da ratificação do líder.
+
+**Rodada do espelho:** a primeira rodada teve três jobs com `rc=1` (higiene, camadas e smoke), por uma trava com aninhamento que travava. A rodada final (`R2-espelho-final.log`) ficou verde após a correção da trava (`R-autoteste-trava.log`, T1 e T2 verdes).
+
+### Achados
+
+| ID | Severidade | Estado | Reavaliação |
+|---|---|---|---|
+| A0-01 | IMPORTANTE | **Aberto** | Local no SHA `0cd5a29`, com `git archive`. Falta rodar no SHA `fb264f5` e registrar o SHA. |
+| A0-02 | IMPORTANTE | **Fechado** | `tools/espelho_local.txt` com 9 linhas; comparador com controle; nomes idênticos ao run atual. Espelho 9/9 verde em árvore suja (ver item 2). |
+| A0-03 | IMPORTANTE | **Fechado** | Decisão do líder (`mutacao` a cada push) registrada no plano; o diff de `fb264f5` não adiciona filtro de caminho ao job. |
+| A0-04 | IMPORTANTE | **Aberto** | `docs/pesquisa/ci_medicao.md` linhas 5, 113 e 190 e `ci.yml` linha 8 ainda dizem que o CI não rodou. A seção nova de `fb264f5` cita só o run 40236959902; faltam os runs 40241779760 e 40235050696 com links de job. |
+| A0-05 | IMPORTANTE | **Fechado** | Step `sabotagem_sanidade` nos quatro nativos, vermelho pelo motivo, `ctest_rc=8` (run 40241779760). |
+| A0-06 | IMPORTANTE | **Fechado** | `spdx.py`: 61 arquivos de código, 0 violações, 2 exceções declaradas (JSON). Autoteste SPDX com 6 controles verdes. Fixtures com cabeçalho. Sabotagem `spdx rc=1 motivo=ok` no `mutacao`. |
+| A0-07 | IMPORTANTE | **Aceito com decisão** | Imagem por digest `b0a8a2…` confirmada no log do job `flatpak`. ADR 0001 aceito. `fixacao_ci.py`: `privilegiados=3 violacoes=0` em cada push. Segue aberta a pendência do líder sobre `pull_request` de fork (C6 do ADR). |
+| A0-08 | COSMÉTICO | **Fechado** | Decisão do líder implementada: `binaryDir` por `$env{NL_TMP_BASE}` (`CMakePresets.json`, linha 9), com padrão de pasta temporária do sistema no CI. Efeito: o preset só existe com a variável definida (linha 10). |
+| A0-09 | COSMÉTICO | **Fechado** | `sabotar_portoes.sh` extrai do `git archive` (saída `fonte=git-archive`). |
+| A0-10 | COSMÉTICO | **Fechado** | Saída do gitleaks passou a `encontrados=96 analisados=96 segredos=0`. |
+| A0-11 | COSMÉTICO | **Fechado** | `.gitignore` com `.claude/` (commit `f9f20bc`). `git status` limpo. |
+| A0-12 | COSMÉTICO | **Aberto (parcial)** | Brief movido para `docs/origem/` (decisão do líder, implementada). `.bigtech-porte` segue rastreado, sem decisão registrada. |
+| A0-13 | COSMÉTICO | **Aceito com decisão** | Nome e e-mail confirmados pelo líder. Falta o registro no `CLAUDE.md` (L-68): a busca não encontrou nada. |
+| A0-14 | COSMÉTICO | **Fechado** | `tools/conteiner/build_local.sh` linha 34 sem nome de pasta pessoal. |
+| A0-15 | IMPORTANTE | **Fechado** | Controle do harness no job `mutacao`: `rc=1`, "1 de 1 portão(ões) NÃO reprovaram (verde falso)", step passa com `rc=1`. Local: `espelho-09` com `controle=1` e "JOB mutacao: VERDE". |
+| A0-16 | IMPORTANTE | **Aberto (decisão do líder)** | Novo. `tools/portoes/higiene_travessao.py` passou a excluir `docs/origem/`, `docs/auditoria/` e `docs/adr/` do grupo DOCS (`fb264f5`). Decisão do orquestrador, sem ratificação. A exclusão é por pasta inteira: documento novo com travessão nessas pastas passa. A justificativa escrita existe no código (L-36 exige escopo justificado); falta o aval do líder. Remediação: ratificar, ou restringir a arquivos nomeados (por exemplo, só o brief de origem). |
+| A0-17 | COSMÉTICO | **Aberto (processo)** | Novo. Nenhum A0-xx está no `TODO.md` (INBOX, L-63). Remediação: registrar A0-01 a A0-16. |
+
+### Remediação restante para fechar
+
+1. Repetir o R1 com `git archive fb264f5` no contêiner e registrar o SHA (fecha A0-01 e item 2).
+2. Corrigir `docs/pesquisa/ci_medicao.md` (linhas 5, 113 e 190) e `ci.yml` linha 8, citando os runs 40235050696, 40236959902 e 40241779760 com links de job (fecha A0-04).
+3. Líder ratifica ou restringe a exclusão do gate de travessão (A0-16).
+4. Registrar A0-01 a A0-16 na INBOX do `TODO.md` (A0-17).
+5. Tag `v0.1.0.0` só com aval do líder. Não é critério dos itens 1 a 8.
+
+**Limites desta re-auditoria:** não reexecutei sabotagens nem builds; os resultados vêm dos logs do CI e dos logs locais. Os logs locais do espelho e do R1 registram SHAs anteriores a `fb264f5`, e a conclusão do item 2 depende disso.

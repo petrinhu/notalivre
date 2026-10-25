@@ -2,7 +2,7 @@
 
 **ID:** NL-0.4 (spike medido do CI nativo). **Data:** 25/10/2026. **Branch:** `onda-0`.
 **Escopo medido:** o núcleo NL-0.2 (esqueleto CMake, alvo `tst_sanidade`) compilado e testado em quatro contêineres locais, um por vez, sob a trava `flock` da casa.
-**Status do CI remoto:** CI remoto pendente de push. O `ci.yml` está escrito e não foi rodado no GitHub.
+**Status do CI remoto:** o CI já rodou no GitHub. Runs: [40235050696](https://github.com/petrinhu/notalivre/actions/runs/40235050696) (SHA `1485c86`, 6 jobs success), [40236959902](https://github.com/petrinhu/notalivre/actions/runs/40236959902) (SHA `60748ca`, 9 jobs success) e [40241779760](https://github.com/petrinhu/notalivre/actions/runs/40241779760) (SHA `fb264f5`, 9 jobs success, o último).
 
 ## Resultado em uma linha
 
@@ -110,7 +110,7 @@ O diagnóstico roda como root porque o índice do gerenciador só atualiza com r
 4. **`asan-ubsan` não foi rodado** nas quatro distros. Está fora do escopo do spike (só `debug`). O `libasan`/`libubsan` só foi instalado no Fedora.
 5. **Erro corrigido no próprio script.** A primeira versão da medição rodava o índice do gerenciador como uid 1000 e engolia a falha: as candidatas saíram erradas. Corrigido: o diagnóstico roda como root, e uma falha de índice agora aparece como aviso e marca `sem-indice`, em vez de virar `ausente`. Os logs citados são dos scripts finais.
 6. **Aviso de CMake sobre `Qt6QmlAssetDownloaderPrivate`** nas quatro distros. Não quebra o build (ver seção de Qt).
-7. **CI remoto: pendente de push.** O `ci.yml` nunca rodou no GitHub. Riscos a conferir na primeira execução: cache do Qt em `${{ runner.temp }}` mapeado para o contêiner; o `actions/checkout` não exige `git` no contêiner: sem git, ele faz fallback pela API REST e baixa a árvore sem histórico. O que `gitleaks git` exige de fato é o histórico completo, com `fetch-depth: 0` no job `higiene` (que roda no runner `ubuntu-latest`, e não em contêiner), e o `git` dentro da imagem de higiene (presente, medido em REV-NL-0.4-higiene-git.log). Nos jobs `nativo`, o `git` é instalado pelo script por ser útil ao próprio build, não pelo checkout; e o Node que o runner injeta nas imagens Manjaro e Mint. A verificação do push é `git ls-remote`, conforme a L-24.
+7. **CI remoto: rodou.** Os runs [40235050696](https://github.com/petrinhu/notalivre/actions/runs/40235050696), [40236959902](https://github.com/petrinhu/notalivre/actions/runs/40236959902) e [40241779760](https://github.com/petrinhu/notalivre/actions/runs/40241779760) executaram no GitHub, o último em `fb264f5` com 9 jobs success. Os riscos abaixo eram o que a primeira execução devia conferir; esta correção não reauditou cada um deles, só registrou que os jobs chegaram a success. Riscos: cache do Qt em `${{ runner.temp }}` mapeado para o contêiner; o `actions/checkout` não exige `git` no contêiner: sem git, ele faz fallback pela API REST e baixa a árvore sem histórico. O que `gitleaks git` exige de fato é o histórico completo, com `fetch-depth: 0` no job `higiene` (que roda no runner `ubuntu-latest`, e não em contêiner), e o `git` dentro da imagem de higiene (presente, medido em REV-NL-0.4-higiene-git.log). Nos jobs `nativo`, o `git` é instalado pelo script por ser útil ao próprio build, não pelo checkout; e o Node que o runner injeta nas imagens Manjaro e Mint. A verificação do push é `git ls-remote`, conforme a L-24.
 
 ## Arquivos desta fatia
 
@@ -124,7 +124,7 @@ O diagnóstico roda como root porque o índice do gerenciador só atualiza com r
 ## Flatpak (NL-0.5)
 
 **ID:** NL-0.5 (spike medido do Flatpak). **Data:** 25/10/2026. **Branch:** `onda-0`.
-**Resultado:** o build Flatpak do manifesto contra o SDK KDE 6.11 fecha (rc=0), o bundle é gerado, e dentro do sandbox passam o smoke QML (Qt 6.11.2), o cliente TCP a 127.0.0.1 e a leitura de `/run/host/os-release`. O job `flatpak` e o job `mutacao` estão no `ci.yml`, mas o CI remoto ainda não rodou (sem push desta branch).
+**Resultado:** o build Flatpak do manifesto contra o SDK KDE 6.11 fecha (rc=0), o bundle é gerado, e dentro do sandbox passam o smoke QML (Qt 6.11.2), o cliente TCP a 127.0.0.1 e a leitura de `/run/host/os-release`. O job `flatpak` e o job `mutacao` estão no `ci.yml` e rodaram no GitHub com success (runs [40236959902](https://github.com/petrinhu/notalivre/actions/runs/40236959902) e [40241779760](https://github.com/petrinhu/notalivre/actions/runs/40241779760)).
 
 ### Ferramentas e runtime
 
@@ -173,7 +173,7 @@ A mudança para 6.11 está no `CMakeLists.txt` raiz (uma linha, e o comentário 
 ### Job `flatpak` e job `smoke-host` no `ci.yml`
 
 - `flatpak`: build contra o SDK 6.11 pela action `flatpak/flatpak-github-actions/flatpak-builder` (commit `79327416609af08178ad73b352877e51450790b3`, tag `v6`), no contêiner `ghcr.io/flathub-infra/flatpak-github-actions:kde-6.11` com `options: --privileged` (exemplo oficial da action). Artefato `notalivre-bundle` com o arquivo `notalivre.flatpak`. A action não tem `restore-keys`; a `cache-key` é estável por manifesto e pelo código do smoke, então só casa com a chave exata.
-- `smoke-host` (plano B padrão, D0.5): instala o bundle no host do runner, sem contêiner e sem `--privileged`, e roda smoke, TCP e os-release dentro do sandbox. Primeira execução no GitHub pendente. Pode ser que o Ubuntu do runner restrinja o bwrap por AppArmor; isso só o CI mostra.
+- `smoke-host` (plano B padrão, D0.5): instala o bundle no host do runner, sem contêiner e sem `--privileged`, e roda smoke, TCP e os-release dentro do sandbox. Primeira execução no GitHub: success no job `smoke no host do runner` dos runs [40236959902](https://github.com/petrinhu/notalivre/actions/runs/40236959902) e [40241779760](https://github.com/petrinhu/notalivre/actions/runs/40241779760). Nesses runs o job chegou a success, então a restrição do bwrap por AppArmor no Ubuntu do runner não o impediu.
 - A matriz das quatro distros saiu do ci.yml: um job com `echo` não mede nada. A medição do bwrap nas distros fica como pendência, sem job.
 
 ### Job `mutacao` (definição de fechamento da Onda 0, passo 2)
@@ -187,7 +187,7 @@ Script `tools/mutacao/sabotar_portoes.sh`, que sabota só cópias em pasta de ra
 | Travessão (`higiene_travessao.py`) | 1 | `VIOLACAO README.md:36: travessao U+2014` |
 | Flatpak 6.11 (build) | 1 | `qSharedPointerStaticCast` não declarado no Qt 6.11 |
 
-Log: NL-0.5-mutacao-local.log. No CI, o mesmo script roda com o contêiner `flathub kde-6.11` (modo `docker`). Esse modo ainda não rodou no GitHub.
+Log: NL-0.5-mutacao-local.log. No CI, o mesmo script roda no job `mutação dos portões` com o contêiner `flathub kde-6.11` (modo `docker`). Esse modo rodou no GitHub nos runs [40236959902](https://github.com/petrinhu/notalivre/actions/runs/40236959902) e [40241779760](https://github.com/petrinhu/notalivre/actions/runs/40241779760), com success.
 
 ### Permissões: de onde vêm
 
@@ -199,7 +199,7 @@ Para o dossiê da Onda 9: o acesso a `kdeglobals` e os talk-names do KDE são he
 
 - O sandbox fechou com o `org.flatpak.Builder` autorizado pelo líder. A opção de contêiner com cap-add e a de `flatpak-builder` no host saíram da lista.
 - O CI nativo (Qt 6.12) segue como estava. O build Flatpak (6.11) é portão novo, ativo.
-- Pendente: a primeira execução remota dos jobs `flatpak`, `smoke-host` e `mutacao`.
+- Primeira execução remota dos jobs `flatpak`, `smoke-host` e `mutacao`: rodou com success nos runs [40236959902](https://github.com/petrinhu/notalivre/actions/runs/40236959902) e [40241779760](https://github.com/petrinhu/notalivre/actions/runs/40241779760).
 
 ### Desvios de execução
 
