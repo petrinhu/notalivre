@@ -1,0 +1,17 @@
+# Build e saída de compilação
+build/
+build-*/
+out/
+compile_commands.json
+
+# Cache de ferramentas
+.cache/
+
+# Configuração local de IDE
+*.user
+
+# Cópia de trabalho de ramo (L-55): subpasta ignorada pelo git
+worktrees/
+
+# Log de ferramenta
+aqtinstall.log
