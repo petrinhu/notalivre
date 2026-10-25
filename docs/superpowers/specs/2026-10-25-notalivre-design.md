@@ -1,6 +1,6 @@
 # NotaLivre: documento de design (spec de produto)
 
-**Status:** rascunho v1, revisado após o builder check (25/10/2026). Não aprovado. Ratificação parcial: o líder aprovou o playback das partes 1 e 2 da rodada 8 com "Está certo, siga" (memória do projeto).
+**Status:** v1 APROVADA pelo líder em 25/10/2026 ("Aprovo", AskUserQuestion), após o builder check. As decisões da seção 4.14 continuam "a confirmar" até ratificação explícita. Ratificação parcial: o líder aprovou o playback das partes 1 e 2 da rodada 8 com "Está certo, siga" (memória do projeto).
 **Data:** 25/10/2026.
 **Natureza:** organização das decisões que o líder já tomou no brainstorm e no builder check. As propostas do orquestrador estão separadas, na seção 4.14, e aguardam confirmação do líder. Onde faltou decisão, está escrito EM ABERTO.
 

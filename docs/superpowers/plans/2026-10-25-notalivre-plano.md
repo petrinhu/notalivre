@@ -1,0 +1,638 @@
+# NotaLivre: plano de implementação em ondas e fatias
+
+> **Para quem executa (substitui o "REQUIRED SUB-SKILL" do formato writing-plans):** este plano é o passo 2 da L-16. Caetano (CTO) planejou e dividiu. O main confere o plano contra a árvore real (passo 3) e dispara os agentes especialistas da constelação bigtech (passo 4, L-10). Nenhum C-level dispara agente; nenhum agente implementa sem ordem de serviço do main. Modelo e esforço de cada agente: skill `/modelos_sessao` (L-11 item 1). Cada fatia vira uma linha do `TODO.md` com o ID abaixo (L-63).
+
+**Goal:** entregar a v1 do NotaLivre, app desktop Linux (Flatpak) que emite, consulta, cancela e substitui NFS-e pela API oficial do Sistema Nacional, com DANFSe local, e-mail, lote, cadastro de tomadores cifrado e LGPD, começando em Produção Restrita.
+
+**Architecture:** biblioteca núcleo em quatro camadas (Front, Mid, Back, Foundation) com dependência só para baixo (L-33), consumida por uma CLI e por uma interface QML. O caminho crítico de engenharia (DPS válida no XSD, XMLDSIG, envio mTLS contra servidor falso) fecha antes da interface completa; a casca QML nasce cedo, em trilha paralela, para receber o design visual.
+
+**Tech Stack:** C++23, Qt 6.12 (QtCore, QtNetwork, QtSql, QtQuick, QtNetworkAuth, QtGui/QPdfWriter), CMake, OpenSSL 3, libsodium (só Argon2id), libxml2, xmlsec1, zlib, libmariadb, QtKeychain; servidor falso em Python (biblioteca padrão); CI em GitHub Actions com contêineres; entrega em Flatpak.
+
+**Spec:** `docs/superpowers/specs/2026-10-25-notalivre-design.md` (as seções citadas como "spec 4.x" são dele). Pesquisas de base: `docs/pesquisa/*.md`.
+
+**Status deste plano:** v3, 25/10/2026, escrito por Caetano. A v1 foi levada ao líder pelo orquestrador (AskUserQuestion de 25/10/2026) e as respostas dele estão aplicadas aqui, marcadas "DECISÃO DO LÍDER, 25/10/2026" (lista completa na seção 6.2). A v3 aplica a revisão do ponto L7 (contêineres locais autorizados, lista fechada) e liga o mapa de campos do Emissor Web (`docs/pesquisa/campos_emissor_web.md`) às fatias de domínio, regras locais e interface. Pendentes: portas P1 a P5 (L4) e ações do líder (L8), seção 6.1. L9 (lista complementar de downloads) e L10 (divergências do Emissor Web) foram decididos pelo líder em 25/10/2026 (seção 6.2).
+
+**Divergência a corrigir pelo main (não por este plano):** o cabeçalho do spec diz "rascunho v1 ... Não aprovado". A memória do projeto (não versionada) registra o "Aprovo" do líder e o commit fbb8e91 publicado. Este plano usa a memória como fonte da aprovação.
+
+## Legenda
+
+- **FATO:** dado com fonte, sempre apontando o arquivo em `docs/pesquisa/` ou a seção do spec que traz a URL.
+- **INFERÊNCIA:** conclusão sem texto oficial lido. Quando é minha, diz "INFERÊNCIA do CTO".
+- **PREMISSA 4.14:** proposta do orquestrador listada no spec 4.14, tratada aqui como verdadeira. A seção 7 diz o que muda se ela cair.
+- **PORTA:** porta de mão única, difícil de reverter depois que existir dado ou publicação. Exige ratificação do líder (seção 6, ponto L4).
+- **DECISÃO DO LÍDER, 25/10/2026:** resposta do líder ao AskUserQuestion do orquestrador nessa data. Entre aspas, o rótulo da opção que ele escolheu.
+- **DECISÃO DO CTO, a confirmar:** escolha reversível, tomada para destravar o plano. O líder pode revogar sem custo estrutural.
+- **EM ABERTO:** o spec não decidiu. Ou vira decisão do CTO a confirmar, ou ponto para o líder, ou linha da INBOX. Nunca silêncio.
+
+## Global Constraints
+
+- Linguagem C++23 e Qt 6.12; interface QML e Qt Quick (spec 4.2, decisões do líder nas rodadas 1, 2 e 4).
+- Arquitetura: biblioteca núcleo, CLI e interface gráfica (spec 4.2, rodada 2). Verbatim do líder (rodada 1): "quero um app bem atomico, com camadas bem definidas".
+- Licença GPL-3.0-or-later (spec 4.1, rodada 3). app-id `io.github.petrinhu.notalivre` (rodada 6).
+- Entrega somente em Flatpak (spec 3.3, rodada 2: "só flatpak").
+- Banco MySQL, servidor local; assistente de primeiro uso (spec 4.4).
+- Cifra: AES-256-GCM por campo de dado pessoal mais índice cego; senha-mestra com Argon2id; chaveiro opcional; código de recuperação; cópia da chave do banco cifrada com o A1 de cada emissor; senha-mestra separada da senha do certificado (spec 4.4).
+- CNPJ tratado como texto alfanumérico (spec R6, NT 009 §2.1).
+- Id da DPS com 45 posições; série 00001 a 49999 do aplicativo próprio; número reservado e não usado vira pulo e nunca é reutilizado (spec R4).
+- DANFSe local; com tpAmb=2 o texto "NFS-e SEM VALIDADE JURÍDICA" é obrigatório (spec R3).
+- Produção: digitar CPF ou CNPJ e pedir a senha do certificado antes de emitir; Produção Restrita mostra a faixa "sem validade fiscal" (spec 4.12).
+- Lote continua e relata no fim; só as falhas são reenviadas; antes de reenviar consulta GET /dps/{id}; nada roda sem o usuário confirmar (spec 4.7, PREMISSA 4.14).
+- Texto de interface em pt-br, sem travessão (U+2014) nem meia-risca (U+2013) (L-32).
+- **Execução: contêiner local primeiro, CI depois (DECISÃO DO LÍDER, 25/10/2026, ponto L7 revisto).** A primeira resposta foi "Não; só no CI remoto". Ao confirmar, pela LEI DAS LEIS, a exceção que isso abria na L-36, o líder respondeu "autorizo containers locais" e, depois de ver os tamanhos medidos, "pode deixar tudo nas pastas padrao". Com isso a L-36 vale inteira ("rode local o que o CI vai rodar, antes do push, não depois"): cada fatia roda primeiro em contêiner local, nunca na sessão do líder (L-50), e só então vai por push à branch da onda, onde o CI repete. QML só offscreen, dentro do contêiner.
+- **Lista fechada autorizada pelo líder (L-51, 25/10/2026):** imagens `ubuntu:26.04`, `manjarolinux/base:latest`, `linuxmintd/mint22.3-amd64:latest`, `mysql:8.4` e `axllent/mailpit:latest` (`fedora:44` e `mariadb:11.8` já estavam no Docker local); Qt 6.12 por aqt, base `linux_gcc_64` mais `qtnetworkauth`, `qthttpserver`, `qtimageformats`, `qtshadertools` e `qtwebsockets` (FATO medido: 223 MB de download, 1,77 GB instalado); Flatpak `org.kde.Sdk//6.11` e `org.kde.Platform//6.11` (FATO medido: 1,6 GB de download, 4,3 GB instalado); e as ferramentas de build dentro dessas imagens. **Lista complementar (DECISÃO DO LÍDER, 25/10/2026, ponto L9: "Autorizo a lista toda"):** XSD e anexos gov.br, fontes Bricolage Grotesque e Atkinson Hyperlegible (OFL), gitleaks, `flatpak-builder`, cups-pdf e AT-SPI e Orca. Cada item é baixado só quando a fatia que o usa começar, e o relatório da fatia traz o tamanho medido. **Qualquer item fora das duas listas pede autorização nova antes da fatia que o usa; sem ela a fatia para, porque a L-36 não deixa rodar só no CI.**
+- **Pastas e limites (L-11):** Docker em `/var/lib/docker`; build e temporários em `/var/tmp`, com `TMPDIR` exportado (`/tmp` é tmpfs); resultado de build fora da árvore. Um trabalho pesado por vez (build, contêiner, suíte completa), serializado com `flock`, com `nice -n 5`; teto de 4 agentes vivos; nenhum laço que crie um processo por item varrido (teto de processos da L-11); disco conferido por `btrfs filesystem usage /` antes de cada trabalho pesado, nunca por `df`.
+- **Verificação:** o executor grava o log do contêiner local em `/var/tmp` e o cita na entrega; o main lê esse log e o do job do CI do SHA empurrado (L-49: a fonte de dentro do processo), este pelo MCP do GitHub (L-75), e faz spot-check arquivo:linha no blob commitado.
+- **Arquivos de terceiros que o build e os testes precisam** (XSD, Anexos A e B para conversão, fontes da spec visual): baixados de URL fixa e conferidos contra o SHA-256 versionado no repositório; o primeiro SHA-256 é registrado como confiança no primeiro uso. Autorizados pela lista complementar do ponto L9; baixados quando NL-1.6, NL-1.8 e NL-1.10 começarem, com tamanho medido no relatório.
+- TDD estrito, sem meta numérica de cobertura (L-35). Portão só conta depois de visto vermelho (L-36).
+- Commit por fatia com o ID e o `Status` do `TODO.md` no mesmo commit, implementação vira `🔍` (L-24, L-63).
+- **Fluxo de branch (DECISÃO DO LÍDER, 25/10/2026: "Branch de onda, push por fatia").** Cada onda tem branch própria (`onda-0`, `onda-1` e assim por diante). Cada fatia commitada é empurrada para a branch da onda só para o CI rodar (L-24, tempo 2). `main` só recebe a onda fechada pela definição de fechamento dela, com autorização explícita de merge do líder (L-24, tempo 4). Push conferido por `git ls-remote`, nunca pela mensagem do push.
+
+## Review Focus
+
+As cinco entradas que nenhum teste de fatia cobriria sozinho e que mais podem morder quem usa o app. Cada linha diz a fatia dona do teste.
+
+1. **CPF e CNPJ como o usuário digita:** máscara, espaços, minúsculas no CNPJ alfanumérico, zero à esquerda perdido. O mesmo valor entra por três portas gêmeas (GUI, CLI, importador de lote) e as três precisam passar pela mesma normalização (L-17). Teste `normalizacaoIgualNasTresEntradas` em NL-6.5, com os vetores de NL-1.1. A regra de dígito verificador do CNPJ alfanumérico está EM ABERTO no spec (R6) e tem pesquisa própria antes de NL-1.1.
+2. **Queda no meio da emissão:** processo morto ou rede caída depois do POST e antes de gravar a resposta. Esperado: nenhum número perdido sem registro e nenhuma reemissão às cegas. Testes de injeção de falha em NL-3.7 e NL-6.6.
+3. **Planilha real de Excel pt-BR:** separador `;`, vírgula decimal, Latin-1 ou UTF-8 com BOM, código numérico que perde zero à esquerda (FATO em `docs/pesquisa/tabelas.md`, Anexo B, cTribNac 10101 para 010101). Esperado: relatório por linha, nada emitido com dado adivinhado. Testes em NL-6.5.
+4. **A1 problemático:** senha errada, vencido, de outro CNPJ raiz, ou .pfx com cifra antiga (RC2 ou 3DES) que o OpenSSL 3 só abre com o provider legado (INFERÊNCIA do CTO, a medir). Esperado: mensagem distinta para cada caso, nunca "erro desconhecido". Testes em NL-2.2.
+5. **Dinheiro:** valor com três casas, separador trocado, soma de lote. Esperado: aritmética em centavos inteiros, nunca ponto flutuante binário. Testes em NL-1.2.
+
+---
+
+## 0. Pré-voo (main, antes da Onda 0)
+
+- **NL-P.1** Gerar o `TODO.md` via `/tab_pendencias` (pré-condição do meu mandato e da L-63). Cada fatia deste plano vira uma linha com o ID `NL-<onda>.<fatia>`, apontando para este plano e para a seção do spec que a especifica. A skill gera também o `AUDITORIAS.md` da raiz, podado para C++/Qt/MySQL.
+- **NL-P.2** Nada fora das listas do ponto L7 e do ponto L9 é baixado; item novo pede autorização nova antes da fatia. O ponto L4 (portas P1 a P5) é levado ao líder em bloco depois dos ADRs de NL-1.9 e antes da Onda 3 (DECISÃO DO LÍDER, 25/10/2026: "Em bloco, após os ADRs").
+- **NL-P.3** Registrar no `TODO.md` dois desvios de manual (L-73):
+  - CONTRACT 5.1 diz "Backend ← Infrastructure" e Middleware sem HTTP nem SQL. A L-33 diz "Cada camada só depende das de baixo" com Foundation embaixo e Mid como "orquestração/protocolo". Por precedência, vale a L-33 (mapeamento em 1.1).
+  - TESTES T1 diz "Cobertura mínima de 70%". A L-35 proíbe meta numérica. Vale a L-35.
+
+---
+
+## 1. Arquitetura-alvo
+
+### 1.1 Camadas e matriz de dependência (L-33)
+
+| Camada | Diretório | O que mora ali | Pode depender de | Proibido |
+|---|---|---|---|---|
+| Front | `apps/cli`, `apps/gui` | CLI e QML com seus modelos de vista em C++ | fachadas de `src/mid/composicao` | SQL, cripto, HTTP, regra fiscal, include de `src/back` ou `src/foundation` exceto `foundation/base` |
+| Mid | `src/mid/<adaptador>` | adaptadores que implementam os ports do Back sobre as primitivas da Foundation; raiz de composição; fachadas | `src/back`, `src/foundation` | QML, widget |
+| Back | `src/back/domain`, `src/back/app`, `src/back/ports` | entidades, regras fiscais, casos de uso, interfaces (ports) | só `src/foundation/base` | rede, SQL, cripto, XML, arquivo, Qt GUI |
+| Foundation | `src/foundation/<motor>` | motores agnósticos de domínio que embrulham terceiros; schema SQL; config | nada interno acima; `base` não depende de nenhum outro | qualquer tipo do domínio |
+
+- **Por que assim (DIP sem dependência para cima):** o Back define os ports e não conhece nenhuma biblioteca de infraestrutura. O Mid traduz domínio para o fio. A Foundation não sabe o que é uma DPS. O servidor falso, o MySQL de teste e o OAuth falso entram como substitutos do Mid ou da rede, sem tocar o Back.
+- **Como se verifica (A2):** cada camada é um alvo CMake que só linka para baixo, e o portão `tools/portoes/camadas` varre os `#include` por diretório contra esta matriz (NL-0.3). O portão nasce com autoteste de três controles e sabotagem de estreia (L-36).
+- **Contra o monolito no Mid (L-34):** cada adaptador tem diretório e razão de mudar próprios: `sefin`, `adn`, `persistencia`, `cofre`, `assistente_banco`, `correio`, `oauth`, `danfse`, `tabelas`, `cnpj`, `lote`, `composicao`.
+- **Convenção de nomes (DECISÃO DO CTO, a confirmar, registrada no CLAUDE.md do projeto):** identificadores em português sem acento, alinhados ao leiaute (Dps, Tomador, Emissor); classes em PascalCase, arquivos em snake_case. Erro por `std::expected<T, Erro>` (C++23). INFERÊNCIA do CTO: o GCC 13 do Mint 22.3 tem `<expected>`; confirma-se no spike NL-0.4.
+
+### 1.2 Módulos (cada um com uma razão de mudar)
+
+**Foundation**
+- `base`: `Erro`, `Bytes`, `Relogio` (interface e relógio do sistema), `Log` com redação de PII por categoria.
+- `crypto`: `Aead` (AES-256-GCM), `Kdf` (Argon2id), `Mac` (HMAC-SHA256), `Aleatorio` (CSPRNG), `EnvelopeRsa` (RSA-OAEP-SHA256).
+- `pkcs12`: `CarregadorPkcs12` devolve `CredencialX509` (certificado, chave, cadeia) em memória, com zeragem ao descartar.
+- `xml`: validação contra XSD e canonicalização (libxml2). `xmldsig`: `AssinadorXml` e `VerificadorXml` (xmlsec1), um só adaptador para as linhas 1.2 e 1.3.
+- `compressao`: `Gzip` (zlib) e `Base64`.
+- `net`: `TransporteHttps` (QtNetwork, mTLS, timeout, sem retry).
+- `sql`: `ExecutorSql` (QtSql, só `bindValue`) e `Migrador`. `schema`: arquivos de migração versionados.
+- `keychain`: `Chaveiro` (QtKeychain), com indisponibilidade explícita.
+- `oauth`: `FluxoOAuthPkce` (QtNetworkAuth, navegador do sistema, loopback 127.0.0.1, S256).
+- `pdf`: `EscritorPdf` (QPdfWriter e QPainter) e `Qr`.
+- `planilha`: `LeitorCsv` e `LeitorXlsx`.
+- `smtp` e `mime`: `ClienteSmtp`, `MontadorMime`.
+- `portal`: `SeletorArquivo` (FileChooser), `Impressao`, `EstadoSessaoTela`.
+- `config`: `Configuracao` em caminho XDG do sandbox.
+
+**Back**
+- `domain/identificacao`: `Cnpj`, `Cpf`, `Inscricao` (variante CPF ou CNPJ), `CodigoMunicipio`, `Cep`.
+- `domain/dinheiro`: `Valor` em centavos inteiros.
+- `domain/dps`: `Dps`, `IdDps`, `Serie`, `NumeroDps`, `Ambiente`, `Regime` (opSimpNac, regApIBSCBSSN), `GrupoIbsCbs`, `Servico`, `TomadorNaDps` (retrato da época).
+- `domain/regras`: uma regra local por arquivo, cada uma com o código E que ela antecipa.
+- `domain/numeracao`: `Numerador` (reserva, emissão, pulo com motivo).
+- `domain/emissor`, `domain/tomador`, `domain/evento`, `domain/lote`, `domain/tabelas`, `domain/custodia` (política de senha), `domain/email` (modelos).
+- `ports`: `GatewaySefin`, `GatewayAdn`, `RepositorioEmissor`, `RepositorioTomador`, `RepositorioNota`, `RepositorioNumeracao`, `RepositorioLote`, `RepositorioModelo`, `Cofre`, `ProvedorCredencial`, `EnviadorEmail`, `GeradorDanfse`, `FonteTabelas`, `ConsultaCnpj`.
+- `app`: um caso de uso por arquivo: `EmitirNota`, `RetomarEmissao`, `ConsultarNota`, `CancelarNota`, `SubstituirNota`, `BaixarNotasAdn`, `ProcessarLote`, `RetomarLote`, `AtualizarTabelas`, `GerirTomador`, `ExportarTomador`, `ExpurgarInativos`, `EnviarNotaPorEmail`, `ImprimirDanfse`, `AbrirSessao`, `DesbloquearCofre`, `RecuperarCofre`.
+
+**Mid**: os adaptadores listados em 1.1, a `RaizComposicao` e as fachadas (`FachadaEmissao`, `FachadaNotas`, `FachadaTomadores`, `FachadaLote`, `FachadaConfiguracao`, `FachadaPrimeiroUso`).
+
+**Front**: `apps/cli` (subcomandos `dps`, `emitir`, `consultar`, `cancelar`, `substituir`, `adn`, `lote`, `tabelas`, `tomador`) e `apps/gui` (`Main.qml`, `telas/`, `componentes/`, `tema/`, modelos de vista).
+
+**Testes e ferramentas**: `tests/unit/<camada>/<módulo>`, `tests/integracao`, `tests/e2e`, `tests/qml`, `tests/fixtures`, `tools/servidor_falso`, `tools/tabelas`, `tools/portoes`, `third_party/nfse-xsd/<versão>` (com SHA-256 de cada arquivo baixado).
+
+### 1.3 Bibliotecas candidatas
+
+Licença marcada como INFERÊNCIA quando não está nas pesquisas. Toda licença passa por Cláudio no gatilho K2 (seção 3) antes do commit que traz a dependência.
+
+| Necessidade | Escolha | Licença | Base | Porta? |
+|---|---|---|---|---|
+| XMLDSIG | xmlsec1 com OpenSSL, atrás de um adaptador | MIT (FATO, `docs/pesquisa/stack.md`, pacote Arch) | FATO: Fedora 44 tem 1.2.41, Ubuntu 26.04 tem 1.3.9, Mint 22.3 tem 1.2.39 (`stack.md`). A API muda entre linhas (INFERÊNCIA do CTO): o adaptador cobre as duas no CI nativo; o Flatpak embute uma | Não, com o adaptador |
+| XML e XSD | libxml2 | MIT (INFERÊNCIA) | Dependência do xmlsec1 | Não |
+| PKCS#12, AES-256-GCM, RSA-OAEP, HMAC | OpenSSL 3 | Apache-2.0, compatível com GPL-3 (INFERÊNCIA) | FATO: `QSslCertificate::importPkcs12` existe (`stack.md`). Escolho OpenSSL direto por já ser dependência do xmlsec1 e do TLS do Qt; AES-GCM sempre disponível (INFERÊNCIA) | Não |
+| Argon2id | libsodium (`crypto_pwhash`) | ISC (INFERÊNCIA) | INFERÊNCIA do CTO: Argon2 no OpenSSL só existe a partir da 3.2, e a base do Mint 22.3 (Ubuntu 24.04) traz 3.0. libsodium só oferece AES-256-GCM em CPU com AES-NI, por isso fica só para Argon2id. Fecha com `openssl list -kdf-algorithms` medido em cada contêiner (NL-0.4) | Não |
+| GZip e Base64 | zlib e Qt | Zlib (INFERÊNCIA) | Spec C4: GZip NÃO confirmado no texto oficial; Base64 confirmado. `qCompress` não gera GZip (INFERÊNCIA do CTO). Pesquisa antes de NL-2.4 | Não |
+| mTLS | QtNetwork (`QSslConfiguration`) | LGPL-3 (FATO, Qt LGPLv3, spec 3.3) | FATO: mTLS via `QSslConfiguration`, só exemplos de fórum (`stack.md`). Medido em NL-2.5 | Não |
+| OAuth com PKCE | QtNetworkAuth | **GPL-3 ou comercial, sem LGPL** (INFERÊNCIA do CTO, Cláudio confirma) | FATO: `PkceMethod` S256 desde Qt 6.8; `QOAuthHttpServerReplyHandler` com loopback; `callbackHost` desde 6.9 (`docs/pesquisa/email.md`) | **PORTA P5** |
+| SMTP | SimpleMail ou libcurl, escolha na pesquisa da Onda 7 | LGPL-2.1 e licença curl (INFERÊNCIA) | FATO: Qt não tem SMTP nativo, fonte de fórum (`stack.md`) | Não |
+| Driver do banco | QMYSQL com libmariadb (Connector/C) | LGPL-2.1 (INFERÊNCIA) | FATO: QMYSQL usa a biblioteca cliente em runtime; presença no runtime KDE NÃO CONFIRMADA (`docs/pesquisa/flatpak.md`). Prefiro libmariadb à libmysqlclient pela licença (INFERÊNCIA do CTO, Cláudio confirma) | Não |
+| Chaveiro | QtKeychain (libsecret) | BSD (INFERÊNCIA) | FATO: Secret portal com falhas em 2024 e 2026; workaround por `--talk-name` (`flatpak.md`). Chaveiro é opcional por decisão do líder: na falha, o app pede a senha, nunca grava texto claro | Não |
+| PDF do DANFSe | QPdfWriter e QPainter (QtGui) | LGPL-3 | INFERÊNCIA do CTO. Pré-visualização dentro do app com QtPdf, se couber | Não |
+| QR do DANFSe | qrcodegen (Nayuki) ou libqrencode | MIT ou LGPL-2.1 (INFERÊNCIA) | Se a NT 008 exigir QR (a confirmar na pesquisa da Onda 7) | Não |
+| CSV | leitor próprio, pequeno e testado por propriedade | GPL-3 do projeto | DECISÃO DO CTO, a confirmar | Não |
+| XLSX | QXlsx, OpenXLSX ou minizip com libxml2 | MIT, BSD-3 ou Zlib (INFERÊNCIA) | INFERÊNCIA do CTO: QXlsx usa API privada de zip do Qt, risco com 6.12. Escolha na pesquisa de abertura da Onda 5, porque as tabelas oficiais também chegam em xlsx (FATO, `tabelas.md`) | Não |
+| Servidor falso | Python, biblioteca padrão, com `xmllint` e `xmlsec1 --verify` como oráculos independentes | GPL-3 do projeto | DECISÃO DO CTO, a confirmar: o oráculo de teste não pode reaproveitar o código que ele testa | Não |
+
+### 1.4 Portas de mão única
+
+| ID | Porta | Por que não volta | Quem fixa | Antes de |
+|---|---|---|---|---|
+| P1 | Envelope de campo cifrado e hierarquia de chaves: versão, id de chave, nonce de 96 bits, texto cifrado e tag; AAD = tabela, coluna e id da linha; Argon2id da senha-mestra gera a KEK que envelopa a DEK; cópias da DEK envelopadas pelo código de recuperação e por RSA-OAEP com o certificado de cada emissor | Depois que houver dado de usuário, trocar exige migração com a chave aberta em cada máquina (categoria da L-70) | Narciso (ADR-S2), ratificação do líder | NL-3.3 |
+| P2 | Índice cego: HMAC-SHA256 com chave própria, sobre CPF ou CNPJ normalizado | Trocar algoritmo, chave ou normalização obriga reindexar tudo abrindo cada registro | Narciso (ADR-S3), ratificação do líder | NL-3.4 |
+| P3 | Protocolo de numeração: reservar e gravar o número antes de enviar, registrar o resultado, nunca reutilizar; série por instalação escolhida no assistente | Número usado ou pulado é fato fiscal (spec R4, NT 007 p. 9). Duas instalações do mesmo CNPJ na mesma série colidem (E0014) | CTO, ratificação do líder | NL-3.7 |
+| P4 | Schema v1 e mecanismo de migração | A primeira versão instalada fixa o ponto de partida de toda migração futura | CTO e backend-engineer, ratificação do líder | NL-3.1 |
+| P5 | Depender de módulo Qt só GPL (QtNetworkAuth) | Amarra o projeto à GPL; trocar de licença exigiria reescrever o OAuth | Cláudio, ratificação do líder (a GPL-3.0-or-later já é decisão dele) | NL-7.5 |
+| P6 | Canal de distribuição e app-id publicado | INFERÊNCIA do CTO: no Flathub, o app-id publicado é permanente | Líder. Fechada: canal Flathub (DECISÃO DO LÍDER, 25/10/2026, ponto L6); app-id da rodada 6 | NL-9.1 |
+
+O trade-off já registrado no spec 4.4 (quem tem o .pfx, a senha dele e uma cópia do banco decifra os dados sem a senha-mestra) entra no pacote de P1 como aceite explícito do líder, com a recomendação de Narciso.
+
+---
+
+## 2. Ondas e fatias
+
+Convenções de cada fatia: **Executor** é o agente bigtech que implementa. **Revisão** tem três camadas (L-12): revisor especialista distinto do executor, que executa o código em contêiner local e confere o CI (mutação pelo protocolo da L-27, sabotagem, oráculo independente); re-verificação do main (leitura do log local entregue pelo executor e do log do job do SHA empurrado, mutação própria diferente da do revisor, integridade de árvore e commit, spot-check arquivo:linha); e o `internal-auditor` no fechamento da onda, sempre depois de código e teste. **Testes primeiro** lista nomes e asserções; a ordem de serviço exige o trecho do log local com o vermelho e depois com o verde, mais o link do job do CI, cada um com o SHA (L-35). **Paralelo** só com arquivos disjuntos e um trabalho pesado por vez nesta máquina (L-11).
+
+**Mutação e sabotagem (L-27):** localmente, o revisor commita antes de sabotar, extrai uma cópia para `/var/tmp`, fora da árvore, sabota só a cópia, roda a suíte em contêiner e declara o SHA; quem verifica lê o blob commitado, nunca a working tree. No CI, o job `mutacao` do workflow recebe o SHA a verificar e uma lista de mutações (arquivo, linha, troca). O revisor grava a lista em `tests/mutacoes/<fatia>.txt` num commit próprio; o main dispara a dele pela entrada `workflow_dispatch`, sem tocar a árvore. O job copia o checkout para fora do workspace, aplica uma mutação por vez sobre a cópia, roda a suíte e imprime `encontradas / aplicadas / mortas / sobreviventes` sempre, mesmo zero (L-36); conferir `aplicadas == encontradas` prova que cada mutação chegou ao código. Mutação sobrevivente reprova a fatia. Nenhum arquivo rastreado é sabotado em lugar nenhum.
+
+**Captura de tela (L-13):** gerada offscreen em contêiner local (e repetida no job, publicada como artefato com o md5 no resumo); o qa-engineer confere o md5 nas duas pontas.
+
+Cada onda abre com uma **pesquisa de abertura** (L-22), despachada pelo main com o problema e a pergunta, nunca com a solução. Depois dela, Caetano pode refatiar a onda; quem refatia é o C-level, nunca o main nem o executor (L-16). As Ondas 0 a 2 estão detalhadas; as seguintes são provisórias até a pesquisa delas.
+
+### Onda 0: fundação de engenharia (Fase 5)
+
+**Pesquisa de abertura:** (a) Qt 6.12 em contêiner: o aqt resolve o Qt 6.12 com os módulos da lista fechada (FATO medido em 25/10/2026: 223 MB de download, 1,77 GB instalado); falta conferir nas quatro imagens e no runner; (b) flatpak-github-actions v6 e bwrap em contêiner (FATO: relatos de falha até com `--privileged`, `flatpak.md` Q8); (c) runtime KDE: FATO medido em 25/10/2026, o Flathub tem `org.kde.Sdk` e `org.kde.Platform` 6.10 e 6.11 e NÃO tem 6.12.
+
+#### NL-0.1 Canon do projeto
+- **Objetivo:** criar o `CLAUDE.md` do projeto (consumidor declarado pela L-21: MEI, autônomos e pequenas empresas do Simples, produto para distribuição a terceiros; matriz de camadas de 1.1; convenção de nomes; execução em contêiner local antes do CI, lista fechada, pastas padrão e fluxo de branch, decisões do líder de 25/10/2026 copiadas dos Global Constraints; ponteiros ao spec, à spec visual e a este plano), o `README.md` hub (L-73), o `LICENSE` com o texto da GPL-3.0 e o `.gitignore` (build, subpasta de worktree pela L-55).
+- **Adaptação da L-70 no `CLAUDE.md` (DECISÃO DO LÍDER, 25/10/2026, ponto L3: "Só na virada fiscal de Produção"):** o texto diz que as 7 fases da L-70 valem para a liberação de emissão real a terceiros (a virada fiscal de Produção, NL-12); que a Fase 2, Shadow Deployment, é substituída por dupla validação em Produção Restrita, com a justificativa de inviabilidade técnica que a L-70 exige (app desktop instalado na máquina de cada usuário, sem balanceador nem tráfego que se possa espelhar); e que as outras 6 fases ficam obrigatórias sem exceção. O texto cita a decisão do líder com a data e não acrescenta adaptação que ele não deu.
+- **EM ABERTO resolvido aqui (spec C5), DECISÃO DO CTO, a confirmar:** README entra; `.env.example` não entra, porque a configuração mora no app.
+- **Testes primeiro:** não se aplica (documento). Exceção declarada da L-35.
+- **Aceite:** o `CLAUDE.md` cita o consumidor com a frase do spec seção 1, traz a adaptação da L-70 acima e não traz decisão de produto que não esteja no spec ou nas decisões do líder de 25/10/2026.
+- **Executor:** technical-writer. **Revisão:** software-architect, Cláudio (só o `LICENSE`), main.
+- **Paralelo:** com NL-0.2.
+
+#### NL-0.2 Esqueleto CMake por camadas
+- **Objetivo:** alvos `nl_foundation_base`, `nl_foundation`, `nl_back`, `nl_mid`, `notalivre-cli`, `notalivre-gui`, cada um linkando só para baixo; presets `debug` (com `assert` ativo), `release`, `asan-ubsan` com `halt_on_error=1` e `-fno-sanitize-recover=all` (L-36); avisos tratados como erro; cabeçalho SPDX `GPL-3.0-or-later` em todo fonte; CTest com QtTest.
+- **Testes primeiro:** `tst_sanidade::falhaAntesDeExistir` (vermelho com o alvo vazio), depois verde. Prova que o executor de testes está ligado.
+- **Aceite:** build limpo nos presets `debug` e `asan-ubsan` em contêiner local e depois no CI, lido nos dois logs; um include proposital de `nl_mid` dentro de `nl_back`, aplicado numa cópia (L-27), quebra o link.
+- **Executor:** devops-sre. **Revisão:** software-architect (matriz), main.
+- **Paralelo:** com NL-0.1.
+
+#### NL-0.3 Portão A2 de camadas
+- **Objetivo:** `tools/portoes/camadas` varre os `#include` de `src/` e `apps/` contra a matriz de 1.1, numa única invocação que percorre os arquivos item a item, sem um processo por arquivo (L-11 item 6), e imprime `encontrados / analisados / violações` sempre, mesmo zero (L-36).
+- **Testes primeiro:** autoteste com três controles: árvore limpa passa; include de `src/mid` em `src/back` reprova; varredura vazia reprova.
+- **Aceite:** sabotagem de estreia vista vermelha no contêiner local e no CI, com o SHA citado.
+- **Executor:** devops-sre. **Revisão:** qa-engineer, main.
+- **Depende de:** NL-0.2.
+
+#### NL-0.4 Spike medido do CI nativo
+- **Onde mede:** primeiro nos quatro contêineres locais (imagens da lista fechada, ponto L7), um por vez com `flock` (L-11), depois no GitHub Actions. O resultado é o log local mais o log e o resumo do job.
+- **Objetivo:** workflow com matriz `fedora:44`, `ubuntu:26.04`, `manjarolinux/base`, `linuxmintd/mint22.3-amd64` (FATO: as duas últimas são imagens de terceiros, `stack.md`), fixadas por digest; obter Qt 6.12 pelo método da pesquisa (a); compilar NL-0.2 e rodar `tst_sanidade`; gravar no resumo do job (`$GITHUB_STEP_SUMMARY`, em todos os jobs, L-17) as versões de GCC, CMake, Qt, OpenSSL com `openssl list -kdf-algorithms`, libsodium, xmlsec1, libxml2 e zlib. O mesmo resultado vai para `docs/pesquisa/ci_medicao.md`, arquivo pedido por este plano.
+- **Pontos de decisão:** D0.4a, método de Qt 6.12: aqt, como na lista fechada; se falhar em alguma imagem ou no runner, compilar qtbase e qtdeclarative 6.12 uma vez e guardar em cache (no lado local, baixar o código-fonte do Qt é item fora das listas e pede autorização nova). D0.4b, subconjunto de C++23 que o GCC 13 do Mint compila (INFERÊNCIA do CTO: `std::print` e `<generator>` só no GCC 14); se faltar algo usado, a regra é não usar, sem trocar de compilador no contêiner sem ratificação.
+- **Aceite:** os quatro contêineres locais e os quatro jobs verdes, e uma sabotagem de `tst_sanidade` vista vermelha nos dois lados. L-49: contêiner roda como root; conferir antes de culpar a distro.
+- **Executor:** devops-sre. **Revisão:** qa-engineer, main.
+- **Depende de:** NL-0.2.
+
+#### NL-0.5 Spike medido do Flatpak
+- **Onde mede:** localmente com `org.kde.Sdk//6.11` e `org.kde.Platform//6.11` (lista fechada) e no GitHub Actions. FATO medido em 25/10/2026: o Flathub tem o runtime KDE 6.10 e 6.11 e não tem 6.12. O build local usa `flatpak-builder`, autorizado na lista complementar (ponto L9), baixado quando esta fatia começar.
+- **Objetivo:** manifesto mínimo (janela QML vazia, runtime KDE 6.11, o mais novo publicado) construído localmente e com flatpak-github-actions v6 no runner; bundle testado (a) no host Ubuntu do runner, que é o plano B padrão, e (b) nos quatro contêineres com `--privileged` no runner, como medição e não como portão. Mede também, dentro do sandbox, conexão TCP a 127.0.0.1 com `--share=network` (INFERÊNCIA de `flatpak.md` Q2), a leitura de `/run/host/os-release` para detectar a distro do host (INFERÊNCIA do CTO) e se o código compila contra o Qt 6.11 do SDK (insumo da decisão da Onda 9). O smoke do bundle roda só headless (`QT_QPA_PLATFORM=offscreen`), em contêiner local e no job, nunca na sessão do líder; captura de tela, se houver, é conferida pelo qa-engineer (L-13, L-50).
+- **Portão que preserva a escolha da Onda 9:** desta fatia em diante, o build Flatpak contra o SDK 6.11 roda a cada fatia; API exclusiva do Qt 6.12 quebra esse build. Assim o runtime 6.11 continua sendo opção real quando o líder decidir.
+- **Ponto de decisão D0.5:** se (b) falhar nas quatro distros, o plano B (host do runner) segue como padrão até a Onda 9, quando o líder decide a matriz Flatpak junto com o runtime (DECISÃO DO LÍDER, 25/10/2026, ponto L6: "Medir agora, decidir na Onda 9"). A medição vai para o dossiê dessa decisão.
+- **Aceite:** resultado gravado em `docs/pesquisa/ci_medicao.md` com o log local e o link do log do job.
+- **Executor:** devops-sre. **Revisão:** qa-engineer, main.
+- **Paralelo:** com NL-0.4 no CI; localmente, um por vez (L-11).
+
+#### NL-0.6 Portões de higiene
+- **Objetivo:** gitleaks no CI; varredura de travessão e meia-risca nos textos de interface (QML, `.ts`); cada portão termina com `exit 1` antes da ação que protege. O gêmeo local da L-56 é o mesmo portão em contêiner antes do push. O gitleaks está na lista complementar (ponto L9), baixado quando esta fatia começar.
+- **Testes primeiro:** chave privada falsa em fixture reprova; string QML com U+2014 reprova; varredura vazia reprova.
+- **Executor:** devops-sre. **Revisão:** security-engineer, main.
+- **Paralelo:** com NL-0.3.
+
+**Definição de fechamento da Onda 0:** (1) os quatro jobs nativos compilam e rodam `tst_sanidade` com Qt 6.12, ou o desvio medido foi levado ao líder; (2) A2, gitleaks e travessão vistos vermelhos por sabotagem, no contêiner local e no job `mutacao`, com SHA; (3) resultado de D0.5 registrado em `docs/pesquisa/ci_medicao.md` (a decisão sobre ele é da Onda 9, pelo ponto L6); (4) a lista de jobs do espelho local bate com a do workflow versionado e com a da última execução empurrada (L-36); (5) toda fatia commitada com ID e `🔍` e empurrada para `onda-0`; (6) relatório do internal-auditor sem CRÍTICO; (7) CI verde na branch `onda-0`, como uma linha entre as outras; (8) merge em `main` só depois de (1) a (7) e da autorização explícita do líder.
+
+### Onda 1: domínio fiscal e DPS válida no XSD (caminho crítico, parte 1) com casca QML em paralelo
+
+**Pesquisa de abertura:** (a) regra oficial do DV do CNPJ alfanumérico e vetores de teste (spec R6, EM ABERTO); (b) estrutura do XSD de Produção Restrita de 20/10/2026: namespace, atributo de versão, atributo Id que a assinatura referencia; (c) diferenças entre o Anexo I de 09/02/2026 e o de 20/10/2026 (FATO: não lidas, `ibscbs.md` Q1.c); (d) como o Id da DPS preenche as 14 posições de inscrição para CPF; (e) conferir o mapa de campos do Emissor Web (`docs/pesquisa/campos_emissor_web.md`) contra o Anexo I de 20/10/2026, inclusive os itens da seção 10 do mapa (não mapeados com certeza) e a tag de `ChaveAcessoFornPagRealizado` (divergência D5 do mapa).
+
+**Mapa de campos do Emissor Web (`docs/pesquisa/campos_emissor_web.md`):** FATO lido nos scripts públicos do site e cruzado com o Anexo I; é a referência de campo, tag, ocorrência, tipo e dependência para NL-1.4, NL-1.5, NL-4.5 e NL-8.1. Os endpoints internos do site (seção 7 do mapa) não são API pública e o app não os usa (L-57). Divergências D1, D3 e D4 do mapa: a validação segue o Anexo I e, onde o Emissor Web é mais rígido, o app mostra aviso não bloqueante (DECISÃO DO LÍDER, 25/10/2026, ponto L10: "Leiaute, com aviso do site"). D2 (IM do destinatário) não tem tag no leiaute e não entra.
+
+#### NL-1.1 Identificação fiscal (Back)
+- **Arquivos:** `src/back/domain/identificacao/{cnpj,cpf,inscricao,codigo_municipio,cep}.{h,cpp}`; testes em `tests/unit/back/identificacao/`.
+- **Interfaces produzidas:** `static std::expected<Cnpj, Erro> Cnpj::de(QStringView)`, `QString Cnpj::texto() const`, `QString Cnpj::raiz() const` (8 posições); idem `Cpf`; `using Inscricao = std::variant<Cnpj, Cpf>`; `CodigoMunicipio::de` com 7 dígitos.
+- **Testes primeiro:** `cnpjNumericoValidoAceito`, `cnpjAlfanumericoValidoAceito` (vetor da fonte oficial), `cnpjComMascaraNormalizado`, `cnpjMinusculoTratadoConformeFonte`, `cnpjDvErradoRejeitado`, `cpfDigitosRepetidosRejeitado`, `codigoMunicipioPreservaZeroAEsquerda`; propriedade: `normalizar(normalizar(x)) == normalizar(x)`.
+- **Aceite:** vetores oficiais da pesquisa (a) dentro dos testes, com a URL no comentário.
+- **Executor:** backend-engineer. **Revisão:** qa-engineer (mutação e propriedade), main. **Depende de:** pesquisa (a). **Paralelo:** NL-1.2, NL-1.8, NL-1.9, NL-1.10.
+
+#### NL-1.2 Valor monetário (Back)
+- **Interfaces:** `Valor` com `std::int64_t centavos`; `static std::expected<Valor, Erro> Valor::deTextoPtBr(QStringView)`; `QString Valor::paraLeiaute() const` com duas casas e ponto.
+- **Testes primeiro:** `virgulaDecimalAceita`, `tresCasasRejeitada`, `somaDeLoteSemPerda`, `negativoRejeitadoOndeLeiauteProibe`.
+- **Executor:** backend-engineer. **Revisão:** qa-engineer, main. **Paralelo:** NL-1.1.
+
+#### NL-1.3 Id da DPS e numeração em domínio (Back)
+- **Interfaces:** `static std::expected<IdDps, Erro> IdDps::montar(CodigoMunicipio, Inscricao, Serie, NumeroDps)`; `Serie::de(int)` aceita 1 a 49999; `class Numerador { Reserva reservar(); void confirmar(Reserva, ChaveAcesso); void pular(Reserva, MotivoPulo); }`; port `RepositorioNumeracao` (só a interface; adaptador em NL-3.5).
+- **Testes primeiro:** `idDpsTem45Posicoes`, `idDpsComCpfPreenchidoConformeManual` (pesquisa d), `serieZeroRejeitada`, `serie50000Rejeitada`, `numeroReservadoNuncaReutilizado`, `puloSempreTemMotivo`.
+- **Porta:** P3 (o protocolo durável fecha em NL-3.7).
+- **Executor:** backend-engineer. **Revisão:** qa-engineer, main. **Depende de:** NL-1.1.
+
+#### NL-1.4 Entidade Dps, regime e grupo IBS/CBS (Back)
+- **Objetivo:** campos do leiaute de Produção Restrita, conferidos contra as seções 1 a 3 do mapa de campos do Emissor Web (tag, ocorrência e tipo); regime com opSimpNac 2, 3 e 4 e regApIBSCBSSN 1, 2 e 3 (FATO, NT 009 §2.4, `fiscal_aprofundada.md` P4); grupo IBSCBS opcional (FATO, spec R9) com CST, cClassTrib e cIndOp validados só por formato. A validação contra tabela entra em NL-5.6.
+- **Testes primeiro:** `meiComOpSimpNac2`, `grupoIbsCbsAusentePermitidoEm2026`, `tomadorNaDpsGuardaRetratoDaEpoca`, `tomadorComCpfCnpjOuNif` (mapa, seção 5 item 7).
+- **Escopo:** campo do mapa que o spec não põe na v1 (obra, evento, comércio exterior, dedução por documento e outros) vira linha da INBOX para Capitolino, nunca corte silencioso pelo CTO (L-21).
+- **Executor:** backend-engineer. **Revisão:** qa-engineer, main. **Depende de:** NL-1.1, NL-1.2.
+
+#### NL-1.5 Regras locais (Back)
+- **Objetivo:** uma classe por regra que dá para checar sem a Sefin, cada uma com o código E no nome: E0187 (tomador obrigatório para certos cIndOp), E0234 (endereço do tomador), E0202 (prestador diferente do tomador), E0675 (emitente CPF sem tribFed), E1302 (MEI só vLiq), E0188 e E0206 (DV). Fonte: `tomador.md` Q6 e spec 5.1. Da árvore de dependências do mapa de campos do Emissor Web (seção 5, regras marcadas ALINHADO com o Anexo): E9996 (tpEmit só 1 nesta versão), E0850 (grupo IBS/CBS só com competência a partir de 01/01/2026), E0583 (MEI sem retenção de ISSQN), E0061 (MEI e vServ), E0532 (cTribNac 99.01.01 implica tribISSQN 4), E0302 e E0304 (local da prestação), E0390 (item 12 da lista exige evento), E0903 (tpOper em compra governamental e nos cTribNac listados), E0435 (sem dedução em imunidade), E0031, E0032 e E0204 (retenção pelo tomador ou intermediário exige identificação), E0262 (intermediário com a mesma raiz do prestador, como o Anexo e não como o site). E0234 segue o texto do Anexo (endereço só quando a incidência cai no local do tomador ou o cIndOp está na lista) e depende da tabela de incidência por município (Onda 5). **Ponto L10 (DECISÃO DO LÍDER, 25/10/2026: "Leiaute, com aviso do site"):** as regras só do site nunca bloqueiam; cada uma vira um aviso, numa classe própria fora das regras E, com teste de que aparece e de que não impede emitir: D1 (endereço de todo tomador CNPJ), D3 (tomador CNPJ em compra governamental), D4 (tomador igual ao intermediário). Testes: `d1TomadorCnpjSemEnderecoAvisaENaoBloqueia`, `d3CompraGovernamentalComCpfAvisaENaoBloqueia`, `d4TomadorIgualIntermediarioAvisaENaoBloqueia`, `e0234ForaDaIncidenciaNaoExigeEndereco`. Obra e evento exclusivos e retenção e suspensão exclusivas também são só do site: seguem o mesmo princípio, como aviso (DECISÃO DO CTO, a confirmar, por extensão da regra do líder). pAliq obrigatória no Simples com regApTribSN 1 e retenção é INFERÊNCIA do mapa: entra só depois de achada a regra E na pesquisa de abertura. E0138 e E0240 (CEP do município) precisam de base de CEP que o plano não tem: ficam para a Sefin, sem regra local.
+- **Testes primeiro:** para cada regra, um caso que passa e um que reprova, com o código E na asserção.
+- **Executor:** backend-engineer. **Revisão:** qa-engineer, main. **Depende de:** NL-1.4.
+
+#### NL-1.6 Codec XML da DPS e validação no XSD (Mid e Foundation)
+- **Arquivos:** `src/mid/sefin/leiaute/prodrest_20261020/codec_dps.{h,cpp}`; `src/foundation/xml/validador_xsd.{h,cpp}`; `third_party/nfse-xsd/prodrest-20261020/SHA256SUMS` com a URL e o SHA-256 de cada arquivo (FATO: URL no spec 5.1). Os XSD são baixados de URL fixa e conferidos contra esse arquivo (Global Constraints, arquivos de terceiros); o download local está autorizado (ponto L9) e acontece quando esta fatia começar. O leiaute fica numa pasta por versão (PREMISSA 4.14).
+- **Interfaces:** `QByteArray CodecDps::serializar(const Dps&)`; `std::expected<void, ErrosXsd> ValidadorXsd::validar(QByteArrayView xml, const Esquema&)`.
+- **Testes primeiro:** `dpsMeiMinimaValidaNoXsd`, `dpsSimplesComIbsCbsValidaNoXsd`, `dpsTomadorCpfSemEnderecoValida`, `campoObrigatorioAusenteReprova` (prova que o validador morde), `cnpjAlfanumericoSaiComoTexto`; teste de oráculo independente: `xmllint --schema` em contêiner local e no CI sobre os mesmos arquivos de referência.
+- **Aceite:** os arquivos de referência passam no validador próprio e no `xmllint`; o caso negativo reprova nos dois.
+- **Executor:** backend-engineer. **Revisão:** qa-engineer (independência do oráculo), main. **Depende de:** NL-1.4, pesquisa (b) e (c). Cláudio confere a redistribuição do XSD dentro do bundle (K2).
+
+#### NL-1.7 CLI `notalivre dps validar` (Front)
+- **Objetivo:** ler um JSON de entrada, montar a DPS pelas fachadas e gravar o XML validado. Serve de arnês para os testes ponta a ponta.
+- **Testes primeiro:** `tests/e2e/dps_validar`: três entradas de referência geram XML válido; entrada com CPF inválido sai com código diferente de zero e a mensagem da regra.
+- **Executor:** backend-engineer. **Revisão:** qa-engineer, main. **Depende de:** NL-1.6.
+
+#### NL-1.8 Casca QML (trilha paralela, só `apps/gui` e `tests/qml`)
+- **Fonte:** `docs/design/spec-visual.md`, fechada para implementação (decisões do líder nas rodadas visuais 1 a 5: direção Talão, paleta Musgo, Bricolage Grotesque nos títulos e Atkinson Hyperlegible no corpo, barra lateral, densidade confortável). Esta fatia cobre as fases 1 e 2 do plano faseado da seção 9 da spec visual.
+- **Objetivo:** singleton `Theme.qml` gerado do bloco JSON da seção 3.4 da spec visual, claro e escuro, único lugar com hex; fontes carregadas por `QFontDatabase::addApplicationFont` a partir de recursos (arquivos baixados com SHA-256 conferido, Global Constraints; download local autorizado no ponto L9, quando esta fatia começar); janela com cabeçalho de 44 px, `FaixaAmbiente` fixa abaixo dele com o texto da seção 4 da spec visual, e barra lateral de 184 px com os oito destinos em dois grupos (Notas: Emissão, Lote, Tomadores, Histórico; Cadastros: Modelos, Emissores, Tabelas, Configurações), item ativo sem depender só de cor. O botão "Atualizar tabelas" fica na área de conteúdo da tela Tabelas (spec visual seção 6), desabilitado até NL-5.7; a cópia no cabeçalho é proposta do diretor, a confirmar, e não entra aqui. Fala só com uma interface de fachada simulada.
+- **Testes primeiro:** `tst_FaixaAmbiente::visivelEmProducaoRestrita`, `tst_FaixaAmbiente::ocultaEmProducao`, `tst_FaixaAmbiente::naoPodeSerFechada`, `tst_Tema::tokensVemDoArquivo`, `tst_Tema::trocaClaroEscuroSemReinicio`, `tst_Tema::contrasteDos50Pares` (os 50 pares da seção 5 da spec visual medidos pela fórmula do WCAG antes do visual), `tst_Navegacao::oitoDestinosPorTeclado`; portão `nenhumHexForaDoTheme` (varredura de `apps/gui` com contagem impressa e sabotagem de estreia, L-36). Tudo com `QT_QPA_PLATFORM=offscreen` em contêiner local e no CI (L-50).
+- **Aceite:** captura de tela offscreen, claro e escuro, gerada em contêiner e conferida pelo qa-engineer contra a spec visual e o mockup `docs/design/mockups/04-telas-principais.html`, artefato congelado por md5 nas duas pontas (L-13).
+- **Executor:** frontend-engineer. **Revisão:** qa-engineer, main. **Paralelo:** com toda a Onda 1 (diretórios disjuntos).
+
+#### NL-1.9 Modelo de ameaças e ADRs de segurança (documento)
+- **Objetivo:** STRIDE sobre custódia do A1, senha-mestra, cofre, mTLS, XMLDSIG, credenciais SMTP, tokens OAuth, logs e Flatpak; ADR-S1 (custódia do A1), ADR-S2 (envelope e hierarquia de chaves, P1), ADR-S3 (índice cego, P2), ADR-S4 (logs sem PII), ADR-S5 (parâmetros do Argon2id). Arquivos em `docs/seguranca/` e `docs/adr/`, pedidos por este plano.
+- **Recomendações do CTO, que Narciso pode trocar:** A1 importado para dentro do cofre, cifrado pela DEK, em vez de guardar só o caminho (FATO: o caminho do portal Documents pode ficar obsoleto, `flatpak.md` Q7); logs nunca com senha, token, chave ou PII; o Id da DPS e a chave de acesso contêm a inscrição do emitente, e para emitente CPF isso é PII, então o log mascara a inscrição (INFERÊNCIA do CTO sobre o requisito do brief de logar Id e chave, spec 4.6); parâmetros do Argon2id gravados junto do dado, para permitir subir o custo depois.
+- **Aceite:** ADR-S1 e ADR-S4 aceitos por Narciso antes de NL-2.2; ADR-S5 aceito por Narciso antes de NL-3.2; ADR-S2 e S3 aceitos e P1 e P2 ratificadas pelo líder antes de NL-3.3.
+- **Executor:** security-engineer. **Revisão:** Narciso (assinatura), main. **Paralelo:** com toda a Onda 1.
+
+#### NL-1.10 Tabelas embutidas com fonte oficial já encontrada
+- **Objetivo:** `tools/tabelas` converte, em tempo de build, em contêiner, o Anexo A (municípios IBGE e países) e o Anexo B (cTribNac e NBS 2.0) para o formato embutido, gravando URL, data e SHA-256 da origem. FATO das duas fontes em `docs/pesquisa/tabelas.md` Q2. O código de serviço e o município entram já na primeira DPS válida, por isso esta fatia vem cedo. O formato embutido é o mesmo que a atualização da Onda 5 grava, para que a versão embutida sirva de base e de reserva sem rede (DECISÃO DO LÍDER, 25/10/2026, tabelas: "Fontes oficiais + embutidas").
+- **Testes primeiro:** `cTribNac10101ViraTexto010101`, `cTribNacConfereComItemSubitemDesdobro`, `municipioComSeteDigitos`, `nbsComFormatoPontuadoPreservado`.
+- **Executor:** data-engineer. **Revisão:** qa-engineer, main. **Paralelo:** com NL-1.1 a NL-1.6. O antigo ponto D1.10 (fonte melhor para municípios) foi resolvido pela decisão do líder: a API de localidades do IBGE ao abrir, com o Anexo A embutido como base (NL-5.2).
+
+**Definição de fechamento da Onda 1:** (1) cada fatia de comportamento tem a saída do vermelho e do verde na ordem de serviço; (2) `notalivre dps validar` gera XML de três entradas de referência (MEI, Simples com IBS/CBS, tomador CPF) aceito pelo `xmllint` contra o XSD de Produção Restrita de 20/10/2026, e a entrada sem campo obrigatório reprova; (3) portão A2 verde sem exceção; (4) testes QML verdes offscreen, os 50 pares de contraste verdes, portão de hex visto vermelho, e relatório de captura do qa-engineer contra a spec visual; (5) ADR-S1 e ADR-S4 aceitos por Narciso; (6) testes da linha 1 do Review Focus presentes em NL-1.1; (7) internal-auditor sem CRÍTICO; (8) CI verde nas quatro distros.
+
+### Onda 2: assinatura, envelope e envio mTLS contra servidor falso (caminho crítico, parte 2)
+
+**Pesquisa de abertura:** (a) algoritmo de assinatura e de canonicalização que o leiaute exige; (b) corpo exato do POST /nfse e se há GZip (spec C4); (c) caminho base da API (FATO: swagger respondeu 403, spec R2); (d) OIDs ICP-Brasil que levam CNPJ e CPF no certificado, para conferir "mesmo CNPJ raiz"; (e) provider legado do OpenSSL 3 para .pfx antigo; (f) diferenças de API entre xmlsec1 1.2 e 1.3; (g) formato de resposta de sucesso e de erro da Sefin (o servidor falso depende disso).
+
+#### NL-2.1 Fixtures de certificados de teste
+- **Objetivo:** script que gera, na preparação do teste dentro do contêiner (local ou do CI) e nunca no repositório nem na sessão do líder, uma AC de teste, certificados de cliente com CNPJ, com CPF, vencido, revogado (com LCR), de outro CNPJ raiz, e .pfx com cifra moderna e com cifra legada; mais o certificado do servidor falso.
+- **Testes primeiro:** `fixturesGeradasSaoLidasPeloOpenssl`, `nenhumaChavePrivadaRastreadaNoGit` (o gitleaks de NL-0.6 reprova se alguém commitar).
+- **Executor:** security-engineer. **Revisão:** qa-engineer, main. **Paralelo:** com NL-2.6.
+
+#### NL-2.2 Carregador PKCS#12 (Foundation)
+- **Interfaces:** `std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteArrayView pfx, SenhaSegura senha)`; `ErroCredencial` distingue `SenhaErrada`, `CifraLegadaIndisponivel`, `Vencido`, `CadeiaInvalida`, `SemInscricao`; `Inscricao CredencialX509::inscricao() const`. A senha é zerada após o uso.
+- **Testes primeiro:** `senhaCorretaCarrega`, `senhaErradaDaErroProprio`, `cifraLegadaCarregaComProviderLegado`, `vencidoSinalizado`, `cnpjExtraidoDoCertificado`, `cpfExtraidoDoCertificado`.
+- **Executor:** backend-engineer. **Revisão:** security-engineer, main. **Depende de:** NL-2.1, ADR-S1, pesquisa (d) e (e).
+
+#### NL-2.3 Assinador e verificador XMLDSIG (Foundation)
+- **Interfaces:** `std::expected<QByteArray, Erro> AssinadorXml::assinarEnveloped(QByteArrayView xml, QStringView idReferencia, const CredencialX509&)`.
+- **Testes primeiro:** `assinaturaConfereNoXmlsec1Cli` (oráculo independente), `xmlAlteradoDepoisDeAssinarReprova`, `xmlAssinadoContinuaValidoNoXsd`.
+- **Executor:** backend-engineer. **Revisão:** security-engineer, main. **Depende de:** NL-1.6, NL-2.2, pesquisa (a) e (f).
+
+#### NL-2.4 Envelope da DPS (Mid)
+- **Objetivo:** montar o corpo do POST conforme o manual. Ponto de decisão D2.4: se o manual não pedir GZip, fica só o Base64.
+- **Testes primeiro:** `envelopeIdaEVolta`, `envelopeIgualAoExemploDoManual` (se o manual tiver exemplo).
+- **Executor:** backend-engineer. **Revisão:** qa-engineer, main. **Depende de:** pesquisa (b).
+
+#### NL-2.5 Transporte HTTPS com mTLS (Foundation)
+- **Interfaces:** `TransporteHttps(UrlBase, ConfiguracaoTls)`; `std::expected<RespostaHttp, ErroTransporte> enviar(const RequisicaoHttp&)`; `ErroTransporte` separa transitório (timeout, conexão) de definitivo. URL base sempre configurável.
+- **Testes primeiro (integração, contra o servidor falso):** `semCertificadoDeClienteHandshakeRecusado`, `certificadoDeOutraAcRecusado`, `timeoutViraErroTransitorio`.
+- **Executor:** backend-engineer. **Revisão:** security-engineer, main. **Depende de:** NL-2.2, NL-2.6.
+
+#### NL-2.6 Servidor falso da API
+- **Objetivo:** `tools/servidor_falso` em Python, biblioteca padrão, TLS com certificado de cliente obrigatório; valida o XSD com `xmllint` e a assinatura com `xmlsec1 --verify`, nunca com o código do app; endpoints POST /nfse, GET /nfse/{chave}, GET e HEAD /dps/{id}, POST /nfse/{chave}/eventos e GET /DFe/{NSU} (FATO, spec 5.1); falhas roteirizáveis: 5xx, timeout, conexão cortada depois de aceitar a DPS, rejeição com código E do catálogo.
+- **Onde roda:** contêiner local construído a partir de arquivo do repositório sobre imagem da lista fechada; depois o mesmo no job do CI.
+- **Oráculo em série:** um `xmllint` e um `xmlsec1` por requisição, em série, nunca em leque, para o veredito do oráculo ser determinístico; os testes de lote têm teto de itens declarado no próprio teste. Vale também o teto de processos da L-11 nesta máquina: nada de leque.
+- **Aviso honesto:** os formatos de resposta são INFERÊNCIA até a Onda 11, que compara com a Sefin real.
+- **Testes primeiro:** `dpsValidaRecebeChave50`, `dpsAdulteradaRejeitada`, `semCertificadoRecusado`, `falhaRoteirizadaAconteceUmaVez`.
+- **Executor:** qa-engineer. **Revisão:** security-engineer (configuração TLS), main. **Paralelo:** com NL-2.1.
+
+#### NL-2.7 Log com redação de PII (Foundation)
+- **Objetivo:** aplicar ADR-S4 no `Log`; portão de teste que roda a suíte ponta a ponta com dados de referência e procura nos logs os CPF, CNPJ, senhas e tokens das fixtures. Resultado esperado: zero ocorrências, com varredura não vazia provada.
+- **Testes primeiro:** `senhaNuncaApareceNoLog`, `cpfDoEmitenteMascaradoNoIdDps`, `varreduraDeLogVaziaReprova`.
+- **Executor:** backend-engineer. **Revisão:** security-engineer (sabotagem: logar a senha de propósito e ver vermelho), main. **Depende de:** ADR-S4. Vem antes de NL-2.8.
+
+#### NL-2.8 Cliente Sefin e política de retry (Mid)
+- **Interfaces:** `ClienteSefin : GatewaySefin` com `emitir(DpsAssinada)`, `consultarNota(ChaveAcesso)`, `consultarDps(IdDps)`; `CatalogoErrosSefin` mapeia código E para mensagem.
+- **Regra de retry (DECISÃO DO CTO, a confirmar):** GET e HEAD repetem com backoff exponencial em erro transitório. POST /nfse nunca repete sozinho: em erro transitório consulta GET /dps/{id} e só reenvia se a DPS não chegou. Rejeição com código E nunca repete. Número de tentativas: valor configurável, fixado na pesquisa de abertura com medição na Onda 11 (spec 4.6, EM ABERTO).
+- **Testes primeiro:** `postTransitorioConsultaDpsAntesDeReenviar`, `rejeicaoE0014NaoRepete`, `sucessoExtraiChaveDe50Posicoes`.
+- **Executor:** backend-engineer. **Revisão:** qa-engineer, main. **Depende de:** NL-2.4, NL-2.5, NL-2.7.
+
+#### NL-2.9 Caso de uso EmitirNota e CLI `notalivre emitir`
+- **Objetivo:** `EmitirNota` com ports em memória; CLI que emite contra o servidor falso com `--url-base`; senha lida do terminal sem eco, nunca por argumento.
+- **Trava de Produção (DECISÃO DO CTO, a confirmar):** o ambiente Produção nasce bloqueado por configuração e só destrava depois do go/no-go do líder (Onda 12), além da confirmação digitada e da senha sempre pedida (spec 4.12). Protege o anti-objetivo "emitir nota real por engano".
+- **Testes primeiro (e2e):** `cliEmiteDpsAceitaPeloServidorFalso`, `cliRecusaProducaoBloqueada`, `cliRecusaProducaoSemCnpjDigitado`, `senhaNaoApareceEmArgvNemLog`.
+- **Executor:** backend-engineer. **Revisão:** qa-engineer e security-engineer, main. **Depende de:** NL-2.3, NL-2.8.
+
+**Definição de fechamento da Onda 2:** (1) em contêiner local e no CI, a CLI emite uma DPS que o servidor falso aceita, com o XSD conferido pelo `xmllint` e a assinatura pelo `xmlsec1 --verify`; (2) sem certificado de cliente, o handshake é recusado; (3) XML adulterado é rejeitado; (4) com corte de conexão roteirizado depois do aceite, o cliente consulta GET /dps/{id} antes de qualquer reenvio; (5) portão de PII em log com zero ocorrências e visto vermelho por sabotagem; (6) cada pergunta da pesquisa de abertura tem resposta com fonte citada na fatia que dependia dela; (7) internal-auditor sem CRÍTICO; (8) CI verde nas quatro distros. É o primeiro marco que o líder pode ver funcionando, ainda sem A1 real: ele vê pelo log e pelos artefatos, já que nada roda na sessão dele.
+
+### Onda 3: persistência cifrada e assistente de banco
+
+**Pré-requisito:** P1, P2, P3 e P4 ratificadas pelo líder em bloco, depois dos ADRs (ponto L4); ADR-S2, S3 e S5 aceitos por Narciso. O assistente de banco já está decidido (DECISÃO DO LÍDER, 25/10/2026, ponto L5: "Script para colar + MariaDB aceito").
+**Pesquisa de abertura:** (a) comandos de cifra do InnoDB no MySQL 8.4 e no MariaDB (FATO das duas formas em `flatpak.md` Q5); (b) autenticação padrão do root (INFERÊNCIA do CTO: em Ubuntu e MariaDB o root costuma entrar por socket Unix, o que impede login de root por TCP vindo do sandbox); (c) se "mysql" nos repositórios do Manjaro é MariaDB (INFERÊNCIA do CTO).
+
+- **NL-3.1 Executor SQL e migrador (Foundation):** schema v1 em arquivos versionados com tabela de migrações e checksum (P4). Testes de integração contra MySQL 8.4 e MariaDB 11.8 em contêineres locais (`mysql:8.4`, `mariadb:11.8`) e como `services` do job do CI. `consultaComConcatenacaoNaoCompila` (só `bindValue`, CONTRACT 12.1). Executor backend-engineer; revisão qa-engineer, main.
+- **NL-3.2 Primitivas de cripto (Foundation):** vetores conhecidos (GCM do NIST, Argon2 da RFC 9106, HMAC da RFC 4231), `nonceNuncaRepete` por propriedade, `tagAdulteradaReprova`, `aadTrocadaReprova`. Executor backend-engineer; revisão security-engineer, main. Paralelo com NL-3.1.
+- **NL-3.3 Hierarquia de chaves (Mid/cofre):** `desbloqueioComSenhaMestra`, `desbloqueioComCodigoDeRecuperacao`, `desbloqueioComA1ESenhaDoA1`, `semNenhumFatorDadosInacessiveis`, `trocaDeSenhaMestraNaoRecifraDados`, `a1RenovadoReenvelopaDek`, `senhaMestraNaoAbreCertificado`. P1. Executor backend-engineer; revisão security-engineer, main.
+- **NL-3.4 Cofre de campos e índice cego (Mid/cofre):** `campoGravadoNaoTemTextoClaro`, inspecionando os bytes no banco e não o status da ferramenta (L-36); `buscaPorCnpjPeloIndiceCego`; `linhaTrocadaDetectadaPelaAad`. O que é indexado: CPF e CNPJ normalizados (DECISÃO DO CTO a confirmar por Narciso no ADR-S3, spec 4.4 EM ABERTO); busca por nome decifra em memória. P2. Executor backend-engineer; revisão security-engineer, main.
+- **NL-3.5 Repositórios (Mid/persistencia):** Emissor, Tomador, Nota (XML assinado e retorno, com os dados da época), Numeração, Lote, Modelo. Executor backend-engineer; revisão qa-engineer, main.
+- **NL-3.6 Assistente de banco (Mid/assistente_banco e caso de uso):** detecta servidor em 127.0.0.1 e se é MySQL ou MariaDB; detecta a distro do host; mostra o comando exato de instalação (dnf, apt ou pacman) e testa de novo (spec 4.4, rodada do builder check); cria banco, usuário e liga a cifra pelo caminho do ponto L5 (DECISÃO DO LÍDER, 25/10/2026: "Script para colar + MariaDB aceito"): o app mostra o script SQL exato, copiável, para o usuário rodar com `sudo` no terminal dele, e testa de novo; MySQL e MariaDB são aceitos como servidor. O app nunca instala pacote nem roda comando privilegiado. Pedir a senha admin uma vez, só em memória, quando o servidor aceitar login admin por TCP, era parte da opção recomendada da v1 e fica como DECISÃO DO CTO, a confirmar por Narciso em N7 (reversível: sem ela, o script basta). Testes de unidade com sondas falsas para as quatro distros e integração com os dois servidores em contêiner local e no CI. Executor backend-engineer; revisão devops-sre (comandos por distro) e security-engineer (credencial), main.
+- **NL-3.7 Protocolo durável de numeração:** reservar e gravar, assinar, enviar, registrar; na retomada, número em "reservado" consulta GET /dps/{id}. Testes com morte do processo em três pontos (antes do POST; depois do aceite e antes da resposta; depois da resposta e antes do commit): `nenhumNumeroPerdidoSemRegistro`, `nenhumaReemissaoAsCegas`. P3. Executor backend-engineer; revisão qa-engineer (injeção de falha), main.
+- **Paralelo:** NL-3.1 com NL-3.2; NL-3.6 com NL-3.3 e NL-3.4.
+
+**Definição de fechamento da Onda 3:** bytes do banco sem PII legível das fixtures; os três fatores desbloqueiam e a ausência dos três trava; suíte de injeção de falha com zero número perdido e zero reemissão às cegas; integração verde em MySQL 8.4 e em MariaDB 11.8; registro de revisão do security-engineer dizendo que ADR-S2, S3 e S5 foram implementados como escritos; internal-auditor sem CRÍTICO; CI verde.
+
+### Onda 4: fluxos fiscais e custódia da senha
+
+**Pesquisa de abertura:** prazo de cancelamento por município (E0822); baixa pelo ADN para emitente CPF (spec 4.6, EM ABERTO); sinal de bloqueio de tela dentro do Flatpak (INFERÊNCIA do CTO: portal Inhibit com monitor de sessão).
+
+- **NL-4.1 Cancelar e substituir:** evento 101101 (motivos 1, 2 e 9; justificativa de 15 a 255 caracteres) e 105102 com POST /nfse da substituta (FATO, spec 4.6). Executor backend-engineer; revisão qa-engineer, main.
+- **NL-4.2 Consultar e baixar do ADN:** GET /nfse/{chave}, GET /DFe/{NSU} com o NSU guardado. Periodicidade: só manual na v1 (DECISÃO DO CTO, a confirmar). Executor backend-engineer; revisão qa-engineer, main.
+- **NL-4.3 Política de senha do certificado:** as opções do líder (sempre, a cada x notas, após reabrir, após y minutos, travar ao bloquear a tela), uma senha para o lote, Produção sempre pede. **Padrões (DECISÃO DO LÍDER, 25/10/2026):** ligados de fábrica: pedir ao reabrir o app, após 15 minutos parado e ao bloquear a tela; "a cada 20 notas" disponível e desligada de fábrica; sempre pedir antes de emitir em Produção, sem opção de desligar. Testes com relógio falso, uma combinação por teste: `padraoPedeAoReabrir`, `padraoPedeApos15MinParado`, `padraoNaoPedeCom14Min59s`, `padraoPedeAoBloquearTela`, `cadaVinteNotasDesligadaDeFabrica`, `cadaVinteNotasLigadaPedeNaVigesimaPrimeira`, `producaoPedeSempreMesmoComSenhaRecente`. Linha de INBOX para Narciso (spec 4.5, EM ABERTO): o que acontece com a senha guardada no chaveiro quando o usuário troca de certificado (recomendação do CTO: apagar a senha antiga no mesmo ato da troca) e o limite de emissores por instalação (recomendação do CTO: sem limite fixo). Executor backend-engineer; revisão security-engineer, main.
+- **NL-4.4 Vários emissores:** abrir com o último usado, ambiente por emissor, série por instalação (P3), confirmação digitada em Produção. Executor backend-engineer; revisão security-engineer, main.
+- **NL-4.5 Fatia vertical de interface:** tela de Emissão em Produção Restrita conforme a seção 7.1 de `docs/design/spec-visual.md` (blocos Tomador, Serviço e Confirmação para Produção; Descrição do serviço, xDescServ, como área de texto de várias linhas com contador "Restam N de 1000 caracteres" e erro ao passar de 1000; estados vazio, validando, carregando, erro da API e sucesso), ligada à `FachadaEmissao`, emitindo contra o servidor falso em contêiner local e no CI, offscreen. Inclui a fase 3 da spec visual para os componentes que a tela usa (botão, campo, área de texto, lista suspensa). Os painéis condicionais seguem a árvore de dependências do mapa de campos do Emissor Web (seções 4 e 5), só no que a v1 cobre: trocar a competência limpa o tomador e recarrega municípios; o domicílio do tomador escolhe CPF ou CNPJ ou NIF; IBS/CBS ligado habilita cIndOp e a classificação; cTribNac 99 abre não incidência. Quem decide visibilidade e obrigatoriedade é o Back (um caso de uso devolve o estado do formulário); a QML só liga, e o portão A2 garante. Testes primeiro: `descricaoAceita1000Caracteres`, `descricaoRecusa1001ComMensagem`, `contadorMostraRestantes`, `emitirDesabilitadoEmProducaoAteCnpjDigitado`, `trocarCompetenciaLimpaTomador`, `ibsCbsDesligadoBloqueiaClassificacao`. Executor frontend-engineer; revisão qa-engineer (captura, L-13) e accessibility-specialist, main. Paralelo com NL-4.1 a NL-4.3.
+
+**Definição de fechamento da Onda 4:** emitir, consultar, cancelar, substituir e baixar pela CLI contra o servidor falso; tela vertical emitindo com captura congelada; matriz de política de senha coberta (cada opção, em Produção e em Produção Restrita); internal-auditor sem CRÍTICO; CI verde.
+
+### Onda 5: tabelas fiscais e IBS/CBS completos
+
+**D5 resolvido (DECISÃO DO LÍDER, 25/10/2026, tabelas: "Fontes oficiais + embutidas").** Base de fatos: `docs/pesquisa/tabelas.md`, fechado. A onda fica com uma fatia por fonte, e cada fonte tem a versão embutida no pacote como base e reserva sem rede:
+
+| Tabela | Fonte em uso | Quando atualiza | Base embutida |
+|---|---|---|---|
+| Municípios | API de localidades do IBGE (FATO, `tabelas.md` Q5) | ao abrir, em segundo plano | Anexo A (NL-1.10) |
+| cTribNac e NBS | Anexo B, planilha gov.br (FATO, Q2) | ao abrir, só se a versão no nome do arquivo for nova | Anexo B da release |
+| cIndOp | Anexo VII, planilha gov.br (FATO, Q4) | idem | Anexo VII da release |
+| Correlação item, NBS, cIndOp e cClassTrib | Anexo VIII, planilha gov.br (FATO, Q4; "trabalho inicial, sem regras de negócio" segundo a Biblioteca) | idem | Anexo VIII da release |
+| Alíquota e código municipal | GET /parametros_municipais com o certificado (FATO, Q1) | sob demanda, com cache | sem base; sem rede, o usuário digita |
+| CST, cClassTrib e o que não tem fonte oficial baixável | embutido por release (FATO: download oficial NÃO ENCONTRADO, Q3) | só com versão nova do app | a da release |
+
+O botão manual "Atualizar tabelas" força a verificação de todas as fontes com atualização. Resolve também, pela parte do CTO, o conflito C8 de versão de cIndOp: a fonte é o Anexo VII publicado na Biblioteca RTC, na versão que o nome do arquivo trouxer; o Anexo C fica fora.
+
+**Pesquisa de abertura:** (a) como descobrir o nome do arquivo de cada anexo na página da Biblioteca (FATO: as páginas de documentação atual e RTC listam os arquivos; INFERÊNCIA do CTO: ler a listagem e extrair o link de cada anexo, sem navegador dirigido, L-57); (b) schema da resposta de /parametros_municipais (FATO: NÃO ENCONTRADO, swagger SEFIN com 403; o swagger de Produção Restrita, `tabelas.md` Q1, não foi aberto); (c) origem do conteúdo embutido de CST e cClassTrib (FATO: o Anexo VIII traz só 28 cClassTrib); (d) biblioteca de XLSX, agora necessária em tempo de execução (seção 1.3); (e) como tratar a diferença de 5571 municípios na API contra 5570 no Anexo A (FATO, Q5: 5101837, Boa Esperança do Norte).
+
+- **NL-5.1 Catálogo de tabelas com versão:** cada DPS grava a versão das tabelas usadas (recomendação de pesquisa, spec 4.10); cada tabela guarda fonte, versão, data e SHA-256. Executor backend-engineer; revisão qa-engineer, main.
+- **NL-5.2 Municípios pela API do IBGE:** adaptador em `src/mid/tabelas/ibge`; ao abrir, em segundo plano, sem travar a interface. FATO: a API não manda ETag nem Last-Modified e manda Cache-Control de 30 dias (Q5); a versão é o SHA-256 da lista normalizada (DECISÃO DO CTO, a confirmar), e só troca a tabela em uso quando ele muda. Lista nova só substitui a anterior depois de validada (sete dígitos, sem id repetido, contagem dentro de uma faixa fixada antes do dado, L-43). Testes contra servidor HTTP falso em contêiner: `mesmaListaNaoTrocaVersao`, `listaNovaTrocaVersao`, `listaInvalidaMantemAnterior`, `semRedeUsaAnexoAEAvisaIdade`. Executor backend-engineer; revisão qa-engineer, main.
+- **NL-5.3 Planilhas gov.br (Anexos B, VII e VIII):** lê a listagem da Biblioteca pelo método da pesquisa (a); compara a versão no nome do arquivo com a em uso; baixa só se for nova; converte com o mesmo código de `tools/tabelas` (NL-1.10); valida antes de trocar (por exemplo, cTribNac com 6 dígitos e zero à esquerda conferido contra item, subitem e desdobro); troca de forma atômica e guarda a anterior. Testes com servidor HTTP falso: `mesmaVersaoZeroDownloads`, `versaoNovaUmDownload`, `planilhaCorrompidaMantemAnterior`, `trocaAtomica`. Executor backend-engineer, com data-engineer na conversão; revisão qa-engineer, main.
+- **NL-5.4 Parâmetros municipais:** GET /parametros_municipais/{codigoMunicipio}/convenio e /{codigoMunicipio}/{codigoServico} com o certificado do emissor, pelo `ClienteSefin` (NL-2.8); cache no banco cifrado (Onda 3) com validade configurável; consulta na hora de emitir quando o cache venceu; sem rede ou sem resposta, o usuário digita a alíquota e a nota grava que o valor veio dele. Formato da resposta é INFERÊNCIA até a pesquisa (b) e a Onda 11. Testes contra o servidor falso: `cacheValidoNaoConsulta`, `cacheVencidoConsulta`, `semRespostaPedeAliquotaDigitada`, `origemDaAliquotaGravadaNaNota`. Executor backend-engineer; revisão qa-engineer e security-engineer (uso do certificado), main.
+- **NL-5.5 Tabelas embutidas por release:** CST, cClassTrib e as demais sem fonte oficial baixável entram por `tools/tabelas` no build, com proveniência (de onde, quando, SHA-256) e versão do app. Executor data-engineer; revisão qa-engineer, main.
+- **NL-5.6 Classificação IBS/CBS:** sugestão de cIndOp pelo serviço com confirmação do usuário (PREMISSA 4.14); CST e cClassTrib validados contra o catálogo; regra do indicador ind_gIBSCBS (FATO, NT 009 §2.16). Os pontos 1 a 5 da lista do contador (spec 6.4) ficam marcados no código como parâmetro, não como regra fechada. Executor backend-engineer; revisão qa-engineer, main.
+- **NL-5.7 Atualização ao abrir, botão manual e ligação da interface:** orquestra NL-5.2 e NL-5.3 ao abrir (verbatim da rodada 8: atualizar ao abrir; só baixa o que for novo) e pelo botão "Atualizar tabelas" da tela Tabelas, que deixa de ser marcador; caixa "Atualizar ao abrir o app" nas configurações (spec visual seção 7.7). Executor frontend-engineer e backend-engineer em arquivos disjuntos; revisão qa-engineer, main.
+- **Paralelo:** NL-5.2, NL-5.3 e NL-5.5 entre si; NL-5.4 depois de NL-2.8 e NL-3.5; NL-5.6 depois de NL-5.3 e NL-5.5; NL-5.7 por último.
+
+**Definição de fechamento da Onda 5:** proveniência de toda tabela (fonte, versão, data, SHA-256); para cada fonte com atualização, contagem de downloads zero com a mesma versão e um com versão nova; tabela inválida nunca substitui a anterior; app funciona sem rede com as embutidas e avisa a idade; DPS grava versões e a origem da alíquota; internal-auditor sem CRÍTICO; CI verde.
+
+### Onda 6: tomadores, LGPD, modelos e lote
+
+**Pesquisa de abertura:** termos de uso da BrasilAPI e do CNPJ.ws (FATO: NÃO LIDOS, spec 4.8). A biblioteca de XLSX já vem da Onda 5.
+
+- **NL-6.1 Cadastro de tomador:** CRUD, diferença mostrada ao emitir com "sempre atualizar", notas guardam os dados da época (spec 4.8, rodada 6). Executor backend-engineer; revisão qa-engineer, main.
+- **NL-6.2 LGPD:** exportar os dados de um tomador, excluir, expurgar inativos após N anos, N = 5 configurável (PREMISSA 4.14). O conflito com a guarda fiscal (spec 3.2) fica como parâmetro até o contador responder. Executor backend-engineer; revisão compliance-legal, assinatura de Cláudio (K4), main.
+- **NL-6.3 Consulta de CNPJ com consentimento:** BrasilAPI e CNPJ.ws como reserva (PREMISSA 4.14), limite de 3 por minuto e bloqueio por excesso de 429 tratados (FATO, spec 4.8); só o CNPJ sai da máquina; registro do consentimento com data e versão do texto (DECISÃO DO CTO, a confirmar; spec 4.8 EM ABERTO); texto do ux-writer revisado por Cláudio. Executor backend-engineer; revisão security-engineer e compliance-legal, main.
+- **NL-6.4 Modelos de nota:** campos do modelo (spec 4.6, EM ABERTO): serviço, cTribNac, descrição, valor e classificação IBS/CBS, tomador opcional (DECISÃO DO CTO, a confirmar). Executor backend-engineer; revisão qa-engineer, main.
+- **NL-6.5 Importador de planilha:** CSV e XLSX; modelo de colunas com cabeçalho fixo proposto pelo CTO (spec 4.7, EM ABERTO, a confirmar); detecção de codificação e separador; vírgula decimal; zero à esquerda; relatório por linha. Testes por propriedade e fuzz no leitor CSV; `normalizacaoIgualNasTresEntradas` (Review Focus 1). Executor backend-engineer; revisão qa-engineer, main.
+- **NL-6.6 Motor de lote:** uma senha para o lote; em Produção, resumo (quantidade, total, emissor, ambiente) e CNPJ digitado uma vez (DECISÃO DO CTO, a confirmar; spec 4.7 EM ABERTO); continua no erro, relata no fim, reenvia só falhas; recorrentes viram rascunhos que só saem com confirmação. Tamanho máximo do lote: sem número presumido, fixado com a latência medida na Onda 11. Testes: `loteContinuaDepoisDeRejeicao`, `reenvioSoDasFalhas`, `retomadaConsultaDpsAntesDeReenviar`, `recorrenteNuncaSaiSemConfirmacao`. Executor backend-engineer; revisão qa-engineer (injeção de falha), main.
+
+**Definição de fechamento da Onda 6:** lote de referência com falhas roteirizadas termina com relatório certo e zero número perdido; exportação de tomador legível e completa; expurgo respeita N; nenhum dado além do CNPJ sai na consulta (conferido no servidor HTTP falso); assinatura de Cláudio em K4; internal-auditor sem CRÍTICO; CI verde.
+
+### Onda 7: DANFSe, impressão e e-mail
+
+**Pesquisa de abertura:** leiaute da NT 008 (campos, QR, posição do texto de Produção Restrita); se o Qt 6 usa o Print portal no Flatpak (FATO: NÃO ENCONTRADO, `flatpak.md` Q7); escolha da biblioteca SMTP; montagem MIME para a API Gmail; registro de cliente público no Entra; verificação na documentação de cada um dos 11 provedores (verbatim da rodada 8). O que não tiver documentação oficial entra marcado "não confirmado pelo provedor" (PREMISSA 4.14).
+
+- **NL-7.1 DANFSe local:** PDF no leiaute da NT 008; em tpAmb=2, "NFS-e SEM VALIDADE JURÍDICA". Prova pela página renderizada (`pdftoppm`) com checklist do qa-engineer; `pdftotext` só descarta hipótese (L-41). Executor backend-engineer; revisão qa-engineer (visual), main.
+- **NL-7.2 Impressão:** pelo caminho medido na pesquisa, testado com impressora virtual em contêiner (cups-pdf, autorizado na lista complementar do ponto L9, baixado quando esta fatia começar). Executor frontend-engineer; revisão qa-engineer, main.
+- **NL-7.3 Catálogo de provedores:** os 11 e o Personalizado, cada um com host, porta, segurança, autenticação, URL da fonte e o campo `confirmadoPeloProvedor`. Executor backend-engineer; revisão qa-engineer, main.
+- **NL-7.4 Envio SMTP:** STARTTLS e SSL, senha de app guardada no cofre; teste contra `axllent/mailpit` (lista fechada), em contêiner local e como `service` do job do CI. Executor backend-engineer; revisão security-engineer, main.
+- **NL-7.5 OAuth Gmail e Outlook:** Gmail pela API REST com `gmail.send`, nunca SMTP com XOAUTH2 (FATO e decisão do líder, spec 4.9); Outlook por XOAUTH2 com `SMTP.Send` e `offline_access`; navegador do sistema, loopback 127.0.0.1 em porta aleatória, PKCE S256; tokens no cofre. Testes contra servidor OAuth falso que confere o verificador PKCE. Teste real depende dos registros feitos pelo líder (ponto L8): sem eles, a linha fica BLOQUEADO, não verde. P5. Executor backend-engineer; revisão security-engineer, main.
+- **NL-7.6 Modelos de e-mail:** padrão sempre primeiro no menu, modelos próprios (verbatim da rodada 7); variáveis e assunto (spec 4.9, EM ABERTO): proposta do ux-writer; XML anexo opcional, ligado por padrão (DECISÃO DO CTO, a confirmar). Executor backend-engineer, texto pelo ux-writer; revisão qa-engineer, main.
+
+**Definição de fechamento da Onda 7:** checklist visual do DANFSe contra a NT 008 aprovado pelo qa-engineer com artefato congelado; e-mail recebido no SMTP de teste com PDF anexo conferido pelo MIME recebido; fluxos OAuth verdes contra o falso; teste real de Gmail e Outlook verde ou marcado BLOQUEADO com o motivo; internal-auditor sem CRÍTICO; CI verde.
+
+### Onda 8: interface completa e primeiro uso
+
+**Fonte:** `docs/design/spec-visual.md`, fechada para implementação (pré-requisito satisfeito). Cada fatia é uma tela da seção 7 da spec visual, na ordem da fase 4 do plano faseado dela (seção 9), uma por fatia para evitar monolito de interface (L-34). Cada tela tem os estados vazio, carregando, erro e sucesso que a spec lista. Os itens da seção 10 da spec visual são propostas do diretor, a confirmar: a fatia que tocar um deles implementa a forma descrita como proposta só se o main trouxer a confirmação; sem ela, fica a forma mínima e a linha vai para a INBOX.
+
+- **NL-8.1 Emissão completa (spec visual 7.1 e 7.10):** o que NL-4.5 não cobriu: bloco de Confirmação para Produção (digitar o CNPJ do emitente; botão desabilitado com o motivo escrito), diálogo de atualização do tomador (tabela Campo, Cadastrado, Novo), mensagens de erro do catálogo E, e os demais gatilhos da árvore de dependências do mapa de campos do Emissor Web que caírem no escopo da v1. Avisos do ponto L10 (DECISÃO DO LÍDER: "Leiaute, com aviso do site"): D1, D3 e D4 aparecem perto do campo, com o texto do ux-writer, e o botão "Emitir nota" continua habilitado; cor nunca sozinha (spec visual seção 8). Testes: `avisoD1VisivelEEmitirHabilitado`, `avisoD3VisivelEEmitirHabilitado`, `avisoD4VisivelEEmitirHabilitado`.
+- **NL-8.2 Histórico (7.4):** tabela com número de 13 dígitos em algarismos tabulares, situação com ícone e texto, ações Imprimir, Enviar por e-mail, Ver motivo, Ver nota nova; cancelar e substituir.
+- **NL-8.3 Tomadores (7.3):** lista com busca, editar, exportar, excluir, consentimento, aviso fixo dos dados da época.
+- **NL-8.4 Lote (7.2):** importar, barra de progresso com texto, relatório de falhas com código e ação, "Reenviar N falhas", confirmação única de Produção para o lote.
+- **NL-8.5 Emissores (7.6):** cards com badge "Último usado", certificado com validade, "Importar certificado A1" pelo FileChooser, "Trocar para [nome]".
+- **NL-8.6 Tabelas (7.7):** tabela de Tabela, Versão em uso, Origem e Situação com as fontes da Onda 5; botão "Atualizar tabelas" no topo; estados sem rede e erro por tabela.
+- **NL-8.7 Modelos (7.5):** lista suspensa com o padrão sempre primeiro, não editável, depois os modelos do usuário, por último "Criar modelo próprio"; prévia com variáveis.
+- **NL-8.8 Configurações (7.8):** e-mail (provedores, OAuth, senha de app), senha do certificado com os padrões do líder de NL-4.3 já marcados, senha-mestra e código de recuperação, ambiente, banco.
+- **NL-8.9 Assistente de primeiro uso (7.9):** senha-mestra, código de recuperação mostrado uma vez com confirmação, banco com o script para colar (ponto L5), primeiro emissor, A1 pelo FileChooser; "Continuar" desabilitado com o motivo escrito.
+- **NL-8.10 Microcópia:** mensagens de erro do catálogo E em pt-br, pelo ux-writer, com o portão de travessão.
+- **NL-8.11 Acessibilidade (A3, spec visual seção 8):** WCAG 2.2 AA, foco visível, ordem de tabulação, nome acessível em cada controle, cor nunca sozinha. A conferência pela árvore de acessibilidade roda em contêiner (INFERÊNCIA do CTO: AT-SPI numa sessão headless, a medir na pesquisa da onda). AT-SPI e Orca estão na lista complementar (ponto L9), baixados quando esta fatia começar; nada disso roda na sessão do líder (L-50). Se não funcionarem em contêiner, a linha fica BLOQUEADO com o motivo, nunca verde.
+
+Executor das telas: frontend-engineer. Revisão: qa-engineer (capturas em contêiner contra a spec visual e o mockup `docs/design/mockups/04-telas-principais.html`, L-13) e accessibility-specialist, main. Telas são paralelizáveis entre si (arquivos QML disjuntos).
+**Definição de fechamento da Onda 8:** as nove telas da spec visual, claro e escuro, cada uma com teste QML offscreen e captura congelada aprovada contra a spec visual; nenhum hex fora de `Theme.qml`; A3 sem CRÍTICO; nenhuma tela com SQL, cripto ou regra fiscal (portão A2); internal-auditor sem CRÍTICO; CI verde.
+
+### Onda 9: empacotamento Flatpak
+
+**Pré-requisito:** parecer de Cláudio sobre as fontes OFL 1.1 (Bricolage Grotesque e Atkinson Hyperlegible) entregues junto de um app GPL-3.0-or-later, como arquivos separados no Flatpak (K8; spec visual seção 2, ponto aberto para o Cláudio). **Decisão do líder que abre a onda (DECISÃO DO LÍDER, 25/10/2026, ponto L6: "Medir agora, decidir na Onda 9", canal Flathub):** com as medições de NL-0.5 e do CI das Ondas 1 a 8, o main leva ao líder a escolha entre runtime KDE 6.11 (FATO medido em 25/10/2026: o Flathub não tem 6.12; o build contra o SDK 6.11 roda desde NL-0.5), Qt 6.12 embutido no Flatpak (K3) ou esperar um runtime 6.12, e a matriz Flatpak se D0.5 tiver falhado. O canal já está decidido: Flathub.
+
+- **NL-9.1 Manifesto final:** runtime pela decisão do líder no início da onda; canal Flathub; fontes como `sources` do manifesto com URL e SHA-256; módulos libsodium, xmlsec1, libmariadb e QtKeychain se faltarem no runtime; `finish-args` mínimos (`--share=network` para MySQL em 127.0.0.1 e para a API; Wayland com X11 de reserva; portais); chaveiro com a decisão de Narciso sobre o Secret portal (N10). Executor devops-sre; revisão security-engineer (permissões) e Cláudio (K3), main.
+- **NL-9.2 Teste do bundle:** no formato que D0.5 provou; se o teste em contêiner nas quatro distros não se provou, segue o que o líder decidiu no início da onda. Só headless, em contêiner local ou no runner, nunca na sessão do líder (L-50). Executor devops-sre; revisão qa-engineer, main.
+- **NL-9.3 SBOM e avisos de terceiros:** lista de dependências com licença, gerada no build. Executor devops-sre; revisão compliance-legal, main.
+
+**Definição de fechamento da Onda 9:** bundle instalado e smoke da CLI e da GUI offscreen verdes onde D0.5 permitiu; permissões revisadas por Narciso; SBOM gerado e revisado; internal-auditor sem CRÍTICO; CI verde.
+
+### Onda 10: segurança e conformidade (Fase 8)
+
+- **NL-10.1 AppSec:** revisão OWASP e CWE de cripto, custódia, rede e SQL; T2 (cppcheck e clang-tidy, zero erro de segurança), T4 (ASan e UBSan, zero), T8 (segredos, zero), T10 adaptado a MySQL (toda consulta com `bindValue`, verificado por portão), T12 (CVE sobre o SBOM, zero CRÍTICO sem correção). Executor security-engineer; revisão Narciso, main.
+- **NL-10.2 Jurídico:** cabeçalhos e `LICENSE`, obrigações LGPL do Qt embutido (se houver), módulos Qt só GPL, termos de uso e política de privacidade (app local, sem telemetria), papéis LGPD, art. 24, IV, e art. 341-G, V e VI, da LC 214/2025 no texto primário (spec 6.3). Executor compliance-legal; assinatura de Cláudio, main.
+- **NL-10.3 Dossiê de auditoria (A10):** livro em `docs/auditoria/`, com achados por severidade, depois de código e teste. Executor internal-auditor; revisão main.
+
+**Definição de fechamento da Onda 10:** zero CRÍTICO aberto em NL-10.1 a NL-10.3; assinaturas de Narciso e Cláudio registradas; nenhuma tag pública antes disto (gatilhos K1 a K3).
+
+### Onda 11: beta técnico com A1 real em Produção Restrita (Fase 9)
+
+**Pré-requisito:** A1 real do líder, comprado por ele (ponto L8). O critério de pronto com A1 real fica (DECISÃO DO LÍDER, 25/10/2026, ponto L1: "Manter A1 real no pronto"). Gatilho (a) de re-roteamento do Cósimo.
+
+- **NL-11.1 Primeira emissão real:** quem opera é o líder, com o bundle da Onda 9 instalado por ele, por escolha dele, e com o A1 dele. Esta é a única fatia que não roda em contêiner de agente nem no CI: o A1 real fora da mão do líder não é aceitável (custódia, ADR-S1). O runtime `org.kde.Platform//6.11` já está na lista fechada; instalar o bundle e operar é ato do próprio líder, listado no ponto L8, no momento que ele escolher. Nenhum agente instala, roda build nem depura na sessão do líder (L-50). Nenhum agente manuseia o .pfx nem a senha; agentes leem só o log redigido que o líder entregar (ADR-S4).
+- **NL-11.2 Contrato real:** cada diferença entre servidor falso e Sefin vira fatia de correção e atualização do servidor falso, com teste de regressão.
+- **NL-11.3 Critério de pronto da v1 (PREMISSA 4.14):** emitir, consultar, cancelar e substituir em Produção Restrita com o A1 real, mais lote e e-mail funcionando, com CI verde nas quatro distros.
+
+**Definição de fechamento da Onda 11:** cada item de NL-11.3 com evidência (chave de acesso registrada em log redigido); diferenças de contrato zeradas ou registradas; Cósimo reavaliou o porte.
+
+### Onda 12: go/no-go de Produção e release 1.0
+
+- **NL-12.1 Dossiê de decisão:** recomendação de Celso, assinaturas de Narciso e Cláudio, pontos do contador (spec 6.4) respondidos, e o checklist das 7 fases da L-70 anotado [PASSOU], [FALHOU] ou [BLOQUEADO], porque esta é a liberação de emissão real a terceiros (DECISÃO DO LÍDER, 25/10/2026, ponto L3: "Só na virada fiscal de Produção"). A Fase 2, Shadow Deployment, é a dupla validação em Produção Restrita, na forma escrita no `CLAUDE.md` do projeto (NL-0.1); as outras 6 fases sem exceção. Qualquer [FALHOU] ou [BLOQUEADO] aborta a virada. A decisão de go/no-go é do líder, por `AskUserQuestion` (LEI ZERO).
+- **NL-12.2 Release:** destravar Produção só se o líder disse go; tag `v1.0.0` com autorização dele (L-24); publicação no Flathub (ponto L6) com o app-id `io.github.petrinhu.notalivre`; notas de versão pelo technical-writer.
+- **NL-12.3 Limpeza:** builds e temporários do próprio trabalho, depois do QA da onda (L-53; CONTRACT 11).
+
+**Definição de fechamento da Onda 12:** decisão do líder registrada; tag conferida por `git ls-remote`; artefato publicado; limpeza feita.
+
+### Onda 13: Wiki e documentação para iniciante (L-63, última linha do backlog)
+
+- **NL-13.1** Wiki nativa do GitHub mais documentação `.md` extensa para iniciante em computação, explicando todo jargão, derivada de `docs/` (linka, não duplica). Pré-requisito: tag publicada. Executor: technical-writer, com ux-writer. Gotcha medido na L-63: a wiki só passa a existir depois da primeira página criada pela interface web.
+
+---
+
+## 3. Itens de Narciso e Cláudio, com gatilho
+
+| ID | Dono | Item | Gatilho | Fatia |
+|---|---|---|---|---|
+| N1 | Narciso | Modelo de ameaças STRIDE | antes de qualquer código de custódia ou cripto | NL-1.9 |
+| N2 | Narciso | Custódia do A1 (ADR-S1): em memória, zerado, importado para o cofre | antes de NL-2.2 | NL-1.9 |
+| N3 | Narciso | Logs sem PII (ADR-S4), inclusive inscrição CPF no Id da DPS | antes de NL-2.7 | NL-1.9 |
+| N4 | Narciso | Envelope AES-256-GCM e hierarquia de chaves (ADR-S2, P1) e aceite do trade-off da cópia pelo A1 | antes de NL-3.3 | NL-1.9 |
+| N5 | Narciso | Índice cego (ADR-S3, P2) | antes de NL-3.4 | NL-1.9 |
+| N6 | Narciso | Parâmetros do Argon2id (ADR-S5) | antes de NL-3.2 | NL-1.9 |
+| N7 | Narciso | Revisão do assistente de banco no caminho decidido pelo líder (script para colar); parecer sobre pedir a senha admin uma vez, só em memória, quando o servidor aceitar login por TCP | antes de NL-3.6 | NL-3.6 |
+| N8 | Narciso | Política de senha: os valores e padrões já são decisão do líder (NL-4.3); Narciso revisa a implementação e a senha guardada no chaveiro na troca de certificado | antes de NL-4.3 | NL-4.3 |
+| N9 | Narciso | OAuth: tokens, PKCE, loopback, cliente público sem segredo embutido (FATO: segredo opcional em app desktop, `email.md` Q3) | antes de NL-7.5 | NL-7.5 |
+| N10 | Narciso | Permissões do Flatpak e chaveiro com Secret portal falho | antes de NL-9.1 | NL-9.1 |
+| N11 | Narciso | Assinatura pré-beta e pré-Produção | Ondas 10 e 12 | NL-10.1, NL-12.1 |
+| K1 | Cláudio | `LICENSE` GPL-3.0 e cabeçalhos SPDX | Onda 0 | NL-0.1, NL-0.2 |
+| K2 | Cláudio | Licença de cada dependência nova e de cada arquivo governamental redistribuído (XSD, anexos) | no commit que traz a dependência, junto com T12 | toda fatia que adiciona dependência |
+| K3 | Cláudio | Qt LGPL embutido (se a decisão do líder no início da Onda 9 levar a isso) e módulos Qt só GPL (P5) | antes de NL-9.1 e da primeira tag pública | NL-9.1, NL-10.2 |
+| K4 | Cláudio | LGPD: inventário de dados pessoais, papéis, direitos do titular, consentimento, termos de BrasilAPI e CNPJ.ws | antes de NL-6.2 e NL-6.3 | NL-6.2, NL-6.3 |
+| K5 | Cláudio | Responsabilidade do fornecedor de software (LC 214/2025, art. 24, IV; art. 341-G, V e VI) no texto primário. Restrição de desenho desde já: nenhuma função que altere valor de nota depois de emitida ou que permita suprimir valor | antes de NL-12.1; a restrição vale desde a Onda 1 | NL-10.2 |
+| K6 | Cláudio | Termos de uso e política de privacidade | antes de release com Produção | NL-10.2 |
+| K7 | Cláudio | Marca "NotaLivre" no INPI (spec 4.1, NÃO CONSULTADO) | antes de publicar no Flathub | NL-10.2 |
+| K8 | Cláudio | Fontes OFL 1.1 (Bricolage Grotesque, Atkinson Hyperlegible) junto de app GPL-3.0-or-later, como arquivos separados no Flatpak (spec visual seção 2: compatibilidade contestada, parecer da Red Hat lido, FSF não lida) | antes da Onda 9 | NL-9.1, NL-10.2 |
+
+---
+
+## 4. CI
+
+- **Matriz nativa:** núcleo e CLI (a GUI só compila) em `fedora:44`, `ubuntu:26.04`, `manjarolinux/base` e `linuxmintd/mint22.3-amd64`, fixados por digest, com Qt 6.12 pelo método de D0.4a (FATO: nenhuma das quatro traz Qt 6.12 como pacote, spec 4.3). Versões das distros: as da pesquisa, aceitas com a opção recomendada do ponto L6 (DECISÃO DO LÍDER, 25/10/2026).
+- **Onde roda (ponto L7):** primeiro no espelho local em contêiner, com a lista fechada; depois no GitHub Actions, disparado pelo push de cada fatia na branch da onda (L-36).
+- **Jobs fixos:** unidade e integração (MySQL 8.4 e MariaDB 11.8, em contêiner local e como `services` do job; ponto L5); e2e com servidor falso; ASan e UBSan em uma distro; portões A2, gitleaks, travessão, hex fora do `Theme.qml` e PII em log; `mutacao` (seção 2, convenções), disparado por `workflow_dispatch` e pelos arquivos `tests/mutacoes/`.
+- **Flatpak:** construído contra o SDK KDE 6.11 (FATO: o Flathub não tem 6.12), localmente e no runner com flatpak-github-actions v6, e testado no host do runner (plano B padrão). O teste nas quatro distros em contêiner com `--privileged` roda como medição, sem bloquear, até ser visto verde e depois vermelho por sabotagem; só então vira portão.
+- **Risco medido:** FATO em `flatpak.md` Q8: bwrap em Docker exige relaxar capacidades ou `--privileged`, há relato de falha mesmo privilegiado, e `CAP_SYS_ADMIN` sozinho não basta. Nenhum exemplo de teste de bundle em contêiner Fedora, Ubuntu, Manjaro ou Mint foi achado.
+- **Plano B:** teste do bundle no host Ubuntu do runner. **Plano C (INFERÊNCIA do CTO, a medir):** máquina virtual por KVM no runner para Fedora e Ubuntu, que publicam imagem de nuvem; Mint e Manjaro não têm imagem pronta. **Plano D:** o líder aceita a matriz Flatpak reduzida. B, C ou D é escolha do líder no início da Onda 9 (ponto L6: "Medir agora, decidir na Onda 9"); até lá, o plano B é o padrão.
+- **Imagens de terceiros:** Mint e Manjaro não têm imagem oficial, e a do Manjaro tem tag `latest` de 7 meses (FATO, `stack.md`). Fixar por digest e conferir a versão dentro do contêiner. Localmente, só as imagens da lista fechada.
+- **Espelho local (T15):** o mesmo comando do CI, em contêiner nesta máquina, um trabalho pesado por vez com `flock` e `nice -n 5`, `TMPDIR=/var/tmp`, Docker em `/var/lib/docker` (L-11; pastas padrão autorizadas pelo líder). Roda antes de todo push (L-36). Disco conferido por `btrfs filesystem usage /` antes de cada trabalho pesado.
+- **Regras de portão:** todo job novo tem sabotagem de estreia pelo job `mutacao` (L-36); a lista de jobs do espelho local é comparada com a da última execução empurrada; código de saída 128 ou mais é ferramenta morrendo, não reprovação (L-49); o veredito vem sempre do log (local ou do job), nunca do painel nem da mensagem do push.
+
+## 5. Testes não unitários e auditorias de fechamento
+
+| Tipo | Onde | Quando |
+|---|---|---|
+| Integração com banco | MySQL 8.4 e MariaDB 11.8 em contêiner local e como `services` do CI | Onda 3 em diante |
+| Contrato com a Sefin | servidor falso em contêiner local e no CI (Ondas 1 a 10) e Sefin real de Produção Restrita pela mão do líder (Onda 11) | toda fatia de rede |
+| Ponta a ponta pela CLI | contêiner local e CI, servidor falso | Onda 1 em diante |
+| Interface | Qt Quick Test offscreen em contêiner local e no CI; captura conferida pelo qa-engineer com md5 (L-13) | Onda 1 em diante |
+| Injeção de falha | morte do processo e corte de rede em pontos fixos, em contêiner | NL-3.7, NL-6.6 |
+| Propriedade e fuzz | CPF, CNPJ, leitor CSV, codec XML, em contêiner | NL-1.1, NL-1.6, NL-6.5 |
+| Mutação | protocolo da L-27 sobre cópia fora da árvore (local em `/var/tmp`, remoto no job `mutacao`), com o SHA declarado | revisão de toda fatia de comportamento |
+| T2, T4, T8, T10, T12 | CI e NL-10.1 | contínuo; completo na Onda 10 |
+| A2 (camadas) | portão NL-0.3 | todo commit |
+| A3 (acessibilidade) | accessibility-specialist | Ondas 4 e 8 |
+| A10 (dossiê) | internal-auditor | fechamento de toda onda, sempre depois de código e teste; livro completo na Onda 10 |
+
+O critério de "verde" de T1 é zero falha, sem percentual de cobertura (L-35 prevalece sobre o "70%" do TESTES T1, desvio registrado em NL-P.3).
+
+## 6. Pontos que exigem o líder
+
+### 6.1 Pendentes
+
+Cada ponto vai por `AskUserQuestion`, com a recomendação primeiro. Ordem de bloqueio: L4 trava a Onda 3; L8 não trava onda, mas condiciona os testes reais de NL-7.5 e a Onda 11.
+
+- **L4. Ratificação das portas de mão única P1 a P5**, com as recomendações de Narciso dos ADR-S2, S3 e S5 e o aceite do trade-off da cópia da chave pelo A1 (spec 4.4). Forma já decidida (DECISÃO DO LÍDER, 25/10/2026: "Em bloco, após os ADRs"): um único AskUserQuestion depois que Narciso aceitar os ADRs de NL-1.9 e antes da Onda 3. Os valores e padrões da política de senha saíram deste pacote: o líder já os decidiu (NL-4.3). O conteúdo de cada porta continua pendente.
+- **L8. Ações que só o líder faz (dependências, não decisões técnicas):** comprar o A1; criar o cliente OAuth desktop no Google Cloud dele e pedir a verificação do escopo `gmail.send` (FATO: teto de 100 usuários novos sem verificação, para sempre, `email.md` Q2); registrar o app no Entra; levar ao contador os 8 pontos do spec 6.4 e o prazo de guarda fiscal; consultar o INPI; na Onda 11, instalar o bundle da Onda 9 e operar a primeira emissão real com o A1 dele (NL-11.1), porque o A1 real não passa por mão de agente nem pelo CI.
+
+### 6.2 Decisões do líder registradas (25/10/2026, AskUserQuestion do orquestrador)
+
+| Ponto | Escolha do líder | Onde está aplicada |
+|---|---|---|
+| L1 | "Manter A1 real no pronto" | Onda 11, NL-11.3 |
+| L2 | "Seguir o plano completo": o plano não encurta pelo prazo de 01/11/2026; quem precisar emitir antes usa o emissor público nacional | plano inteiro |
+| L3 | "Só na virada fiscal de Produção": a L-70 (7 fases) vale para a liberação de emissão real a terceiros; Shadow Deployment substituído por dupla validação em Produção Restrita; texto no `CLAUDE.md` do projeto | NL-0.1, NL-12.1 |
+| L4 (forma) | "Em bloco, após os ADRs", antes da Onda 3 | 6.1, NL-P.2, Onda 3 |
+| L5 | "Script para colar + MariaDB aceito" | NL-3.6, N7, seção 4 |
+| L6 | "Medir agora, decidir na Onda 9", canal Flathub, versões de distro da pesquisa | NL-0.5, Onda 9, P6, seção 4 |
+| L7 | primeiro "Não; só no CI remoto"; depois, ao confirmar a exceção à L-36 pela LEI DAS LEIS, "autorizo containers locais" e "pode deixar tudo nas pastas padrao": lista fechada de imagens, Qt 6.12 por aqt e runtime KDE 6.11; Docker em `/var/lib/docker`, build em `/var/tmp`; item fora da lista pede autorização nova | Global Constraints, convenções da seção 2, toda fatia, seções 4 e 5, ponto L9 |
+| L9 | "Autorizo a lista toda": XSD e anexos gov.br, fontes Bricolage e Atkinson (OFL), gitleaks, `flatpak-builder`, cups-pdf, AT-SPI e Orca; cada item baixado só quando a fatia que o usa começar, com tamanho medido no relatório da fatia; item fora da lista pede autorização nova | Global Constraints, NL-0.5, NL-0.6, NL-1.6, NL-1.8, NL-1.10, NL-7.2, NL-8.11 |
+| L10 | "Leiaute, com aviso do site": a validação segue o Anexo I; em D1, D3 e D4, onde o Emissor Web é mais rígido, aviso não bloqueante | NL-1.5, NL-8.1 |
+| Fluxo de push | "Branch de onda, push por fatia": push por fatia para a branch da onda (L-24, tempo 2); `main` só com a onda fechada e autorização explícita de merge (L-24, tempo 4) | Global Constraints, fechamento das ondas |
+| Senha do certificado | padrões: pedir ao reabrir o app, após 15 min parado e ao bloquear a tela; "a cada 20 notas" disponível e desligada; sempre pedir antes de emitir em Produção | NL-4.3, NL-8.8, N8 |
+| Tabelas | "Fontes oficiais + embutidas" | NL-1.10, Onda 5 inteira |
+| Spec visual | fechada em `docs/design/spec-visual.md` (Talão, Musgo, Bricolage Grotesque e Atkinson Hyperlegible, barra lateral, confortável, xDescServ de 1000 caracteres em várias linhas) | NL-1.8, NL-4.5, Onda 8, K8 |
+
+Decisões que o próprio líder deixou para depois, com data marcada no plano: runtime e matriz Flatpak no início da Onda 9 (ponto L6); go/no-go de Produção na Onda 12 (sempre do líder, LEI ZERO).
+
+### Riscos de engenharia (sem decisão do líder)
+
+| Risco | Base | Resposta |
+|---|---|---|
+| API do xmlsec1 diferente entre 1.2 e 1.3 | FATO de versões em `stack.md` | um adaptador só, testado nas duas linhas no CI nativo |
+| .pfx antigo recusado pelo OpenSSL 3 | INFERÊNCIA do CTO | provider legado sob demanda, teste em NL-2.2 |
+| Chaveiro falho no Flatpak | FATO, `flatpak.md` Q6 | chaveiro opcional; na falha, pedir a senha |
+| Servidor falso diferente da Sefin | INFERÊNCIA do spec 4.13 | Onda 11 compara e corrige; formatos marcados como inferência até lá |
+| Tabelas mudam várias vezes por ano | INFERÊNCIA de fonte secundária, spec 4.10 | versão gravada por DPS; atualização ao abrir pelas fontes oficiais, embutidas como reserva (Onda 5) |
+| Página da Biblioteca gov.br muda o formato da listagem | INFERÊNCIA do CTO | NL-5.3 falha fechado: mantém a versão em uso e avisa; nunca adivinha arquivo |
+| C++23 limitado pelo GCC 13 do Mint | INFERÊNCIA do CTO | medido em NL-0.4; não usar o que falta |
+| Disco: Qt 6.12 (1,77 GB), SDK e Platform KDE 6.11 (4,3 GB) e seis imagens no btrfs | FATO medido dos dois primeiros | `btrfs filesystem usage /` (`Device unallocated`, `Free (estimated) min`) antes de cada trabalho pesado; parar e relatar abaixo do piso da L-11 |
+| Ferramenta fora da lista fechada aparece no meio de uma fatia | INFERÊNCIA do CTO | a fatia para e o main pede autorização nova; nunca roda só no CI para contornar |
+| Minutos de GitHub Actions | INFERÊNCIA do CTO: repositório público em runner padrão não consome cota paga; privado consome | se o repositório for privado, o consumo vira ponto do líder antes da Onda 1 |
+| Teto de processos da máquina | FATO medido, L-11 item 6 | portões numa invocação só; servidor falso em série; um trabalho pesado por vez |
+
+## 7. Premissas do spec 4.14 e o que muda se caírem
+
+| Premissa | Fatias que dependem | Se cair |
+|---|---|---|
+| Leiaute-alvo de Produção Restrita de 20/10/2026, versionado | NL-1.6 em diante | troca a pasta do leiaute e os arquivos de referência; nenhuma outra camada muda |
+| Qt 6.12 embutido se faltar no runtime | NL-9.1 | o líder decide no início da Onda 9 (ponto L6); o código não muda |
+| Provedores sem documentação oficial marcados "não confirmado" | NL-7.3 | provedor sem documentação sai do catálogo e vira Personalizado |
+| Fonte de cada tabela fiscal (deixou de ser premissa: DECISÃO DO LÍDER, 25/10/2026) | NL-1.10, NL-5.2 a NL-5.5 | se uma fonte oficial sumir ou mudar de formato, o app segue com a embutida e a fatia da fonte é refeita; o formato embutido não muda |
+| BrasilAPI principal e CNPJ.ws reserva | NL-6.3 | troca o adaptador em `src/mid/cnpj`; o port fica |
+| Retomada consulta GET /dps/{id} | NL-2.8, NL-3.7, NL-6.6 | sem essa consulta, o lote não pode reenviar sozinho; reenvio passa a pedir decisão do usuário a cada falha ambígua |
+| N = 5 anos para inativos | NL-6.2 | só o valor padrão muda |
+| cIndOp sugerido e confirmado | NL-5.6 | vira escolha manual sem sugestão |
+| Critério de pronto da v1 (deixou de ser premissa: ponto L1, "Manter A1 real no pronto") | NL-11.3 | só o líder muda |
+
+## 8. Ordem de serviço (modelo para o main)
+
+Quando o agente roda em modelo mais fraco que o do C-level, a ordem traz os oito itens da L-11: (1) passos numerados; (2) comando exato com caminho absoluto; (3) trecho exato ou aceite verificável; (4) saída esperada e o que fazer quando não vem: parar e relatar; (5) arquivos permitidos, proibidos e ações proibidas; (6) armadilhas medidas com a forma certa ao lado; (7) texto das leis aplicáveis com o caminho do `GODS_LAWS.md`; (8) formato do relatório. Em qualquer modelo, a ordem também traz: o ID da fatia para o commit e o `Status` do `TODO.md` (L-24, L-63); a separação entre FATO e INFERÊNCIA com fonte (L-18); o caminho do arquivo-fonte, nunca só o resumo; a proibição de abrir janela ou usar automação de entrada (L-50); e, para agentes que produzem ou decidem algo do produto, a frase-guarda da L-21 verbatim:
+
+> "Uso ou contagem de uso no repositório de um consumidor identificado nunca corta escopo, desenho ou qualidade de um produto feito para distribuição."
+
+Leis a colar conforme a fatia: L-10, L-11, L-12, L-18, L-21, L-24, L-27, L-33, L-34, L-35, L-36, L-49, L-50, L-51, L-53, L-55, L-63, L-75; mais L-70 na virada fiscal de Produção (NL-12.1, ponto L3) e L-41 em verificação de PDF. Toda ordem de serviço repete a regra do ponto L7: só a lista fechada; contêiner local antes do push, nunca na sessão do líder; `TMPDIR=/var/tmp`; um trabalho pesado por vez com `flock`; o resultado vem do log local e do log do job.
+
+## 9. Cobertura do spec (autorrevisão)
+
+| Objetivo do spec 2.1 | Fatias |
+|---|---|
+| O1 emitir pela API, Produção Restrita primeiro | NL-1.6, NL-2.1 a NL-2.9, NL-3.7, NL-11.1, NL-12.2 |
+| O2 imprimir | NL-7.1, NL-7.2 |
+| O3 e-mail com SMTP nas configurações | NL-7.3 a NL-7.6, NL-8.8 |
+| O4 CPF ou CNPJ, CNPJ padrão | NL-1.1, NL-4.4 |
+| O5 abrir com o último emissor | NL-4.4, NL-8.5 |
+| O6 lote | NL-6.5, NL-6.6, NL-8.4 |
+| O7 senha do certificado com opções | NL-4.3, NL-8.8 |
+| O8 gravar e manter tomadores | NL-3.5, NL-6.1, NL-8.3 |
+| O9 cifra de alto nível no banco | NL-1.9, NL-3.2 a NL-3.4, NL-3.6 |
+| O10 cancelar, substituir, modelos, baixar do ADN | NL-4.1, NL-4.2, NL-6.4, NL-8.2, NL-8.7 |
+| O11 MEI e Simples com IBS/CBS | NL-1.4, NL-1.5, NL-5.6 |
+| O12 tabelas ao abrir e manual | NL-1.10, NL-5.1 a NL-5.7, NL-8.6 |
+| O13 LGPD | NL-6.2, NL-6.3, NL-10.2 |
+| O14 modelos de e-mail com dropdown | NL-7.6 |
+| O15 interface moderna em QML (spec visual `docs/design/spec-visual.md`) | NL-1.8, NL-4.5, NL-8.1 a NL-8.11 |
+| O16 CI em Fedora, Ubuntu, Manjaro e Mint | NL-0.4, NL-0.5, seção 4 |
+| O17 camadas bem definidas | 1.1, NL-0.2, NL-0.3 |
+
+EM ABERTO do spec e onde ficou: série, retry, logs (NL-2.8, NL-1.9); índice cego e Argon2id (NL-1.9, L4); credencial do assistente (decidida pelo líder, ponto L5; NL-3.6); x, y e padrão da senha (decididos pelo líder; NL-4.3); colunas da planilha, fluxo de confirmação e tamanho do lote (NL-6.5, NL-6.6); campos do modelo de nota (NL-6.4); variáveis e anexo do e-mail (NL-7.6); detecção de versão nova (planilhas gov.br pela versão no nome do arquivo, decisão do líder, NL-5.3; IBGE pelo SHA-256 da lista, DECISÃO DO CTO, a confirmar, NL-5.2) e Calculadora (fica fora da v1, INFERÊNCIA do CTO: o endpoint citado no Anexo VI não resolve, FATO, `tabelas.md` Q3; CST e cClassTrib embutidos por release pela decisão do líder, NL-5.5); impressão no Flatpak (NL-7.2); origem do certificado de teste (NL-2.1, gerado no teste); DV do CNPJ alfanumérico (pesquisa da Onda 1); recuperação da numeração depois de perder o banco e cadastro de tomadores que não volta pelo ADN (spec 4.4): vira linha da INBOX para Narciso e o CTO na Onda 3; suporte ao usuário, por que agora, métrica de sucesso (spec 1 e 3.4): fora do mandato do CTO, ficam com Capitolino e Celso como linhas da INBOX.
+
+## 10. Última linha do backlog
+
+| ID | Item | Executor | Pré-requisito |
+|---|---|---|---|
+| NL-13.1 | Wiki nativa do GitHub e documentação `.md` para iniciante em computação, derivada de `docs/` | technical-writer, com ux-writer | tag de versão publicada (L-63) |

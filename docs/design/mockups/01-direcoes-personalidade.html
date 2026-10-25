@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NotaLivre, rodada 1: direções de personalidade (mock de referência)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=Bricolage+Grotesque:wght@400..800&family=Atkinson+Hyperlegible:wght@400;700&family=Schibsted+Grotesk:wght@400..900&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Mock de REFERÊNCIA de direção (não é conversão 1:1 para QML).
+   Tokens por direção e tema. Hex vêm de contraste.py (WCAG medido). */
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#1b1d21;color:#e9ecf1;font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif;padding:32px 24px 64px}
+.intro{max-width:1100px;margin:0 auto 28px}
+.intro h1{font:600 26px/1.2 Georgia,serif;margin:0 0 8px}
+.intro p{margin:0;color:#b9c0cb;max-width:78ch}
+.dir{max-width:1100px;margin:0 auto 40px;animation:sobe .5s ease both}
+.dir:nth-of-type(2){animation-delay:.12s}
+.dir:nth-of-type(3){animation-delay:.24s}
+.dir h2{font:600 20px/1.3 Georgia,serif;margin:0 0 4px}
+.dir .why{margin:0 0 14px;color:#b9c0cb;max-width:90ch}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.pair{grid-template-columns:1fr}}
+.slot{min-width:0}
+@keyframes sobe{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.dir{animation:none}}
+
+/* ---------- Tela de emissão (mesma estrutura para as 3 direções) ---------- */
+.tela{background:var(--bg);color:var(--text-1);border-radius:var(--radius-win);border:1px solid var(--border-soft);padding:16px;font-family:var(--body);font-size:var(--fs-body)}
+.tela *{box-sizing:border-box}
+.topo{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--border-soft);margin-bottom:12px}
+.marca{font-family:var(--display);font-weight:var(--w-display);font-size:var(--fs-brand);color:var(--brand);letter-spacing:var(--ls-brand)}
+.emissor{font-size:13px;color:var(--text-2);display:flex;gap:8px;align-items:center}
+.emissor b{color:var(--text-1);font-weight:600}
+.link{color:var(--brand);text-decoration:underline;text-underline-offset:3px;background:none;border:0;padding:0;font:inherit;cursor:pointer}
+.link:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.faixa{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--radius-ctl);margin-bottom:14px;background:var(--faixa-bg);color:var(--faixa-fg);border:var(--faixa-borda)}
+.faixa strong{font-weight:600}
+.faixa .ic{flex:none;width:20px;height:20px;border-radius:50%;background:var(--faixa-ic);color:var(--faixa-ic-fg);display:grid;place-items:center;font-weight:700;font-size:13px}
+h3{font-family:var(--display);font-weight:var(--w-h3);font-size:var(--fs-h3);margin:14px 0 8px;color:var(--text-1)}
+.campos{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.campo{display:flex;flex-direction:column;gap:4px;min-width:0}
+.campo.largo{grid-column:1/-1}
+.campo label{font-size:13px;color:var(--text-2);font-weight:500}
+.campo .valor{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-ctl);padding:7px 10px;color:var(--text-1);min-height:36px;font-variant-numeric:tabular-nums}
+.campo .ajuda{font-size:12.5px;color:var(--text-2)}
+.num{font-variant-numeric:tabular-nums;text-align:right}
+.tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.tab{font-size:13px;padding:4px 10px;border-radius:var(--radius-ctl);background:var(--hover);color:var(--text-1);font-variant-numeric:tabular-nums}
+.tab.ativa{background:var(--brand);color:var(--on-brand)}
+.caixa{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--text-1)}
+.caixa i{width:16px;height:16px;border:1.5px solid var(--border);border-radius:var(--radius-chk);background:var(--surface);display:inline-block;position:relative}
+.caixa i.on{background:var(--brand);border-color:var(--brand)}
+.caixa i.on::after{content:"";position:absolute;left:4px;top:1px;width:5px;height:9px;border:solid var(--on-brand);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.acoes{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.btn{font:600 14px/1 var(--body);padding:11px 16px;border-radius:var(--radius-ctl);border:1px solid transparent;cursor:pointer;transition:background .15s,border-color .15s}
+.btn.primario{background:var(--brand);color:var(--on-brand)}
+.btn.primario:hover{background:var(--brand-hover)}
+.btn.primario:active{background:var(--brand-press)}
+.btn.secundario{background:transparent;color:var(--brand);border-color:var(--border)}
+.btn.secundario:hover{background:var(--hover)}
+.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.id-dps{margin-top:12px;background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius-ctl);padding:8px 10px;font-size:12.5px;color:var(--text-2)}
+.id-dps code{font-family:inherit;font-variant-numeric:tabular-nums;color:var(--text-1);word-break:break-all}
+.id-dps .cont{color:var(--ok);font-weight:600}
+.aviso-erro{font-size:12.5px;color:var(--danger);margin-top:2px}
+
+/* ---------- Direção A: Protocolo (carimbo sobre papel de documento oficial) ---------- */
+.dir-a.light{--bg:#EEF1F4;--surface:#FFFFFF;--text-1:#14213D;--text-2:#4A5568;--border:#7D8899;--border-soft:#C9D1DB;--brand:#1F4E79;--brand-hover:#183D5F;--brand-press:#122F4A;--on-brand:#FFFFFF;--stamp:#9B1B1B;--ok:#1B6E45;--warn:#7A4F00;--danger:#9B1B1B;--focus:#1F4E79;--hover:#DCE4EE;--faixa-bg:#FFFFFF;--faixa-fg:#9B1B1B;--faixa-borda:2px double #9B1B1B;--faixa-ic:#9B1B1B;--faixa-ic-fg:#FFFFFF}
+.dir-a.dark{--bg:#0F1720;--surface:#17212C;--text-1:#E8EEF5;--text-2:#A9B6C4;--border:#6B7C90;--border-soft:#2A3746;--brand:#8CB4DE;--brand-hover:#A6C7E8;--brand-press:#7FA6CE;--on-brand:#0F1720;--stamp:#FF9E94;--ok:#7BD3A0;--warn:#F2C46D;--danger:#FF9E94;--focus:#8CB4DE;--hover:#1F2C3A;--faixa-bg:#17212C;--faixa-fg:#FF9E94;--faixa-borda:2px double #FF9E94;--faixa-ic:#FF9E94;--faixa-ic-fg:#0F1720}
+.dir-a{--display:"Newsreader",Georgia,serif;--body:"IBM Plex Sans",system-ui,sans-serif;--w-display:600;--w-h3:600;--fs-brand:22px;--fs-h3:17px;--fs-body:15px;--ls-brand:0;--radius-win:6px;--radius-ctl:4px;--radius-chk:3px}
+.dir-a .tela{box-shadow:none}
+.dir-a .faixa strong{font-family:var(--display);font-size:16px;letter-spacing:.02em}
+.dir-a .btn{border-radius:4px}
+
+/* ---------- Direção B: Talão (canhoto de nota de papel térmico, tabs de série) ---------- */
+.dir-b.light{--bg:#EDF2EE;--surface:#FFFFFF;--text-1:#16241E;--text-2:#4B5E56;--border:#6F8178;--border-soft:#D3DDD6;--brand:#2F5D50;--brand-hover:#26493F;--brand-press:#1E3B33;--on-brand:#FFFFFF;--stamp:#8A4B00;--ok:#2F6B3A;--warn:#7A4A00;--danger:#A3262B;--focus:#2F5D50;--hover:#E1EAE4;--faixa-bg:#F6E7C8;--faixa-fg:#5C3600;--faixa-borda:none;--faixa-ic:#8A4B00;--faixa-ic-fg:#FFFFFF}
+.dir-b.dark{--bg:#111A17;--surface:#18241F;--text-1:#E6F0EB;--text-2:#A7BAB1;--border:#6E8379;--border-soft:#25352E;--brand:#8FD0B7;--brand-hover:#A5DEC9;--brand-press:#7BC2A8;--on-brand:#0E1714;--stamp:#E8B65B;--ok:#8FD0B7;--warn:#E8B65B;--danger:#FF9A9E;--focus:#8FD0B7;--hover:#1F2F28;--faixa-bg:#2E2614;--faixa-fg:#F3D08C;--faixa-borda:none;--faixa-ic:#E8B65B;--faixa-ic-fg:#111A17}
+.dir-b{--display:"Bricolage Grotesque",system-ui,sans-serif;--body:"Atkinson Hyperlegible",system-ui,sans-serif;--w-display:700;--w-h3:700;--fs-brand:24px;--fs-h3:18px;--fs-body:16px;--ls-brand:-.01em;--radius-win:16px;--radius-ctl:12px;--radius-chk:5px}
+.dir-b .tela{box-shadow:0 1px 0 var(--border-soft),0 10px 24px rgb(0 0 0/.10)}
+.dir-b .campo .valor{border-width:1.5px}
+.dir-b .faixa{border-radius:10px;font-weight:500}
+/* talão: linha de picote serrilhada no rodapé do canhoto (Repeater de retângulos no Qt) */
+.dir-b .canhoto{position:relative;background:var(--surface);border-radius:12px;padding:12px;margin-top:12px}
+.dir-b .canhoto::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px;background:repeating-linear-gradient(90deg,var(--bg) 0 6px,transparent 6px 12px)}
+.dir-b .btn{border-radius:999px;padding:12px 20px}
+
+/* ---------- Direção C: Livre (software livre, denso, pré-visualização da DPS) ---------- */
+.dir-c.light{--bg:#F4F5F7;--surface:#FFFFFF;--text-1:#111418;--text-2:#4B5360;--border:#7A8290;--border-soft:#D9DDE3;--brand:#9A3E08;--brand-hover:#7F3305;--brand-press:#6A2A04;--on-brand:#FFFFFF;--stamp:#9A3E08;--ok:#226B3B;--warn:#7A4C00;--danger:#A8242B;--focus:#9A3E08;--hover:#ECEEF2;--faixa-bg:#FFF4EA;--faixa-fg:#7A3205;--faixa-borda:1px solid #E7B794;--faixa-ic:#9A3E08;--faixa-ic-fg:#FFFFFF}
+.dir-c.dark{--bg:#101113;--surface:#1A1C20;--text-1:#ECEEF1;--text-2:#B3B9C2;--border:#6C7380;--border-soft:#2A2E35;--brand:#FF9A4D;--brand-hover:#FFAE6E;--brand-press:#F28A3A;--on-brand:#101113;--stamp:#FF9A4D;--ok:#7FD19A;--warn:#F2C46D;--danger:#FF9A9E;--focus:#FF9A4D;--hover:#22252B;--faixa-bg:#2A1D12;--faixa-fg:#FFC9A0;--faixa-borda:1px solid #5C3B21;--faixa-ic:#FF9A4D;--faixa-ic-fg:#101113}
+.dir-c{--display:"Schibsted Grotesk",system-ui,sans-serif;--body:"Public Sans",system-ui,sans-serif;--w-display:700;--w-h3:650;--fs-brand:20px;--fs-h3:15px;--fs-body:14px;--ls-brand:0;--radius-win:6px;--radius-ctl:6px;--radius-chk:3px}
+.dir-c .tela{padding:12px;display:grid;grid-template-columns:1fr 210px;gap:12px}
+.dir-c .topo,.dir-c .faixa{grid-column:1/-1}
+.dir-c .campos{gap:8px 10px}
+.dir-c .campo .valor{min-height:32px;padding:5px 9px}
+.dir-c .painel{background:var(--surface);border:1px solid var(--border-soft);border-radius:6px;padding:10px;font-size:12.5px;color:var(--text-2);align-self:start}
+.dir-c .painel h4{margin:0 0 6px;font:650 13px/1.3 var(--display);color:var(--text-1)}
+.dir-c .painel dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 8px}
+.dir-c .painel dt{color:var(--text-2)}
+.dir-c .painel dd{margin:0;color:var(--text-1);font-variant-numeric:tabular-nums;text-align:right}
+.dir-c .acoes,.dir-c .id-dps{grid-column:1/-1}
+.dir-c .canhoto{padding:0}
+.dir-c .btn{padding:9px 14px;font-size:13.5px}
+</style>
+</head>
+<body>
+
+<header class="intro">
+  <h1>NotaLivre: rodada 1, direções de personalidade</h1>
+  <p>Mesma tela de emissão em três direções, cada uma com tema claro e escuro desenhados à parte (hex exatos, medidos contra o fundo real). Dados fictícios: nenhum dado real de pessoa, empresa ou certificado. Os códigos tributários são exemplos de layout, não valores validados contra o Anexo VII. Este mock é referência de direção, não conversão 1:1 para QML. Fontes carregadas do Google Fonts (OFL); sem rede, cai na pilha reserva.</p>
+</header>
+
+<section class="dir dir-a">
+  <h2>A. Protocolo: papel de documento oficial, carimbo e tinta azul-escura</h2>
+  <p class="why">Vem do documento público brasileiro: formulário, carimbo e cabeçalho. Tipografia serifada no título (Newsreader) dá peso de documento; o texto de trabalho é grotesco sóbrio (IBM Plex Sans). Ousadia única: o aviso de Produção Restrita é um carimbo de borda dupla em vermelho. Desvantagem: o azul-escuro tende a parecer conservador demais para o público MEI.</p>
+  <div class="pair">
+    <div class="slot dir-a light" data-tela></div>
+    <div class="slot dir-a dark" data-tela></div>
+  </div>
+</section>
+
+<section class="dir dir-b">
+  <h2>B. Talão: canhoto de nota em papel, cores de folha e tabs de série</h2>
+  <p class="why">Vem do talão e do canhoto que o MEI já conhece na papelaria. Verde-musgo (#2F5D50) em papel frio, cantos arredondados e picote no rodapé do canhoto. Título em Bricolage Grotesque, texto em Atkinson Hyperlegible (desenhada para leitura de baixa visão, o que ajuda a acessibilidade). Ousadia única: o picote e as abas de série. Desvantagem: mais arredondado e amigável, menos cara de sistema fiscal.</p>
+  <div class="pair">
+    <div class="slot dir-b light" data-tela></div>
+    <div class="slot dir-b dark" data-tela></div>
+  </div>
+</section>
+
+<section class="dir dir-c">
+  <h2>C. Livre: software livre honesto, denso, com a DPS à vista</h2>
+  <p class="why">Vem do próprio produto: software livre que mostra o que está fazendo. Laranja-ferrugem como único acento sobre cinza frio, tipografia Schibsted Grotesk com Public Sans no corpo. Ousadia única: painel lateral com o Id da DPS (45 posições, contador visível) e os totais da nota. Desvantagem: mais denso, pede disciplina de espaçamento para não cansar o MEI que usa o app uma vez por semana.</p>
+  <div class="pair">
+    <div class="slot dir-c light" data-tela></div>
+    <div class="slot dir-c dark" data-tela></div>
+  </div>
+</section>
+
+<template id="tpl-tela">
+  <div class="tela">
+    <div class="topo">
+      <span class="marca">NotaLivre</span>
+      <span class="emissor">Emissor <b>Ateliê Cacto Verde MEI</b> <button class="link" type="button">Trocar emissor</button></span>
+    </div>
+
+    <div class="faixa" role="status">
+      <span class="ic" aria-hidden="true">!</span>
+      <span><strong>Produção Restrita.</strong> As notas emitidas aqui não têm validade fiscal.</span>
+    </div>
+
+    <div class="canhoto">
+      <div class="tabs" aria-label="Série da DPS"><span class="tab ativa">Série 00001</span><span class="tab">Série 00002</span></div>
+      <h3>Tomador</h3>
+      <div class="campos">
+        <div class="campo"><label>CNPJ ou CPF do tomador</label><div class="valor num">98.765.432/0001-10</div></div>
+        <div class="campo"><label>Nome ou razão social</label><div class="valor">Padaria Bom Pão Ltda</div></div>
+        <div class="campo largo"><label>Município do tomador</label><div class="valor">Campinas (SP)</div></div>
+        <div class="campo largo"><div class="caixa"><i class="on"></i>Atualizar o cadastro deste tomador ao emitir (mostra o que muda)</div></div>
+      </div>
+
+      <h3>Serviço</h3>
+      <div class="campos">
+        <div class="campo largo"><label>Descrição do serviço</label><div class="valor">Organização de festas e recepções, buffet para 80 pessoas</div></div>
+        <div class="campo"><label>Valor do serviço</label><div class="valor num">R$ 1.200,00</div></div>
+        <div class="campo"><label>Alíquota do ISSQN</label><div class="valor num">5,00%</div></div>
+        <div class="campo largo"><label>Classificação para IBS e CBS (sugerida pelo serviço)</label><div class="valor">cIndOp 100301, exemplo de layout</div><div class="ajuda">Confirme antes de emitir. O cálculo do imposto não é feito pelo app.</div></div>
+      </div>
+    </div>
+
+    <div class="acoes">
+      <button class="btn secundario" type="button">Salvar rascunho</button>
+      <button class="btn primario" type="button">Emitir nota</button>
+    </div>
+
+    <div class="id-dps">Id da DPS, <span class="cont">45 de 45 posições</span>: <code>DPS350950221234567800019000001000000000000042</code></div>
+  </div>
+</template>
+
+<script>
+/* Duplica o mesmo markup de tela nos 6 slots. Só o CSS muda por direção e tema. */
+(function () {
+  var tpl = document.getElementById('tpl-tela');
+  document.querySelectorAll('[data-tela]').forEach(function (slot) {
+    slot.appendChild(tpl.content.cloneNode(true));
+  });
+  /* Direção C ganha painel lateral com a DPS em pares chave/valor. */
+  document.querySelectorAll('.dir-c .tela').forEach(function (tela) {
+    var painel = document.createElement('aside');
+    painel.className = 'painel';
+    painel.innerHTML = '<h4>Totais da nota</h4><dl><dt>Serviço</dt><dd>R$ 1.200,00</dd><dt>ISSQN</dt><dd>R$ 60,00</dd><dt>Líquido</dt><dd>R$ 1.140,00</dd></dl><p style="margin:10px 0 0">Pré-visualização do Id ao lado.</p>';
+    tela.insertBefore(painel, tela.querySelector('.acoes'));
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NotaLivre, telas principais em Musgo, claro e escuro (mock de referência)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400..800&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* Tokens da spec-visual.md, seção 3 (paleta Musgo, direção Talão, fontes T1, navegação lateral, densidade confortável).
+   Mock de REFERÊNCIA, não conversão 1:1 para QML. Dados fictícios. */
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#1b1d21;color:#e9ecf1;font:16px/1.5 "Atkinson Hyperlegible",system-ui,sans-serif;padding:32px 24px 64px}
+.wrap{max-width:1240px;margin:0 auto}
+h1{font:700 26px/1.2 "Bricolage Grotesque",system-ui,sans-serif;margin:0 0 8px}
+.lede{margin:0 0 12px;color:#b9c0cb;max-width:86ch}
+.tela-rot{font-size:14px;color:#b9c0cb;margin:18px 0 6px;font-weight:700}
+.janela{background:var(--bg);color:var(--text-1);border:1px solid var(--border-soft);border-radius:14px;overflow:hidden;font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-size:16px;box-shadow:0 1px 0 var(--border-soft),0 10px 24px rgb(0 0 0/.10)}
+.light{--bg:#EDF2EE;--surface:#FFFFFF;--text-1:#16241E;--text-2:#4B5E56;--border:#6F8178;--border-soft:#D3DDD6;--hover:#E1EAE4;--sel:#D3E4DB;--brand:#2F5D50;--brand-hover:#26493F;--brand-press:#1E3B33;--on-brand:#FFFFFF;--focus:#2F5D50;--ok:#2F6B3A;--warn:#7A4A00;--danger:#A3262B;--faixa-bg:#F6E7C8;--faixa-fg:#5C3600;--stamp:#8A4B00;--on-stamp:#FFFFFF;--dis-bg:#DDE4E0;--dis-fg:#5E6E67}
+.dark{--bg:#111A17;--surface:#18241F;--text-1:#E6F0EB;--text-2:#A7BAB1;--border:#6E8379;--border-soft:#25352E;--hover:#1F2F28;--sel:#21372E;--brand:#8FD0B7;--brand-hover:#A5DEC9;--brand-press:#7BC2A8;--on-brand:#0E1714;--focus:#8FD0B7;--ok:#8FD0B7;--warn:#E8B65B;--danger:#FF9A9E;--faixa-bg:#2E2614;--faixa-fg:#F3D08C;--stamp:#E8B65B;--on-stamp:#111A17;--dis-bg:#223029;--dis-fg:#6F817A}
+.cab{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border-soft)}
+.marca{font:700 22px/1 "Bricolage Grotesque",system-ui,sans-serif;color:var(--brand)}
+.emissor{font-size:15px;color:var(--text-2)}
+.emissor b{color:var(--text-1)}
+.faixa{display:flex;gap:8px;align-items:flex-start;padding:10px 16px;background:var(--faixa-bg);color:var(--faixa-fg);font-weight:700;font-size:15px;border-bottom:1px solid var(--border-soft)}
+.faixa .ic{flex:none;width:18px;height:18px;border-radius:50%;background:var(--stamp);color:var(--on-stamp);display:grid;place-items:center;font-size:12px}
+.lado{display:grid;grid-template-columns:184px 1fr}
+.lado nav{background:var(--surface);border-right:1px solid var(--border-soft);padding:12px 8px}
+.lado nav .grupo{font-size:13px;color:var(--text-2);margin:8px 10px 4px}
+.lado nav .item{display:flex;align-items:center;min-height:44px;padding:0 10px;border-radius:10px;font-size:15px;font-weight:600;margin-bottom:2px}
+.lado nav .item.ativo{background:var(--hover);color:var(--brand);box-shadow:inset 3px 0 0 var(--brand)}
+.corpo{padding:16px;min-width:0}
+.cabecalho-tela{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+h2{font:700 21px/1.3 "Bricolage Grotesque",system-ui,sans-serif;margin:0;color:var(--text-1)}
+h3{font:700 17px/1.3 "Bricolage Grotesque",system-ui,sans-serif;margin:16px 0 8px;color:var(--text-1)}
+.ajuda{font-size:14px;color:var(--text-2)}
+.campos{display:grid;grid-template-columns:1fr 1fr;gap:12px 12px}
+.campo{display:flex;flex-direction:column;gap:4px;min-width:0}
+.campo.largo{grid-column:1/-1}
+.campo label,.rot-campo{font-size:15px;font-weight:700;color:var(--text-2)}
+.valor{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:0 12px;min-height:44px;display:flex;align-items:center;color:var(--text-1);font-variant-numeric:tabular-nums}
+.valor.num{justify-content:flex-end}
+.valor.erro{border-color:var(--danger)}
+.valor.foco{outline:2px solid var(--focus);outline-offset:2px}
+textarea.valor{padding:8px 12px;min-height:88px;resize:none;font:inherit;line-height:1.45;align-items:flex-start}
+.contador{font-size:14px;color:var(--text-2);text-align:right}
+.msg-erro{font-size:14px;color:var(--danger);font-weight:700}
+.btn{font:700 15px/1 "Atkinson Hyperlegible",system-ui,sans-serif;min-height:40px;padding:0 18px;display:inline-flex;align-items:center;border-radius:999px;border:1.5px solid transparent;cursor:pointer}
+.btn.p{background:var(--brand);color:var(--on-brand)}
+.btn.p:hover{background:var(--brand-hover)}
+.btn.p:active{background:var(--brand-press)}
+.btn.s{background:transparent;color:var(--brand);border-color:var(--border)}
+.btn.s:hover{background:var(--hover)}
+.btn.d{background:var(--dis-bg);color:var(--dis-fg);cursor:not-allowed}
+.btn.f{outline:2px solid var(--focus);outline-offset:2px}
+.acoes{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:14px}
+.link{color:var(--brand);text-decoration:underline;text-underline-offset:3px;font-size:15px}
+.caixa{display:flex;gap:10px;align-items:center;font-size:15px}
+.caixa i{width:18px;height:18px;border:2px solid var(--border);border-radius:5px;background:var(--surface);display:inline-block;position:relative;flex:none}
+.caixa i.on{background:var(--brand);border-color:var(--brand)}
+.caixa i.on::after{content:"";position:absolute;left:4px;top:0;width:5px;height:10px;border:solid var(--on-brand);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.radio{display:flex;gap:10px;align-items:center;font-size:15px;min-height:32px}
+.radio i{width:18px;height:18px;border:2px solid var(--border);border-radius:50%;background:var(--surface);flex:none;position:relative}
+.radio i.on{border-color:var(--brand)}
+.radio i.on::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--brand)}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{font-weight:700;color:var(--text-2);text-align:left;padding:10px 8px;border-bottom:1.5px solid var(--border)}
+td{padding:0 8px;height:52px;border-bottom:1px solid var(--border-soft);color:var(--text-1);vertical-align:middle}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.sel td{background:var(--sel)}
+tr:hover td{background:var(--hover)}
+.sit{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+.sit i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.sit.ok i{background:var(--ok)}.sit.nok i{background:var(--danger)}.sit.neu i{background:var(--text-2)}
+.sit.ok{color:var(--ok)}.sit.nok{color:var(--danger)}
+.badge{display:inline-block;font-size:13px;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--hover);color:var(--brand);border:1px solid var(--border-soft);margin-left:6px}
+.card{background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;padding:14px;margin-bottom:10px}
+.dialogo{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 10px 24px rgb(0 0 0/.14)}
+.lista-sus{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:4px}
+.lista-sus div{min-height:44px;display:flex;align-items:center;padding:0 10px;border-radius:8px;font-size:15px}
+.lista-sus div.ativo{background:var(--sel);font-weight:700}
+.lista-sus div small{margin-left:auto;color:var(--text-2);font-size:13px}
+.comando{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;background:var(--surface);border:1px dashed var(--border);border-radius:10px;padding:8px 12px;font-size:15px;color:var(--text-1);font-variant-numeric:tabular-nums;word-break:break-all}
+.passo{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border-soft)}
+.passo b.n{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:var(--on-brand);font-size:14px}
+.passo b.n.pend{background:var(--dis-bg);color:var(--dis-fg)}
+.barra{height:10px;border-radius:999px;background:var(--hover);overflow:hidden;margin:6px 0 4px}
+.barra i{display:block;height:100%;background:var(--brand)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>NotaLivre: telas principais, paleta Musgo</h1>
+  <p class="lede">Cada tela em claro e escuro, com a faixa fixa de Produção Restrita quando o ambiente for Restrita. Os dados são fictícios. Itens marcados como "a confirmar" estão na spec, seção 10. Mock de referência, não conversão 1:1 para QML.</p>
+  <div id="telas"></div>
+</div>
+
+<template id="tpl-janela">
+  <div class="janela">
+    <div class="cab"><span class="marca">NotaLivre</span><span class="emissor">Emissor <b>Ateliê Cacto Verde MEI</b></span></div>
+    <div class="faixa" role="status"><span class="ic" aria-hidden="true">!</span><span>Produção Restrita. As notas emitidas aqui não têm validade fiscal.</span></div>
+    <div class="lado">
+      <nav aria-label="Principal">
+        <div class="grupo">Notas</div>
+        <div class="item" data-n="Emissão">Emissão</div>
+        <div class="item" data-n="Lote">Lote</div>
+        <div class="item" data-n="Tomadores">Tomadores</div>
+        <div class="item" data-n="Histórico">Histórico</div>
+        <div class="grupo">Cadastros</div>
+        <div class="item" data-n="Modelos">Modelos</div>
+        <div class="item" data-n="Emissores">Emissores</div>
+        <div class="item" data-n="Tabelas">Tabelas</div>
+        <div class="item" data-n="Configurações">Configurações</div>
+      </nav>
+      <div class="corpo" data-corpo></div>
+    </div>
+  </div>
+</template>
+
+<script>
+(function () {
+  /* Cada tela é uma função que devolve o HTML do corpo. Conteúdo real, dados fictícios. */
+  var TELAS = [
+  {
+    nome: 'Emissão', ativo: 'Emissão', titulo: 'Nova nota fiscal',
+    corpo: function () {
+      return '<div class="cabecalho-tela"><h2>Nova nota fiscal</h2><span class="ajuda">Série 00001, próxima DPS nº 000000000000043</span></div>' +
+      '<h3>Tomador</h3><div class="campos">' +
+        '<div class="campo"><span class="rot-campo">CNPJ ou CPF do tomador</span><div class="valor num">98.765.432/0001-10</div></div>' +
+        '<div class="campo"><span class="rot-campo">Nome ou razão social</span><div class="valor">Padaria Bom Pão Ltda</div></div>' +
+        '<div class="campo largo"><div class="caixa"><i class="on"></i>Atualizar o cadastro deste tomador ao emitir (mostra o que muda)</div></div>' +
+      '</div>' +
+      '<h3>Serviço</h3><div class="campos">' +
+        '<div class="campo largo"><span class="rot-campo">Descrição do serviço</span><textarea class="valor" rows="3" aria-label="Descrição do serviço">Organização de festas e recepções, com buffet para 80 pessoas, montagem e desmontagem do espaço e apoio de dois garçons.</textarea><div class="contador">Restam 832 de 1000 caracteres</div></div>' +
+        '<div class="campo"><span class="rot-campo">Valor do serviço</span><div class="valor num">R$ 1.200,00</div></div>' +
+        '<div class="campo"><span class="rot-campo">Alíquota do ISSQN</span><div class="valor num">5,00%</div></div>' +
+      '</div>' +
+      '<h3>Confirmação para Produção</h3><p class="ajuda" style="margin:0 0 8px">Aparece quando o ambiente for Produção. Digite o CNPJ do emitente para liberar a emissão.</p>' +
+      '<div class="campos"><div class="campo largo"><span class="rot-campo">CNPJ do emitente</span><div class="valor">Digite o CNPJ para confirmar</div><span class="msg-erro">Ainda não confere com o CNPJ do emitente.</span></div></div>' +
+      '<div class="acoes"><button class="btn s" type="button">Salvar rascunho</button><button class="btn d" type="button" disabled>Emitir nota</button></div>';
+    }
+  },
+  {
+    nome: 'Lote', ativo: 'Lote', titulo: 'Emissão em lote',
+    corpo: function () {
+      var linhas = [
+        ['Padaria Bom Pão Ltda', 'R$ 1.200,00', 'ok', 'Emitida'],
+        ['Clínica Vida Plena', 'R$ 2.350,00', 'nok', 'Falhou'],
+        ['Mercearia Santa Rita Ltda', 'R$ 480,00', 'ok', 'Emitida'],
+        ['Helena Duarte', 'R$ 300,00', 'nok', 'Falhou'],
+        ['Oficina Três Irmãos ME', 'R$ 890,00', 'neu', 'Aguardando'],
+        ['Ana Lúcia Ferreira', 'R$ 150,00', 'nok', 'Falhou']
+      ];
+      return '<div class="cabecalho-tela"><h2>Emissão em lote</h2><span class="ajuda">Planilha tomadores_outubro.csv, 40 linhas (esta tabela mostra 6)</span></div>' +
+      '<div class="barra" role="progressbar" aria-valuenow="34" aria-valuemin="0" aria-valuemax="40" aria-label="Progresso do lote"><i style="width:85%"></i></div>' +
+      '<p class="ajuda" style="margin:0 0 12px">34 de 40 processadas. 31 emitidas, 3 falharam, 6 aguardando. O lote continua até o fim e só as falhas são reenviadas.</p>' +
+      '<table><thead><tr><th>Tomador</th><th class="n">Valor</th><th>Situação</th><th>Motivo</th></tr></thead><tbody>' +
+      linhas.map(function (l) {
+        var motivo = l[2] === 'nok' ? (l[0] === 'Clínica Vida Plena' ? 'E0234: endereço obrigatório para este caso' : l[0] === 'Helena Duarte' ? 'E0190: CNPJ ou CPF não encontrado na data da competência' : 'E0234: endereço obrigatório para este caso') : '';
+        return '<tr><td>' + l[0] + '</td><td class="n">' + l[1] + '</td><td><span class="sit ' + l[2] + '"><i aria-hidden="true"></i>' + l[3] + '</span></td><td>' + motivo + '</td></tr>';
+      }).join('') +
+      '</tbody></table>' +
+      '<div class="card" style="margin-top:14px"><h3 style="margin-top:0">Relatório de falhas</h3><p class="ajuda" style="margin:0 0 8px">Corrija o endereço da Clínica Vida Plena e da Ana Lúcia Ferreira. Confira o CPF da Helena Duarte. Depois reenvie só as falhas. Nenhuma nota é emitida de novo sem sua confirmação.</p>' +
+      '<div class="acoes" style="margin-top:6px"><button class="btn s" type="button">Exportar relatório</button><button class="btn p" type="button">Reenviar 3 falhas</button></div></div>';
+    }
+  },
+  {
+    nome: 'Tomadores', ativo: 'Tomadores', titulo: 'Tomadores',
+    corpo: function () {
+      return '<div class="cabecalho-tela"><h2>Tomadores</h2><span class="ajuda">Cadastro local. Só o que foi emitido aparece aqui.</span></div>' +
+      '<div class="dialogo" role="dialog" aria-labelledby="dlg-t"><h3 id="dlg-t" style="margin-top:0">Atualizar o cadastro do tomador?</h3>' +
+      '<p class="ajuda" style="margin:0 0 10px">Você mudou o endereço de Padaria Bom Pão Ltda. Veja o que muda no cadastro antes de emitir.</p>' +
+      '<table><thead><tr><th>Campo</th><th>Cadastrado</th><th>Novo</th></tr></thead><tbody>' +
+      '<tr><td>Logradouro</td><td>Rua das Acácias, 80</td><td>Rua das Acácias, 120</td></tr>' +
+      '<tr><td>Bairro</td><td>Vila Industrial</td><td>Centro</td></tr>' +
+      '<tr><td>E-mail</td><td>(não informado)</td><td>financeiro@bompao.exemplo.com.br</td></tr>' +
+      '</tbody></table>' +
+      '<div class="caixa" style="margin-top:12px"><i></i>Sempre atualizar o cadastro ao emitir</div>' +
+      '<div class="acoes"><button class="btn s" type="button">Emitir sem atualizar</button><button class="btn p" type="button">Atualizar e emitir</button></div></div>' +
+      '<p class="ajuda" style="margin:14px 0 0">A nota emitida guarda os dados da época, mesmo que o cadastro mude depois.</p>';
+    }
+  },
+  {
+    nome: 'Histórico', ativo: 'Histórico', titulo: 'Histórico de notas',
+    corpo: function () {
+      var linhas = [
+        ['000000000000042', '22/10/2026', 'Padaria Bom Pão Ltda', 'R$ 1.200,00', 'ok', 'Emitida', 'Imprimir, Enviar por e-mail'],
+        ['000000000000041', '20/10/2026', 'Mercearia Santa Rita Ltda', 'R$ 480,00', 'nok', 'Cancelada', 'Ver motivo'],
+        ['000000000000040', '15/10/2026', 'Clínica Vida Plena', 'R$ 2.350,00', 'ok', 'Emitida', 'Imprimir, Enviar por e-mail'],
+        ['000000000000039', '12/10/2026', 'Helena Duarte', 'R$ 300,00', 'neu', 'Substituída', 'Ver nota nova']
+      ];
+      return '<div class="cabecalho-tela"><h2>Histórico de notas</h2><span class="ajuda">Número da NFS-e é atribuído pela Sefin Nacional</span></div>' +
+      '<div class="valor" style="margin-bottom:12px;color:var(--text-2)">Buscar por tomador ou número da NFS-e</div>' +
+      '<table><thead><tr><th>Número da NFS-e</th><th>Emissão</th><th>Tomador</th><th class="n">Valor</th><th>Situação</th><th>Ações</th></tr></thead><tbody>' +
+      linhas.map(function (l, i) {
+        return '<tr' + (i === 0 ? ' class="sel"' : '') + '><td>' + l[0] + '</td><td>' + l[1] + '</td><td>' + l[2] + '</td><td class="n">' + l[3] + '</td><td><span class="sit ' + l[4] + '"><i aria-hidden="true"></i>' + l[5] + '</span></td><td><span class="link">' + l[6].split(', ').join('</span> <span class="link">') + '</span></td></tr>';
+      }).join('') + '</tbody></table>';
+    }
+  },
+  {
+    nome: 'Modelos', ativo: 'Modelos', titulo: 'Modelos',
+    corpo: function () {
+      return '<div class="cabecalho-tela"><h2>Modelos</h2><span class="ajuda">Modelos de nota e de e-mail</span></div>' +
+      '<div class="campos"><div class="campo"><span class="rot-campo">Modelo de e-mail para enviar a nota</span>' +
+        '<div class="lista-sus" role="listbox" aria-label="Modelo de e-mail">' +
+          '<div class="ativo" role="option" aria-selected="true">Padrão (pré-formatado)<small>padrão</small></div>' +
+          '<div role="option">Cobrança com prazo<small>meu modelo</small></div>' +
+          '<div role="option">Agradecimento<small>meu modelo</small></div>' +
+          '<div role="option" style="color:var(--text-2)">Criar modelo próprio</div>' +
+        '</div></div>' +
+        '<div class="campo"><span class="rot-campo">Prévia do assunto e do corpo</span><div class="valor" style="min-height:120px;align-items:flex-start;padding-top:8px;line-height:1.5">Assunto: Sua nota fiscal nº 000000000000042<br>Olá, segue em anexo a nota fiscal de serviço emitida em 22/10/2026 para Padaria Bom Pão Ltda.</div><span class="ajuda">Variáveis: {tomador_nome}, {numero_nfse}, {data_emissao}, {valor}, {emissor_nome}, {chave_acesso}.</span></div></div>' +
+      '<h3>Modelo de nota (pré-preenchido)</h3><div class="card"><strong>Buffet para eventos</strong><p class="ajuda" style="margin:4px 0 0">Descrição do serviço e alíquota preenchidas. O tomador e o valor são escolhidos ao emitir.</p></div>' +
+      '<div class="acoes"><button class="btn s" type="button">Duplicar modelo</button><button class="btn p" type="button">Salvar modelo</button></div>';
+    }
+  },
+  {
+    nome: 'Emissores', ativo: 'Emissores', titulo: 'Emissores',
+    corpo: function () {
+      return '<div class="cabecalho-tela"><h2>Emissores</h2><span class="ajuda">Cada emissor tem certificado A1, senha e numeração próprios</span></div>' +
+      '<div class="card"><strong>Ateliê Cacto Verde MEI</strong><span class="badge">Último usado</span>' +
+        '<p class="ajuda" style="margin:4px 0 8px">CNPJ 12.345.678/0001-90, ambiente Produção Restrita. Certificado A1 válido até 03/2027 (exemplo).</p>' +
+        '<div class="acoes" style="margin-top:0;justify-content:flex-start"><span class="link">Editar</span><span class="link">Trocar certificado</span></div></div>' +
+      '<div class="card"><strong>Helena Duarte</strong><span class="badge">CPF</span>' +
+        '<p class="ajuda" style="margin:4px 0 8px">CPF com domicílio no município emissor (regra E0099 a verificar). Ambiente Produção Restrita.</p>' +
+        '<div class="acoes" style="margin-top:0;justify-content:flex-start"><span class="link">Editar</span><span class="link">Trocar certificado</span></div></div>' +
+      '<div class="acoes"><button class="btn s" type="button">Importar certificado A1</button><button class="btn p" type="button">Trocar para Helena Duarte</button></div>' +
+      '<p class="ajuda" style="margin:10px 0 0">Vários emissores por instalação, sem limite fixo. O app abre com o último emissor usado.</p>';
+    }
+  },
+  {
+    nome: 'Tabelas', ativo: 'Tabelas', titulo: 'Tabelas fiscais',
+    corpo: function () {
+      return '<div class="cabecalho-tela"><h2>Tabelas fiscais</h2><button class="btn p" type="button">Atualizar tabelas</button></div>' +
+      '<table><thead><tr><th>Tabela</th><th>Versão em uso</th><th>Origem</th><th>Situação</th></tr></thead><tbody>' +
+        '<tr><td>Municípios e códigos municipais</td><td>versão de 25/10/2026 (exemplo)</td><td>API de localidades do IBGE</td><td><span class="sit ok"><i aria-hidden="true"></i>Atualizada</span></td></tr>' +
+        '<tr><td>Classificações tributárias (CST e cClassTrib)</td><td>Informe Técnico 2025.002 v1.60</td><td>Portal oficial, formato a confirmar</td><td><span class="sit neu"><i aria-hidden="true"></i>Versão nova não encontrada</span></td></tr>' +
+        '<tr><td>cIndOp (Anexo VII)</td><td>v1.03.00 (orquestrador, a confirmar)</td><td>Portal oficial</td><td><span class="sit nok"><i aria-hidden="true"></i>Verificar</span></td></tr>' +
+        '<tr><td>cNBS</td><td>embutida no pacote</td><td>Sem URL de download</td><td><span class="sit neu"><i aria-hidden="true"></i>Embutida</span></td></tr>' +
+      '</tbody></table>' +
+      '<div class="caixa" style="margin-top:14px"><i class="on"></i>Atualizar ao abrir o app, só quando houver versão nova</div>';
+    }
+  },
+  {
+    nome: 'Configurações', ativo: 'Configurações', titulo: 'Configurações',
+    corpo: function () {
+      return '<div class="cabecalho-tela"><h2>Configurações</h2></div>' +
+      '<h3 style="margin-top:0">Envio por e-mail</h3>' +
+      '<div class="campos"><div class="campo"><span class="rot-campo">Provedor</span><div class="lista-sus" role="listbox" aria-label="Provedor"><div class="ativo" role="option" aria-selected="true">Gmail<small>OAuth, recomendado</small></div><div role="option">Outlook e Hotmail<small>OAuth</small></div><div role="option">Yahoo<small>senha de app</small></div><div role="option">Zoho<small>não confirmado pelo provedor</small></div><div role="option">Personalizado</div></div></div>' +
+        '<div class="campo"><div class="radio"><i class="on"></i>Conectar com a conta Google (abre o navegador do sistema)</div><div class="radio"><i></i>Usar senha de app</div><span class="ajuda">Gmail usa a API REST gmail.send, com verificação do Google no projeto do líder (checagem na implementação).</span></div></div>' +
+      '<h3>Senha do certificado</h3>' +
+      '<div class="campo"><div class="radio"><i></i>Sempre pedir</div><div class="radio"><i class="on"></i>Ao reabrir o app</div><div class="radio"><i class="on"></i>Após 15 minutos parado</div><div class="radio"><i></i>A cada 20 notas emitidas (desligada por padrão)</div>' +
+        '<div class="caixa" style="margin-top:6px"><i class="on"></i>Guardar a senha no chaveiro do sistema</div><div class="caixa"><i class="on"></i>Travar ao bloquear a tela</div><div class="caixa"><i class="on"></i>Sempre pedir antes de emitir em Produção</div></div>' +
+      '<h3>Senha-mestra do banco</h3><p class="ajuda" style="margin:0 0 8px">Separada da senha do certificado. Sem ela e sem o código de recuperação, os dados cifrados não se abrem. Mostrado uma vez, no primeiro uso, com opção de salvar ou imprimir.</p>' +
+      '<div class="acoes" style="justify-content:flex-start"><button class="btn s" type="button">Alterar senha-mestra</button><button class="btn s" type="button">Gerar código de recuperação</button></div>';
+    }
+  },
+  {
+    nome: 'Assistente', ativo: null, titulo: 'Assistente de primeiro uso',
+    corpo: function () {
+      return '<div class="cabecalho-tela"><h2>Preparar o banco de dados</h2><span class="ajuda">Passo 2 de 3</span></div>' +
+      '<div class="passo"><b class="n" aria-hidden="true">1</b><div><strong>Procurar o MySQL neste computador</strong><p class="ajuda" style="margin:2px 0 0">Encontrado: MySQL 8.4 (exemplo).</p></div></div>' +
+      '<div class="passo"><b class="n pend" aria-hidden="true">2</b><div><strong>Criar o banco e o usuário da NotaLivre</strong><p class="ajuda" style="margin:2px 0 0">Script SQL para colar com sudo. A senha de administrador fica só em memória, e só quando o servidor aceitar.</p></div></div>' +
+      '<div class="passo"><b class="n pend" aria-hidden="true">3</b><div><strong>Ligar a cifra dos dados</strong><p class="ajuda" style="margin:2px 0 0">Depois do passo 2.</p></div></div>' +
+      '<h3>Se o MySQL não estiver instalado</h3><p class="ajuda" style="margin:0 0 6px">Copie o comando da sua distribuição e rode no terminal. MariaDB também serve. O app não instala pacotes.</p>' +
+      '<div class="comando">Fedora: sudo dnf install mysql-server</div><div class="comando" style="margin-top:6px">Ubuntu e Mint: sudo apt install mysql-server</div><div class="comando" style="margin-top:6px">Manjaro: sudo pacman -S mariadb</div>' +
+      '<div class="acoes"><button class="btn s" type="button">Testar de novo</button><button class="btn d" type="button" disabled>Continuar</button></div>';
+    }
+  }
+  ];
+
+  var host = document.getElementById('telas');
+  var tpl = document.getElementById('tpl-janela');
+  TELAS.forEach(function (t) {
+    ['light', 'dark'].forEach(function (tema) {
+      var rot = document.createElement('p');
+      rot.className = 'tela-rot';
+      rot.textContent = t.nome + ', tema ' + (tema === 'light' ? 'claro' : 'escuro');
+      host.appendChild(rot);
+      var f = tpl.content.cloneNode(true);
+      var janela = f.querySelector('.janela');
+      janela.classList.add(tema);
+      if (t.ativo === null) {
+        /* Assistente: tela de fluxo, sem menu lateral. */
+        f.querySelector('.lado nav').style.display = 'none';
+        f.querySelector('.lado').style.gridTemplateColumns = '1fr';
+      } else {
+        f.querySelectorAll('.lado nav .item').forEach(function (n) {
+          if (n.getAttribute('data-n') === t.ativo) n.classList.add('ativo');
+        });
+      }
+      f.querySelector('[data-corpo]').innerHTML = t.corpo();
+      janela.setAttribute('aria-label', t.titulo);
+      host.appendChild(f);
+    });
+  });
+})();
+</script>
+</body>
+</html>

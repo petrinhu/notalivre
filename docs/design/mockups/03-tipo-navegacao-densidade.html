@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NotaLivre, rodadas 3, 4 e 5: tipo, navegação e densidade (mock de referência)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400..800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Schibsted+Grotesk:wght@400..900&display=swap" rel="stylesheet">
+<style>
+/* Paleta Musgo (rodada 2 decidida): claro #2F5D50, escuro #8FD0B7. Superfícies e textos da direção Talão (rodada 1).
+   Contraste medido contra o fundo real (ver spec-visual.md, seção 5). Mock de REFERÊNCIA, não conversão 1:1 para QML. */
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#1b1d21;color:#e9ecf1;font:16px/1.5 "Atkinson Hyperlegible",system-ui,sans-serif;padding:32px 24px 64px}
+.wrap{max-width:1240px;margin:0 auto}
+h1{font:700 26px/1.2 "Bricolage Grotesque",system-ui,sans-serif;margin:0 0 8px}
+h2{font:700 21px/1.3 "Bricolage Grotesque",system-ui,sans-serif;margin:36px 0 6px}
+h3{font:700 16px/1.3 "Bricolage Grotesque",system-ui,sans-serif;margin:14px 0 6px;color:#dfe5ec}
+.lede{margin:0 0 12px;color:#b9c0cb;max-width:86ch}
+.nota{font-size:14px;color:#b9c0cb;margin:4px 0 0}
+
+/* Pares tipográficos (rodada 3) */
+.pares{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media (max-width:1000px){.pares{grid-template-columns:1fr}}
+.par{background:#22252b;border-radius:14px;padding:14px}
+.par p.t{margin:0 0 6px;font-size:14px;color:#b9c0cb}
+.par .amostra-t{font:700 26px/1.15 var(--tit);color:#f2f5f8;margin:0 0 6px}
+.par .amostra-c{font:400 16px/1.5 var(--cor);color:#e4e9ef;margin:0}
+.par .amostra-c b{font-weight:700}
+.par .lic{font-size:13px;color:#b9c0cb;margin:8px 0 0}
+
+/* Grade de telas */
+.grade{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:10px}
+.grade.um{grid-template-columns:1fr}
+@media (max-width:1100px){.grade{grid-template-columns:1fr}}
+.cel .rot{font-size:14px;color:#b9c0cb;margin:0 0 6px}
+
+/* Casca da janela (tokens de cor e de densidade) */
+.janela{background:var(--bg);color:var(--text-1);border:1px solid var(--border-soft);border-radius:14px;overflow:hidden;font-family:var(--cor);font-size:var(--fs);box-shadow:0 1px 0 var(--border-soft),0 10px 24px rgb(0 0 0/.10)}
+.light{--bg:#EDF2EE;--surface:#FFFFFF;--text-1:#16241E;--text-2:#4B5E56;--border:#6F8178;--border-soft:#D3DDD6;--hover:#E1EAE4;--brand:#2F5D50;--brand-hover:#26493F;--on-brand:#FFFFFF;--focus:#2F5D50;--ok:#2F6B3A;--warn:#7A4A00;--danger:#A3262B;--faixa-bg:#F6E7C8;--faixa-fg:#5C3600;--stamp:#8A4B00;--on-stamp:#FFFFFF;--sel:#D3E4DB}
+.dark{--bg:#111A17;--surface:#18241F;--text-1:#E6F0EB;--text-2:#A7BAB1;--border:#6E8379;--border-soft:#25352E;--hover:#1F2F28;--brand:#8FD0B7;--brand-hover:#A5DEC9;--on-brand:#0E1714;--focus:#8FD0B7;--ok:#8FD0B7;--warn:#E8B65B;--danger:#FF9A9E;--faixa-bg:#2E2614;--faixa-fg:#F3D08C;--stamp:#E8B65B;--on-stamp:#111A17;--sel:#21372E}
+.janela .cab{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:var(--pad-y) var(--pad-x);border-bottom:1px solid var(--border-soft)}
+.marca{font:700 22px/1 "Bricolage Grotesque",system-ui,sans-serif;color:var(--brand)}
+.emissor{font-size:var(--fs-sm);color:var(--text-2)}
+.emissor b{color:var(--text-1)}
+.faixa{display:flex;gap:8px;align-items:flex-start;padding:var(--pad-y) var(--pad-x);background:var(--faixa-bg);color:var(--faixa-fg);font-weight:700;font-size:var(--fs-sm)}
+.faixa .ic{flex:none;width:18px;height:18px;border-radius:50%;background:var(--stamp);color:var(--on-stamp);display:grid;place-items:center;font-size:12px}
+.corpo{padding:var(--pad-y) var(--pad-x)}
+.campos{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap) 10px}
+.campo{display:flex;flex-direction:column;gap:3px;min-width:0}
+.campo.largo{grid-column:1/-1}
+.campo label,.rot-campo{font-size:var(--fs-sm);font-weight:700;color:var(--text-2)}
+.valor{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:0 10px;min-height:var(--campo-h);display:flex;align-items:center;color:var(--text-1);font-variant-numeric:tabular-nums}
+.valor.num{justify-content:flex-end}
+textarea.valor{padding:8px 10px;min-height:calc(var(--campo-h)*2);resize:none;font:inherit;line-height:1.4}
+.contador{font-size:var(--fs-sm);color:var(--text-2);text-align:right}
+.tit{font:700 var(--fs-h3)/1.3 "Bricolage Grotesque",system-ui,sans-serif;color:var(--text-1);margin:var(--gap) 0 6px}
+.acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:var(--gap)}
+.btn{font:700 var(--fs-sm)/1 var(--cor);padding:0 14px;min-height:var(--btn-h);display:inline-flex;align-items:center;border-radius:999px;border:1.5px solid transparent}
+.btn.p{background:var(--brand);color:var(--on-brand)}
+.btn.s{background:transparent;color:var(--brand);border-color:var(--border)}
+.link{color:var(--brand);text-decoration:underline;text-underline-offset:3px;font-size:var(--fs-sm)}
+.busca{min-height:var(--campo-h);border:1.5px solid var(--border);border-radius:10px;background:var(--surface);padding:0 10px;display:flex;align-items:center;color:var(--text-2);font-size:var(--fs-sm);margin-bottom:var(--gap)}
+table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+th{font-weight:700;color:var(--text-2);text-align:left;padding:var(--pad-cel) 8px;border-bottom:1.5px solid var(--border)}
+td{padding:0 8px;height:var(--linha-h);border-bottom:1px solid var(--border-soft);color:var(--text-1);vertical-align:middle}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr:hover td{background:var(--hover)}
+tr.sel td{background:var(--sel)}
+.sit{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+.sit i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.sit.ok i{background:var(--ok)}
+.sit.nok i{background:var(--danger)}
+.sit.neu i{background:var(--text-2)}
+.acoes-linha{display:inline-flex;gap:8px}
+.acoes-linha a{color:var(--brand);text-decoration:underline;text-underline-offset:3px;font-size:var(--fs-sm)}
+
+/* Navegação lateral (sidebar) */
+.lado{display:grid;grid-template-columns:184px 1fr}
+.lado nav{background:var(--surface);border-right:1px solid var(--border-soft);padding:12px 8px}
+.lado nav .item{display:flex;align-items:center;min-height:var(--nav-h);padding:0 10px;border-radius:10px;color:var(--text-1);font-size:var(--fs-sm);font-weight:600;margin-bottom:2px}
+.lado nav .item.ativo{background:var(--hover);color:var(--brand);box-shadow:inset 3px 0 0 var(--brand)}
+.lado .principal{min-width:0}
+.lado nav .grupo{font-size:13px;color:var(--text-2);margin:8px 10px 4px}
+
+/* Navegação superior (abas + menu Mais) */
+.topo-nav{display:flex;align-items:center;gap:4px;padding:0 var(--pad-x);border-bottom:1px solid var(--border-soft);background:var(--surface);flex-wrap:wrap}
+.topo-nav .aba{min-height:var(--nav-h);display:inline-flex;align-items:center;padding:0 12px;font-size:var(--fs-sm);font-weight:600;color:var(--text-2);border-bottom:3px solid transparent}
+.topo-nav .aba.ativa{color:var(--brand);border-bottom-color:var(--brand)}
+.topo-nav .mais{margin-left:auto;color:var(--text-1)}
+
+/* Densidades */
+.d-conf{--fs:16px;--fs-sm:15px;--fs-h3:17px;--pad-x:16px;--pad-y:12px;--gap:12px;--campo-h:44px;--btn-h:40px;--linha-h:52px;--pad-cel:10px;--nav-h:44px;--cor:"Atkinson Hyperlegible",system-ui,sans-serif}
+.d-comp{--fs:14px;--fs-sm:13px;--fs-h3:15px;--pad-x:12px;--pad-y:8px;--gap:8px;--campo-h:32px;--btn-h:32px;--linha-h:34px;--pad-cel:6px;--nav-h:34px;--cor:"Atkinson Hyperlegible",system-ui,sans-serif}
+.tipo-plex .janela{--cor:"IBM Plex Sans",system-ui,sans-serif}
+.tipo-schib .janela{--cor:"Atkinson Hyperlegible",system-ui,sans-serif}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>NotaLivre: rodadas 3, 4 e 5 (tipo, navegação, densidade)</h1>
+  <p class="lede">Mesma paleta Musgo em todas as telas (decidida na rodada 2). Três perguntas independentes, mostradas lado a lado. Dados fictícios. Mock de referência, não conversão 1:1 para QML. Textos de navegação são os destinos reais do spec funcional (seção 4 e 2.1): Emissão, Lote, Tomadores, Histórico, Modelos, Emissores, Tabelas, Configurações.</p>
+
+  <h2>Rodada 3: par tipográfico</h2>
+  <p class="lede">Título e corpo em três pares, todos com licença SIL Open Font License (OFL). Amostras com o texto real da tela.</p>
+  <div class="pares">
+    <div class="par" style="--tit:'Bricolage Grotesque',system-ui,sans-serif;--cor:'Atkinson Hyperlegible',system-ui,sans-serif">
+      <p class="t">T1, recomendado: Bricolage Grotesque e Atkinson Hyperlegible</p>
+      <p class="amostra-t">Emitir nota fiscal</p>
+      <p class="amostra-c">Descrição do serviço: <b>Organização de festas e recepções</b>, com buffet para 80 pessoas. Restam 832 de 1000 caracteres.</p>
+      <p class="lic">Licença: OFL (Bricolage Grotesque, Braille Institute para Atkinson Hyperlegible). Atkinson foi desenhada para leitura de baixa visão.</p>
+    </div>
+    <div class="par" style="--tit:'Bricolage Grotesque',system-ui,sans-serif;--cor:'IBM Plex Sans',system-ui,sans-serif">
+      <p class="t">T2: Bricolage Grotesque e IBM Plex Sans</p>
+      <p class="amostra-t">Emitir nota fiscal</p>
+      <p class="amostra-c">Descrição do serviço: <b>Organização de festas e recepções</b>, com buffet para 80 pessoas. Restam 832 de 1000 caracteres.</p>
+      <p class="lic">Licença: OFL (IBM Plex Sans, copyright IBM Corp.). Corpo mais neutro e denso, com menos foco em leitura de baixa visão.</p>
+    </div>
+    <div class="par" style="--tit:'Schibsted Grotesk',system-ui,sans-serif;--cor:'Atkinson Hyperlegible',system-ui,sans-serif">
+      <p class="t">T3: Schibsted Grotesk e Atkinson Hyperlegible</p>
+      <p class="amostra-t">Emitir nota fiscal</p>
+      <p class="amostra-c">Descrição do serviço: <b>Organização de festas e recepções</b>, com buffet para 80 pessoas. Restam 832 de 1000 caracteres.</p>
+      <p class="lic">Licença: OFL (Schibsted Grotesk, Schibsted Grotesk Project Authors). Título mais de jornal; combina menos com o talão.</p>
+    </div>
+  </div>
+
+  <h2>Rodadas 4 e 5: navegação e densidade, na lista de notas e na emissão</h2>
+  <p class="lede">Quatro combinações de navegação e densidade, cada uma em claro e escuro. Lateral: sidebar com oito destinos. Superior: abas (até cinco, regra do KDE HIG) com "Mais" para os demais. Confortável: linha de 52 px, campo de 44 px. Compacta: linha de 34 px, campo de 32 px.</p>
+
+  <h3>Lista de notas emitidas (Histórico)</h3>
+  <div class="grade um" id="grade-lista"></div>
+
+  <h3>Tela de emissão</h3>
+  <div class="grade" id="grade-emissao"></div>
+</div>
+
+<script>
+/* Monta as 16 telas (2 navegações x 2 densidades x 2 temas x 2 telas) a partir de um único markup. */
+(function () {
+  var NAV = ['Emissão', 'Lote', 'Tomadores', 'Histórico', 'Modelos', 'Emissores', 'Tabelas', 'Configurações'];
+  var ABAS = ['Emissão', 'Lote', 'Tomadores', 'Histórico'];
+  var MAIS = ['Modelos', 'Emissores', 'Tabelas', 'Configurações'];
+
+  function navLado(ativo) {
+    return '<nav aria-label="Principal"><div class="grupo">Notas</div>' +
+      NAV.slice(0, 4).map(function (n) { return '<div class="item' + (n === ativo ? ' ativo' : '') + '">' + n + '</div>'; }).join('') +
+      '<div class="grupo">Cadastros</div>' +
+      NAV.slice(4).map(function (n) { return '<div class="item' + (n === ativo ? ' ativo' : '') + '">' + n + '</div>'; }).join('') +
+      '</nav>';
+  }
+  function navTopo(ativo) {
+    return '<div class="topo-nav" aria-label="Principal">' +
+      ABAS.map(function (n) { return '<span class="aba' + (n === ativo ? ' ativa' : '') + '">' + n + '</span>'; }).join('') +
+      '<span class="aba mais">Mais: ' + MAIS.join(', ') + '</span></div>';
+  }
+  function cabecalho() {
+    return '<div class="cab"><span class="marca">NotaLivre</span><span class="emissor">Emissor <b>Ateliê Cacto Verde MEI</b></span></div>';
+  }
+  function listaCorpo() {
+    var linhas = [
+      ['000000000000042', '22/10/2026', 'Padaria Bom Pão Ltda', 'R$ 1.200,00', 'ok', 'Emitida', 'Imprimir, Enviar por e-mail'],
+      ['000000000000041', '20/10/2026', 'Mercearia Santa Rita Ltda', 'R$ 480,00', 'nok', 'Cancelada', 'Ver motivo'],
+      ['000000000000040', '15/10/2026', 'Clínica Vida Plena', 'R$ 2.350,00', 'ok', 'Emitida', 'Imprimir, Enviar por e-mail'],
+      ['000000000000039', '12/10/2026', 'Helena Duarte (CPF)', 'R$ 300,00', 'neu', 'Substituída', 'Ver nota nova']
+    ];
+    return '<div class="corpo"><div class="busca">Buscar por tomador ou número da NFS-e</div>' +
+      '<table><thead><tr><th>Número da NFS-e</th><th>Emissão</th><th>Tomador</th><th class="n">Valor</th><th>Situação</th><th>Ações</th></tr></thead><tbody>' +
+      linhas.map(function (l, i) {
+        return '<tr' + (i === 0 ? ' class="sel"' : '') + '><td>' + l[0] + '</td><td>' + l[1] + '</td><td>' + l[2] + '</td><td class="n">' + l[3] +
+          '</td><td><span class="sit ' + l[4] + '"><i aria-hidden="true"></i>' + l[5] + '</span></td><td><span class="acoes-linha"><a href="#">' + l[6].split(', ').join('</a><a href="#">') + '</a></span></td></tr>';
+      }).join('') +
+      '</tbody></table></div>';
+  }
+  function emissaoCorpo() {
+    return '<div class="faixa" role="status"><span class="ic" aria-hidden="true">!</span><span>Produção Restrita. As notas emitidas aqui não têm validade fiscal.</span></div>' +
+      '<div class="corpo">' +
+      '<div class="tit">Tomador</div>' +
+      '<div class="campos">' +
+        '<div class="campo"><span class="rot-campo">CNPJ ou CPF do tomador</span><div class="valor num">98.765.432/0001-10</div></div>' +
+        '<div class="campo"><span class="rot-campo">Nome ou razão social</span><div class="valor">Padaria Bom Pão Ltda</div></div>' +
+      '</div>' +
+      '<div class="tit">Serviço</div>' +
+      '<div class="campos">' +
+        '<div class="campo largo"><span class="rot-campo">Descrição do serviço</span><textarea class="valor" rows="2" aria-label="Descrição do serviço">Organização de festas e recepções, com buffet para 80 pessoas, montagem e desmontagem do espaço e apoio de dois garçons.</textarea><div class="contador">Restam 832 de 1000 caracteres</div></div>' +
+        '<div class="campo"><span class="rot-campo">Valor do serviço</span><div class="valor num">R$ 1.200,00</div></div>' +
+        '<div class="campo"><span class="rot-campo">Alíquota do ISSQN</span><div class="valor num">5,00%</div></div>' +
+      '</div>' +
+      '<div class="acoes"><button class="btn s" type="button">Salvar rascunho</button><button class="btn p" type="button">Emitir nota</button></div>' +
+      '</div>';
+  }
+  function frame(tela, nav, dens, tema) {
+    var navHtml = nav === 'lado' ? '' : navTopo(tela === 'lista' ? 'Histórico' : 'Emissão');
+    var corpo = tela === 'lista' ? listaCorpo() : emissaoCorpo();
+    var inner;
+    if (nav === 'lado') {
+      inner = cabecalho() + '<div class="lado">' + navLado(tela === 'lista' ? 'Histórico' : 'Emissão') + '<div class="principal">' + corpo + '</div></div>';
+    } else {
+      inner = cabecalho() + navHtml + corpo;
+    }
+    var rot = (nav === 'lado' ? 'Lateral' : 'Superior') + ', ' + (dens === 'd-conf' ? 'confortável' : 'compacta') + ', tema ' + (tema === 'light' ? 'claro' : 'escuro');
+    return '<div class="cel"><p class="rot">' + rot + '</p><div class="janela ' + tema + ' ' + dens + '">' + inner + '</div></div>';
+  }
+  function monta(id, tela) {
+    var out = '';
+    ['lado', 'topo'].forEach(function (nav) {
+      ['d-conf', 'd-comp'].forEach(function (dens) {
+        ['light', 'dark'].forEach(function (tema) {
+          out += frame(tela, nav, dens, tema);
+        });
+      });
+    });
+    document.getElementById(id).innerHTML = out;
+  }
+  monta('grade-lista', 'lista');
+  monta('grade-emissao', 'emissao');
+})();
+</script>
+</body>
+</html>
