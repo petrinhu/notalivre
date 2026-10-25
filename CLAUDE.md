@@ -49,6 +49,7 @@ Os itens marcados "decisão do líder" são decisões do líder de 25/10/2026. O
 - **Versionamento (decisão do líder, 25/10/2026).** Formato vA.B.C.D, estilo GlintFx. Tag de marco a cada onda fechada, só com aval explícito do líder.
 - **Mutação a cada push (decisão do líder, 25/10/2026).** O job `mutacao` roda em todo push, sem filtro de caminho.
 - **Brief fundador (decisão do líder, 25/10/2026).** Fica em `docs/origem/`.
+- **CI em PR de terceiros (decisão do líder, 25/10/2026; achado A0-07).** Workflow disparado por PR de colaborador externo só roda com aprovação manual, configurado no repositório.
 
 ## Adaptação da L-70 (deploy irreversível)
 
@@ -75,7 +76,7 @@ Corpo das 7 fases: L-70 do `GODS_LAWS.md` global (anexo `docs/deploy-irreversive
 ## Estilo e leis aplicáveis
 
 - Hub-and-spoke: `README.md` é o único hub (L-73).
-- Texto de interface e de documento em pt-br, sem travessão nem meia-risca (L-32), sem emoji (L-31).
+- Texto de interface e de documento em pt-br, sem travessão nem meia-risca (L-32), sem emoji (L-31); exceção do portão nas pastas internas (decisão do líder, 25/10/2026; achado A0-16): `docs/origem/`, `docs/auditoria/` e `docs/adr/` ficam fora do portão de travessão, e o texto voltado ao usuário fora dessas pastas continua sob a L-32.
 - Pelas leis globais: agente especialista executa, nunca o orquestrador (L-10); implementador, revisor e orquestrador são agentes distintos (L-12); cada fatia e cada onda seguem os passos da L-16; portão só conta depois de visto vermelho (L-36); TDD estrito e sem meta numérica de cobertura (L-35); átomos sem monolito (L-34); dependência unidirecional (L-33); destruição de arquivo só com caminho conferido (L-53).
 
 ## Pendências

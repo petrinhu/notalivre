@@ -177,3 +177,36 @@ Nenhum.
 5. Tag `v0.1.0.0` só com aval do líder. Não é critério dos itens 1 a 8.
 
 **Limites desta re-auditoria:** não reexecutei sabotagens nem builds; os resultados vêm dos logs do CI e dos logs locais. Os logs locais do espelho e do R1 registram SHAs anteriores a `fb264f5`, e a conclusão do item 2 depende disso.
+
+## Re-teste final (3456c98)
+
+**Escopo:** HEAD e `refs/heads/onda-0` = `3456c98`; `main` = `06d4022` (sem merge). Leitura apenas: `git`, `gh run view --log` (logs de dentro do runner, L-49) e leitura de arquivos. Nenhum commit, push, merge, tag, build ou contêiner. Data: 25/10/2026.
+
+**CI do SHA de fechamento:** run `40243270379`, `headBranch=onda-0`, `event=push`, `headSha=3456c98`, `completed/success`, 9 de 9 jobs `success`. Logs em `/var/tmp/notalivre-logs/ci_40243270379_mutacao.log` e `/var/tmp/notalivre-logs/ci_40243270379_<id-do-job>.log`.
+
+### Itens da definição (linha 236 do plano)
+
+| # | Item | Veredito | Evidência |
+|---|---|---|---|
+| 1 | Quatro nativos compilam e rodam `tst_sanidade` com Qt 6.12 | **SIM** | Jobs `121319425335` (manjaro), `121319425411` (fedora44), `121319425413` (mint22.3) e `121319425480` (ubuntu26.04): `success`; em cada log, `Qt 6.12` e `Test #1: tst_sanidade ... Passed`. |
+| 2 | A2, gitleaks e travessão vermelhos por sabotagem, no contêiner local e no job `mutacao`, com SHA | **SIM** (ressalva abaixo) | Job `mutacao` no SHA `3456c98` (`121319425352`): `portao=a2`, `gitleaks`, `travessao`, `spdx` e `flatpak611` com `rc=1 motivo=ok sha=3456c98`; controle do harness com `rc=0 motivo=nao` e veredito "verde falso" detectado. Local: `/var/tmp/notalivre-logs/R1-sabotagem-fb264f5.log`, com `rc=1 motivo=ok` nos mesmos portões em `fb264f5`. `git diff --stat fb264f5 3456c98` não toca `tools/` (só `ci.yml`, `CLAUDE.md`, `docs/auditoria/onda-0.md` e `docs/pesquisa/ci_medicao.md`), então o código dos portões é idêntico nos dois SHAs. Ressalva: o log local não registra a imagem do contêiner; a prova de contêiner é o código do wrapper (`tools/mutacao/sabotar_portoes.sh`, `em_conteiner` nas linhas 90 a 91, usado por A2, travessão e SPDX) e o job de CI, que roda em modo `docker`. |
+| 3 | Resultado de D0.5 em `docs/pesquisa/ci_medicao.md` | **SIM** | Seção "Ponto de decisão D0.5 (resolvido no que cabia)" em `ci_medicao.md:198`, com os runs 40235050696, 40236959902 e 40241779760. Ressalva COSMÉTICO: sem links de job (`grep -c "/job/"` devolve 0) e sem o run `40243270379`. |
+| 4 | Lista de jobs do espelho bate com o workflow e com a última execução empurrada | **SIM** | `tools/espelho_local.txt` tem 9 nomes; `diff` com os 9 nomes do run `40243270379` vazio. O workflow declara 6 jobs (`nativo` com matriz de 4, `higiene`, `camadas`, `flatpak`, `smoke`, `mutacao`), que expandem para os mesmos 9. |
+| 5 | Toda fatia commitada com ID, com status de verificação pendente (L-63) e empurrada para `onda-0` | **SIM** (ressalva abaixo) | `TODO.md` linhas 22 a 27: NL-0.1 a NL-0.6 com Status "Pendente verificação". IDs nos commits: `6f7859e` (NL-0.1), `674255d` (NL-0.2), `f797cda` e `ea9e1a9` (NL-0.3), `1485c86` (NL-0.4), `60748ca` e `fb264f5` (NL-0.5), `14b904d` e `fb264f5` (NL-0.6). Remoto: `git merge-base --is-ancestor 3456c98 origin/onda-0` ok e `git ls-remote` = `3456c98`. Ressalva: `b10533f`, `f9f20bc` e `ad7ebea` não citam ID (commits de plano, auditoria e correção, sem fatia de NL); A0-17 segue aberto (A0-xx fora do `TODO.md`). |
+| 6 | Relatório do internal-auditor sem CRÍTICO | **SIM** | Nenhum achado desta re-auditoria é CRÍTICO. Pendências IMPORTANTES: A0-16 (decisão do líder não ratificada). |
+| 7 | CI verde na branch `onda-0`, como uma linha entre as outras | **SIM** | Run `40243270379`: `headBranch=onda-0`, `headSha=3456c98`, `success`, 9 de 9 jobs `success`. |
+| 8 | Merge em `main` só depois de 1 a 7 e da autorização explícita do líder | **NÃO, ainda (não violado)** | `main` segue em `06d4022`. O item só se cumpre na execução do merge, que depende de autorização explícita do líder (L-24). Não há merge indevido. |
+
+### Achados após a re-leitura
+
+| ID | Severidade | Estado | Reavaliação |
+|---|---|---|---|
+| A0-01 | IMPORTANTE | Fechado | Coberto pelo job `mutacao` no SHA `3456c98` (item 2). Resíduo COSMÉTICO: o log local não registra a imagem do contêiner nem o SHA de fechamento. |
+| A0-04 | IMPORTANTE | Fechado (resíduo COSMÉTICO) | Não há mais "não rodou" em `ci_medicao.md` nem em `ci.yml` (grep vazio); linhas 5 e 113 de `ci_medicao.md` e `ci.yml:8` citam os runs. Resíduo: faltam links de job e o run `40243270379`; `ci.yml:8` diz que o último run é o `40241779760`, o que já não vale para `3456c98`. |
+| A0-16 | IMPORTANTE | Aberto (decisão do líder) | Sem mudança. Não é item da definição, mas a ratificação é pendência do líder. |
+| A0-17 | COSMÉTICO | Aberto (processo) | Sem mudança: nenhum A0-xx no `TODO.md`. |
+| N1 | COSMÉTICO | Novo | Commits `b10533f`, `f9f20bc` e `ad7ebea` sem ID de item (L-24, tempo 1). |
+
+### Veredito
+
+**A Onda 0 pode fechar: SIM** para os itens 1 a 7. O item 8 (merge em `main`) é o último passo e depende de autorização explícita do líder, que ainda não foi dada. Nada foi mesclado.
