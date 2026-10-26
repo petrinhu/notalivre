@@ -28,11 +28,11 @@ std::expected<Ibscbs, nl::base::Erro> Ibscbs::montar(std::optional<CodigoIndicad
 {
     const bool exige = exigeReferencia(tpOper);
     if (exige && !gRefNFSe) {
-        return std::unexpected(nl::base::Erro{"ibscbs.gref_obrigatorio", std::string{"IBSCBS/gRefNFSe"},
+        return std::unexpected(nl::base::Erro{"E0905", std::string{"IBSCBS/gRefNFSe"},
                                               "tpOper 2 ou 3 exige o grupo gRefNFSe com a NFS-e referenciada"});
     }
     if (!exige && gRefNFSe) {
-        return std::unexpected(nl::base::Erro{"ibscbs.gref_proibido", std::string{"IBSCBS/gRefNFSe"},
+        return std::unexpected(nl::base::Erro{"E0906", std::string{"IBSCBS/gRefNFSe"},
                                               "gRefNFSe só pode existir com tpOper 2 ou 3"});
     }
     return Ibscbs{std::move(cIndOp), std::move(tpOper), std::move(gRefNFSe), indDest, std::move(trib)};

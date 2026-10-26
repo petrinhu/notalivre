@@ -24,7 +24,7 @@ namespace nl::back {
 class Ibscbs
 {
 public:
-    /// Erros: "ibscbs.gref_obrigatorio" (tpOper 2 ou 3 sem gRefNFSe) e "ibscbs.gref_proibido" (gRefNFSe fora desses casos).
+    /// Erros: "E0905" (tpOper 2 ou 3 sem gRefNFSe) e "E0906" (gRefNFSe fora desses casos).
     static std::expected<Ibscbs, nl::base::Erro> montar(std::optional<CodigoIndicadorOperacao> cIndOp, std::optional<TipoOperacao> tpOper,
                                                         std::optional<RefNfse> gRefNFSe, IndicadorDestinatario indDest, TributacaoIbscbs trib);
 

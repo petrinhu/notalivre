@@ -104,7 +104,7 @@ void TstIbscbs::tpOper2ExigeGRefNFSe()
     QVERIFY(tpOper.has_value());
     QVERIFY(indDest.has_value());
     QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, std::nullopt, *indDest, *tributacao)),
-             QStringLiteral("ibscbs.gref_obrigatorio"));
+             QStringLiteral("E0905"));
 }
 
 void TstIbscbs::tpOper3ComGRefNFSeAceito()
@@ -130,7 +130,7 @@ void TstIbscbs::tpOper1ComGRefNFSeRejeitado()
     QVERIFY(indDest.has_value());
     QVERIFY(umaReferencia().has_value());
     QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, umaReferencia(), *indDest, *tributacao)),
-             QStringLiteral("ibscbs.gref_proibido"));
+             QStringLiteral("E0906"));
 }
 
 void TstIbscbs::tpOper4ComGRefNFSeRejeitado()
@@ -144,7 +144,7 @@ void TstIbscbs::tpOper4ComGRefNFSeRejeitado()
     QVERIFY(indDest.has_value());
     QVERIFY(umaReferencia().has_value());
     QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, umaReferencia(), *indDest, *tributacao)),
-             QStringLiteral("ibscbs.gref_proibido"));
+             QStringLiteral("E0906"));
 }
 
 void TstIbscbs::tpOper5ComGRefNFSeRejeitado()
@@ -158,7 +158,7 @@ void TstIbscbs::tpOper5ComGRefNFSeRejeitado()
     QVERIFY(indDest.has_value());
     QVERIFY(umaReferencia().has_value());
     QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, umaReferencia(), *indDest, *tributacao)),
-             QStringLiteral("ibscbs.gref_proibido"));
+             QStringLiteral("E0906"));
 }
 
 void TstIbscbs::ibscbsValoresObrigatorioQuandoGrupoExiste()
@@ -183,7 +183,7 @@ void TstIbscbs::semTpOperComGRefNFSeRejeitado()
     QVERIFY(indDest.has_value());
     QVERIFY(umaReferencia().has_value());
     QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, std::nullopt, umaReferencia(), *indDest, *tributacao)),
-             QStringLiteral("ibscbs.gref_proibido"));
+             QStringLiteral("E0906"));
 }
 
 void TstIbscbs::semTpOperSemGRefNFSeAceito()
