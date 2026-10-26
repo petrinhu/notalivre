@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Aviso D1 (NL-1.5, ponto L10): tomador identificado por CNPJ sem endereço nacional. Só aviso, nunca erro.
+// Fonte: a E0235 (linha Excel 276 da aba RN do Anexo I de 20/10/2026) tem K e N = X, então a Sefin não a aplica à DPS
+// do app; a regra só do site vira aviso pela decisão do líder no ponto L10 (plano, NL-1.5; DA-1.19).
 
 #include <nl/back/regras/aviso_d1.h>
 
