@@ -32,6 +32,14 @@
 - (sem ID): Sobe ao líder antes do Flathub (parecer K2, docs/juridico/k2-redistribuicao-xsd-e-tabelas.md): aceitar o risco residual de as tabelas JSON contarem como derivação sob a CC BY-ND do gov.br; aceitar dado sob licença SemDerivações (a FSF classifica como não livre); ambiguidade de uso comercial da lista ISO 3166; pedir ou não confirmação escrita à Receita e ao IBGE; revisão por advogado humano. Fonte: Cláudio, K2.
 - (sem ID): Termos de uso da API de localidades do IBGE não achados; conferir antes da Onda 5 (NL-5.2). Fonte: Cláudio, K2.
 - (sem ID): XSD na árvore com aviso de licença (opção b do K2) antes da Onda 9, porque o build do Flathub não tem rede; os XSD entram no manifesto como fonte archive com url e sha256. Fonte: Cláudio, K2, e DA-1.15.
+- (sem ID): tools/conteiner/build_local.sh e executar_no_conteiner.sh:26 não repassam NL_XSD_ZIP_CACHE ao contêiner, então o build local baixa do gov.br e diverge do CI. Fonte: devops, NL-1.6c (26/10/2026).
+- (sem ID): O manifesto Flatpak ainda baixa o ZIP do XSD do gov.br (flatpak/io.github.petrinhu.notalivre.yml:33-37); hoje mitigado pelo cache-key do flatpak-builder. Fonte: devops, NL-1.6c.
+- (sem ID): O portão de travessão não poda worktrees/, contra a L-55 (snapshots de revisão com fixtures de sabotagem reprovam o portão local). Fonte: autor da NL-1.6b.
+- (sem ID): Harness de prova lia a cópia compartilhada /var/tmp/notalivre-src fora do build_local e pegou snapshot mutado de revisor; uma cópia por invocação ou trava de leitura. Fonte: main, NL-1.6c.
+- (sem ID): Zona do emissor no caso de uso de emissão: IANA da máquina se for do Brasil (-02 a -05), senão pedir o fuso; a mesma zona para dhEmi e dCompet padrão (DA-1.27). Exibição do fuso no cadastro do emissor fica com o Capitolino. Fonte: CTO.
+- (sem ID): DadosDps conserva o dhEmi cru com milissegundos (dados_dps.h:36); o codec usa o DhEmi validado, mas quem lê dados() vê o valor cru. Fonte: revisão 2 da NL-1.6b.
+- (sem ID): Sobe ao líder (DA-1.20): incluir o grupo atvEvento na v1; sem ele, a E0390 bloqueia todo o item 12 da LC 116 (shows e eventos). Recomendação do CTO: incluir. Fonte: NL-1.5.
+- (sem ID): Sobe ao líder (DA-1.26): compra governamental (tpEnteGov) no modelo; hoje D3 e o ramo tpEnteGov da E0903 ficam fora. Fonte: NL-1.5.
 
 ## Backlog
 
