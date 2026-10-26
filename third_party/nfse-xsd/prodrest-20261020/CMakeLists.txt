@@ -8,6 +8,11 @@
 # (SHA256SUMS da árvore de código) e NL_XSD_PRODREST_RAIZ (DPS_v1.01.xsd).
 
 set(NL_XSD_ZIP_CACHE "" CACHE PATH "Diretório com o ZIP do XSD já baixado (build sem rede). O SHA-256 é conferido do mesmo jeito.")
+# Sem -D, o diretório vem do ambiente: o CI exporta NL_XSD_ZIP_CACHE no passo do cache, e o configure aninhado
+# (tools/conteiner/sabotar_sanidade.sh) herda. Só valor local (set normal): não grava o ambiente no cache do CMake.
+if(NOT NL_XSD_ZIP_CACHE AND NOT "$ENV{NL_XSD_ZIP_CACHE}" STREQUAL "")
+    set(NL_XSD_ZIP_CACHE "$ENV{NL_XSD_ZIP_CACHE}")
+endif()
 # URL do ZIP: o padrão é o gov.br; o teste de hash (tests/unit/foundation/xml/hash_zip) aponta file:// para ficar sem rede.
 set(NL_XSD_URL "https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas_prod_restrita_20261020.zip" CACHE STRING "URL do ZIP do XSD de Produção Restrita")
 set(_nl_xsd_url "${NL_XSD_URL}")
@@ -46,12 +51,25 @@ if(NL_XSD_ZIP_CACHE AND EXISTS "${NL_XSD_ZIP_CACHE}/${_nl_xsd_zip_nome}")
     file(COPY_FILE "${NL_XSD_ZIP_CACHE}/${_nl_xsd_zip_nome}" "${_nl_xsd_zip}")
 endif()
 file(MAKE_DIRECTORY "${_nl_xsd_dir}")
-file(DOWNLOAD "${_nl_xsd_url}" "${_nl_xsd_zip}"
-    EXPECTED_HASH SHA256=${_nl_xsd_zip_sha}
-    TLS_VERIFY ON
-    TIMEOUT 120
-    STATUS _nl_xsd_status)
-list(GET _nl_xsd_status 0 _nl_xsd_cod)
+# Até 3 tentativas para falha de rede (gov.br caiu no CI, NL-1.6c). Divergência de hash não é transitória:
+# para na primeira, com a mesma mensagem de antes. O EXPECTED_HASH é o mesmo em todas as tentativas.
+set(_nl_xsd_tentativas 3)
+foreach(_nl_xsd_tentativa RANGE 1 ${_nl_xsd_tentativas})
+    file(DOWNLOAD "${_nl_xsd_url}" "${_nl_xsd_zip}"
+        EXPECTED_HASH SHA256=${_nl_xsd_zip_sha}
+        TLS_VERIFY ON
+        TIMEOUT 120
+        STATUS _nl_xsd_status)
+    list(GET _nl_xsd_status 0 _nl_xsd_cod)
+    if(_nl_xsd_cod EQUAL 0)
+        break()
+    endif()
+    list(GET _nl_xsd_status 1 _nl_xsd_msg)
+    if(_nl_xsd_msg MATCHES "HASH mismatch" OR _nl_xsd_tentativa EQUAL _nl_xsd_tentativas)
+        break()
+    endif()
+    message(WARNING "NL-1.6a: tentativa ${_nl_xsd_tentativa} de ${_nl_xsd_tentativas} do ZIP do XSD falhou (${_nl_xsd_msg}); tentando de novo.")
+endforeach()
 if(NOT _nl_xsd_cod EQUAL 0)
     list(GET _nl_xsd_status 1 _nl_xsd_msg)
     message(FATAL_ERROR "NL-1.6a: não consegui obter o ZIP do XSD de ${_nl_xsd_url} com SHA-256 esperado ${_nl_xsd_zip_sha}: ${_nl_xsd_msg}. "
