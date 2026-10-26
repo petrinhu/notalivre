@@ -17,6 +17,12 @@
 - (sem ID): Capitolino decide se a importação de serviço (tpEmit 2 ou 3, emitida pelo tomador ou intermediário) entra na v1. Fonte: plano, Onda 1, INBOX item 4 (aba RN linhas 166, 203 e 482).
 - (sem ID): Capitolino decide se a tela de emissão exige o nome do tomador, agora opcional no Anexo de 20/10 (toma/xNome 0-1; spec 4.8 diz obrigatório). Fonte: plano, Onda 1, INBOX item 5.
 - (sem ID): Capitolino decide, um grupo por vez, os campos do mapa que o spec não põe na v1 (obra, evento, comércio exterior e outros). Fonte: plano, Onda 1, INBOX item 6.
+- (sem ID): Capitolino decide se o intermediário (interm, com vReceb) entra na v1; sem ele a E0262 e o aviso D4 da NL-1.5 não têm caso. Fonte: plano, Onda 1, INBOX item 7.
+- (sem ID): Capitolino decide se o código de tributação municipal (serv/cServ/cTribMun, 0-1, linha Excel 198) entra na v1; INFERÊNCIA do CTO: o município pode exigi-lo por parametrização, relevante para a primeira nota real. Fonte: plano, Onda 1, INBOX item 8.
+- (sem ID): Capitolino decide se os tributos federais (valores/trib/tribFed: PIS, COFINS, IRRF, CSLL; 0-1, linha Excel 313) entram na v1 para não optante e ME/EPP; proibido para MEI (E0676). Fonte: plano, Onda 1, INBOX item 9.
+- (sem ID): Capitolino decide se informações complementares (serv/infoCompl/xInfComp), código interno (cIntContrib) e CAEPF do prestador pessoa física entram na v1. Fonte: plano, Onda 1, INBOX item 10.
+- (sem ID): Capitolino decide se descontos (valores/vDescCondIncond) e ISSQN especial (tpImunidade, exigSusp, BM, cPaisResult, com tribISSQN 2 e 3) entram na v1. Fonte: plano, Onda 1, INBOX item 11.
+- (sem ID): Capitolino decide se IBS/CBS especial (indFinal, tpEnteGov, dest, imovel, gIBSCBS com crédito presumido, tributação regular e diferimento) entra na v1. Fonte: plano, Onda 1, INBOX item 12.
 - (sem ID): Capitolino decide se os dois códigos NBS sentinela sem descrição na fonte oficial (99999 e 9.9999.99.99) aparecem para o usuário. Fonte: revisão da NL-1.10.
 - (sem ID): Definir o dono da limpeza da entrada de valor digitada na tela ("R$", espaço, separadores), já que Valor::deTextoPtBr é estrito. Fonte: revisão da NL-1.2, achado A1.
 - (sem ID): Teto de valor duplicado em valor.h e valor.cpp: acrescentar static_assert ligando os dois, e teste de soma exatamente igual ao teto. Fonte: revisão da NL-1.2, achado A2.
