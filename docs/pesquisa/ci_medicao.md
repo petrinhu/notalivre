@@ -233,3 +233,48 @@ tools/mutacao/sabotar_portoes.sh <raiz> <trabalho> flatpak
 - **Sabotagem do tst_sanidade (ratificado):** fica como step do job `nativo` (não do job `mutacao`, que não tem Qt). O step `tools/conteiner/sabotar_sanidade.sh` exige o vermelho da cópia sabotada pelo motivo (`FAIL!` em `nomeCamadaDaBaseConfere`) e sai 1 caso contrário. O resumo do job mostra o outcome do step; o rc de build e de ctest fica no log do step.
 - **Espelho local:** `tools/espelho_local.txt` e `tools/espelho/rodar_espelho.sh`; a comparação com o workflow e o último run empurrado é `tools/espelho/comparar_jobs.sh` (run 40236959902, SHA 60748ca, 9 de 9 batem).
 - **Status desta seção:** implementação entregue, pendente verificação. Os rc dos jobs do espelho completo ainda não foram medidos neste registro.
+
+## NL-1.0: libxml2 e xmllint (25/10/2026)
+
+**ID:** NL-1.0 (costura de build da Onda 1). **Data:** 25/10/2026. **Branch:** `onda-1`, sobre e646fad, com as alterações ainda sem commit (o main commita depois da revisão).
+
+**Pacotes instalados dentro de cada imagem** (pelo `tools/conteiner/instalar/<distro>.sh`, o mesmo script que o `ci.yml` usa). Os nomes foram conferidos no gerenciador de cada distro antes de escrever os scripts:
+
+| Distro | Desenvolvimento (pkg-config) | xmllint | Conferência |
+| --- | --- | --- | --- |
+| fedora44 | `libxml2-devel` | `libxml2` (`/usr/bin/xmllint`) | `NL-1.0-pacotes-fedora44.log` |
+| ubuntu26.04 | `libxml2-dev` | `libxml2-utils` (`./usr/bin/xmllint`) | `NL-1.0-pacotes-ubuntu26.04.log` |
+| manjaro | `libxml2` (traz o `.pc` e o xmllint) | `libxml2` (`usr/bin/xmllint`) | `NL-1.0-pacotes-manjaro.log` |
+| mint22.3 | `libxml2-dev` | `libxml2-utils` (`./usr/bin/xmllint`) | `NL-1.0-pacotes-mint22.3.log` |
+
+**Versões medidas** (`pkg-config --modversion libxml-2.0` e `xmllint --version` dentro do contêiner, `--user 1000:1000`):
+
+| Distro | libxml2 (pkg-config) | xmllint | Log |
+| --- | --- | --- | --- |
+| fedora44 | 2.12.10 | using libxml version 21210 | `/var/tmp/notalivre-logs/NL-1.0-versoes-fedora44.log` |
+| ubuntu26.04 | 2.15.2 | using libxml version 21502 | `/var/tmp/notalivre-logs/NL-1.0-versoes-ubuntu26.04.log` |
+| manjaro | 2.15.4 | using libxml version 21504-GITv2.15.4 | `/var/tmp/notalivre-logs/NL-1.0-versoes-manjaro.log` |
+| mint22.3 | 2.9.14 | using libxml version 20914 | `/var/tmp/notalivre-logs/NL-1.0-versoes-mint22.3.log` |
+
+A base da imagem mint22.3 é Ubuntu 24.04.5 (noble), e não Mint 22.3 (desvio medido em NL-0.4); por isso a libxml2 é 2.9.14.
+
+O `medir_versoes.sh` do diagnóstico de cada build mostra a mesma linha `libxml2` (`/var/tmp/notalivre-logs/NL-1.0-<distro>-debug.log`). O mint22.3 fica em 2.9.14, contra 2.12 a 2.15 nas outras três: a divergência pesa na validação XSD (NL-1.x da leva 2) e a fatia dona precisa tratá-la. Fato medido, sem conclusão sobre a causa.
+
+**Flatpak SDK org.kde.Sdk//6.11: medido dentro de contêiner.** O SDK foi instalado do Flathub (ponto L7) num contêiner local, em `/var/tmp/notalivre-nl10-sdk`, com a imagem `notalivre/flatpak-builder-fedora44:nl-0.5`. `pkg-config --modversion libxml-2.0` = 2.14.6 (`.pc` em `lib/x86_64-linux-gnu/pkgconfig`), e `xmllint --version` = using libxml version 21406, ambos com rc=0. O `xmllint` foi executado pelo loader e pelas libs do próprio SDK, porque o `bwrap` do `flatpak run` não tem user namespace num contêiner sem privilégio. Log: `/var/tmp/notalivre-logs/NL-1.0-sdk611-conteiner.log`; instalação: `/var/tmp/notalivre-logs/NL-1.0-sdk611-conteiner-tentativa-flatpak-run.log`. A INFERÊNCIA do CTO (o SDK KDE traz a libxml2 pela base freedesktop) fica medida: traz, na versão 2.14.6.
+**Primeira medição descartada (L-50):** uma primeira leitura com `flatpak run` rodou no host, na sessão do líder, por engano. Foi descartada e não entra como medição; a de cima é a que vale.
+
+**Sabotagem do configure (vermelho, L-36 e L-27).** Cópia do HEAD mais os ganchos, com um `add_subdirectory(nao_existe_nl10)` em `src/back/CMakeLists.txt`. Resultado: `rc=1`, com `CMake Error at src/back/CMakeLists.txt:12 (add_subdirectory): add_subdirectory given source "nao_existe_nl10" which is not an existing directory` e `Configuring incomplete, errors occurred!`. Log: `/var/tmp/notalivre-logs/NL-1.0-sabotagem.log`.
+
+**Builds verdes (`tst_sanidade` Passed nos oito):** `rc=0` e `100% tests passed` em cada um. Logs: `/var/tmp/notalivre-logs/NL-1.0-<distro>-<preset>.log`, com distro em fedora44, ubuntu26.04, manjaro e mint22.3, e preset em debug e asan-ubsan.
+
+**Portões (contêiner, cópia da árvore de trabalho sem `.git`):** `camadas.py` PASSA (`violacoes=0`); `autoteste_camadas.sh` 57/57 controles verdes; `spdx.py` PASSA (`violacoes=0`); `higiene_travessao.py` PASSA. Log: `/var/tmp/notalivre-logs/NL-1.0-portoes.log`.
+
+**Imagens reconstruídas:** `build_local.sh imagem` em fedora44, ubuntu26.04, manjaro e mint22.3, uma por vez, todas com `rc=0`. Logs: `/var/tmp/notalivre-logs/NL-1.0-imagem-<distro>.log`. Resumo sequencial: `/var/tmp/notalivre-logs/NL-1.0-resumo.txt`.
+
+**Desvios desta fatia:**
+1. `build_local.sh imagem` grava sempre `NL-0.4-imagem-<distro>.log` e ignora `NL_LOG`. O original foi preservado em `NL-0.4-imagem-<distro>.log.pre-NL-1.0` antes da reconstrução.
+2. O primeiro run do autoteste de camadas foi como root e reprovou o controle `o1` (o `chmod 000` não bloqueia root). Refeito como `1000:1000`, com `57/57`. O log que vale é o de `NL-1.0-portoes.log`.
+3. Ganchos além da lista do objetivo (1), para ligar cada diretório ao pai com CMake: `src/back/domain/CMakeLists.txt`, `tests/unit/CMakeLists.txt`, `tests/unit/foundation/CMakeLists.txt`, `tests/tools/CMakeLists.txt`.
+4. Teste de `tools/tabelas` em `tests/tools/tabelas/`. O plano não diz o caminho; a escolha é do main confirmar.
+5. `ci.yml` e Dockerfiles não foram editados: ambos já instalam pelos scripts de `instalar/`, e o COPY do script invalida a camada.
+6. As imagens `notalivre/build-<distro>:nl-0.4` foram reconstruídas na mesma tag (o `build_local.sh imagem` não aceita outra). As imagens anteriores não aparecem mais em `docker images -a`; nenhuma poda foi feita por mim. Quem precisar do estado da Onda 0 reconstrói pelo Dockerfile do commit anterior.

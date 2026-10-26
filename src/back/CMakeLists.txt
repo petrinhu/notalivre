@@ -5,3 +5,7 @@ add_library(nl_back STATIC camada.cpp)
 target_include_directories(nl_back PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(nl_back PUBLIC nl_foundation_base)
 target_link_libraries(nl_back PRIVATE nl_warnings)
+
+# Ganchos da NL-1.0 (costura de build): diretórios que as fatias da Onda 1 enchem.
+add_subdirectory(domain)
+add_subdirectory(ports)
