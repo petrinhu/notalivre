@@ -43,7 +43,11 @@ with zipfile.ZipFile(sys.argv[1]) as zin, zipfile.ZipFile(sys.argv[2], "w", zipf
         ;;
 esac
 
-cmake -G "$GERADOR" -S "$PROJETO" -B "$TRABALHO/bin" -DNL_FONTE="$FONTE" -DNL_XSD_URL="file://$ZIP" > "$TRABALHO/configure.log" 2>&1
+# Configure aninhado HERMÉTICO: sem NL_XSD_ZIP_CACHE no ambiente e com o cache vazio por -D. Se o ambiente trouxer
+# o cache (o CI exporta NL_XSD_ZIP_CACHE para o passo do XSD), o CMake copiaria o ZIP BOM para o destino e o
+# file(DOWNLOAD) com EXPECTED_HASH não leria o ZIP adulterado (NL-1.6c, run 40270511251). Sem isto, o teste não mede nada.
+env -u NL_XSD_ZIP_CACHE cmake -G "$GERADOR" -S "$PROJETO" -B "$TRABALHO/bin" -DNL_FONTE="$FONTE" -DNL_XSD_URL="file://$ZIP" \
+    -DNL_XSD_ZIP_CACHE= > "$TRABALHO/configure.log" 2>&1
 rc=$?
 echo "modo=$MODO configure_rc=$rc zip=$ZIP"
 grep -n 'NL-1.6a' "$TRABALHO/configure.log" | head -n 3
