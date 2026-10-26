@@ -3,4 +3,5 @@
 # Ports da Back (NL-1.3): só a interface RepositorioNumeracao; cabeçalho em src/back/include/nl/back/ports/.
 target_sources(nl_back PRIVATE
     repositorio_numeracao.cpp
+    catalogo_localidades.cpp
 )
