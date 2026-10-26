@@ -1,4 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Gancho da NL-1.0 (costura de build), sem fonte ainda.
-# A fatia dona deste diretório acrescenta os arquivos ao alvo da camada com target_sources(nl_back PRIVATE ...); não cria alvo próprio.
+# Id da DPS, série, número e chave de acesso mínima (NL-1.3). Fontes no alvo nl_back; cabeçalhos em src/back/include/nl/back/dps/.
+target_sources(nl_back PRIVATE
+    serie.cpp
+    numero_dps.cpp
+    id_dps.cpp
+    chave_acesso.cpp
+)
