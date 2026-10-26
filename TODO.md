@@ -29,6 +29,9 @@
 - (sem ID): O portão nenhum_hex_fora_do_theme.py não pega cor em #RGBA de 4 dígitos nem sequência de 9 dígitos (tools/portoes/nenhum_hex_fora_do_theme.py:24); hoje não há ocorrência no app. Fonte: revisão da NL-1.8b.
 - (sem ID): tools/portoes/autoteste_higiene.sh (casos T16 e T16b do piso de interface) não roda em nenhum job do CI, só no contêiner local. Fonte: revisão da NL-1.8b.
 - (sem ID): O plano, seção da NL-1.5 (linha 353), ainda cita /var/tmp/notalivre-nl111/diff_codigos.tsv, rascunho temporário; trocar pela referência ao XLSX oficial. Fonte: redator da INBOX, 25/10/2026.
+- (sem ID): Sobe ao líder antes do Flathub (parecer K2, docs/juridico/k2-redistribuicao-xsd-e-tabelas.md): aceitar o risco residual de as tabelas JSON contarem como derivação sob a CC BY-ND do gov.br; aceitar dado sob licença SemDerivações (a FSF classifica como não livre); ambiguidade de uso comercial da lista ISO 3166; pedir ou não confirmação escrita à Receita e ao IBGE; revisão por advogado humano. Fonte: Cláudio, K2.
+- (sem ID): Termos de uso da API de localidades do IBGE não achados; conferir antes da Onda 5 (NL-5.2). Fonte: Cláudio, K2.
+- (sem ID): XSD na árvore com aviso de licença (opção b do K2) antes da Onda 9, porque o build do Flathub não tem rede; os XSD entram no manifesto como fonte archive com url e sha256. Fonte: Cláudio, K2, e DA-1.15.
 
 ## Backlog
 
