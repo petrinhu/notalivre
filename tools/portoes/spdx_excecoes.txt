@@ -5,3 +5,5 @@
 # Arquivo declarado aqui que não existir na árvore reprova o portão (exceção obsoleta).
 CMakePresets.json|JSON sem comentário; licença do repositório (LICENSE, GPL-3.0-or-later)
 tools/portoes/travessao_config.json|JSON sem comentário; licença do repositório (LICENSE, GPL-3.0-or-later)
+tests/qml/dados/pares_contraste.json|JSON sem comentário; licença do repositório (LICENSE, GPL-3.0-or-later)
+tests/qml/dados/tokens.json|JSON sem comentário; licença do repositório (LICENSE, GPL-3.0-or-later)

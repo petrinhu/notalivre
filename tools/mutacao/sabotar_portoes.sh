@@ -16,7 +16,7 @@
 # Variáveis:
 #   HIGIENE_IMAGEM              imagem dos portões em contêiner (padrão notalivre-higiene:ci)
 #   FLATHUB_KDE_IMAGEM          imagem do build Flatpak no modo docker (padrão: digest do índice kde-6.11)
-#   NL_PORTOES                  portões a sabotar (padrão: a2 gitleaks travessao spdx flatpak611)
+#   NL_PORTOES                  portões a sabotar (padrão: a2 gitleaks travessao spdx flatpak611 hex)
 #   MUTACAO_CONTROLE_HARNESS=1  controle do PRÓPRIO harness: só o a2, SEM sabotagem; o veredito tem de sair 1.
 # Saída: "portao=<nome> rc=<rc> motivo=<ok|nao> sha=<sha>" por portão, e o veredito. Termina com exit 1
 # se algum portão não reprovar pelo motivo esperado, ou se nenhum portão rodou (varredura vazia, L-36).
@@ -27,7 +27,7 @@ TRABALHO="${2:?uso: sabotar_portoes.sh REF TRABALHO MODO_FLATPAK}"
 MODO="${3:?uso: sabotar_portoes.sh REF TRABALHO MODO_FLATPAK}"
 IMAGEM="${HIGIENE_IMAGEM:-notalivre-higiene:ci}"
 FLATHUB_KDE="${FLATHUB_KDE_IMAGEM:-ghcr.io/flathub-infra/flatpak-github-actions@sha256:b0a8a2acb9e420dd0e3e083ff552bea5a817e17e41532f1d2287ff49ef9aae0e}"
-PORTOES="${NL_PORTOES:-a2 gitleaks travessao spdx flatpak611}"
+PORTOES="${NL_PORTOES:-a2 gitleaks travessao spdx flatpak611 hex}"
 CONTROLE="${MUTACAO_CONTROLE_HARNESS:-}"
 RESUMO="${GITHUB_STEP_SUMMARY:-/dev/null}"
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -158,6 +158,18 @@ if ativo flatpak611; then
     rc=$?
     grep -q 'qSharedPointerStaticCast' "$log" && m=sim || m=nao
     registrar flatpak611 "$rc" "$m" "$log"
+fi
+
+# 6. Hexadecimal fora do Theme (NL-1.8, L-36): um #RRGGBB num .qml de interface que não é Theme.qml.
+if ativo hex; then
+    d=$(copiar hex) || { echo "copia hex falhou"; exit 1; }
+    mkdir -p "$d/apps/gui/qml"
+    printf 'import QtQuick\n\nRectangle { color: "#FF0000" }\n' > "$d/apps/gui/qml/SabotagemHex.qml"
+    log="$TRABALHO/hex.log"
+    em_conteiner -v "$d:/src:ro,z" "$IMAGEM" python3 -I /src/tools/portoes/nenhum_hex_fora_do_theme.py /src > "$log" 2>&1
+    rc=$?
+    grep -q 'violacao: apps/gui/qml/SabotagemHex.qml:' "$log" && m=sim || m=nao
+    registrar hex "$rc" "$m" "$log"
 fi
 
 if [ "$EXECUTADOS" -eq 0 ]; then

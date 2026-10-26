@@ -153,6 +153,19 @@ jobs:
           docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/spdx.py /src && bash /src/tools/portoes/autoteste_spdx.sh'
 
+      # NL-1.8 (L-36): hexadecimal de cor só em apps/gui/qml/Theme.qml; o tema gerado tem de bater com a spec visual.
+      - name: Hexadecimal só no Theme (portão nenhum_hex_fora_do_theme)
+        id: hex
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            python3 -I /src/tools/portoes/nenhum_hex_fora_do_theme.py /src
+
+      - name: Tema gerado bate com a spec visual (gerar_theme --verificar, seção 3.4)
+        id: tema
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            python3 -I /src/tools/tema/gerar_theme.py --raiz /src --verificar
+
       - name: Fixação do CI (digest, SHA e privilégio; ADR 0001, A0-07)
         id: fixacao
         run: |
@@ -170,6 +183,8 @@ jobs:
             echo "| Segredos na árvore (gitleaks dir) | ${{ steps.segredos_arvore.outcome }} |"
             echo "| Travessão e meia-risca | ${{ steps.travessao.outcome }} |"
             echo "| Cabeçalho SPDX (portão e autoteste) | ${{ steps.spdx.outcome }} |"
+            echo "| Hexadecimal só no Theme (nenhum_hex_fora_do_theme) | ${{ steps.hex.outcome }} |"
+            echo "| Tema gerado bate com a spec visual (gerar_theme --verificar) | ${{ steps.tema.outcome }} |"
             echo "| Fixação do CI (digest, SHA e privilégio) | ${{ steps.fixacao.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
