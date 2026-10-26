@@ -97,7 +97,9 @@ qt_instalar()
         sh -c 'mkdir -p "$HOME" && cd "$HOME" && aqt install-qt -O /opt/qt linux desktop 6.12.0 linux_gcc_64 -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets && test -f /opt/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake'
 }
 
-# Copia só o que o build usa (CMake, presets, src, apps, tests e os scripts do contêiner) para o rascunho.
+# Copia só o que o build e os testes usam (CMake, presets, src, apps, tests, os scripts do contêiner e
+# tools/tabelas, chamado por tests/tools/tabelas, NL-1.10) para o rascunho. Não copia tools/ inteiro:
+# tools/tema e tools/portoes não são chamados por CMake nem por teste (Theme.qml já vem gerado e versionado).
 copiar_fonte()
 {
     local fonte="$1"
@@ -105,6 +107,7 @@ copiar_fonte()
     mkdir -p "$SRC_COPIA/tools"
     cp -a "$fonte/CMakeLists.txt" "$fonte/CMakePresets.json" "$fonte/src" "$fonte/apps" "$fonte/tests" "$SRC_COPIA/"
     cp -a "$fonte/tools/conteiner" "$SRC_COPIA/tools/"
+    cp -a "$fonte/tools/tabelas" "$SRC_COPIA/tools/"
 }
 
 # Trava própria do build: o subcomando "executar" a adquire aqui, antes de tocar em qualquer coisa.
