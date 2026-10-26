@@ -83,8 +83,8 @@
 - **R3 DANFSe.** FATO: a API de geração do DANFSe seria suspensa em 03/08/2026 (NT 008 v1.02, item 1). Decisão do orquestrador, a confirmar: o DANFSe é gerado localmente, no leiaute da NT 008. Em emissão com tpAmb=2, o DANFSe deve conter "NFS-e SEM VALIDADE JURÍDICA" (FATO, NT 008). O "modelo v2.0" do DANFSe não está confirmado; não usar como fato.
 - **R4 Numeração.** FATO: o Id da DPS tem 45 posições. A série 00001 a 49999 é do aplicativo próprio. A combinação série, número, município e inscrição é única (E0014). O número nNFSe é atribuído pela Sefin. Número reservado e não persistido gera "pulos", e não pode ser reutilizado (NT 007, p. 9).
 - **R5 Lote.** FATO: o leiaute não tem lote. Inferência de pesquisa, com força alta: a API é síncrona, com uma DPS por chamada. O lote é função do app.
-- **R6 CNPJ alfanumérico.** FATO: a NT 009 §2.1 passa todos os campos CNPJ de numérico (N) para alfanumérico (C), a partir de julho de 2026. Decisão do orquestrador, a confirmar: tratar o CNPJ como texto. EM ABERTO: a regra de dígito verificador do formato alfanumérico não foi verificada.
-- **R7 Pessoa física.** FATO: o CPF é aceito como identificador do prestador (tpInsc=1). Pelo E0099, o CPF precisa ter domicílio no município emissor. Pelo E0675, o emitente CPF não pode preencher PIS/COFINS (tribFed). EM ABERTO: a regra oficial de quem pode emitir como pessoa física não foi encontrada.
+- **R6 CNPJ alfanumérico.** FATO: a NT 009 §2.1 passa todos os campos CNPJ de numérico (N) para alfanumérico (C), a partir de julho de 2026. Decisão do orquestrador, a confirmar: tratar o CNPJ como texto. DV do formato alfanumérico: algoritmo documentado; pendências em a3 e a4 de `docs/pesquisa/onda1_cnpj_alfanumerico.md`.
+- **R7 Pessoa física.** FATO: o CPF é aceito como identificador do prestador (tpInsc=1). Pelo E0099, o CPF precisa ter domicílio no município emissor. Pelo E0675, o emitente CPF não pode preencher PIS/COFINS (tribFed) [só no Anexo de 09/02, linha Excel 517; no de 20/10 o E0675 não existe, e o caminho valores/trib/tribFed tem E0676, linha Excel 539, com critério MEI, igual ao do de 09/02 (linha Excel 518)]. EM ABERTO: a regra oficial de quem pode emitir como pessoa física não foi encontrada.
 - **R8 MEI e Simples.** FATO: opSimpNac=2 identifica o MEI. Para o MEI, a regra E1302 exige só vLiq. FATO: o grupo IBS/CBS é obrigatório para optantes do Simples a partir de 2027 (nota I336 do Anexo I v1.01). Aplicar essa regra ao MEI é inferência de pesquisa, não texto normativo.
 - **R9 IBS/CBS.** FATO: o grupo IBSCBS é opcional (0-1) no leiaute v1.01. A DPS não traz alíquota, base de cálculo nem valor de IBS ou CBS. Esses valores são calculados pela Calculadora (inferência). As tabelas de classificação mudam várias vezes por ano (secundário, ver seção 6).
 - **R10 Endereço do tomador.** FATO: a NT 009 §2.10 diz que o endereço do tomador é validado contra o cadastro CNPJ ou CPF, e que a DPS é rejeitada se o código IBGE divergir. Isto conflita com a leitura anterior da pesquisa de tomador (ver 4.0, C7).
@@ -205,7 +205,7 @@
 
 - **Emissão.** POST /nfse, com a DPS assinada e enviada no formato definido pela API (FATO). O corpo é JSON com XML em GZip e Base64 (brief; ver C4).
 - **Confirmação forte em Produção.** O usuário digita CPF ou CNPJ antes de emitir (decisão do líder, rodada 5, paráfrase). Em Produção Restrita, aparece a faixa "sem validade fiscal" (rodada 5).
-- **Cancelamento (v1, rodada 5).** Evento 101101. Motivos: 1 erro de emissão, 2 serviço não prestado, 9 outros. Justificativa de 15 a 255 caracteres (FATO, Anexo II). O prazo é parametrizado por município (E0822). Exemplo municipal: 60 dias (FATO). EM ABERTO: os motivos exibidos ao usuário e o aviso de prazo.
+- **Cancelamento (v1, rodada 5).** Evento 101101. Motivos: 1 erro de emissão, 2 serviço não prestado, 9 outros. Justificativa de 15 a 255 caracteres (FATO, Anexo II). O prazo é parametrizado por município (E0822, Anexo II, aba RN EVENTOSxEVENTOS; não consta do Anexo I de 09/02 nem do de 20/10). Exemplo municipal: 60 dias (FATO). EM ABERTO: os motivos exibidos ao usuário e o aviso de prazo.
 - **Substituição (v1, rodada 5).** Evento 105102, mais POST /nfse com a chave a substituir (FATO). Londrina, município (não nacional), proíbe alterar tomador identificado por outro. EM ABERTO: se o app adota essa regra.
 - **Modelos de nota (v1, rodada 5).** O brief fala em "templates/modelos pré-preenchidos". EM ABERTO: quais campos entram no modelo.
 - **Baixa de notas do governo, ADN (v1, rodada 5).** GET /DFe/{NSU} e GET /NFSe/{chave}/Eventos (FATO, manual ADN 1.0, 12/02/2026). A consulta usa certificado do mesmo CNPJ raiz (FATO). EM ABERTO: a baixa para emissor CPF; a periodicidade; o que fazer com o NSU guardado.
@@ -233,9 +233,9 @@
 
 - **Gravação:** o app grava CPF ou CNPJ, nome e demais dados dos tomadores que já tiveram nota emitida. Verbatim do líder (rodada 1): "quero que o app grave cpf/cnpj/nome de tomadores que já tiveram nf já emitidas".
 - **Campos** (decisão do líder, rodada 3, paráfrase): e-mail, endereço completo, telefone e inscrição municipal. Obrigatoriedade pelo leiaute (FATO, Anexo I v1.01):
-  - xNome é obrigatório;
+  - xNome é obrigatório no Anexo de 09/02 (linha Excel 151, 1-1); no Anexo de 20/10 é 0-1 (linha Excel 153), decisão pendente na INBOX do TODO.md, item 5;
   - CNPJ ou CPF é obrigatório, em escolha;
-  - endereço é obrigatório quando o ISSQN incide no local do tomador, ou para certos cIndOp (E0234);
+  - endereço é obrigatório quando o ISSQN incide no local do tomador, ou para certos cIndOp (E0234, só no Anexo de 09/02, linha Excel 258);
   - e-mail e telefone são opcionais;
   - inscrição municipal é opcional, mas pode ser exigida (E0228 a E0232) quando o tomador emite.
 - **Consulta de CNPJ** (decisão do líder, rodada 6, paráfrase): API pública, com consentimento. CPF digitado. A API padrão é decisão do orquestrador, a confirmar: BrasilAPI como principal e CNPJ.ws como reserva (ver 4.14). Fatos sobre as opções:
@@ -377,10 +377,10 @@ Fatos da leitura desses documentos:
 - Endpoints (manual v1.2): POST /nfse; GET /nfse/{chaveAcesso}; GET e HEAD /dps/{id}; POST e GET /nfse/{chaveAcesso}/eventos; GET /parametros_municipais/{cMun}/convenio, /{cMun}/{codigoServico} e /{cMun}/{CPF/CNPJ}. O último path tem duas descrições no manual (retenções e benefícios), relatado e não resolvido.
 - ADN do contribuinte: GET /DFe/{NSU} e GET /NFSe/{Chave}/Eventos. A consulta usa certificado do mesmo CNPJ raiz.
 - Id da DPS: "DPS" mais cLocEmi (7), tpInsc (1), inscrição (14), série (5) e nDPS (15), total de 45 posições.
-- Campos do tomador (Anexo I v1.01, aba Leiaute): grupo toma 0-1; CNPJ, CPF, NIF ou cNaoNIF em escolha; xNome 1-1 (1 a 150); endereço 0-1, com endNac (cMun, CEP, xLgr, nro, xBairro obrigatórios) ou endExt; fone 0-1 (6 a 20); email 0-1 (1 a 80).
-- Regras de tomador (Anexo I, aba RN): E0187 (grupo obrigatório para alguns cIndOp), E0188 e E0206 (DV de CNPJ e CPF), E0190 e E0207 (existência no cadastro na data de competência, rejeição nível 2), E0234 (endereço obrigatório em casos específicos), E0236 e E0237 (endNac do tomador), E0238 e E0240 (IBGE e CEP), E0246 (cPais diferente de BR), E0202 (prestador diferente do tomador), E0228 a E0232 (inscrição municipal).
+- Campos do tomador (Anexo I v1.01, aba Leiaute): grupo toma 0-1; CNPJ, CPF, NIF ou cNaoNIF em escolha; xNome 1-1 (1 a 150, Anexo de 09/02, linha Excel 151; no de 20/10 é 0-1, linha Excel 153); endereço 0-1, com endNac (cMun, CEP, xLgr, nro, xBairro obrigatórios) ou endExt; fone 0-1 (6 a 20); email 0-1 (1 a 80).
+- Regras de tomador (Anexo I, aba RN): E0187 (grupo obrigatório para alguns cIndOp), E0188 e E0206 (DV de CNPJ e CPF), E0190 e E0207 (existência no cadastro na data de competência, rejeição nível 2), E0234 (endereço obrigatório em casos específicos), E0236 e E0237 (endNac do tomador), E0238 e E0240 (IBGE e CEP), E0246 (cPais diferente de BR), E0202 (prestador diferente do tomador), E0228 a E0232 (inscrição municipal). Versões: E0187 e E0234 só no Anexo de 09/02 (linhas Excel 237 e 258); E0240 do de 09/02 (linha Excel 263) tem o mesmo texto de regra como E0653 no de 20/10 (linha Excel 282), e E0653 se repete na linha Excel 518 com outro texto; E0246 existe nos dois Anexos, com texto ampliado (linhas Excel 265 e 284).
 - Ausência de canal de cadastro: o manual v1.2 e o ADN não têm endpoint de consulta ou escrita de cadastro de terceiro (ver R11).
-- E9996 (Anexo I, aba RN): a DPS emitida pelo tomador ou intermediário (tpEmit 2 ou 3) é rejeitada nesta versão.
+- E9996 (Anexo I, aba RN): a DPS emitida pelo tomador ou intermediário (tpEmit 2 ou 3) é rejeitada nesta versão. Versão: só no Anexo de 09/02 (linha Excel 157). No Anexo de 20/10 o código E9996 não existe; o caminho infDPS/tpEmit tem E0027 (linha Excel 167) para importação de serviço.
 
 ### 5.2 Notas técnicas de reforma tributária (oficial, com ressalvas)
 
@@ -482,7 +482,7 @@ Pesquisa fiscal aprofundada concluída em 25/10/2026 (`docs/pesquisa/fiscal_apro
 ### 6.2 Campos da DPS e validação do tomador
 
 - **Endereço do tomador validado contra o cadastro (NT 009 v1.01, §2.10).** FATO PRIMÁRIO (PDF pp. 13-14): a DPS é rejeitada quando o código IBGE do município informado diverge do cadastro do Tomador, ou do Destinatário, na Sefin Nacional. Base citada: art. 11 da LC 214/2025 e arts. 12 dos regulamentos do IBS e da CBS. O texto cobre CPF, e a aplicação ao tomador pessoa física é INFERÊNCIA. Não há código de erro para essa comparação no §2.10 nem no Anexo VI. Vigência da rejeição: NÃO ENCONTRADA. Conflita com a leitura de que a Sefin só valida existência (E0190, E0207). Efeito no produto: o IBGE do cadastro local do tomador precisa estar certo, senão a nota é rejeitada (ver C7).
-- **cIndOp: 0-1 pelo Anexo VI v1.04.01.** FATO PRIMÁRIO (xlsx baixado e lido em 25/10/2026): cIndOp é ocorrência 0-1, com E0859 (não informar se ind_gIBSCBS = 0), E0860 (obrigatório se ind_gIBSCBS = 1) e E0901 (cIndOp incorreto para serviços, rejeição). O Anexo I v1.01 diz 1-1. INFERÊNCIA: o anexo mais novo prevalece. Confirmar com o contador.
+- **cIndOp: 0-1 pelo Anexo VI v1.04.01.** FATO PRIMÁRIO (xlsx baixado e lido em 25/10/2026): cIndOp é ocorrência 0-1, com E0859 (não informar se ind_gIBSCBS = 0), E0860 (obrigatório se ind_gIBSCBS = 1) e E0901 (cIndOp incorreto para serviços, rejeição). O Anexo I v1.01 (09/02) diz 1-1 (aba LEIAUTE, linha Excel 339). No Anexo I de 20/10, cIndOp é 0-1 (aba LEIAUTE, linha Excel 338), e E0859 e E0860 estão na aba RN, linhas Excel 570 e 571, que não existem no de 09/02. INFERÊNCIA: o anexo mais novo prevalece. Confirmar com o contador.
 - **Anexo VII (cIndOp), versão: não resolvida (C8).** O texto da NT 009 cita v1.02.01. A listagem da Biblioteca RTC cita v1.03.00. O arquivo aberto tem 40 códigos e nenhum carimbo de versão.
 - **Código de rejeição por divergência de cadastro:** NÃO ENCONTRADO no Anexo VI. Os códigos próximos (E0238 e E0920) tratam da existência do código IBGE, não da comparação com cadastro.
 - **Tabela CST e cClassTrib:** versão 1.60 do Informe Técnico 2025.002, de 23/06/2026, citada na NT 009 (informe não aberto). Versão posterior: NÃO ENCONTRADA.
@@ -506,7 +506,7 @@ Lista montada nesta revisão a partir da pesquisa fiscal. O arquivo de pesquisa 
 3. Versão do Anexo VII (cIndOp): v1.02.01 ou v1.03.00 (C8).
 4. cIndOp: 0-1 (Anexo VI v1.04.01) ou 1-1 (Anexo I v1.01).
 5. Código de rejeição e vigência do §2.10: validação do endereço do tomador contra o cadastro, sem código no leiaute lido.
-6. Regra oficial de pessoa física como emitente: NÃO ENCONTRADA. Pelo E0675, o CPF emitente não preenche PIS e COFINS. Pelo E0099, o CPF precisa de domicílio no município emissor.
+6. Regra oficial de pessoa física como emitente: NÃO ENCONTRADA. Pelo E0675, o CPF emitente não preenche PIS e COFINS [só no Anexo de 09/02, linha Excel 517; ver linha 87]. Pelo E0099, o CPF precisa de domicílio no município emissor.
 7. Responsabilidade do software e do emitente (art. 24, IV; art. 341-A; art. 341-G, V e VI), com valor da UPF: exige leitura do texto primário.
 8. Alíquotas de teste de 2026 (arts. 343 e 346), período de cura (art. 348, §§3º e 4º, com inclusão pela LC 227/2026 não confirmada) e guarda fiscal das notas. O prazo de guarda não foi pesquisado, e afeta a exclusão de tomador inativo (ver 3.2).
 

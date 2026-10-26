@@ -26,10 +26,10 @@ Data da coleta: 25/10/2026. Escopo: emissão de DPS pelo Emissor Web Nacional, t
 | `InformarSerieNumeroDPS` | (UI) | - | - | nenhuma (checkbox) | Mostra pnlTrascricaoDPS; desmarcar limpa SerieDPS/NumeroDPS | - |
 | `SerieDPS` | serie | 1-1 | N/1-5 | so visivel com InformarSerieNumeroDPS | Depende de InformarSerieNumeroDPS | E0010, E0014 |
 | `NumeroDPS` | nDPS | 1-1 | N/1-15 | so visivel com InformarSerieNumeroDPS | Depende de InformarSerieNumeroDPS | - |
-| `TipoEmitente` | tpEmit | 1-1 | N/1 | radio; sempre marcado | tpEmit 2/3 bloqueado pelo site (alerta). RN E9996 rejeita tpEmit 2/3 nesta versao: ALINHADO | E9996 |
+| `TipoEmitente` | tpEmit | 1-1 | N/1 | radio; sempre marcado | tpEmit 2/3 bloqueado pelo site (alerta). RN E9996 rejeita tpEmit 2/3 no Anexo de 09/02 (linha Excel 157): ALINHADO pelo Anexo de 09/02; no Anexo de 20/10 o código E9996 não existe, e a linha Excel 167 (E0027, caminho infDPS/tpEmit) exige, em importação de serviço, que o emitente seja o tomador ou o intermediário | E9996 |
 | `PreencherInfoIBSCBS` | IBSCBS (presenca do grupo) | 0-1 | -/- | radio; troca limpa a DPS (confirmacao) | =1 exige dCompet>=01/01/2026; abre pnlInfoIBSCBS; [inf] presenca do grupo IBSCBS | E0850, E0854 |
 | `Prestador_Inscricao` | prest/CNPJ ou prest/CPF | 1-1 ou 1-1 | N/14 ou N/11 | JS: 11 ou 14 digitos ('CPF/CNPJ invalido') | Dispara consulta de cadastro; cadastro nao encontrado bloqueia | E0080, E0082, E0084, E0096... |
-| `Prestador_InscricaoMunicipal` | prest/IM | 0-1 | C/15 | asterisco de lblIMPrestador oculto quando TpDados=='RFB' | Lista vem de ListarEstabelecimentosParaEmissao | E0116, E0119, E0120, E0124 |
+| `Prestador_InscricaoMunicipal` | prest/IM | 0-1 | C/15 | asterisco de lblIMPrestador oculto quando TpDados=='RFB' | Lista vem de ListarEstabelecimentosParaEmissao | E0116, E0119, E0120, E0124 (E0124: código reatribuído; linha Excel 204 no de 09/02 (IM inativo no CNC) e 226 no de 20/10 (endereço nacional do prestador com tpEmit 2 ou 3)) |
 | `Prestador_EnderecoNacional_CodigoMunicipio` | prest/end/endNac/cMun | 1-1 | N/7 | select; bloqueado sem emissor habilitado | Depende de DataCompetencia e de Prestador_Inscricao (lista de municipios); alimenta NomeMunicipio e CEP | E0130, E0132, E0134 |
 | `Prestador_EnderecoNacional_NomeMunicipio` | (derivado) | - | - | derivado do select | texto do option selecionado; sem tag | - |
 | `Prestador_EnderecoNacional_CEP` | prest/end/endNac/CEP | 1-1 | C/8 | JS: 8 digitos ('CEP invalido'); deve pertencer ao municipio | ValidarCepMunicipio (api/EmissaoDPS/Cep) compara CodigoCompletoMunicipio com o municipio selecionado | E0138 |
@@ -44,12 +44,12 @@ Data da coleta: 25/10/2026. Escopo: emissão de DPS pelo Emissor Web Nacional, t
 | `Prestador_LocalDomicilio` | (UI) | - | - | radio; default 1 (Brasil) | 1 = mostra endNac; 2 = mostra endExt [inf: 1 Brasil, 2 Exterior, pelo switch do JS]; ver tabela de dependencias | - |
 | `SimplesNacional_Opcao` | prest/regTrib/opSimpNac | 1-1 | N/1 | preenchido pelo endpoint RecuperarOpcaoSN | Tipo==0 alerta erro; Tipo==3 mostra regApTribSN [inf: valores 1/2/3 = opSimpNac, confirmar no Anexo] | E0160, E0161 |
 | `txtOpcaoSN` | (UI) | - | - | descricao do regime (saida do endpoint) | sem tag: descricao textual de opSimpNac | - |
-| `SimplesNacional_RegimeApuracaoTributosSN` | prest/regTrib/regApTribSN | 0-1 | N/1 | visivel so com Tipo==3 | Depende de SimplesNacional_Opcao==3 (ME/EPP); E0230 regEspTrib=0 quando regApTribSN ocorre | E0162, E0166 |
+| `SimplesNacional_RegimeApuracaoTributosSN` | prest/regTrib/regApTribSN | 0-1 | N/1 | visivel so com Tipo==3 | Depende de SimplesNacional_Opcao==3 (ME/EPP); E0230 regEspTrib=0 quando regApTribSN ocorre [E0230: não encontrado nos Anexos I de 09/02 e 20/10 (XLSX integral) nem no dump do Anexo II; fonte a conferir] | E0162, E0166 |
 | `Tomador_LocalDomicilio` | (UI) | - | - | radio; 0 = sem identificacao [inf] | 1 = CPF/CNPJ (Brasil); 2 = NIF (exterior); escolhe toma/CNPJ ou toma/CPF, ou toma/NIF | - |
 | `Tomador_Inscricao` | toma/CNPJ ou toma/CPF | 1-1 ou 1-1 | N/14 ou N/11 | JS: 11 ou 14 digitos; cadastro nao encontrado bloqueia | Dispara consulta; CNPJ com endereco obrigatorio (ver divergencias) | E0188, E0190, E0194, E0202... |
-| `Tomador_InformarEndereco` | (presenca) | - | - | checkbox; JS: CNPJ nao pode desmarcar | presenca do grupo toma/end; ver DIVERGENCIA (site exige sempre para CNPJ; E0234 so condicional) | - |
-| `Tomador_EnderecoNacional_CEP` | toma/end/endNac/CEP | 1-1 | C/8 | JS: 8 digitos; BuscarCEP | Depende de Tomador_LocalDomicilio=1 e InformarEndereco | E0240 |
-| `Tomador_EnderecoExterior_CodigoPais` | toma/end/endExt/cPais | 1-1 | C/2 | select | Depende de LocalDomicilio=2 | E0246 |
+| `Tomador_InformarEndereco` | (presenca) | - | - | checkbox; JS: CNPJ nao pode desmarcar | presenca do grupo toma/end; ver DIVERGENCIA (site exige sempre para CNPJ; E0234 só condicional; E0234 consta só do Anexo de 09/02, linha Excel 258, sem regra com esse caminho no de 20/10) | - |
+| `Tomador_EnderecoNacional_CEP` | toma/end/endNac/CEP | 1-1 | C/8 | JS: 8 digitos; BuscarCEP | Depende de Tomador_LocalDomicilio=1 e InformarEndereco | E0240 (Anexo de 09/02, linha Excel 263; no de 20/10 o mesmo texto de CEP do tomador é E0653, linha Excel 282, que se repete na linha 518 com outro texto) |
+| `Tomador_EnderecoExterior_CodigoPais` | toma/end/endExt/cPais | 1-1 | C/2 | select | Depende de LocalDomicilio=2 | E0246 (existe nos dois Anexos: linha Excel 265 no de 09/02 e 284 no de 20/10, texto ampliado) |
 | `Tomador_EnderecoExterior_NomePais` | (derivado) | - | - | derivado do select | sem tag | - |
 | `Intermediario_Inscricao` | interm/CNPJ ou interm/CPF | 1-1 ou 1-1 | N/14 ou N/11 | JS: 11 ou 14 digitos | Depende de TipoEmitente=3 (bloqueado pelo site) | E0248, E0250, E0254, E0262... |
 | `Intermediario_LocalDomicilio` | (UI) | - | - | radio; default 0 | 1 = CPF/CNPJ; 2 = NIF [inf, mesmo switch do tomador] | - |
@@ -89,16 +89,16 @@ Data da coleta: 25/10/2026. Escopo: emissão de DPS pelo Emissor Web Nacional, t
 | `LocalPrestacao_NomePaisPrestacao` | (derivado) | - | - | derivado do select | sem tag | - |
 | `ServicoPrestado_CodigoTributacaoNacional` | serv/cServ/cTribNac | 1-1 | N/6 | habilitado so apos municipio (JS) | Muda: reinicia obra/evento/COMEX, bloqueia Descricao, chama VerificarIncidencia; cTribNac 99.x: nao incidencia/'ParaServico99' | E0310, E0312 |
 | `ServicoPrestado_DescricaoCodigoTributacaoNacional` | (derivado) | - | - | derivado do select2 | xTribNac e saida do infNFSe | - |
-| `ServicoPrestado_CodigoComplementarMunicipal` | serv/cServ/cTribMun | 0-1 | N/3 | obrigatorio se flag CodigoComplementarMunicipalObrigatorio=='true' (hidden do servidor) | Carrega lista ao escolher cTribNac; alterar dispara VerificarIncidencia | E0314, E0315 |
+| `ServicoPrestado_CodigoComplementarMunicipal` | serv/cServ/cTribMun | 0-1 | N/3 | obrigatorio se flag CodigoComplementarMunicipalObrigatorio=='true' (hidden do servidor) | Carrega lista ao escolher cTribNac; alterar dispara VerificarIncidencia | E0314, E0315 (E0314: mensagem igual nos dois Anexos, linhas Excel 321 e 341) |
 | `ServicoPrestado_CodigoComplementarMunicipalObrigatorio` | (flag) | - | - | hidden: 'true' torna obrigatorio | flag definido pelo servidor/JS em TratarExibicaoCodigoTributacaoMunicipal | - |
 | `ServicoPrestado_CodigoNBS` | serv/cServ/cNBS | 0-1 | N/9 | opcional (habilitado com cTribNac) | Mudanca com InfoTributacao IBS/CBS (hdfPreencherInfoIBSCBS) dispara BuscarListaDeIndOp | E0316, E0318, E0320, E0322 |
-| `ServicoPrestado_CodigoIndOp` | IBSCBS/cIndOp | 1-1 | N/6 | bloqueado sem IBS/CBS; obrigatorio com IBS/CBS | cIndOp 20101/20201/20301 ativa Obra_EhObrigatorioImovel (se nao ha obra/evento obrigatorios) | E0901 |
+| `ServicoPrestado_CodigoIndOp` | IBSCBS/cIndOp | 1-1 | N/6 | bloqueado sem IBS/CBS; obrigatorio com IBS/CBS | cIndOp 20101/20201/20301 ativa Obra_EhObrigatorioImovel (se nao ha obra/evento obrigatorios) | E0901 (linha Excel 549 no de 09/02 e 572 no de 20/10, texto alterado) |
 | `ServicoPrestado_CodigoTpOper` | IBSCBS/tpOper | 0-1 | N/1 | bloqueado sem IBS/CBS | 2 ou 3 mostra pnlComprasGovernamentaisDetalhes; E0903: obrigatorio se tpEnteGov ou cTribNac LC 116 (25.05, 15.09, 17.12, 10.05) | E0903, E0904 |
 | `ServicoPrestado_ChaveAcessoFornPagRealizado` | (inf) | - | - | campo visivel em pnlComprasGovernamentaisDetalhes (tpOper 2/3) | Nao localizado no LEIAUTE por nome; candidato [inf] IBSCBS/gRefNFSe/refNFSe (nao confirmado) | - |
-| `ServicoPrestado_Descricao` | serv/cServ/xDescServ | 1-1 | C/1000 | bloqueado ate cTribNac; obrigatorio (campo 1-1 no Anexo) | Habilitado so depois do cTribNac; limpo ao trocar cTribNac | - |
+| `ServicoPrestado_Descricao` | serv/cServ/xDescServ | 1-1 | C/2000 (Anexo de 20/10, linha Excel 201; no de 09/02 era C/1000, linha Excel 197) | bloqueado ate cTribNac; obrigatorio (campo 1-1 no Anexo) | Habilitado so depois do cTribNac; limpo ao trocar cTribNac | - |
 | `ServicoPrestado_HaExportacaoImunidadeNaoIncidencia` | valores/trib/tribMun/tribISSQN | 1-1 | N/1 | radio; so com municipio de incidencia | 0 = tributavel (mostra pnlMunIncid); 1 = nao tributavel (mostra pnlMotNaoIncid) [inf: 0 -> tribISSQN=1; 1 -> 2/3/4] | E0529, E0530, E0532, E0539... |
 | `ServicoPrestado_MotivoNaoTributacao` | valores/trib/tribMun/tribISSQN | 1-1 | N/1 | select visivel com HaExportacao...=1 | Valor 2 mostra pnlTipoImunidade; 3 mostra pnlResultadoExportacao; default = nao incidencia (RN 463: 99.01.01 => tribISSQN=4) [inf: mapa valor->tribISSQN] | E0529, E0530, E0532, E0539... |
-| `ServicoPrestado_TipoImunidade` | valores/trib/tribMun/tpImunidade | 0-1 | N/1 | visivel com MotivoNaoTributacao=2 | - | E0592, E0593 |
+| `ServicoPrestado_TipoImunidade` | valores/trib/tribMun/tpImunidade | 0-1 | N/1 | visivel com MotivoNaoTributacao=2 | - | E0592, E0593 (E0592: mesma mensagem nos dois Anexos, linhas Excel 471 e 490; na linha 490 do de 20/10 a coluna de regra traz 1301, defeito da planilha) |
 | `ServicoPrestado_CodigoPaisResultado` | valores/trib/tribMun/cPaisResult | 0-1 | C/2 | hidden flag CodigoPaisResultadoEhObrigatorio | Visivel com MotivoNaoTributacao=3 (exportacao) | E0590, E0591 |
 | `ServicoPrestado_CodigoPaisResultadoEhObrigatorio` | (flag) | - | - | hidden: torna cPaisResult obrigatorio | flag do servidor/JS | - |
 | `MunicipioIncidencia_Codigo` | (derivado) | - | - | saida do servidor (VerificarIncidencia) | cLocIncid vai no infNFSe (saida), nao na DPS | - |
@@ -234,8 +234,8 @@ Data da coleta: 25/10/2026. Escopo: emissão de DPS pelo Emissor Web Nacional, t
 | `ISSQN_HaDeducaoReducao` | (presenca) | - | - | radio (0/1) | =1 mostra pnlDeducaoReducao; =0 limpa | - |
 | `DeducaoReducao_TipoDeducaoReducao` | (UI) | - | - | radio 1 valor / 2 percentual / 3 documentos | 1 -> vDR (pnlDeducaoValor); 2 -> pDR (pnlDeducaoPercentual); 3 -> docDedRed (pnlDeducaoDocumentos) | - |
 | `DeducaoReducao_TipoDeducaoReducaoObrigatorio` | (flag) | - | - | hidden: 'SIM'/'NAO' | define obrigatoriedade do tipo | - |
-| `DeducaoReducao_ValorMonetario` | valores/vDedRed/vDR | 1-1 | N/1-15V2 | obrigatorio se TipoDeducao=1 [inf] | Visivel com TipoDeducao=1; RN 393: sem deducao em caso de imunidade (tribISSQN de imunidade [inf: valor 3]) | E0446, E0447 |
-| `DeducaoReducao_ValorPercentual` | valores/vDedRed/pDR | 1-1 | N/1-3V2 | obrigatorio se TipoDeducao=2 [inf] | Visivel com TipoDeducao=2 | E0453, E0454, E0444 |
+| `DeducaoReducao_ValorMonetario` | valores/vDedRed/vDR | 1-1 | N/1-15V2 | obrigatorio se TipoDeducao=1 [inf] | Visivel com TipoDeducao=1; RN 393: sem deducao em caso de imunidade (tribISSQN de imunidade [inf: valor 3]) | E0446, E0447 (E0446: só no de 09/02, linha Excel 406; E0447: código reatribuído, linha Excel 407 no de 09/02 (dedução) e 430 no de 20/10 (ajuste de BC); vDedRed, pDR e vDR valem só no Anexo de 09/02, linhas Excel 254 a 256, pois não existem no LEIAUTE de 20/10) |
+| `DeducaoReducao_ValorPercentual` | valores/vDedRed/pDR | 1-1 | N/1-3V2 | obrigatorio se TipoDeducao=2 [inf] | Visivel com TipoDeducao=2 | E0453, E0454, E0444 (E0453: linha Excel 403 no de 09/02 e 428 no de 20/10, texto alterado; E0454: só no de 09/02, linha Excel 404; E0444 igual nos dois; pDR, linha Excel 255 do de 09/02, vale só nesse Anexo) |
 | `DeducaoReducao_ValorCalculado` | (derivado) | - | - | calculado | soma dos documentos ou valor | - |
 | `ISSQN_BaseDeCalculo` | (derivado) | - | - | calculado pelo site | vBC e saida (infNFSe/valores), nao entra na DPS | - |
 | `ISSQN_Valor` | (derivado) | - | - | calculado pelo site | vISSQN e saida | - |
@@ -269,7 +269,7 @@ Data da coleta: 25/10/2026. Escopo: emissão de DPS pelo Emissor Web Nacional, t
 | `ValorTributos_PercentualTotalFederal` | valores/trib/totTrib/pTotTrib/pTotTribFed | 1-1 | N/1-2V2 | obrigatorio no modo percentual | alias [inf] | - |
 | `ValorTributos_PercentualTotalEstadual` | valores/trib/totTrib/pTotTrib/pTotTribEst | 1-1 | N/1-2V2 | obrigatorio no modo percentual | alias [inf] | - |
 | `ValorTributos_PercentualTotalMunicipal` | valores/trib/totTrib/pTotTrib/pTotTribMun | 1-1 | N/1-2V2 | obrigatorio no modo percentual | alias [inf] | - |
-| `ValorTributos_AliquotaSN` | valores/trib/totTrib/pTotTribSN | 1-1 | N/1-2V2 | obrigatorio no modo Simples (pTotTribSN 1-1) | visivel com TipoValorTributos=4 | E0710 |
+| `ValorTributos_AliquotaSN` | valores/trib/totTrib/pTotTribSN | 1-1 | N/1-2V2 | obrigatorio no modo Simples (pTotTribSN 1-1) | visivel com TipoValorTributos=4 | E0710 (linha Excel 544 no de 09/02 e 565 no de 20/10, texto alterado) |
 | `ValorTributos_CodigoSituacaoTributaria` | IBSCBS/valores/trib/gIBSCBS/CST | 1-1 | N/3 | obrigatorio com IBS/CBS (hdfPreencherInfoIBSCBS) | Muda: limpa grupo, busca classificacoes (BuscarListaDeCClassTrib) | - |
 | `ValorTributos_CodigoClassificacaoTributaria` | IBSCBS/valores/trib/gIBSCBS/cClassTrib | 1-1 | N/6 | obrigatorio com IBS/CBS | Depende de CodigoSituacaoTributaria; muda: busca info (BuscarInfoCClassTrib) | E0958, E0959 |
 | `ValorTributos_CodigoCreditoPresumido` | IBSCBS/valores/trib/gIBSCBS/cCredPres | 0-1 | N/2 | visivel com PossibilidadeCreditoPresumido | - | - |
@@ -284,7 +284,7 @@ Data da coleta: 25/10/2026. Escopo: emissão de DPS pelo Emissor Web Nacional, t
 | `Valores_ValorServico` | valores/vServPrest/vServ | 1-1 | N/1-15V2 | obrigatorio (vServ 1-1) | Mudanca dispara validacao de descontos; no MEI nao pode alterar (RN 174) | E0427, E0428, E0429 |
 | `Valores_ValorDescontoCondicionado` | valores/vDescCondIncond/vDescCond | 0-1 | N/1-15V2 | opcional | - | E0432 |
 | `Valores_ValorDescontoIncondicionado` | valores/vDescCondIncond/vDescIncond | 0-1 | N/1-15V2 | opcional | - | E0431 |
-| `EnderecoExterior_CodigoPais` | toma/end/endExt/cPais | 1-1 | C/2 | select do modal de pessoa para retencao | Modal de retencao (tomador/intermediario); 'NomePais' e derivado | E0246 |
+| `EnderecoExterior_CodigoPais` | toma/end/endExt/cPais | 1-1 | C/2 | select do modal de pessoa para retencao | Modal de retencao (tomador/intermediario); 'NomePais' e derivado | E0246 (existe nos dois Anexos: linha Excel 265 no de 09/02 e 284 no de 20/10, texto ampliado) |
 | `EnderecoExterior_NomePais` | (derivado) | - | - | derivado | sem tag | - |
 
 ## 4. Painéis (pnl*): gatilhos
@@ -400,7 +400,7 @@ Nota de atribuição: o handler e o `case` citados são os últimos vistos antes
 
 Convenção: `gatilho -> efeito -> campos que ficam obrigatórios ou dependentes -> regra E / endpoint`. FATO = lido no JS ou na regra; [inf] = inferência.
 
-1. **TipoEmitente (tpEmit)** -> 1 (prestador) é o único habilitado; 2 e 3 são bloqueados por alerta. -> RN E9996 rejeita tpEmit 2 e 3 nesta versão (ALINHADO).
+1. **TipoEmitente (tpEmit)** -> 1 (prestador) é o único habilitado; 2 e 3 são bloqueados por alerta. -> RN E9996 rejeitava tpEmit 2 e 3 no Anexo de 09/02 (linha Excel 157); no Anexo de 20/10 o código não existe (ver linha 29 deste mapa) (ALINHADO pelo Anexo de 09/02).
 2. **DataCompetencia (dCompet)** -> data inválida bloqueia o formulário (BloquearFormulario); com PreencherInfoIBSCBS=1, data antes de 01/01/2026 é recusada; trocar a data limpa Tomador e Intermediário e recarrega municípios (`ListarMunicipiosParaEmissao`). -> E0850 (IBS/CBS a partir de 2026) ALINHADO.
 3. **Prestador_Inscricao + dCompet -> prest/end/endNac/cMun -> prest/IM** -> o município carrega a lista de inscrições municipais (`ListarEstabelecimentosParaEmissao`); no ramo `TpDados=='RFB'` o asterisco de IM é ocultado e a info cadastral é carregada (`RecuperarInfoEstabelecimento`). O ramo não-RFB não foi lido integralmente.
 4. **SimplesNacional_Opcao (retorno de RecuperarOpcaoSN)** -> Tipo 0 mostra alerta de erro; Tipo 3 mostra `prest/regTrib/regApTribSN` (SimplesNacional_RegimeApuracaoTributosSN). [inf] Tipo corresponde a opSimpNac.
@@ -419,22 +419,22 @@ Convenção: `gatilho -> efeito -> campos que ficam obrigatórios ou dependentes
 17. **Obra e Evento são mutuamente exclusivos** (alerta FATO em InformarDadosObra e InformarDadosEvento). RN não verificada.
 18. **HaExportacaoImunidadeNaoIncidencia** -> 0 mostra pnlMunIncid (tributável); 1 mostra pnlMotNaoIncid (não tributável) (FATO). Em COMEX: MovimentacaoTempBens 2 mostra nDI; 3 mostra nRE (FATO).
 19. **ISSQN_HaSuspensao=1 x ISSQN_HaRetencao=1** -> mutuamente exclusivos (alerta FATO). RN de exclusão não encontrada nos termos buscados.
-20. **ISSQN_HaRetencao=1, TipoRetencao 2 (tomador) ou 3 (intermediário)** -> a pessoa precisa ser identificada com endereço no município de incidência (alertas FATO por `hdfNivelInfoTomador`/`hdfNivelInfoIntermediario` 0, 1 ou 3). RN 156 (E0031), 157 (E0032), 239 (E0204) (CPF/CNPJ do tomador), 258 (E0234): ALINHADO, com a ressalva de D1.
+20. **ISSQN_HaRetencao=1, TipoRetencao 2 (tomador) ou 3 (intermediário)** -> a pessoa precisa ser identificada com endereço no município de incidência (alertas FATO por `hdfNivelInfoTomador`/`hdfNivelInfoIntermediario` 0, 1 ou 3). RN 156 (coluna # do de 09/02; E0031: linha Excel 159 no de 09/02 e 169 no de 20/10, texto alterado), 157 (coluna # do de 09/02; E0032: só no de 09/02, linha Excel 160), 239 (coluna # do de 09/02, linha Excel 242; E0204) (CPF/CNPJ do tomador), linha Excel 258 do de 09/02 (E0234, só nesse Anexo): ALINHADO pelo Anexo de 09/02, ver as versões acima, com a ressalva de D1.
 21. **ISSQN_HaBeneficioMunicipal=1 -> BuscarBeneficiosMunicipais (ou ReducaoBC)** -> `ISSQN_IdBM` -> RecuperarInfoBeneficio decide entre `vRedBCBM` (campo valor) e `pRedBCBM` (campo percentual) (FATO quanto aos painéis).
-22. **ISSQN_HaDeducaoReducao=1 -> TipoDeducaoReducao** -> 1 mostra valor (`vDR`); 2 mostra percentual (`pDR`); 3 mostra documentos (`docDedRed`, 1 a 1000) (FATO). RN 393 (E0435): sem dedução em imunidade (ALINHADO quanto à regra).
+22. **ISSQN_HaDeducaoReducao=1 -> TipoDeducaoReducao** -> 1 mostra valor (`vDR`); 2 mostra percentual (`pDR`); 3 mostra documentos (`docDedRed`, 1 a 1000) (FATO). RN 393 (coluna # do de 09/02; E0435 reatribuído: linha Excel 396 no de 09/02 (dedução) e 419 no de 20/10 (ajuste de BC)): sem dedução em imunidade (ALINHADO quanto à regra pelo Anexo de 09/02).
 23. **PIS/COFINS: CST** -> 0 ou vazio oculta o bloco; 4 ou 6 zera os valores e bloqueia alíquotas; diferente disso mostra `pnlPISCOFINS` e chama o tipo de retenção (FATO).
 24. **Totais_TipoImpressao (1 reais, 2 percentual)** e **ValorTributos_TipoValorTributos (1 monetário, 2 percentual, 4 Simples)** -> escolhem entre `vTotTrib*` e `pTotTrib*` (FATO). `totTrib` é 1-1 no Anexo.
 25. **IBS/CBS: CodigoSituacaoTributaria -> lista de classificações -> CodigoClassificacaoTributaria -> info** -> mostra ExigeGrupoTributacaoRegular, PermiteDiferimento e PossibilidadeCreditoPresumido (FATO quanto aos painéis; obrigatoriedade dos campos de cada um é [inf]).
-26. **Valores_ValorServico** -> dispara revalidação dos descontos; no MEI, vServ não pode ser alterado depois (RN 174 (E0061), ALINHADO quanto à regra).
+26. **Valores_ValorServico** -> dispara revalidação dos descontos; no MEI, vServ não pode ser alterado depois (RN 174 (coluna # do de 09/02; E0061: linha Excel 177 no de 09/02 e 187 no de 20/10, texto alterado), ALINHADO quanto à regra pelo Anexo de 09/02).
 
 ## 6. Divergências site x Anexo I
 
-- **D1. Endereço do tomador CNPJ.** Site: obrigatório para qualquer CNPJ de tomador (impede desmarcar InformarEndereco). Anexo: E0234 exige o endereço só quando a incidência for no local do tomador (planilha MUN.INCID_INFO.SERV.) ou quando cIndOp está na lista (030102, 050102, 100101, 100301, 100501, 030103, 050103, 100102, 100201, 100302, 100401, 100502, 100601). **Site mais restritivo que o Anexo.** Decisão de produto (líder).
+- **D1. Endereço do tomador CNPJ.** Site: obrigatório para qualquer CNPJ de tomador (impede desmarcar InformarEndereco). Anexo de 09/02: E0234 (linha Excel 258, só nesse Anexo) exige o endereço só quando a incidência for no local do tomador (planilha MUN.INCID_INFO.SERV.) ou quando cIndOp está na lista (030102, 050102, 100101, 100301, 100501, 030103, 050103, 100102, 100201, 100302, 100401, 100502, 100601). **Site mais restritivo que o Anexo.** Decisão de produto (líder).
 - **D2. Inscrição municipal do destinatário.** Site: `Destinatario_InscricaoMunicipal` existe. Anexo: o grupo `IBSCBS/dest` não tem IM. **Campo do site sem tag no leiaute.**
 - **D3. Compras governamentais exige tomador CNPJ.** Site: alerta "precisa ser CNPJ" quando EhCompraGovernamental=1. Busca na aba RN por "compras governamentais" com "CNPJ" sem resultado nos termos buscados. **Regra só do site (não confirmada).**
 - **D4. Mesmo CPF/CNPJ em mais de um papel.** Tomador x prestador: E0202 compara o CNPJ completo (ALINHADO com o site). Intermediário x prestador: E0262 compara só a RAIZ (8 primeiros dígitos); o site compara o número completo. **Divergência: o site é menos restritivo** (aceita mesma raiz com CNPJ diferente, que o Anexo rejeita). Tomador x intermediário: o site bloqueia; nenhuma regra E encontrada nos termos buscados ("tomador" com "intermediário" e "igual"). **Regra só do site (não confirmada).**
 - **D5. Campo `ChaveAcessoFornPagRealizado` sem tag identificada.** Candidato [inf] `IBSCBS/gRefNFSe/refNFSe`, não confirmado.
-- **Sem divergência (alinhados):** tpEmit 2 e 3 bloqueados (E9996); dCompet de IBS/CBS a partir de 2026 (E0850); MEI sem retenção (RN 491 (E0583)); CEP pertencente ao município (RN 211 (E0138), 260 (E0240)); cPais diferente de BR quando exterior (RN 314 (E0304)); 99.01.01 com tribISSQN=4 (RN 463 (E0532)).
+- **Sem divergência (alinhados; os números RN desta linha são a coluna # do Anexo de 09/02):** tpEmit 2 e 3 bloqueados (E9996, só no Anexo de 09/02, linha Excel 157); dCompet de IBS/CBS a partir de 2026 (E0850); MEI sem retenção (RN 491 (E0583)); CEP pertencente ao município (RN 211 (E0138), 260 (E0240, Anexo de 09/02; no de 20/10 o mesmo texto é E0653, linha Excel 282)); cPais diferente de BR quando exterior (RN 314 (E0304)); 99.01.01 com tribISSQN=4 (RN 463 (E0532)).
 
 ## 7. Endpoints internos citados (não acessados, L-57)
 
@@ -631,7 +631,7 @@ Ids adicionais fora do regex de aceite (sem underscore, ou atributos `[id$=...]`
 
 - **indDest** (`ibscbs.md`, linha 18): 0 = destinatário é o tomador; 1 = não é. **Confirma** a inversão indicada na tabela (DestinatarioEhOAdquirente=1 corresponde a indDest=0).
 - **tpEnteGov** (`ibscbs.md`, linha 17): 1 União, 2 Estado, 3 DF, 4 Município; só em compras governamentais. Confirma que TipoEnteGov é o campo certo; a lista de opções do select não foi lida nos scripts.
-- **E0234** (`tomador.md`, linha 34): endereço do tomador obrigatório só quando a incidência cai no local do tomador ou quando cIndOp está na lista. **Confirma** o alinhamento da seção 5 (item 20) e a divergência D1.
+- **E0234** (`tomador.md`, linha 34; Anexo de 09/02, linha Excel 258, sem equivalente no de 20/10): endereço do tomador obrigatório só quando a incidência cai no local do tomador ou quando cIndOp está na lista. **Confirma** o alinhamento da seção 5 (item 20) e a divergência D1.
 - **D1, reforço** (`tomador.md`, linha 47): a própria pesquisa registra como INFERÊNCIA que a leitura de E0235 sugere que o Anexo não exige endereço nacional do tomador CNPJ de forma geral. Isso reforça a divergência D1 (o site exige sempre).
 - **IM do tomador** (`tomador.md`, linha 23): grupo toma tem IM 0-1. **Confirma** o campo do site para o tomador.
 - **IM do destinatário**: `ibscbs.md` e `tomador.md` não registram IM no grupo `dest`. **Confirma** a divergência D2.

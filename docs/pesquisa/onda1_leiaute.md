@@ -20,12 +20,15 @@ Legenda: **FATO** (com arquivo:linha ou URL), **INFERÊNCIA** (marcada como tal)
 | SHA-256 do PDF do manual | `ac2f36e34ff565cc36d67c5d67415c33cc09f27b2dea006e8da9bcd2ddce5581` (cópia em `/var/tmp/notalivre-pesquisa-onda1/manual-dl/manual.pdf`) |
 | Texto do manual | extraído com `pdftotext -layout` (já instalado), em `/var/tmp/notalivre-pesquisa-onda1/manual-dl/manual.txt` |
 | Anexo I de 09/02/2026 (v1.01) | `/var/tmp/builds/claude-1000/-home-petrus-IDrive-Documentos-projetos-claudebrain-Projects-nfse/38f29892-da53-4786-aca6-00ba009df597/scratchpad/xlsx_reader/anexo1.txt`, aba 4 "LEIAUTE DPS_NFS-e " (linhas 482 a 898) |
+| XLSX oficial do Anexo I de Produção Restrita 20/10/2026 | URL: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/anexo_i-sefin_adn-dps_nfse-snnfse_prodrest-v1-01-20261020.xlsx (listado em https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/ em 25/10/2026). Tamanho: 248110 bytes. SHA-256: `72b05981c8882cdd807f3acf901b669465360f9cf1b9d9e235ac4363dacfb2d8`. ZIP válido (`zipfile.testzip()` sem erro, 35 membros). Cópia: `/var/tmp/notalivre-nl111/dl/anexo_i_prodrest_20261020.xlsx`. Leitura por `/var/tmp/notalivre-nl111/scripts/ler_xlsx.py` (stdlib, texto integral das células, sem corte de 600 caracteres), saída em `/var/tmp/notalivre-nl111/xlsx/`. |
 | Anexo I de Produção Restrita 20/10/2026 | `/var/tmp/builds/claude-1000/-home-petrus-IDrive-Documentos-projetos-claudebrain-Projects-nfse/38f29892-da53-4786-aca6-00ba009df597/scratchpad/xlsx_reader/anexo1_prodrest.txt`, aba 6 "LEIAUTE DPS_NFS-e 1.01" (linhas 537 a 940) e aba 7 "RN DPS_NFS-e 1.01" (linhas 941 a 1603) |
 
 **Limitações dos dados (FATO, conferido):**
 
 - O dump (`dump_xlsx.py`) corta cada linha em 600 caracteres (`line[:600]`) e omite células vazias (`if x`). Na faixa do leiaute, 21 linhas do Anexo de 09/02 e 25 do de 20/10 têm 600 caracteres ou mais (no arquivo inteiro: 86 e 154). Os campos de caminho, nome, elemento, tipo, ocorrência e tamanho vêm antes da descrição, então sobrevivem ao corte; a descrição e as notas podem estar truncadas. Conferi o alinhamento: nenhuma linha de campo tem ocorrência fora do padrão `n-m` (script `valida.py`, zero casos).
-- O XLSX de origem do Anexo de 20/10/2026 não está no scratchpad (só o de 09/02, `anexo_i_v101.xlsx`). Não foi hasheado nesta pesquisa. Pendência para NL-1.6.
+- O XLSX do Anexo de 20/10/2026 foi baixado e hasheado na NL-1.11 (25/10/2026); URL, tamanho e SHA-256 estão na tabela acima. Deixou de ser pendência para NL-1.6.
+- Convenção de linha: `linha N` nas citações desta pesquisa é o valor da coluna A (`#`), não o número da linha Excel (atributo `r` de `<row>`). No Anexo de 20/10, xDescServ tem `#` 200 na linha Excel 201, e E0031 tem `#` 166 na linha Excel 169. As citações novas da NL-1.11 dão as duas.
+- Contagem: a aba RN de 20/10 tem 466 códigos distintos na coluna CÓD. ERRO. O código E1000 aparece só na coluna OBSERVAÇÕES (coluna T), e a contagem do texto integral de todas as células dá 467.
 - O XSD de 09/02/2026 não foi baixado. A comparação (c) é só entre os dois Anexos I.
 
 ## 1. (b) Estrutura do XSD de Produção Restrita de 20/10/2026
