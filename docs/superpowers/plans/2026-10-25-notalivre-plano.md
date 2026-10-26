@@ -368,12 +368,13 @@ Toda tag é conferida por `git ls-remote` (L-24).
 | E0262 | 298 | texto ajustado: compara os 8 primeiros caracteres da raiz (CNPJ alfanumérico) | segue a linha 7 da INBOX (intermediário); entra pelo texto de 20/10 se o intermediário entrar |
 | E1302 | 49 | MEI só informa vLiq no grupo valores, mas o grupo é o da NFS-e que a Sefin gera (FATO: B49 = `NFSe/infNFSe/`, C49 = `valores`) | não se aplica à DPS (linha 49, B e C); sem regra local (DA-1.22) |
 | E0583 | 513 | mesma regra (MEI sem retenção de ISSQN) | entra |
-| E0676 | 539 | mesma regra nos dois Anexos; MEI não preenche tributos federais (no caminho `valores/trib/tribFed`, que tinha a E0675) | entra |
+| E0676 | 539 | mesma regra nos dois Anexos; MEI não preenche tributos federais (no caminho `valores/trib/tribFed`, que tinha a E0675) | não violável na v1 atual: o modelo não tem `tribFed` (FATO, revisão da NL-1.5, `tributacao.h:19`); volta junto com a linha 9 da INBOX (tribFed), na fatia que modelar o grupo, com teste vermelho primeiro |
 | E0710 | 565 | mudou de texto: MEI nunca informa pTotTribSN | entra, pelo texto de 20/10 |
 | E0850 | 566 | mesma regra (IBS/CBS só com competência a partir de 01/01/2026) | entra |
 | E0903 | 574 | mesma regra (tpOper em compra governamental e nos itens 25.05, 15.09, 17.12 e 10.05) | entra |
 | E0532 | 484 | texto ajustado: todo cTribNac 99.XX.XX implica tribISSQN 4 (era só 99.01.01) | entra, pelo texto de 20/10 |
-| E0302, E0304 | 333, 335 | mesma regra (local da prestação) | entra; a existência do município e do país depende do Anexo A de NL-1.10 |
+| E0302 | 333 | mesma regra (município do local da prestação existe no IBGE ou é 0000000) | entra; depende do Anexo A e da TAB.LOC.GERAL de NL-1.10 (DA-1.10) |
+| E0304 | 335 | mesma regra (país do local da prestação existe na ISO2 e é diferente de BR) | não violável na v1 atual: o modelo não tem `cPaisPrestacao` (FATO, revisão da NL-1.5); volta junto com a linha 6 da INBOX (comércio exterior), na fatia que modelar a prestação no exterior |
 | E0246 | 284 | mudou de texto: cPais do tomador no exterior existe na ISO2, diferente de BR, e `ZZ` não é aceito na Sefin Nacional | entra, pelo texto de 20/10; depende do Anexo A de NL-1.10 |
 | E0390 | 380 | mesma regra (item 12 exige evento) | entra |
 | E0061 | 187 | mudou de texto: trata da nota substituta | sai para a fatia de substituição, pelo texto de 20/10 (INFERÊNCIA do CTO pelo texto) |
