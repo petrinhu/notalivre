@@ -17,6 +17,18 @@
 - (sem ID): Capitolino decide se a importação de serviço (tpEmit 2 ou 3, emitida pelo tomador ou intermediário) entra na v1. Fonte: plano, Onda 1, INBOX item 4 (aba RN linhas 166, 203 e 482).
 - (sem ID): Capitolino decide se a tela de emissão exige o nome do tomador, agora opcional no Anexo de 20/10 (toma/xNome 0-1; spec 4.8 diz obrigatório). Fonte: plano, Onda 1, INBOX item 5.
 - (sem ID): Capitolino decide, um grupo por vez, os campos do mapa que o spec não põe na v1 (obra, evento, comércio exterior e outros). Fonte: plano, Onda 1, INBOX item 6.
+- (sem ID): Capitolino decide se os dois códigos NBS sentinela sem descrição na fonte oficial (99999 e 9.9999.99.99) aparecem para o usuário. Fonte: revisão da NL-1.10.
+- (sem ID): Definir o dono da limpeza da entrada de valor digitada na tela ("R$", espaço, separadores), já que Valor::deTextoPtBr é estrito. Fonte: revisão da NL-1.2, achado A1.
+- (sem ID): Teto de valor duplicado em valor.h e valor.cpp: acrescentar static_assert ligando os dois, e teste de soma exatamente igual ao teto. Fonte: revisão da NL-1.2, achado A2.
+- (sem ID): O importador de planilha (NL-6.5) deve detectar o formato antes de chamar Valor::deTextoPtBr, porque "1.234" vira 1234,00. Fonte: revisão da NL-1.2, achado A3.
+- (sem ID): Botão "Trocar emissor" do cabeçalho ainda não existe na casca (destinos sem tela usam TelaEmBreve). Fonte: revisão da NL-1.8.
+- (sem ID): Testes que faltam na casca: fonte efetivamente carregada (retorno de addApplicationFont) e ordem de Tab entre cabeçalho, barra lateral e conteúdo. Fonte: revisão da NL-1.8.
+- (sem ID): A spec visual diz "50 pares medidos" e publica 22; os 28 derivados estão em tests/qml/dados/pares_contraste.json; o diretor de design confirma a lista. Fonte: revisão da NL-1.8.
+- (sem ID): O mockup docs/design/mockups/04-telas-principais.html não mostra o botão "Atualizar tabelas" no cabeçalho, decisão do líder registrada em docs/design/spec-visual.md:183. Fonte: revisão da NL-1.8.
+- (sem ID): NL-5.3: versão nova de tabela conferida por piso, recusa de duplicata, formato e relatório de incluídos e removidos (DA-1.11), não por contagem exata. Fonte: decisão do CTO na NL-1.10.
+- (sem ID): O portão nenhum_hex_fora_do_theme.py não pega cor em #RGBA de 4 dígitos nem sequência de 9 dígitos (tools/portoes/nenhum_hex_fora_do_theme.py:24); hoje não há ocorrência no app. Fonte: revisão da NL-1.8b.
+- (sem ID): tools/portoes/autoteste_higiene.sh (casos T16 e T16b do piso de interface) não roda em nenhum job do CI, só no contêiner local. Fonte: revisão da NL-1.8b.
+- (sem ID): O plano, seção da NL-1.5 (linha 353), ainda cita /var/tmp/notalivre-nl111/diff_codigos.tsv, rascunho temporário; trocar pela referência ao XLSX oficial. Fonte: redator da INBOX, 25/10/2026.
 
 ## Backlog
 
