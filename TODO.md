@@ -11,6 +11,12 @@
 - (sem ID): Capitolino e Celso tratam suporte ao usuário, o "por que agora" e a métrica de sucesso (spec seções 1 e 3.4). Fonte: plano, seção 9.
 - —: segundo portão de camadas lendo os arquivos .d (-MD) do próprio build, complemento do A2 (pega macro, __has_include, header gerado); sugerido na revisão de NL-0.3
 - —: install() no CMake, .desktop, metainfo.xml (AppStream) e ícone para o Flatpak (sugerido na revisão de NL-0.5)
+- (sem ID): Capitolino decide se IBS/CBS de bens móveis objeto de locação (IBSCBS/bensMoveis, 0 a 1000) entra na v1. Fonte: plano, Onda 1, INBOX item 1 (Anexo de 20/10, aba 6 linha 385).
+- (sem ID): Capitolino decide se o ajuste da base de cálculo (valores/vAjusteBC com docAjusteBC) entra na v1; vDedRed saiu do leiaute. Fonte: plano, Onda 1, INBOX item 2 (aba 6 linha 255).
+- (sem ID): Capitolino decide se locação e unidades imobiliárias (IBSCBS/imovel/gLocacao, gUnidImob, gAjusteBCLocImoveis) entram na v1. Fonte: plano, Onda 1, INBOX item 3 (aba 6 linha 366 em diante).
+- (sem ID): Capitolino decide se a importação de serviço (tpEmit 2 ou 3, emitida pelo tomador ou intermediário) entra na v1. Fonte: plano, Onda 1, INBOX item 4 (aba RN linhas 166, 203 e 482).
+- (sem ID): Capitolino decide se a tela de emissão exige o nome do tomador, agora opcional no Anexo de 20/10 (toma/xNome 0-1; spec 4.8 diz obrigatório). Fonte: plano, Onda 1, INBOX item 5.
+- (sem ID): Capitolino decide, um grupo por vez, os campos do mapa que o spec não põe na v1 (obra, evento, comércio exterior e outros). Fonte: plano, Onda 1, INBOX item 6.
 
 ## Backlog
 
@@ -25,10 +31,13 @@
 | NL-0.4 | W0 | Engenharia | Spike medido do CI nativo nas quatro distros: Qt 6.12 por aqt, versões de GCC, CMake, Qt, OpenSSL com kdf, libsodium, xmlsec1, libxml2 e zlib; resultado em docs/pesquisa/ci_medicao.md. Plano, seção 2, NL-0.4. | Média (inferido) | NL-0.2 | Média (inferido) | ✅ Concluído | ⚠ |
 | NL-0.5 | W0 | Engenharia | Spike medido do Flatpak com org.kde.Sdk e org.kde.Platform 6.11; resultado em docs/pesquisa/ci_medicao.md; decide D0.5. Plano, seção 2, NL-0.5. | Média (inferido) | — | Média (inferido) | ✅ Concluído | ⚠ |
 | NL-0.6 | W0 | Segurança | Portões de higiene: gitleaks no CI, varredura de travessão e meia-risca em QML e .ts, cada um com exit 1 antes da ação protegida. Plano, seção 2, NL-0.6. | Média (inferido) | — | Média (inferido) | ✅ Concluído | ⚠ |
+| NL-1.0 | W1 | Engenharia | Costura de build da Onda 1: CMakeLists mínimos dos diretórios novos, libxml2-devel e xmllint nos quatro scripts de instalação e imagens, versão da libxml2 medida nas imagens e no SDK KDE 6.11. Plano, seção 2, NL-1.0. | Alta (inferido) | — | Média (inferido) | ⏳ Pendente | — |
+| NL-1.12 | W1 | Engenharia | Tipo Erro da Foundation base (código estável, campo do leiaute, mensagem pt-br) para std::expected<T, Erro>. Plano, seção 2, NL-1.12. | Alta (inferido) | NL-1.0 | Baixa (inferido) | ⏳ Pendente | — |
+| NL-1.11 | W1 | Documentação | Canon corrigido ao Anexo I de 20/10/2026: XLSX oficial baixado com SHA-256, spec visual (xDescServ 2000, DA-1.2), mapa do Emissor Web, códigos E do spec contra a aba RN, R6 e status do plano. Plano, seção 2, NL-1.11. | Alta (inferido) | — | Média (inferido) | ⏳ Pendente | — |
 | NL-1.1 | W1 | Engenharia | Identificação fiscal no Back: Cnpj (alfanumérico, com o DV da pesquisa W1 a), Cpf, Inscricao, CodigoMunicipio de 7 dígitos, Cep. Plano, seção 2, NL-1.1; spec R6. | Média (inferido) | Pesquisa W1 (a) | Média (inferido) | ⏳ Pendente | — |
 | NL-1.2 | W1 | Engenharia | Valor monetário no Back em centavos inteiros (int64), com parse pt-BR e aritmética sem ponto flutuante. Plano, seção 2, NL-1.2. | Média (inferido) | — | Média (inferido) | ⏳ Pendente | — |
 | NL-1.3 | W1 | Engenharia | Id da DPS de 45 posições e numeração no domínio (Numerador, Serie de 1 a 49999); port RepositorioNumeracao, adaptador na NL-3.5. Plano, seção 2, NL-1.3; P3. | Média (inferido) | NL-1.1 | Média (inferido) | ⏳ Pendente | — |
-| NL-1.4 | W1 | Engenharia | Entidade Dps, regime e grupo IBS/CBS no Back, com campos conferidos ao mapa de campos do Emissor Web (docs/pesquisa/campos_emissor_web.md, seções 1 a 3). Plano, seção 2, NL-1.4. | Média (inferido) | NL-1.1, NL-1.2 | Média (inferido) | ⏳ Pendente | — |
+| NL-1.4 | W1 | Engenharia | Entidade Dps, regime e grupo IBS/CBS no Back, com campos, tipos e ocorrências do Anexo I de 20/10/2026 e do XSD de Produção Restrita (docs/pesquisa/onda1_leiaute.md), tpEmit 1 por construção (DA-1.3), gRefNFSe como o Anexo (DA-1.5). Plano, seção 2, NL-1.4. | Média (inferido) | NL-1.2, NL-1.3, NL-1.11 | Média (inferido) | ⏳ Pendente | — |
 | NL-1.5 | W1 | Engenharia | Regras locais no Back, uma por arquivo com o código E; avisos só do site (D1, D3 e D4) numa classe própria, não bloqueantes (ponto L10). Plano, seção 2, NL-1.5. | Média (inferido) | NL-1.4 | Média (inferido) | ⏳ Pendente | — |
 | NL-1.6 | W1 | Engenharia | Codec XML da DPS e validação contra o XSD de Produção Restrita de 20/10/2026 (Mid e Foundation), com SHA256SUMS dos arquivos de terceiros e oráculo xmllint. Plano, seção 2, NL-1.6; spec 5.1. | Média (inferido) | NL-1.4, Pesquisa W1 (b) e (c) | Média (inferido) | ⏳ Pendente | — |
 | NL-1.7 | W1 | Engenharia | CLI notalivre dps validar (Front), arnês de teste ponta a ponta com três entradas de referência. Plano, seção 2, NL-1.7. | Média (inferido) | NL-1.6 | Média (inferido) | ⏳ Pendente | — |
