@@ -6,13 +6,16 @@
 # "HASH mismatch" ou "SHA-256 esperado". Modo controle: o ZIP certo; o configure TEM de passar.
 # O adulterado muda SÓ o comentário do ZIP: os membros (.xsd) são idênticos e extraíveis, então só o hash pode recusar.
 # Sem o EXPECTED_HASH o adulterado passa e o teste fica vermelho.
-# Uso: teste_hash_zip.sh <adulterado|controle> <raiz_fonte> <zip_certo> <dir_trabalho>
+# Uso: teste_hash_zip.sh <adulterado|controle> <raiz_fonte> <zip_certo> <dir_trabalho> <gerador_cmake>
+# O gerador vem do projeto pai (CMAKE_GENERATOR, p.ex. Ninja): sem -G, o configure aninhado cai no Unix Makefiles,
+# que não existe nas imagens sem make (ubuntu26.04 e manjaro, medido em 25/10 e 26/10/2026).
 set -u
 
 MODO="${1:?uso: teste_hash_zip.sh <adulterado|controle> <raiz_fonte> <zip_certo> <dir_trabalho>}"
 FONTE="${2:?raiz da fonte}"
 ZIP_CERTO="${3:?ZIP certo}"
 TRABALHO="${4:?dir de trabalho}"
+GERADOR="${5:?gerador do CMake pai (CMAKE_GENERATOR)}"
 PROJETO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 rm -rf -- "$TRABALHO"
@@ -40,10 +43,16 @@ with zipfile.ZipFile(sys.argv[1]) as zin, zipfile.ZipFile(sys.argv[2], "w", zipf
         ;;
 esac
 
-cmake -S "$PROJETO" -B "$TRABALHO/bin" -DNL_FONTE="$FONTE" -DNL_XSD_URL="file://$ZIP" > "$TRABALHO/configure.log" 2>&1
+cmake -G "$GERADOR" -S "$PROJETO" -B "$TRABALHO/bin" -DNL_FONTE="$FONTE" -DNL_XSD_URL="file://$ZIP" > "$TRABALHO/configure.log" 2>&1
 rc=$?
 echo "modo=$MODO configure_rc=$rc zip=$ZIP"
 grep -n 'NL-1.6a' "$TRABALHO/configure.log" | head -n 3
+# Saída aninhada inteira quando o caso falha, para o CI mostrar a causa e não só o veredito.
+if { [ "$MODO" = adulterado ] && [ "$rc" -eq 0 ]; } || { [ "$MODO" = controle ] && [ "$rc" -ne 0 ]; }; then
+    echo "--- configure.log aninhado ($TRABALHO/configure.log) ---"
+    cat "$TRABALHO/configure.log"
+    echo "--- fim do configure.log aninhado ---"
+fi
 
 if [ "$MODO" = adulterado ]; then
     if [ "$rc" -eq 0 ]; then
@@ -52,6 +61,7 @@ if [ "$MODO" = adulterado ]; then
     fi
     if ! grep -q -e 'HASH mismatch' -e 'SHA-256 esperado' "$TRABALHO/configure.log"; then
         echo "FALHA: configure falhou, mas sem a mensagem de hash (causa errada)"
+        cat "$TRABALHO/configure.log"
         exit 1
     fi
     echo "OK: ZIP adulterado recusado pela conferência de SHA-256"
