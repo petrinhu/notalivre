@@ -366,7 +366,7 @@ Toda tag é conferida por `git ls-remote` (L-24).
 | E0237 | 277 | retenção pelo tomador (tpRetISSQN = 2) exige o endereço nacional do tomador; colunas K e N = V (a Sefin executa na recepção da DPS do prestador). A célula A277 traz #REF!, sem efeito porque a referência é a linha Excel | entra (DA-1.19) |
 | E0241 | 278 | tomador identificado por CNPJ ou CPF e com endereço nacional quando há retenção do ISSQN ou quando a incidência cai no município do tomador | entra o ramo da retenção; o ramo da incidência entra na Onda 5, com a tabela MUN.INCID_INFO.SERV do Anexo I (DA-1.19) |
 | E0262 | 298 | texto ajustado: compara os 8 primeiros caracteres da raiz (CNPJ alfanumérico) | segue a linha 7 da INBOX (intermediário); entra pelo texto de 20/10 se o intermediário entrar |
-| E1302 | 49 | MEI só informa vLiq no grupo valores, mas o grupo é o da NFS-e que a Sefin gera (FATO: B49 = `NFSe/infNFSe/`, C49 = `valores`) | não se aplica à DPS (linha 49, B e C); sem regra local (DA-1.22) |
+| E1302 | 49 | MEI só informa vLiq no grupo valores, mas o grupo é o da NFS-e que a Sefin gera (FATO: B49 = `NFSe/infNFSe/`, C49 = `valores`) | não se aplica à DPS (linha 49, B e C); sem regra local (DA-1.22, decisão autônoma do CTO, a ratificar pelo líder) |
 | E0583 | 513 | mesma regra (MEI sem retenção de ISSQN) | entra |
 | E0676 | 539 | mesma regra nos dois Anexos; MEI não preenche tributos federais (no caminho `valores/trib/tribFed`, que tinha a E0675) | não violável na v1 atual: o modelo não tem `tribFed` (FATO, revisão da NL-1.5, `tributacao.h:19`); volta junto com a linha 9 da INBOX (tribFed), na fatia que modelar o grupo, com teste vermelho primeiro |
 | E0710 | 565 | mudou de texto: MEI nunca informa pTotTribSN | entra, pelo texto de 20/10 |
