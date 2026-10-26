@@ -36,6 +36,11 @@ target_sources(nl_back PRIVATE
     trib_issqn.cpp
 )
 
+# DA-1.27: data e hora de emissão (dhEmi), com a faixa e o offset do pattern do XSD.
+target_sources(nl_back PRIVATE
+    dh_emi.cpp
+)
+
 # DA-1.17: alíquota do ISSQN e código NBS (formato do XSD).
 target_sources(nl_back PRIVATE
     aliquota_issqn.cpp

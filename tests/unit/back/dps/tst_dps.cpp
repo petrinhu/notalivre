@@ -154,7 +154,8 @@ void TstDps::dhEmiInvalidoRejeitado()
     auto dados = dadosValidos();
     QVERIFY(dados.has_value());
     dados->dhEmi = QDateTime{};
-    QCOMPARE(teste::codigoDoErro(Dps::montar(*dados)), QStringLiteral("dps.dhemi"));
+    // DA-1.27: a validação do dhEmi é do tipo DhEmi, e o erro sai com o código dele.
+    QCOMPARE(teste::codigoDoErro(Dps::montar(*dados)), QStringLiteral("dhemi.formato"));
 }
 
 void TstDps::dCompetInvalidoRejeitado()

@@ -10,8 +10,9 @@ namespace nl::back {
 
 std::expected<Dps, nl::base::Erro> Dps::montar(DadosDps dados)
 {
-    if (!dados.dhEmi.isValid()) {
-        return std::unexpected(nl::base::Erro{"dps.dhemi", std::string{"Dps.infDPS.dhEmi"}, "data e hora de emissão inválidas"});
+    auto dhEmi = DhEmi::de(dados.dhEmi);
+    if (!dhEmi) {
+        return std::unexpected(dhEmi.error());
     }
     if (!dados.dCompet.isValid()) {
         return std::unexpected(nl::base::Erro{"dps.dcompet", std::string{"Dps.infDPS.dCompet"}, "data de competência inválida"});
@@ -20,7 +21,7 @@ std::expected<Dps, nl::base::Erro> Dps::montar(DadosDps dados)
     if (!id) {
         return std::unexpected(id.error());
     }
-    return Dps{std::move(*id), std::move(dados)};
+    return Dps{std::move(*id), std::move(*dhEmi), std::move(dados)};
 }
 
 } // namespace nl::back

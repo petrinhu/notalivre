@@ -55,3 +55,8 @@ add_executable(tst_dps tst_dps.cpp)
 target_link_libraries(tst_dps PRIVATE Qt6::Test nl_back nl_warnings)
 add_test(NAME tst_dps COMMAND tst_dps)
 
+# DA-1.27: valor dhEmi (corte de milissegundos, offset de hora cheia de -11:00 a +12:00, ano de 2000 a 2099).
+add_executable(tst_dh_emi tst_dh_emi.cpp)
+target_link_libraries(tst_dh_emi PRIVATE Qt6::Test nl_back nl_warnings)
+add_test(NAME tst_dh_emi COMMAND tst_dh_emi)
+
