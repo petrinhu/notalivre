@@ -1,4 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Gancho da NL-1.0 (costura de build), sem fonte ainda.
-# A fatia dona deste diretório acrescenta os arquivos ao alvo da camada com target_sources(nl_back PRIVATE ...); não cria alvo próprio.
+# Identificação fiscal (NL-1.1): fontes acrescentadas ao alvo nl_back, sem alvo próprio. Cabeçalhos públicos em src/back/include/nl/back/identificacao/.
+target_sources(nl_back PRIVATE
+    cnpj.cpp
+    cpf.cpp
+    inscricao.cpp
+    codigo_municipio.cpp
+    cep.cpp
+)
