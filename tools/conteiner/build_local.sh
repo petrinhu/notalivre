@@ -97,17 +97,22 @@ qt_instalar()
         sh -c 'mkdir -p "$HOME" && cd "$HOME" && aqt install-qt -O /opt/qt linux desktop 6.12.0 linux_gcc_64 -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets && test -f /opt/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake'
 }
 
-# Copia só o que o build e os testes usam (CMake, presets, src, apps, tests, os scripts do contêiner e
+# Copia só o que o build e os testes usam (CMake, presets, src, apps, tests, third_party, os scripts do contêiner e
 # tools/tabelas, chamado por tests/tools/tabelas, NL-1.10) para o rascunho. Não copia tools/ inteiro:
 # tools/tema e tools/portoes não são chamados por CMake nem por teste (Theme.qml já vem gerado e versionado).
+# third_party (NL-1.6a): o CMake de src/foundation/xml dá add_subdirectory no manifesto dos XSD em third_party/.
+# Mtime (defeito achado nesta onda): com cp -a, o arquivo copiado herda o mtime antigo da árvore de origem;
+# se o objeto do build reaproveitado for mais novo, o ninja NÃO recompila e o build sai verde com objeto velho.
+# --no-preserve=timestamps dá a todo arquivo copiado o mtime do momento da cópia: conteúdo mudou implica recompilar.
+# Custo medido e assumido: cada build recompila tudo (o diretório de build só poupa o configure).
 copiar_fonte()
 {
     local fonte="$1"
     rm -rf -- "$SRC_COPIA"
     mkdir -p "$SRC_COPIA/tools"
-    cp -a "$fonte/CMakeLists.txt" "$fonte/CMakePresets.json" "$fonte/src" "$fonte/apps" "$fonte/tests" "$SRC_COPIA/"
-    cp -a "$fonte/tools/conteiner" "$SRC_COPIA/tools/"
-    cp -a "$fonte/tools/tabelas" "$SRC_COPIA/tools/"
+    cp -a --no-preserve=timestamps "$fonte/CMakeLists.txt" "$fonte/CMakePresets.json" "$fonte/src" "$fonte/apps" "$fonte/tests" "$fonte/third_party" "$SRC_COPIA/"
+    cp -a --no-preserve=timestamps "$fonte/tools/conteiner" "$SRC_COPIA/tools/"
+    cp -a --no-preserve=timestamps "$fonte/tools/tabelas" "$SRC_COPIA/tools/"
 }
 
 # Trava própria do build: o subcomando "executar" a adquire aqui, antes de tocar em qualquer coisa.
