@@ -86,7 +86,7 @@ jobs:
 
       # NL-1.6c: o ZIP do XSD vem do cache (chave = SHA-256) ou, na falta, do gov.br com nova tentativa.
       # Antes do configure, o SHA-256 é conferido com sha256sum -c; divergência derruba o passo e o configure não roda.
-      # Sem curl nestas imagens (ubuntu26.04 e mint22.3 não trazem): o download usa python3 (presente nas quatro).
+      # Download por cmake -P (tools/ci/baixar_zip_xsd.cmake): cmake está nas quatro imagens; sem curl (ubuntu26.04 e mint22.3 não trazem).
       - name: Cache do ZIP do XSD (chave pelo SHA-256)
         id: xsd-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -108,37 +108,12 @@ jobs:
               echo "ZIP do XSD: cache hit ($zip)"
           else
               echo "ZIP do XSD: cache miss, baixando de $NL_XSD_ZIP_URL"
-              parcial="$zip.parcial"
-              if ! python3 -I - "$NL_XSD_ZIP_URL" "$parcial" <<'PY'
-          import sys
-          import time
-          import urllib.request
-
-          url, destino = sys.argv[1], sys.argv[2]
-          ultimo = None
-          for tentativa in range(1, 6):
-              try:
-                  with urllib.request.urlopen(url, timeout=120) as resposta, open(destino, "wb") as saida:
-                      while True:
-                          bloco = resposta.read(1 << 16)
-                          if not bloco:
-                              break
-                          saida.write(bloco)
-                  sys.exit(0)
-              except Exception as erro:
-                  ultimo = erro
-                  print(f"ZIP do XSD: tentativa {tentativa} de 5 falhou: {erro}", file=sys.stderr)
-                  if tentativa < 5:
-                      time.sleep(10)
-          print(f"ZIP do XSD: download falhou em 5 tentativas: {ultimo}", file=sys.stderr)
-          sys.exit(1)
-          PY
-              then
-                  rm -f "$parcial"
-                  echo "::error::ZIP do XSD não baixado do gov.br (5 tentativas)"
+              # cmake -P (file(DOWNLOAD), 5 tentativas, EXPECTED_HASH): o urllib do Python levou 403 do gov.br.
+              if ! cmake -DNL_URL="$NL_XSD_ZIP_URL" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+                  rm -f "$zip"
+                  echo "::error::ZIP do XSD não baixado do gov.br (5 tentativas, ou hash divergente)"
                   exit 1
               fi
-              mv "$parcial" "$zip"
           fi
           # Conferência ANTES do configure (L-36): divergência apaga o ZIP e derruba o passo.
           if ! (cd "$pasta" && echo "$NL_XSD_ZIP_SHA256  $zip_nome" | sha256sum -c -); then
