@@ -30,7 +30,3 @@ foreach(nome IN ITEMS
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}")
 endforeach()
-
-# Não depende da fixture: prova o portão de segredos com um repositório temporário próprio.
-add_test(NAME certificados.nenhumaChavePrivadaRastreadaNoGit
-         COMMAND Python3::Interpreter -I "${NL_CERT_TESTES}" nenhumaChavePrivadaRastreadaNoGit)

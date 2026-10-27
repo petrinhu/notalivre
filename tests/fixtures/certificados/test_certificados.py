@@ -224,10 +224,16 @@ class TesteCertificados(unittest.TestCase):
         self.assertEqual(controle.returncode, 0, saida_toda(controle))
 
     def cnpjsDeTesteTemDvValido(self):
-        self.assertEqual(dv_cnpj(CNPJ_OK[:12]), CNPJ_OK)
-        self.assertEqual(dv_cnpj(CNPJ_OUTRO_RAIZ[:12]), CNPJ_OUTRO_RAIZ)
-        self.assertEqual(dv_cnpj(CNPJ_ALFANUMERICO[:12]), CNPJ_ALFANUMERICO)
-        self.assertEqual(dv_cpf(CPF_OK[:9]), CPF_OK)
+        # Lê o identificador de DENTRO dos certificados gerados (otherName) e confere o DV com o algoritmo
+        # independente deste arquivo. Assim prova o gerador, não só as constantes escritas aqui.
+        for nome, cnpj in [("cnpj_ok", CNPJ_OK), ("outro_cnpj_raiz", CNPJ_OUTRO_RAIZ),
+                           ("cnpj_alfanumerico", CNPJ_ALFANUMERICO)]:
+            lido = othername_valores(DIR / (nome + ".pem")).get(OID_CNPJ)
+            self.assertEqual(lido, cnpj, nome)
+            self.assertEqual(dv_cnpj(lido[:12]), lido, f"DV do CNPJ de {nome}")
+        cpf = othername_valores(DIR / "cpf_ok.pem").get(OID_CPF, "")[8:19]
+        self.assertEqual(cpf, CPF_OK)
+        self.assertEqual(dv_cpf(cpf[:9]), cpf, "DV do CPF lido do otherName")
 
     def servidorFalsoTemSanEEkuServerAuth(self):
         servidor = DIR / "servidor.pem"
