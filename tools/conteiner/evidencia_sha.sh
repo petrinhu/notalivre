@@ -19,7 +19,7 @@
 #   4. o manifesto do log é igual ao manifesto do commit.
 
 # Caminhos que formam a fonte do build. Lista única: mudar aqui muda o archive, a cópia e o verificador juntos.
-LISTA_FONTE=(CMakeLists.txt CMakePresets.json src apps tests third_party tools/conteiner tools/tabelas)
+LISTA_FONTE=(CMakeLists.txt CMakePresets.json src apps tests third_party tools/conteiner tools/tabelas tools/servidor_falso tools/portoes)
 
 # Extrai do commit $2 do repositório $1 os caminhos de LISTA_FONTE para o diretório $3 (já criado, vazio).
 # Usa arquivo tar intermediário ao lado de $3 (fica em $3.tar e é apagado), para que uma falha do git não passe calada.
