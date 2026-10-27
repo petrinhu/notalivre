@@ -11,8 +11,11 @@ dnf -y install --setopt=install_weak_deps=False \
     git-core openssl \
     mesa-libGL-devel mesa-libEGL-devel libxkbcommon-devel fontconfig-devel \
     freetype-devel libX11-devel dbus-libs krb5-libs \
-    libxml2-devel libxml2
+    libxml2-devel libxml2 \
+    xmlsec1 xmlsec1-openssl
 dnf clean all
+
+# xmlsec1 (NL-2.0, DA-2.1): oráculo de linha de comando dos testes (xmlsec1 --verify). Não entra no app nem no Flatpak.
 
 # aqtinstall num venv próprio: só é usado para instalar Qt no volume (build_local.sh qt) e no cache do CI.
 python3 -m venv /opt/aqt

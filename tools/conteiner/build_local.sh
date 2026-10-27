@@ -7,22 +7,35 @@
 #   build_local.sh imagem <distro>        constrói a imagem de build da distro (pesado, sob flock)
 #   build_local.sh qt                     instala Qt 6.12 no volume notalivre-qt-6120 (só se ainda não estiver)
 #   build_local.sh preparar               imagem fedora44 + Qt (forma antiga da NL-0.2)
-#   build_local.sh <distro> <preset>      configure + build + ctest do preset na distro
-#   build_local.sh <preset>               atalho: fedora44 <preset> (forma antiga, mantida)
+#   build_local.sh <distro> <preset>      configure + build + ctest do preset na distro (exige NL_FATIA)
+#   build_local.sh <preset>               atalho: fedora44 <preset> (forma antiga, mantida; exige NL_FATIA)
 #   distro: fedora44 | ubuntu26.04 | manjaro | mint22.3
 #
 # Variáveis de ambiente:
-#   NL_TMP_BASE    base de temporários e de build no host (padrão: /var/tmp; o preset exige a variável)
-#   NL_LOG         log do run (padrão: $NL_TMP_BASE/notalivre-logs/NL-0.4-<distro>-<preset>.log)
-#   NL_FONTE       árvore de origem do build (padrão: a raiz do repositório)
-#   NL_BUILD_ROOT  diretório de build no host (padrão: $NL_TMP_BASE/notalivre-build-<distro>)
+#   NL_FATIA          OBRIGATÓRIA nos builds: identificador da fatia (ex.: NL-2.0), letras, dígitos, . _ e -.
+#                     Dá nome ao diretório de fonte e ao de build. Sem default: um default silencioso faria dois
+#                     executores voltarem a compartilhar diretório (achado A1-07).
+#   NL_SHA            commit a construir (padrão: HEAD do repositório NL_REPO). É resolvido para 40 hex antes de tudo.
+#   NL_REPO           repositório git de onde sai o git archive (padrão: a raiz do repositório).
+#   NL_FONTE          modo compatível para revisores com snapshot: copia esta pasta em vez de fazer o archive.
+#                     O log grava "SHA: <sha>+copia", e o build PARA antes do contêiner se o manifesto da cópia
+#                     diverge do commit (arquivo fora do commit). Sem NL_SHA, usa o HEAD da pasta, se ela for git.
+#   NL_TMP_BASE       base de temporários e de build no host (padrão: /var/tmp; o preset exige a variável)
+#   NL_LOG            log do run (padrão: $NL_TMP_BASE/notalivre-logs/NL-0.4-<distro>-<preset>.log;
+#                     imagem: $NL_TMP_BASE/notalivre-logs/NL-2.0-imagem-<distro>.log)
+#   NL_BUILD_ROOT     diretório de build no host (padrão: $NL_TMP_BASE/notalivre-build-<distro>-<fatia>)
+#   NL_XSD_ZIP_CACHE  diretório no host com o ZIP do XSD (padrão: $NL_TMP_BASE/notalivre-xsd-cache). É montado no
+#                     contêiner em /xsd-cache e exportado como NL_XSD_ZIP_CACHE; o CMake do third_party lê a variável.
 #
-# Regras aplicadas (L-11, L-45, L-49):
-#   - um trabalho pesado por vez: cópia do rascunho E docker run ficam DENTRO da mesma trava flock $TRAVA;
+# Evidência por SHA (NL-2.0): a linha 1 do log é "SHA: <40 hex> ...", e NL-MANIFESTO-SHA256 traz o hash da fonte
+# que o contêiner viu. tools/conteiner/evidencia_sha.sh verificar <log> confere o manifesto contra o commit.
+#
+# Regras aplicadas (L-11, L-36, L-45, L-49, L-53):
+#   - um trabalho pesado por vez: cópia da fonte E docker run ficam DENTRO da mesma trava flock $TRAVA;
+#   - cada fatia tem a própria fonte (notalivre-src-<SHA>-<fatia>) e o próprio build; nada compartilhado;
 #   - 13 threads e 20 GiB de RAM no contêiner (teto brando de 20G por workload, L-11);
 #   - build e temporários em /var/tmp (TMPDIR exportado abaixo), nunca em /tmp (tmpfs);
 #   - o status é o do contêiner: o log é gravado por redirecionamento, nunca por pipe em tail;
-#   - cada distro tem seu diretório de build no host, montado no MESMO caminho do preset (/var/tmp/notalivre-build);
 #   - o contêiner roda com --user 1000:1000 e sem --privileged.
 set -euo pipefail
 
@@ -33,12 +46,14 @@ export TMPDIR="$NL_TMP_BASE"
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$RAIZ/tools/conteiner/build_local.sh"
+NL_REPO="${NL_REPO:-$RAIZ}"
+# Funções de evidência por SHA (extrair_do_sha, manifesto_de_dir, manifesto_do_sha) e a lista LISTA_FONTE.
+. "$RAIZ/tools/conteiner/evidencia_sha.sh"
 VOLUME_QT="notalivre-qt-6120"
 QT_PREFIXO="/opt/qt/6.12.0/gcc_64"
-# SELinux Enforcing: a árvore de origem (pasta sincronizada com a nuvem) é unlabeled_t e o contêiner não a lê por bind mount.
-# Por isso o contêiner recebe uma cópia de rascunho em /var/tmp (rótulo do próprio usuário, :z),
-# refeita a cada build. Não se relabela a árvore sincronizada do líder.
-SRC_COPIA="$NL_TMP_BASE/notalivre-src"
+# SELinux Enforcing: a fonte (pasta sincronizada com a nuvem) é unlabeled_t e o contêiner não a lê por bind mount.
+# Por isso o contêiner recebe uma cópia montada de /var/tmp (rótulo do próprio usuário, :z), refeita a cada fatia.
+# Não se relabela a árvore sincronizada do líder.
 LOG_DIR="$NL_TMP_BASE/notalivre-logs"
 TRAVA="$NL_TMP_BASE/notalivre-heavy.lock"
 THREADS=13
@@ -52,9 +67,10 @@ checar_distro()
     esac
 }
 
+# Tag NL-2.0: as imagens ganharam xmlsec1 (oráculo da DA-2.1). A tag nl-0.4 antiga fica no Docker, sem apagar.
 imagem_de()
 {
-    echo "notalivre/build-$1:nl-0.4"
+    echo "notalivre/build-$1:nl-2.0"
 }
 
 # Executa um comando pesado sob a trava compartilhada e com prioridade reduzida.
@@ -69,14 +85,25 @@ pesado()
     fi
 }
 
+# Reconstrói a imagem de uma distro. O log é gravado por redirecionamento (NL_LOG ou padrão).
+# Exceção documentada à evidência por SHA: o contexto da imagem (tools/conteiner) vem da ÁRVORE DE TRABALHO, porque
+# as mudanças de instalar/ ainda não estão commitadas. A linha 1 traz o SHA de HEAD, mas declara origem=arvore-de-trabalho
+# e o log NÃO traz NL-MANIFESTO-SHA256: o verificador reprova de propósito (imagem não é evidência por SHA até o commit).
 construir_imagem()
 {
-    local distro="$1"
+    local distro="$1" log rc=0 sha
     checar_distro "$distro"
     mkdir -p "$LOG_DIR"
+    log="${NL_LOG:-$LOG_DIR/NL-2.0-imagem-$distro.log}"
+    sha="$(resolver_sha)" || exit 2
+    printf 'SHA: %s fatia=imagem distro=%s origem=arvore-de-trabalho data=%s\n' \
+        "$sha" "$distro" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$log"
     pesado docker build -t "$(imagem_de "$distro")" \
         -f "$RAIZ/tools/conteiner/$distro-build.Dockerfile" "$RAIZ/tools/conteiner" \
-        > "$LOG_DIR/NL-0.4-imagem-$distro.log" 2>&1
+        >> "$log" 2>&1 || rc=$?
+    echo "NL-RC=$rc" >> "$log"
+    echo "log: $log rc=$rc"
+    return "$rc"
 }
 
 # Instala Qt 6.12 no volume, uma única vez. Se o volume já tem o Qt, não reinstala (aqt reinstalaria tudo).
@@ -97,22 +124,60 @@ qt_instalar()
         sh -c 'mkdir -p "$HOME" && cd "$HOME" && aqt install-qt -O /opt/qt linux desktop 6.12.0 linux_gcc_64 -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets && test -f /opt/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake'
 }
 
-# Copia só o que o build e os testes usam (CMake, presets, src, apps, tests, third_party, os scripts do contêiner e
-# tools/tabelas, chamado por tests/tools/tabelas, NL-1.10) para o rascunho. Não copia tools/ inteiro:
-# tools/tema e tools/portoes não são chamados por CMake nem por teste (Theme.qml já vem gerado e versionado).
-# third_party (NL-1.6a): o CMake de src/foundation/xml dá add_subdirectory no manifesto dos XSD em third_party/.
-# Mtime (defeito achado nesta onda): com cp -a, o arquivo copiado herda o mtime antigo da árvore de origem;
-# se o objeto do build reaproveitado for mais novo, o ninja NÃO recompila e o build sai verde com objeto velho.
-# --no-preserve=timestamps dá a todo arquivo copiado o mtime do momento da cópia: conteúdo mudou implica recompilar.
-# Custo medido e assumido: cada build recompila tudo (o diretório de build só poupa o configure).
-copiar_fonte()
+# Resolve o SHA a construir para 40 hex, sem efeito colateral. Falha com PARADA (rc 2) se não for commit.
+resolver_sha()
 {
-    local fonte="$1"
-    rm -rf -- "$SRC_COPIA"
-    mkdir -p "$SRC_COPIA/tools"
-    cp -a --no-preserve=timestamps "$fonte/CMakeLists.txt" "$fonte/CMakePresets.json" "$fonte/src" "$fonte/apps" "$fonte/tests" "$fonte/third_party" "$SRC_COPIA/"
-    cp -a --no-preserve=timestamps "$fonte/tools/conteiner" "$SRC_COPIA/tools/"
-    cp -a --no-preserve=timestamps "$fonte/tools/tabelas" "$SRC_COPIA/tools/"
+    local rev="${NL_SHA:-}" sha
+    if [ -z "$rev" ]; then
+        if [ -n "${NL_FONTE:-}" ]; then
+            rev="$(git -C "$NL_FONTE" rev-parse --verify --quiet HEAD 2>/dev/null || true)"
+            if [ -z "$rev" ]; then
+                echo "PARADA: NL_FONTE não é repositório git: defina NL_SHA com o commit do snapshot" >&2
+                return 2
+            fi
+        else
+            rev=HEAD
+        fi
+    fi
+    sha="$(git -C "$NL_REPO" rev-parse --verify --quiet "$rev^{commit}" 2>/dev/null || true)"
+    if [ -z "$sha" ]; then
+        echo "PARADA: '$rev' não é commit de $NL_REPO" >&2
+        return 2
+    fi
+    printf '%s\n' "$sha"
+}
+
+# Valida NL_FATIA (obrigatória). Ela entra em nome de diretório, então aceita só [A-Za-z0-9._-] e sem ponto inicial.
+checar_fatia()
+{
+    local fatia="${NL_FATIA:-}"
+    if [ -z "$fatia" ]; then
+        echo "PARADA: NL_FATIA obrigatória (ex.: NL_FATIA=NL-2.0): o nome da fatia dá o diretório de fonte e de build" >&2
+        return 2
+    fi
+    case "$fatia" in
+        .*|*..*|*[!A-Za-z0-9._-]*)
+            echo "PARADA: NL_FATIA '$fatia' com caractere ou formato fora de [A-Za-z0-9._-]" >&2
+            return 2
+            ;;
+    esac
+    printf '%s\n' "$fatia"
+}
+
+# Monta a fonte do build no diretório $2, que é só desta fatia (criado aqui; o rm -rf atinge só o caminho que o
+# próprio script montou com SHA hex e fatia validada, dentro de NL_TMP_BASE).
+# Modo archive (padrão): git archive do SHA $1 em NL_REPO, sem nenhum arquivo fora do commit.
+# Modo cópia (NL_FONTE): cópia dos mesmos caminhos de LISTA_FONTE, sem --preserve=timestamps (ver a verificação de SHA).
+preparar_fonte()
+{
+    local sha="$1" destino="$2"
+    rm -rf -- "$destino"
+    mkdir -p -- "$destino"
+    if [ -n "${NL_FONTE:-}" ]; then
+        (cd "$NL_FONTE" && cp -a --parents --no-preserve=timestamps -- "${LISTA_FONTE[@]}" "$destino/")
+    else
+        extrair_do_sha "$NL_REPO" "$sha" "$destino"
+    fi
 }
 
 # Trava própria do build: o subcomando "executar" a adquire aqui, antes de tocar em qualquer coisa.
@@ -130,32 +195,63 @@ adquirir_trava()
     export NL_TRAVA_DETIDA
 }
 
-# Corpo do build. Adquire a trava por conta própria e só então copia o rascunho e roda o contêiner.
+# Corpo do build. A linha 1 do log é o SHA (escrita antes de qualquer trava, para que um log interrompido ainda
+# diga de qual commit era). O trailer NL-RC é gravado ao sair, com o status real do script.
 executar()
 {
     local distro="$1" preset="$2"
-    local fonte="${NL_FONTE:-$RAIZ}"
+    local sha fatia origem sufixo fonte build_host xsd_host imagem manifesto esperado
+
+    checar_distro "$distro"
+    sha="$(resolver_sha)" || exit 2
+    fatia="$(checar_fatia)" || exit 2
+    origem=archive
+    sufixo=""
+    if [ -n "${NL_FONTE:-}" ]; then
+        origem=copia
+        sufixo="+copia"
+    fi
+    printf 'SHA: %s%s fatia=%s distro=%s preset=%s origem=%s data=%s\n' \
+        "$sha" "$sufixo" "$fatia" "$distro" "$preset" "$origem" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    trap 'echo "NL-RC=$?"' EXIT
+
+    fonte="$NL_TMP_BASE/notalivre-src-$sha-$fatia"
+    build_host="${NL_BUILD_ROOT:-$NL_TMP_BASE/notalivre-build-$distro-$fatia}"
+    xsd_host="${NL_XSD_ZIP_CACHE:-$NL_TMP_BASE/notalivre-xsd-cache}"
+    imagem="$(imagem_de "$distro")"
 
     adquirir_trava
-    local build_host="${NL_BUILD_ROOT:-$NL_TMP_BASE/notalivre-build-$distro}"
+    preparar_fonte "$sha" "$fonte"
+    manifesto="$(manifesto_de_dir "$fonte")"
+    printf 'NL-SRC=%s\nNL-BUILD=%s\nNL-XSD-CACHE=%s\nNL-MANIFESTO-SHA256=%s\n' \
+        "$fonte" "$build_host" "$xsd_host" "$manifesto"
+    if [ -n "${NL_FONTE:-}" ]; then
+        if ! esperado="$(manifesto_do_sha "$NL_REPO" "$sha")"; then
+            echo "PARADA: não consegui extrair $sha de $NL_REPO para conferir a cópia de NL_FONTE"
+            return 4
+        fi
+        if [ "$esperado" != "$manifesto" ]; then
+            echo "PARADA: a cópia de NL_FONTE diverge do commit $sha (manifesto $manifesto, commit $esperado): arquivo fora do commit"
+            return 4
+        fi
+    fi
+    mkdir -p "$build_host" "$xsd_host"
 
-    local imagem
-    checar_distro "$distro"
-    imagem="$(imagem_de "$distro")"
-    copiar_fonte "$fonte"
-    mkdir -p "$build_host"
     # Etapa 1, como root e só de leitura do Qt: tabela de versões e pré-cheque (o índice do gerenciador exige root).
     if ! docker run --rm --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" \
-        -v "$SRC_COPIA:/src:ro,z" -v "$VOLUME_QT:/opt/qt:ro" \
+        -v "$fonte:/src:ro,z" -v "$VOLUME_QT:/opt/qt:ro" \
         -w /src "$imagem" bash tools/conteiner/executar_no_conteiner.sh diagnostico; then
         echo "PARADA: diagnóstico do contêiner reprovou (pré-cheque do Qt ou ambiente); build não iniciado"
         return 3
     fi
     # Etapa 2, como 1000:1000: configure, build e ctest. Arquivos do build ficam com o dono do host.
+    # NL_XSD_ZIP_CACHE (gêmeo da INBOX): o ZIP do XSD vem do cache do host, como no CI, e não do gov.br.
     docker run --rm --cpus "$THREADS" --memory 20g --memory-swap 20g \
         --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
         -e CMAKE_PREFIX_PATH="$QT_PREFIXO" -e CMAKE_BUILD_PARALLEL_LEVEL="$THREADS" \
-        -v "$SRC_COPIA:/src:ro,z" -v "$build_host:/var/tmp/notalivre-build:z" -v "$VOLUME_QT:/opt/qt:ro" \
+        -e NL_XSD_ZIP_CACHE=/xsd-cache \
+        -v "$fonte:/src:ro,z" -v "$build_host:/var/tmp/notalivre-build:z" -v "$VOLUME_QT:/opt/qt:ro" \
+        -v "$xsd_host:/xsd-cache:ro,z" \
         -w /src "$imagem" \
         sh -c "mkdir -p \"\$HOME\" && bash tools/conteiner/executar_no_conteiner.sh $preset"
 }
@@ -168,7 +264,7 @@ construir()
 
     checar_distro "$distro"
     mkdir -p "$LOG_DIR"
-    # A trava é adquirida dentro de executar (cópia do rascunho e docker run ficam na mesma seção crítica).
+    # A trava é adquirida dentro de executar (cópia da fonte e docker run ficam na mesma seção crítica).
     nice -n 5 "$SCRIPT" executar "$distro" "$preset" > "$log" 2>&1 || rc=$?
     echo "log: $log rc=$rc"
     return "$rc"
@@ -197,7 +293,7 @@ case "${1:-}" in
         ;;
     *)
         echo "uso: $0 imagem <distro> | qt | preparar | <distro> <preset> | <preset>" >&2
-        echo "distro: fedora44 ubuntu26.04 manjaro mint22.3" >&2
+        echo "distro: fedora44 ubuntu26.04 manjaro mint22.3 (todos os builds exigem NL_FATIA)" >&2
         exit 2
         ;;
 esac

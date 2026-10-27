@@ -12,7 +12,8 @@ apt-get install -y --no-install-recommends \
     g++ cmake ninja-build pkg-config git ca-certificates \
     python3 python3-venv python3-pip openssl \
     libgl-dev libegl-dev libxkbcommon-dev libfontconfig-dev libfreetype-dev \
-    libx11-dev libglib2.0-dev libdbus-1-dev libgssapi-krb5-2 libxml2-dev libxml2-utils
+    libx11-dev libglib2.0-dev libdbus-1-dev libgssapi-krb5-2 libxml2-dev libxml2-utils \
+    xmlsec1
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 

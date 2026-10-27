@@ -278,3 +278,22 @@ O `medir_versoes.sh` do diagnóstico de cada build mostra a mesma linha `libxml2
 4. Teste de `tools/tabelas` em `tests/tools/tabelas/`. O plano não diz o caminho; a escolha é do main confirmar.
 5. `ci.yml` e Dockerfiles não foram editados: ambos já instalam pelos scripts de `instalar/`, e o COPY do script invalida a camada.
 6. As imagens `notalivre/build-<distro>:nl-0.4` foram reconstruídas na mesma tag (o `build_local.sh imagem` não aceita outra). As imagens anteriores não aparecem mais em `docker images -a`; nenhuma poda foi feita por mim. Quem precisar do estado da Onda 0 reconstrói pelo Dockerfile do commit anterior.
+
+## NL-2.0: xmlsec1 nas imagens e build por SHA (27/10/2026)
+
+**Imagens reconstruídas com xmlsec1 (tag `nl-2.0`).** Uma por vez, sob `flock /var/tmp/notalivre-heavy.lock`, por `build_local.sh imagem <distro>`, todas com `rc=0`. Driver serial: `/var/tmp/notalivre-logs/NL-2.0-driver-imagens.log`. Logs de cada build: `/var/tmp/notalivre-logs/NL-2.0-imagem-<distro>.log`. Disco antes de cada build (`btrfs filesystem usage /`): `Device unallocated` 2.09 GiB, `Free (estimated)` mínimo 54 a 58 GiB; sem ENOSPC.
+
+| Distro | Imagem | `xmlsec1 --version` (dentro do contêiner) | `rsa-sha1` em `--list-transforms` | Saída medida |
+| --- | --- | --- | --- | --- |
+| fedora44 | `notalivre/build-fedora44:nl-2.0` | `xmlsec1 1.2.41 (openssl)`, rc 0 | sim | `/var/tmp/notalivre-logs/NL-2.0-xmlsec1-fedora44.txt` |
+| ubuntu26.04 | `notalivre/build-ubuntu26.04:nl-2.0` | `xmlsec1 1.3.9 (openssl)`, rc 0 | sim | `/var/tmp/notalivre-logs/NL-2.0-xmlsec1-ubuntu26.04.txt` |
+| manjaro | `notalivre/build-manjaro:nl-2.0` | `xmlsec1 1.3.12 (openssl)`, rc 0 | sim | `/var/tmp/notalivre-logs/NL-2.0-xmlsec1-manjaro.txt` |
+| mint22.3 | `notalivre/build-mint22.3:nl-2.0` | `xmlsec1 1.2.39 (openssl)`, rc 0 | sim | `/var/tmp/notalivre-logs/NL-2.0-xmlsec1-mint22.3.txt` |
+
+As versões batem com os candidatos medidos no plano (Fedora 1.2.41, Mint 1.2.39, Ubuntu 1.3.9, Manjaro 1.3.12). A listagem de `rsa-sha1` mostra só que o algoritmo consta; se ele assina e confere é o que a NL-2.3 vai provar com `xmlsec1 --verify`.
+
+**Pacotes:** Fedora `xmlsec1` e `xmlsec1-openssl`; Ubuntu 26.04 e Mint 22.3 `xmlsec1`; Manjaro `xmlsec`. O `xmlsec1` é oráculo dos testes e não entra no manifesto Flatpak. O `ci.yml` não foi editado: o job `nativo` já instala pelos scripts de `instalar/`.
+
+**Tag das imagens:** `nl-0.4` virou `nl-2.0` (`imagem_de` em `build_local.sh`). As imagens `nl-0.4` continuam no Docker e não foram apagadas.
+
+**Build por SHA (NL-2.0).** `build_local.sh` extrai o commit com `git archive` para `/var/tmp/notalivre-src-<SHA>-<fatia>`, usa build próprio da fatia, grava `SHA: <40 hex>` na linha 1 do log e o manifesto da fonte em `NL-MANIFESTO-SHA256`. `tools/conteiner/evidencia_sha.sh verificar <log>` reprova log sem SHA no topo, log cujo manifesto diverge do commit (arquivo alheio na fonte) e SHA que não é commit do repositório. O cache do ZIP do XSD agora chega ao contêiner (gêmeo da INBOX). Desvio corrigido: `build_local.sh imagem` honra `NL_LOG` (o desvio 1 da NL-1.0 foi resolvido).

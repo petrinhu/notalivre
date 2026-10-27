@@ -15,7 +15,7 @@ trap 'rm -rf -- "$BASE"' EXIT
 mkdir -p "$BASE/bin" "$BASE/tmp"
 printf '#!/bin/sh\necho "docker $*" >> "%s/docker.log"\nexit 0\n' "$BASE" > "$BASE/bin/docker"
 chmod +x "$BASE/bin/docker"
-export PATH="$BASE/bin:$PATH" NL_TMP_BASE="$BASE/tmp"
+export PATH="$BASE/bin:$PATH" NL_TMP_BASE="$BASE/tmp" NL_FATIA=autoteste-trava
 TRAVA="$NL_TMP_BASE/notalivre-heavy.lock"
 FALHAS=0
 
