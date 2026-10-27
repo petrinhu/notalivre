@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Testes da NL-2.1: fixtures de certificados de teste. O gerador roda como fixture do CTest (FIXTURES_SETUP),
+# em ${CMAKE_BINARY_DIR}/certificados_teste, dentro do contêiner. Nada é versionado.
+find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
+
+set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
+set(NL_CERT_GERADOR "${CMAKE_CURRENT_SOURCE_DIR}/gerar_certificados.py")
+set(NL_CERT_TESTES "${CMAKE_CURRENT_SOURCE_DIR}/test_certificados.py")
+
+add_test(NAME certificados.gerar
+         COMMAND Python3::Interpreter -I "${NL_CERT_GERADOR}" "${NL_CERT_DIR}")
+set_tests_properties(certificados.gerar PROPERTIES FIXTURES_SETUP certificados_teste)
+
+foreach(nome IN ITEMS
+    fixturesGeradasSaoLidasPeloOpenssl
+    pfxLegadoFalhaSemLegacyComUnsupported
+    pfxModernoUsaPbes2Aes256
+    pfxLegadoUsaRc2EDes
+    cnpjNoOtherNameConfereComOid
+    cpfNoOtherNameNasPosicoes9a19
+    ekuClientAuthSoNoCertificadoDeCliente
+    vencidoRejeitadoPeloVerify
+    revogadoRejeitadoPorLcr
+    cnpjsDeTesteTemDvValido
+    servidorFalsoTemSanEEkuServerAuth)
+  add_test(NAME certificados.${nome}
+           COMMAND Python3::Interpreter -I "${NL_CERT_TESTES}" ${nome})
+  set_tests_properties(certificados.${nome} PROPERTIES
+                       FIXTURES_REQUIRED certificados_teste
+                       ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}")
+endforeach()
+
+# Não depende da fixture: prova o portão de segredos com um repositório temporário próprio.
+add_test(NAME certificados.nenhumaChavePrivadaRastreadaNoGit
+         COMMAND Python3::Interpreter -I "${NL_CERT_TESTES}" nenhumaChavePrivadaRastreadaNoGit)
