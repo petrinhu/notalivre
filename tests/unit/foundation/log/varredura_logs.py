@@ -93,8 +93,11 @@ def main(argv):
           f"linhas={linhas} ocorrencias={len(ocorrencias)}")
     for categoria, nome, n in ocorrencias:
         print(f"OCORRENCIA categoria={categoria} arquivo={nome} n={n}")
-    # DEFEITO DE PROPOSITO DO COMMIT VERMELHO (NL-2.7): o piso de varredura vazia foi removido.
     motivos = []
+    if encontrados == 0:
+        motivos.append("varredura vazia: nenhum .log encontrado")
+    if linhas == 0 and encontrados > 0:
+        motivos.append("nenhuma linha varrida (arquivos vazios não provam nada)")
     if analisados != encontrados:
         motivos.append(f"{encontrados - analisados} arquivo(s) não analisado(s)")
     if falharam:
