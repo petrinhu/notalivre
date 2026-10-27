@@ -329,3 +329,40 @@ Nenhum nesta rodada.
 **Estado Auditado sugerido ao main** (o main grava no `TODO.md`, com o marcador de aviso do schema): NL-1.0, NL-1.1, NL-1.2, NL-1.5, NL-1.8 e NL-1.12 com aviso, pelos achados acima. As demais NL-1.x (NL-1.3, NL-1.4, NL-1.6, NL-1.9, NL-1.10 e NL-1.11) e a NL-1.7 ficam como não auditadas, porque esta rodada não as cobriu além da prova de vermelho e verde.
 
 **Parecer de prontidão para auditor externo:** não pronto. Faltam a NL-1.7 (itens 2 e 10), a metade da INBOX (item 5) e a letra do item 4. Os achados A1-11 e A1-12 pedem decisão do líder ou correção antes de a captura servir de evidência externa.
+
+## 9. Segunda passada (27/10/2026)
+
+**Escopo.** Nova leitura do HEAD `fa3a404` (`git ls-remote origin onda-1` confere). Entraram NL-1.7 (`d4dace4`), a correção do aviso D1 (`87ca65a`) e a INBOX (`bdaa381`). A primeira passada (seções 1 a 8) fica como estava, salvo onde esta seção diz o contrário. Nada foi executado: só leitura de blobs, logs e runs de CI.
+
+**Mudanças em relação à primeira passada:**
+- A1-11: decisão do líder, registrada em `decisoes_autonomas_onda1.md` (26/10, 06:13:01): botão "Trocar emissor" adiado para NL-4.4/8.5, visível e desabilitado com dica. Fecha o achado como decisão aceita. Falta refletir no `TODO.md`: a linha 30 da INBOX ainda diz só "ainda não existe", sem o destino NL-4.4/8.5 (COSMÉTICO, A1-15).
+- A1-07 e A1-12: decisão do CTO pendente (DA-1.30 e DA-1.31). Não localizei essas entradas no registro, que termina em 26/10 06:13:51 e 27/10 11:42:10. Mantidos abertos.
+- A1-13: relatado ao líder (já decidido no registro, linhas 06:13 e seguintes).
+
+**Item 2 (`notalivre dps validar`): ATENDE.** Antes PENDENTE, agora com evidência no HEAD:
+- A CLI existe no commit `d4dace4` (`apps/cli/comando_dps_validar.cpp`, `src/mid/composicao/dps_validar.cpp`, `tests/e2e/dps_validar/`).
+- O arnês `tst_dps_validar` (18 funções de teste) passou nos quatro nativos do run `40297913346` (SHA `fa3a404`, lido com `gh run view --log`, linha 4140 e equivalentes). As três referências (MEI mínima, Simples com IBS/CBS, tomador CPF) e o CNPJ minúsculo mascarado são comparados por `QCOMPARE` com as fixtures `valida_dps_*.xml`. A entrada sem `servico.cTribNac` reprova com `entrada.campo_ausente` e não deixa XML gravado (`campoObrigatorioAusenteReprova`).
+- O oráculo independente `oraculo_xmllint_dps_validar` (`tests/e2e/dps_validar/CMakeLists.txt:20`, script `tests/unit/foundation/xml/oraculo_xmllint.sh`) passou nos quatro nativos (ctest 47 de 68). O `SHA256SUMS` já tinha sido conferido na primeira passada (igual à seção 5 de `onda1_leiaute.md`).
+- Os logs de revisão `NL-1.7-r2-rev-*.log` são execuções de mutação sobre o commit. O `base` e o `pos-restaurado` dão 68 de 68. Cada uma das sete mutações (`mutR1` a `mutR7`) derruba um ou dois testes com a mensagem esperada. A árvore congelada (`NL-1.7-r2-md5-congelado.txt`, 44 arquivos) bate com os blobs de `fa3a404`, 0 divergências.
+- Achados baixos da revisão, confirmados no HEAD: `apps/cli/CMakeLists.txt:8` linka `nl_mid` inteiro (a matriz da L-33 pede só a fachada), e `falhaInterna` e `xmlMalformado` não têm caso e2e (0 ocorrências em `tst_dps_validar.cpp`). Viram A1-14 (COSMÉTICO).
+
+**Item 4 (regras e aviso D1): ATENDE.** `aviso_d1.cpp` agora cita na fonte a linha Excel 276 da aba RN (E0235, colunas K e N = X), conferida no XLSX oficial. Os 12 arquivos E não mudaram desde a primeira passada (`git diff 7409319 fa3a404 -- src/back/domain/regras/` só toca `aviso_d1.cpp`, +2 linhas).
+
+**Item 5 (INBOX): ATENDE.** As linhas 7 a 12 do plano estão no `TODO.md` (linhas 14 a 19 da INBOX, com "interm", "cTribMun", "tribFed", "xInfComp", "vDescCondIncond" e "IBS/CBS especial"). Resíduo: as linhas 14 a 17 da INBOX ainda usam a numeração antiga (385, 255, 366, 166/203/482), o que é A1-10 (COSMÉTICO, aberto).
+
+**Itens 1, 3, 6, 7, 8, 9, 11: mantidos.** Item 1 continua com ressalva (CI de `cd8f1bd` e `5ed9ac9` na primeira passada). Item 7 continua ATENDE pela letra; A1-11 agora tem decisão do líder e A1-12 segue com a decisão do CTO pendente.
+
+**Item 10 (CI verde nas quatro distros): ATENDE.** Run `40297913346` (SHA `fa3a404`, que contém `d4dace4`): nove jobs `success`, e os quatro nativos com ctest 68 de 68 (`100% tests passed`). `tst_qml_gui` passou nos quatro. O commit `d4dace4` não tem run próprio; é coberto pelo run de `fa3a404` (push em lote).
+
+**Achados novos desta passada.**
+
+| ID | Severidade | Achado | Evidência | Remediação |
+|---|---|---|---|---|
+| A1-14 | COSMÉTICO | `apps/cli` linka `nl_mid` inteiro, em vez da fachada de `composicao` (L-33) | `apps/cli/CMakeLists.txt:8` | Alvo só da composicao, decisão do CTO (revisão da NL-1.7, achado BAIXO) |
+| A1-15 | COSMÉTICO | Casos e2e faltando para `falhaInterna` e `xmlMalformado`; INBOX sem o destino NL-4.4/8.5 da decisão do líder | `tests/e2e/dps_validar/tst_dps_validar.cpp` (0 ocorrências); `TODO.md:30` | Incluir os casos; atualizar a linha da INBOX |
+
+**Árvore de trabalho.** Na hora desta passada há alterações não commitadas em `TODO.md` e no plano e na spec (`git status`). Não auditei o conteúdo delas e não entram nesta conclusão.
+
+**Veredito final: SIM, a Onda 1 pode fechar, pela definição de fechamento (itens 1 a 11).** Situação por item: 1 ATENDE com ressalva; 2, 3, 4, 5, 6, 7, 8, 9, 10 e 11 ATENDE. Nenhum CRÍTICO em nenhuma passada. Condições antes do merge e da tag, que não são itens da definição: (a) o CTO registra a decisão sobre A1-07 e A1-12 (DA-1.30 e DA-1.31), que hoje não estão no registro; (b) o `TODO.md` recebe o destino NL-4.4/8.5 de A1-11 (A1-15); (c) merge e tag pedem aval explícito do líder, porque o modo autônomo expirou em 26/10 às 21:28 (`decisoes_autonomas_onda1.md`, última entrada).
+
+**Estado Auditado sugerido ao main (segunda passada):** NL-1.7 com aviso pelos achados BAIXOS (A1-14, A1-15). NL-1.5 sem aviso (A1-08 resolvido pela correção de 87ca65a). NL-1.0, NL-1.1, NL-1.2, NL-1.8 e NL-1.12 seguem com aviso, pelos achados da primeira passada. Os demais sem marcador, como antes.

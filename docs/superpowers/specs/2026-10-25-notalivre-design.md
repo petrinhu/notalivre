@@ -200,6 +200,7 @@
   - o que acontece com a senha no chaveiro quando o usuário troca de certificado;
   - limite de número de emissores por instalação (não fixado).
 - **Custódia:** Narciso (preenchimento de C-level). Brief: nunca embutir certificado nem senha no código.
+- **Botão "Trocar emissor" do cabeçalho (decisão do líder, 26/10/2026, opção escolhida: "Adiar para NL-4.4/8.5 (Recomendado)").** Até a tela de emissores existir (NL-4.4 e NL-8.5 do plano), o botão fica visível e desabilitado, com dica dizendo que a troca de emissor chega numa versão seguinte.
 
 ### 4.6 Emissão, eventos e consulta
 
@@ -213,6 +214,7 @@
 - **Retry.** Requisito do brief: retry com backoff para falha transitória de rede. EM ABERTO: número de tentativas e quais erros entram.
 - **Logs.** Requisito do brief: logs detalhados, com ID da DPS e chave de acesso. EM ABERTO: quais campos pessoais ou fiscais entram nos logs.
 - **Erros da API.** Requisito do brief: tratamento de erros retornados. O catálogo de erros é o conjunto de códigos E da API (FATO, Anexo I, aba RN).
+- **Atividade de evento, grupo atvEvento (decisão do líder, 26/10/2026, opção escolhida: "Incluir na v1 (Recomendado)").** O grupo `serv/atvEvento` entra na v1 (FATO, Anexo I de Produção Restrita de 20/10/2026, aba LEIAUTE, linhas Excel 227 a 241). Sem ele, a regra E0390 (aba RN, linha Excel 380) recusa todo serviço do item 12 da LC 116/2003 (shows e eventos). Fatia NL-4.6 do plano.
 
 ### 4.7 Lote
 
@@ -306,12 +308,13 @@
 
 ### 4.11 IBS/CBS e regimes
 
-- **Regimes da v1:** MEI e Simples Nacional (decisão do líder, rodada 8, paráfrase).
+- **Regimes da v1:** não optante (opSimpNac 1), MEI (opSimpNac 2) e Simples Nacional ME/EPP (opSimpNac 3) (decisão do líder, 27/10/2026, opção escolhida: "Aceitar não optante (Recomendado)"; amplia a rodada 8, que dizia MEI e Simples Nacional, para incluir o autônomo pessoa física fora do MEI, que o consumidor da seção 1 nomeia). Domínio pelo XSD de 20/10/2026 (TSOpSimpNac, tiposSimples_v1.01.xsd:1003-1016; regApTribSN só com opSimpNac 3, tiposComplexos_v1.01.xsd:978), conforme a DA-1.16 do plano, agora ratificada.
 - **Grupo IBS/CBS:** já implementado. Opcional em 2026 e obrigatório em 2027 (decisão do líder, rodada 8, paráfrase; FATO, nota I336 do Anexo I v1.01: "Para optantes dos Simples Nacional, os grupos IBSCBS só serão obrigatórios a partir de 2027").
 - **Alerta do líder** (rodada 6). Verbatim: "Você está vendo os dados de ibs/cbs etc da nova nota fiscal? Cuidado com a legislacao fiscal!"
 - **O que o app informa:** classificação (CST, cClassTrib, cIndOp, indicadores). Não informa alíquota, porque a DPS v1.01 não tem esse campo (FATO). O cálculo vem da Calculadora (inferência de pesquisa).
 - **Lucro Presumido:** fora da v1. JÁ RESPONDIDO (rodada 8, por consequência de "regimes v1 = MEI + Simples"). A memória registrava o tema como "em aberto" até a rodada 7.
 - **cIndOp:** o app sugere pelo serviço e o usuário confirma. Decisão do orquestrador, a confirmar (ver 4.14). A regra final depende do contador (seção 6).
+- **Compra governamental, tpEnteGov (decisão do líder, 26/10/2026, opção escolhida: "Decidir com a INBOX 12 (Recomendado)").** O campo é decidido junto com o pacote de IBS/CBS especial (linha 12 da INBOX do plano, Onda 1). Até lá, o aviso D3 e o ramo tpEnteGov da regra E0903 ficam fora (DA-1.26 do plano).
 - **Datas:** cronograma oficial NÃO PUBLICADO. A NT 009 (§1) e a NT 007 (p. 8) prometem publicação no portal. Datas de fontes secundárias estão na seção 6.
 - **EM ABERTO:**
   - se o MEI entra no grupo IBS/CBS antes de 2027 (INFERÊNCIA: optante do Simples, código 2 de opSimpNac, segue a regra de 2027; texto normativo não encontrado).
