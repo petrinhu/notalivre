@@ -12,12 +12,17 @@ set(NL_AMBIENTE_SERVIDOR_FALSO
 
 # Arnês do fedora44 (DA-2.10, ADR 0007): só nessa distro a variável de SHA-1 entra no ambiente dos testes, e o
 # configure escreve a linha no log do job. O ctest esconde a saída de testes que passam, por isso não é o teste que a imprime.
-file(READ "/etc/os-release" NL_OS_RELEASE_SF)
-if(NL_OS_RELEASE_SF MATCHES "(^|
-)ID=fedora(
-|$)" AND NL_OS_RELEASE_SF MATCHES "(^|
-)VERSION_ID="?44"?(
-|$)")
+file(STRINGS "/etc/os-release" NL_OS_LINHAS)
+foreach(linha IN LISTS NL_OS_LINHAS)
+    if(linha MATCHES "^ID=(.*)$")
+        set(NL_SO_ID "${CMAKE_MATCH_1}")
+    endif()
+    if(linha MATCHES "^VERSION_ID=(.*)$")
+        set(NL_SO_VERSAO "${CMAKE_MATCH_1}")
+    endif()
+endforeach()
+string(REPLACE "\"" "" NL_SO_VERSAO "${NL_SO_VERSAO}")
+if(NL_SO_ID STREQUAL "fedora" AND NL_SO_VERSAO STREQUAL "44")
     message(STATUS "servidor falso: arnês fedora44 ativo, OPENSSL_ENABLE_SHA1_SIGNATURES=1 (DA-2.10, ADR 0007)")
     string(APPEND NL_AMBIENTE_SERVIDOR_FALSO ";OPENSSL_ENABLE_SHA1_SIGNATURES=1")
 endif()
