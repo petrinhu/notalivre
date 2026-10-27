@@ -92,8 +92,8 @@ As cinco entradas que nenhum teste de fatia cobriria sozinho e que mais podem mo
 - `base`: `Erro`, `Bytes`, `Relogio` (interface e relógio do sistema), `Log` com redação de PII por categoria.
 - `crypto`: `Aead` (AES-256-GCM), `Kdf` (Argon2id), `Mac` (HMAC-SHA256), `Aleatorio` (CSPRNG), `EnvelopeRsa` (RSA-OAEP-SHA256).
 - `pkcs12`: `CarregadorPkcs12` devolve `CredencialX509` (certificado, chave, cadeia) em memória, com zeragem ao descartar.
-- `xml`: validação contra XSD e canonicalização (libxml2). `xmldsig`: `AssinadorXml` e `VerificadorXml` (xmlsec1), um só adaptador para as linhas 1.2 e 1.3.
-- `compressao`: `Gzip` (zlib) e `Base64`.
+- `xml`: validação contra XSD e canonicalização (libxml2). `xmldsig`: `AssinadorXml` sobre a C14N da libxml2 e o OpenSSL 3, sem xmlsec1 no app; o `xmlsec1` de linha de comando é só oráculo de teste (DA-2.1, revisão de 27/10/2026).
+- `compressao`: `Gzip` no formato RFC 1952, gerado pela zlib com janela de GZip (nunca o zlib cru do `qCompress`), e `Base64` (DA-2.4).
 - `net`: `TransporteHttps` (QtNetwork, mTLS, timeout, sem retry).
 - `sql`: `ExecutorSql` (QtSql, só `bindValue`) e `Migrador`. `schema`: arquivos de migração versionados.
 - `keychain`: `Chaveiro` (QtKeychain), com indisponibilidade explícita.
@@ -126,11 +126,11 @@ Licença marcada como INFERÊNCIA quando não está nas pesquisas. Toda licença
 
 | Necessidade | Escolha | Licença | Base | Porta? |
 |---|---|---|---|---|
-| XMLDSIG | xmlsec1 com OpenSSL, atrás de um adaptador | MIT (FATO, `docs/pesquisa/stack.md`, pacote Arch) | FATO: Fedora 44 tem 1.2.41, Ubuntu 26.04 tem 1.3.9, Mint 22.3 tem 1.2.39 (`stack.md`). A API muda entre linhas (INFERÊNCIA do CTO): o adaptador cobre as duas no CI nativo; o Flatpak embute uma | Não, com o adaptador |
-| XML e XSD | libxml2 | MIT (INFERÊNCIA) | Dependência do xmlsec1 | Não |
-| PKCS#12, AES-256-GCM, RSA-OAEP, HMAC | OpenSSL 3 | Apache-2.0, compatível com GPL-3 (INFERÊNCIA) | FATO: `QSslCertificate::importPkcs12` existe (`stack.md`). Escolho OpenSSL direto por já ser dependência do xmlsec1 e do TLS do Qt; AES-GCM sempre disponível (INFERÊNCIA) | Não |
+| XMLDSIG | C14N da libxml2 e RSA e SHA do OpenSSL 3, sem dependência nova (DA-2.1, 27/10/2026); `xmlsec1` de linha de comando só como oráculo nas imagens de teste | MIT e Apache-2.0 (INFERÊNCIA, já dependências) | FATO medido na pesquisa da Onda 2 (`onda2_assinatura_certificado.md`, f): `xmlsec1` ausente nas quatro imagens e no runtime e SDK KDE 6.11; a `libxmlsec1` no app exigiria autorização nova (L-51) | Não |
+| XML e XSD | libxml2 | MIT (INFERÊNCIA) | Validação contra XSD (NL-1.6a) e C14N da assinatura (NL-2.3) | Não |
+| PKCS#12, AES-256-GCM, RSA-OAEP, HMAC | OpenSSL 3 | Apache-2.0, compatível com GPL-3 (INFERÊNCIA) | FATO: `QSslCertificate::importPkcs12` existe (`stack.md`). Escolho OpenSSL direto por já ser dependência do TLS do Qt e da assinatura (DA-2.1); AES-GCM sempre disponível (INFERÊNCIA) | Não |
 | Argon2id | libsodium (`crypto_pwhash`) | ISC (INFERÊNCIA) | INFERÊNCIA do CTO: Argon2 no OpenSSL só existe a partir da 3.2, e a base do Mint 22.3 (Ubuntu 24.04) traz 3.0. libsodium só oferece AES-256-GCM em CPU com AES-NI, por isso fica só para Argon2id. Fecha com `openssl list -kdf-algorithms` medido em cada contêiner (NL-0.4) | Não |
-| GZip e Base64 | zlib e Qt | Zlib (INFERÊNCIA) | Spec C4: GZip NÃO confirmado no texto oficial; Base64 confirmado. `qCompress` não gera GZip (INFERÊNCIA do CTO). Pesquisa antes de NL-2.4 | Não |
+| GZip e Base64 | zlib e Qt | Zlib (INFERÊNCIA) | Spec C4, corrigido em 27/10/2026 (DA-2.6): nem GZip nem Base64 têm fonte oficial encontrada; os dois são INFERÊNCIA de três fontes secundárias (`onda2_api_sefin.md`, 1.2), confirmada na NL-2.10. `qCompress` não gera GZip (INFERÊNCIA do CTO) | Não |
 | mTLS | QtNetwork (`QSslConfiguration`) | LGPL-3 (FATO, Qt LGPLv3, spec 3.3) | FATO: mTLS via `QSslConfiguration`, só exemplos de fórum (`stack.md`). Medido em NL-2.5 | Não |
 | OAuth com PKCE | QtNetworkAuth | **GPL-3 ou comercial, sem LGPL** (INFERÊNCIA do CTO, Cláudio confirma) | FATO: `PkceMethod` S256 desde Qt 6.8; `QOAuthHttpServerReplyHandler` com loopback; `callbackHost` desde 6.9 (`docs/pesquisa/email.md`) | **PORTA P5** |
 | SMTP | SimpleMail ou libcurl, escolha na pesquisa da Onda 7 | LGPL-2.1 e licença curl (INFERÊNCIA) | FATO: Qt não tem SMTP nativo, fonte de fórum (`stack.md`) | Não |
@@ -441,66 +441,115 @@ Toda tag é conferida por `git ls-remote` (L-24).
 
 ### Onda 2: assinatura, envelope e envio mTLS contra servidor falso (caminho crítico, parte 2)
 
-**Pesquisa de abertura:** (a) algoritmo de assinatura e de canonicalização que o leiaute exige; (b) corpo exato do POST /nfse e se há GZip (spec C4); (c) caminho base da API (FATO: swagger respondeu 403, spec R2); (d) OIDs ICP-Brasil que levam CNPJ e CPF no certificado, para conferir "mesmo CNPJ raiz"; (e) provider legado do OpenSSL 3 para .pfx antigo; (f) diferenças de API entre xmlsec1 1.2 e 1.3; (g) formato de resposta de sucesso e de erro da Sefin (o servidor falso depende disso).
+**Revisão de 27/10/2026 (Caetano, modo autônomo da L-15, passo 2 da L-16):** esta seção incorpora a pesquisa de abertura e refatia a onda. Escolhas tomadas no lugar do líder estão marcadas "DECISÃO AUTÔNOMA (L-15), a ratificar" e registradas, com hora real, em `/var/tmp/notalivre-logs/decisoes_autonomas_onda2.md` (DA-2.1 em diante). IDs NL-2.0 a NL-2.9 mantidos; NL-2.10 é nova. **Decisão do líder, 27/10/2026:** a Onda 2 termina com a emissão de teste dele em Produção Restrita, com o A1 dele ("Testar na Produção Restrita (Recomendado)"); o líder opera, e nenhum agente toca o .pfx nem a senha.
+
+**Frase-guarda (L-21), verbatim em toda ordem de serviço desta onda que produz ou decide algo do produto:** "Uso ou contagem de uso no repositório de um consumidor identificado nunca corta escopo, desenho ou qualidade de um produto feito para distribuição."
+
+**Pesquisa de abertura (L-22): FEITA em 27/10/2026**, commit `f0308f7`. Documentos: `docs/pesquisa/onda2_api_sefin.md` (itens b, c e g) e `docs/pesquisa/onda2_assinatura_certificado.md` (itens a, d, e e f). Resultado por item:
+- **(a) Assinatura.** FATO: `ds:Signature` é irmã de `infDPS`, fora dele, `minOccurs="0"` no XSD (tiposComplexos_v1.01.xsd:742-747); a regra E0714 (Anexo I de 20/10, aba RN, linha Excel 653) rejeita assinatura inválida; o Anexo descreve a assinatura como "Obrigatório quando for enviado para API" (aba LEIAUTE, linha Excel 403). FATO, só no manual oficial de 2022 (leiaute 1.00, seção 6.1.4) e num espelho municipal de 2026 (não oficial): `rsa-sha1`, digest `sha1`, transformações `enveloped-signature` e C14N 20010315, `KeyInfo` só com `X509Data/X509Certificate`, referência ao `Id` do `infDPS`. NÃO ACHADO: algoritmo da v1.01 em fonte oficial. O XSD do XMLDSIG não fixa algoritmo. INFERÊNCIA: `URI="#"` mais o `Id` do `infDPS` (`DPS...`), pela regra W3C de referência no mesmo documento e pelo `TSIdDPS`. Divergência: a linha Excel 403 do Anexo põe `Signature` dentro de `infDPS`; XSD e linha 653 põem fora (vale o XSD, DA-2.3).
+- **(b) Corpo do POST.** NÃO ACHADO em fonte oficial (manual "v1.2" baixado tem conteúdo v1.0 de 17/03/2025). INFERÊNCIA de três fontes secundárias: `Content-Type: application/json`, corpo `{"dpsXmlGZipB64": "<Base64 do GZip do XML>"}`, GZip antes do Base64. O "Base64 confirmado no texto oficial" que o spec C4 e este plano diziam não tem fonte (corrigido em 27/10/2026, DA-2.6).
+- **(c) Base da API.** FATO: só as URLs de documentação são oficiais; o Swagger de Produção Restrita responde 403. INFERÊNCIA: base `https://sefin.producaorestrita.nfse.gov.br/SefinNacional` ou com o prefixo `/API`, sem fonte que decida.
+- **(d) Certificado.** FATO: CNPJ no otherName OID 2.16.76.1.3.3 (14 posições); CPF no OID 2.16.76.1.3.1 (CPF nas posições 9 a 19, INFERÊNCIA aritmética sobre o layout do DOC-ICP-04 v8.0); mTLS exige EKU clientAuth (manual de 2022, 6.1.3). Raiz comparada como texto de 8 caracteres (INFERÊNCIA; CNPJ alfanumérico).
+- **(e) PKCS#12 legado.** FATO medido: o problema real é RC2-40-CBC; 3DES está no provider default; erro `0308010C ... unsupported`; `legacy.so` existe nas quatro imagens e no runtime KDE 6.11; carregar só o legacy tira o default (crypto(7)).
+- **(f) xmlsec1.** FATO medido: ausente nas quatro imagens e no runtime e no SDK KDE 6.11; candidatos 1.2.39 a 1.3.12 por distro; a 1.3 usa busca de chave estrita e mudou a API.
+- **(g) Respostas.** NÃO ACHADO em fonte oficial: status HTTP, JSON de sucesso e de erro, forma do código E, GET e HEAD /dps/{id}. INFERÊNCIA (fontes secundárias): erro HTTP 400 com `Codigo`/`Descricao`; GET /dps/{id} sem nota com 404 e E2404; sucesso com `chaveAcesso` e XML da NFS-e em GZip e Base64; 409 para DPS duplicada.
+
+**Tudo que é INFERÊNCIA acima fica em configuração ou atrás de interface da pasta do leiaute, com teste de contrato marcado INFERÊNCIA, e é confirmado ou refutado na NL-2.10.**
+
+**Decisões da Onda 2 (DECISÃO AUTÔNOMA, L-15, a ratificar; registro com hora no log):**
+- **DA-2.1, assinatura sem dependência nova.** O app assina com o que já tem: C14N inclusiva 1.0 da libxml2 (já no build desde a NL-1.0 e no runtime) e RSA e SHA do OpenSSL 3 (já no build e no runtime, OpenSSL 3.5.7 medido). Passos: canonicalizar o subconjunto `infDPS` (com os namespaces herdados), calcular o digest, montar `SignedInfo`, canonicalizar `SignedInfo` no contexto do documento, assinar, gravar `SignatureValue` e `X509Certificate` em Base64. A `libxmlsec1` não entra no app. O `xmlsec1` de linha de comando fica só como oráculo independente dentro das imagens de teste, instalado pelo gerenciador das imagens da lista fechada (ferramenta dentro das imagens, ponto L7, como o `xmllint` da NL-1.0), nunca no bundle. Não é preciso autorização nova (L-51).
+- **DA-2.2, algoritmo.** `rsa-sha1`, digest `sha1`, C14N 20010315 e `enveloped-signature`, como o leiaute oficial de 2022 e o espelho de 2026; `KeyInfo` só com `X509Certificate`. Os URIs dos algoritmos moram na pasta da versão do leiaute, nunca em constante do Foundation. INFERÊNCIA até a NL-2.10: se a Sefin rejeitar com E0714, a mesma sessão de teste tenta `rsa-sha256` e `sha256` trocando só a pasta do leiaute, e o resultado volta ao CTO.
+- **DA-2.3, posição.** `Signature` irmã de `infDPS`, como XSD e linha Excel 653; a linha 403 do Anexo fica registrada como divergência do documento oficial.
+- **DA-2.4, envelope.** `{"dpsXmlGZipB64": ...}`, GZip RFC 1952 (cabeçalho `1f 8b`, pela zlib com janela de GZip, nunca `qCompress`, que gera zlib com prefixo de tamanho) e Base64 padrão, `application/json`. INFERÊNCIA, atrás da interface `EnvelopeDps` da pasta do leiaute.
+- **DA-2.5, base da API.** Configuração por ambiente, com as duas candidatas registradas; nenhuma constante no código. A NL-2.10 descobre a certa.
+- **DA-2.6, Base64 sem fonte.** Spec C4 e linha 133 deste plano corrigidos: GZip e Base64 são INFERÊNCIA de fontes secundárias.
+- **DA-2.7, VerificadorXml fora da Onda 2.** O app não precisa verificar assinatura para emitir; a verificação é do oráculo `xmlsec1` nos testes. Se a v1 precisar verificar NFS-e recebida, entra numa fatia própria.
+- **DA-2.8, NL-2.10 e fechamento.** Fatia nova da emissão de teste do líder, ligada à definição de fechamento.
+- **DA-2.9, ordem e paralelismo:** levas abaixo.
+
+**Levas de execução (DA-2.9).** Mesmas regras da Onda 1: no máximo 3 executores vivos e uma vaga de revisão (L-11); um trabalho pesado por vez sob `flock /var/tmp/notalivre-heavy.lock`; `TODO.md` e commit sob `flock /var/tmp/notalivre-git.lock`, só com os caminhos da fatia; e, desde a NL-2.0, todo verde local feito sobre `git archive` do SHA da fatia.
+
+| Leva | Fatias (executor) | Começa quando | Em paralelo com |
+|---|---|---|---|
+| 0 | NL-2.0 (devops-sre) | já | nenhuma fatia de código |
+| 1 | NL-2.1 (security-engineer); NL-2.6 (qa-engineer); NL-2.7 (backend-engineer) | NL-2.0 aceita | entre si |
+| 2 | NL-2.2 (backend-engineer); NL-2.4 (backend-engineer) | NL-2.1 aceita, para NL-2.2; NL-2.0, para NL-2.4 | NL-2.6, se viva |
+| 3 | NL-2.3 (backend-engineer); NL-2.5 (backend-engineer) | NL-2.2 aceita; NL-2.5 também precisa de NL-2.6 | entre si |
+| 4 | NL-2.8 (backend-engineer) | NL-2.4, NL-2.5 e NL-2.7 aceitas | nenhuma |
+| 5 | NL-2.9 (backend-engineer) | NL-2.3 e NL-2.8 aceitas | internal-auditor, primeira passada |
+| 6 | NL-2.10 (preparo: devops-sre; operação: o líder) | NL-2.9 aceita | nenhuma |
+| Fechamento | internal-auditor | NL-2.10 com resultado registrado | nenhuma |
 
 #### NL-2.0 Build e evidência local por SHA (processo, nova, primeira da Onda 2)
-- **Origem:** achado A1-07 da auditoria da Onda 1 (`docs/auditoria/onda-1.md`): logs locais de NL-1.0c, 1.1, 1.2, 1.6b e 1.8 gerados com trabalho alheio na árvore e no build compartilhados (`/var/tmp/notalivre-build`, `/var/tmp/notalivre-src`). DECISÃO AUTÔNOMA (L-15), a ratificar, DA-1.30: não bloqueia a Onda 1, porque a CI de cada SHA está limpa, e precede todo código da Onda 2.
-- **Objetivo:** `tools/conteiner/build_local.sh` recebe o SHA, extrai com `git archive` para `/var/tmp/notalivre-src-<SHA>-<fatia>`, usa um diretório de build por fatia e imprime o SHA no topo do log; nenhum harness lê cópia compartilhada (resolve a linha da INBOX do harness da NL-1.6c). Limpeza das cópias pela L-53, só depois da revisão.
-- **Testes primeiro:** autoteste com sabotagem de estreia (L-36): um log produzido com arquivo alheio não commitado na árvore reprova; log sem SHA no topo reprova; dois builds de fatias diferentes em paralelo não compartilham diretório.
+- **Origem:** achado A1-07 da auditoria da Onda 1 (`docs/auditoria/onda-1.md`): logs locais de NL-1.0c, 1.1, 1.2, 1.6b e 1.8 gerados com trabalho alheio na árvore e no build compartilhados (`/var/tmp/notalivre-build`, `/var/tmp/notalivre-src`). DECISÃO AUTÔNOMA (L-15), ratificada pelo líder em bloco em 27/10/2026, DA-1.30.
+- **Objetivo:** (1) `tools/conteiner/build_local.sh` recebe o SHA, extrai com `git archive` para `/var/tmp/notalivre-src-<SHA>-<fatia>`, usa um diretório de build por fatia e imprime o SHA no topo do log; nenhum harness lê cópia compartilhada. Limpeza das cópias pela L-53, só depois da revisão. (2) Acrescenta o `xmlsec1` de linha de comando (oráculo da DA-2.1) aos quatro scripts de `tools/conteiner/instalar/`, que também alimentam o CI, reconstrói as quatro imagens uma por vez sob o lock e grava a versão de cada uma em `docs/pesquisa/ci_medicao.md` (candidatos medidos: Fedora 1.2.41, Mint 1.2.39, Ubuntu 1.3.9, Manjaro 1.3.12). O `xmlsec1` não entra no manifesto Flatpak.
+- **Testes primeiro:** autoteste com sabotagem de estreia (L-36): um log produzido com arquivo alheio não commitado na árvore reprova; log sem SHA no topo reprova; dois builds de fatias diferentes em paralelo não compartilham diretório; `xmlsec1 --version` responde nas quatro imagens.
 - **Aceite (do auditor):** o próximo log de verde traz o SHA e não contém teste de outra fatia.
-- **Executor:** devops-sre. **Revisão:** qa-engineer, main. **Antes de:** NL-2.1 e toda fatia de código da Onda 2.
+- **Executor:** devops-sre. **Revisão:** qa-engineer, main. **Antes de:** toda fatia de código da Onda 2. Dono, nesta onda, de `tools/conteiner/` e `.github/workflows/ci.yml`.
 
 #### NL-2.1 Fixtures de certificados de teste
-- **Objetivo:** script que gera, na preparação do teste dentro do contêiner (local ou do CI) e nunca no repositório nem na sessão do líder, uma AC de teste, certificados de cliente com CNPJ, com CPF, vencido, revogado (com LCR), de outro CNPJ raiz, e .pfx com cifra moderna e com cifra legada; mais o certificado do servidor falso.
-- **Testes primeiro:** `fixturesGeradasSaoLidasPeloOpenssl`, `nenhumaChavePrivadaRastreadaNoGit` (o gitleaks de NL-0.6 reprova se alguém commitar).
-- **Executor:** security-engineer. **Revisão:** qa-engineer, main. **Paralelo:** com NL-2.6.
+- **Objetivo:** script que gera, na preparação do teste dentro do contêiner (local ou do CI) e nunca no repositório nem na sessão do líder, uma AC de teste, certificados de cliente com CNPJ no otherName 2.16.76.1.3.3, com CPF no otherName 2.16.76.1.3.1 (layout do DOC-ICP-04 v8.0, 7.1.2.3), com EKU clientAuth, vencido, revogado (com LCR), de outro CNPJ raiz, com CNPJ alfanumérico, e .pfx com cifra moderna (PBES2 e AES-256) e com cifra legada (cert bag RC2-40-CBC e key bag 3DES, o caso medido na pesquisa e); mais o certificado do servidor falso.
+- **Testes primeiro:** `fixturesGeradasSaoLidasPeloOpenssl`, `pfxLegadoFalhaSemLegacyComUnsupported` (código `0308010C`), `nenhumaChavePrivadaRastreadaNoGit` (o gitleaks de NL-0.6 reprova se alguém commitar).
+- **Executor:** security-engineer. **Revisão:** qa-engineer, main. **Depende de:** NL-2.0. **Paralelo:** NL-2.6 e NL-2.7.
 
 #### NL-2.2 Carregador PKCS#12 (Foundation)
-- **Interfaces:** `std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteArrayView pfx, SenhaSegura senha)`; `ErroCredencial` distingue `SenhaErrada`, `CifraLegadaIndisponivel`, `Vencido`, `CadeiaInvalida`, `SemInscricao`; `Inscricao CredencialX509::inscricao() const`. A senha é zerada após o uso.
-- **Testes primeiro:** `senhaCorretaCarrega`, `senhaErradaDaErroProprio`, `cifraLegadaCarregaComProviderLegado`, `vencidoSinalizado`, `cnpjExtraidoDoCertificado`, `cpfExtraidoDoCertificado`.
-- **Executor:** backend-engineer. **Revisão:** security-engineer, main. **Depende de:** NL-2.1, ADR-S1, pesquisa (d) e (e).
+- **Interfaces:** `std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteArrayView pfx, SenhaSegura senha)`; `ErroCredencial` distingue `SenhaErrada`, `CifraLegadaIndisponivel`, `Vencido`, `CadeiaInvalida`, `SemInscricao`, `SemAutenticacaoCliente`; `Inscricao CredencialX509::inscricao() const`. A senha é zerada após o uso.
+- **Como (pesquisa e):** OpenSSL direto, não `QSslCertificate::importPkcs12` (comportamento com legado NÃO VERIFICADO). Primeira tentativa no contexto de biblioteca com o provider default; se falhar com `unsupported`, nova tentativa num `OSSL_LIB_CTX` próprio com default e legacy carregados juntos (carregar só o legacy tira o AES), nunca no processo inteiro. A detecção é pela falha de parse, nunca por `openssl list`.
+- **Inscrição (pesquisa d):** CNPJ do OID 2.16.76.1.3.3; CPF das posições 9 a 19 do OID 2.16.76.1.3.1 (INFERÊNCIA aritmética, confirmada pelo teste com a fixture e, na NL-2.10, pelo A1 do líder sem que nenhum agente o leia); nunca pelo CN. "Mesma raiz" compara os 8 primeiros caracteres como texto.
+- **Testes primeiro:** `senhaCorretaCarrega`, `senhaErradaDaErroProprio`, `cifraLegadaCarregaComProviderLegado`, `legadoNaoDesligaODefault`, `vencidoSinalizado`, `semEkuClientAuthSinalizado`, `cnpjExtraidoDoCertificado`, `cnpjAlfanumericoExtraidoComoTexto`, `cpfExtraidoDoCertificado`, `raizComparadaComoTexto`.
+- **Executor:** backend-engineer. **Revisão:** security-engineer, main. **Depende de:** NL-2.1, ADR-S1.
 
-#### NL-2.3 Assinador e verificador XMLDSIG (Foundation)
-- **Interfaces:** `std::expected<QByteArray, Erro> AssinadorXml::assinarEnveloped(QByteArrayView xml, QStringView idReferencia, const CredencialX509&)`.
-- **Testes primeiro:** `assinaturaConfereNoXmlsec1Cli` (oráculo independente), `xmlAlteradoDepoisDeAssinarReprova`, `xmlAssinadoContinuaValidoNoXsd`.
-- **Executor:** backend-engineer. **Revisão:** security-engineer, main. **Depende de:** NL-1.6, NL-2.2, pesquisa (a) e (f).
+#### NL-2.3 Assinador XMLDSIG (Foundation, DA-2.1 e DA-2.2)
+- **Arquivos:** `src/foundation/xmldsig/` (libxml2 e OpenSSL); os URIs dos algoritmos e a regra do `URI` da referência vêm da pasta do leiaute em `src/mid/sefin/leiaute/prodrest_20261020/`.
+- **Interfaces:** `std::expected<QByteArray, Erro> AssinadorXml::assinarEnveloped(QByteArrayView xml, QStringView idReferencia, const ParametrosAssinatura&, const CredencialX509&)`; `ParametrosAssinatura` traz os URIs de C14N, transformações, digest e assinatura.
+- **Testes primeiro:** `assinaturaConfereNoXmlsec1Cli` (oráculo independente, nas quatro imagens, cobrindo as linhas 1.2 e 1.3 com `--id-attr:Id` no `infDPS` e a AC de teste em `--trusted-pem`), `xmlAlteradoDepoisDeAssinarReprova`, `xmlAssinadoContinuaValidoNoXsd`, `signatureIrmaDeInfDps`, `referenciaApontaParaIdDoInfDps`, `keyInfoSoComX509Certificate`, `namespaceHerdadoEntraNaCanonicalizacao`, `algoritmoVemDaPastaDoLeiaute` (troca para SHA-256 só pela pasta e o oráculo continua verde).
+- **Aceite:** oráculo `xmlsec1 --verify` verde nas quatro imagens e mutação sobrevivente zero no job `mutacao`.
+- **Executor:** backend-engineer. **Revisão:** security-engineer (com mutação: trocar o subconjunto canonicalizado, tirar um namespace herdado, inverter digest e assinatura), main. **Depende de:** NL-1.6b, NL-2.2, NL-2.0 (oráculo nas imagens). O `VerificadorXml` do plano sai desta onda (DA-2.7).
 
-#### NL-2.4 Envelope da DPS (Mid)
-- **Objetivo:** montar o corpo do POST conforme o manual. Ponto de decisão D2.4: se o manual não pedir GZip, fica só o Base64.
-- **Testes primeiro:** `envelopeIdaEVolta`, `envelopeIgualAoExemploDoManual` (se o manual tiver exemplo).
-- **Executor:** backend-engineer. **Revisão:** qa-engineer, main. **Depende de:** pesquisa (b).
+#### NL-2.4 Envelope da DPS (Mid, DA-2.4)
+- **Objetivo:** `EnvelopeDps` da pasta do leiaute monta `{"dpsXmlGZipB64": "<Base64 do GZip do XML assinado>"}` com `Content-Type: application/json`. Tudo INFERÊNCIA de fontes secundárias (pesquisa b), confirmado na NL-2.10.
+- **Testes primeiro:** `envelopeIdaEVolta`, `gzipComCabecalhoRfc1952` (bytes `1f 8b`), `naoUsaQCompress` (o prefixo de tamanho do `qCompress` reprova), `base64PadraoSemQuebraDeLinha`, `chaveDoJsonVemDaPastaDoLeiaute`; o comentário de cada teste diz "INFERÊNCIA até a NL-2.10".
+- **Executor:** backend-engineer. **Revisão:** qa-engineer, main. **Depende de:** NL-2.0, NL-1.6b.
 
 #### NL-2.5 Transporte HTTPS com mTLS (Foundation)
-- **Interfaces:** `TransporteHttps(UrlBase, ConfiguracaoTls)`; `std::expected<RespostaHttp, ErroTransporte> enviar(const RequisicaoHttp&)`; `ErroTransporte` separa transitório (timeout, conexão) de definitivo. URL base sempre configurável.
-- **Testes primeiro (integração, contra o servidor falso):** `semCertificadoDeClienteHandshakeRecusado`, `certificadoDeOutraAcRecusado`, `timeoutViraErroTransitorio`.
+- **Interfaces:** `TransporteHttps(UrlBase, ConfiguracaoTls)`; `std::expected<RespostaHttp, ErroTransporte> enviar(const RequisicaoHttp&)`; `ErroTransporte` separa transitório (timeout, conexão) de definitivo. URL base e prefixo sempre de configuração por ambiente (DA-2.5).
+- **Testes primeiro (integração, contra o servidor falso):** `semCertificadoDeClienteHandshakeRecusado`, `certificadoDeOutraAcRecusado`, `timeoutViraErroTransitorio`, `baseEPrefixoVemDaConfiguracao`.
 - **Executor:** backend-engineer. **Revisão:** security-engineer, main. **Depende de:** NL-2.2, NL-2.6.
 
 #### NL-2.6 Servidor falso da API
-- **Objetivo:** `tools/servidor_falso` em Python, biblioteca padrão, TLS com certificado de cliente obrigatório; valida o XSD com `xmllint` e a assinatura com `xmlsec1 --verify`, nunca com o código do app; endpoints POST /nfse, GET /nfse/{chave}, GET e HEAD /dps/{id}, POST /nfse/{chave}/eventos e GET /DFe/{NSU} (FATO, spec 5.1); falhas roteirizáveis: 5xx, timeout, conexão cortada depois de aceitar a DPS, rejeição com código E do catálogo.
+- **Objetivo:** `tools/servidor_falso` em Python, biblioteca padrão, TLS com certificado de cliente obrigatório; desfaz o envelope da DA-2.4, valida o XSD com `xmllint` e a assinatura com `xmlsec1 --verify`, nunca com o código do app; endpoints POST /nfse, GET /nfse/{chave}, GET e HEAD /dps/{id}, POST /nfse/{chave}/eventos e GET /DFe/{NSU} (FATO, spec 5.1); falhas roteirizáveis: 5xx, timeout, conexão cortada depois de aceitar a DPS, rejeição com código E do catálogo, 409 de DPS duplicada.
+- **Respostas (pesquisa g):** INFERÊNCIA marcada no código e no teste: erro HTTP 400 com `Codigo` e `Descricao`; GET /dps/{id} sem nota com 404 e E2404; sucesso com `chaveAcesso` de 50 posições e XML da NFS-e em GZip e Base64. Nenhum schema além do que as fontes trazem.
 - **Onde roda:** contêiner local construído a partir de arquivo do repositório sobre imagem da lista fechada; depois o mesmo no job do CI.
-- **Oráculo em série:** um `xmllint` e um `xmlsec1` por requisição, em série, nunca em leque, para o veredito do oráculo ser determinístico; os testes de lote têm teto de itens declarado no próprio teste. Vale também o teto de processos da L-11 nesta máquina: nada de leque.
-- **Aviso honesto:** os formatos de resposta são INFERÊNCIA até a Onda 11, que compara com a Sefin real.
-- **Testes primeiro:** `dpsValidaRecebeChave50`, `dpsAdulteradaRejeitada`, `semCertificadoRecusado`, `falhaRoteirizadaAconteceUmaVez`.
-- **Executor:** qa-engineer. **Revisão:** security-engineer (configuração TLS), main. **Paralelo:** com NL-2.1.
+- **Oráculo em série:** um `xmllint` e um `xmlsec1` por requisição, em série, nunca em leque; os testes de lote têm teto de itens declarado no próprio teste (teto de processos da L-11).
+- **Testes primeiro:** `dpsValidaRecebeChave50`, `dpsAdulteradaRejeitada`, `assinaturaSha1AceitaPeloOraculo`, `semCertificadoRecusado`, `falhaRoteirizadaAconteceUmaVez`.
+- **Executor:** qa-engineer. **Revisão:** security-engineer (configuração TLS), main. **Depende de:** NL-2.0. **Paralelo:** NL-2.1 e NL-2.7.
 
 #### NL-2.7 Log com redação de PII (Foundation)
 - **Objetivo:** aplicar ADR-S4 no `Log`; portão de teste que roda a suíte ponta a ponta com dados de referência e procura nos logs os CPF, CNPJ, senhas e tokens das fixtures. Resultado esperado: zero ocorrências, com varredura não vazia provada.
-- **Testes primeiro:** `senhaNuncaApareceNoLog`, `cpfDoEmitenteMascaradoNoIdDps`, `varreduraDeLogVaziaReprova`.
-- **Executor:** backend-engineer. **Revisão:** security-engineer (sabotagem: logar a senha de propósito e ver vermelho), main. **Depende de:** ADR-S4. Vem antes de NL-2.8.
+- **Testes primeiro:** `senhaNuncaApareceNoLog`, `cpfDoEmitenteMascaradoNoIdDps`, `envelopeBase64NaoVaiAoLog`, `varreduraDeLogVaziaReprova`.
+- **Executor:** backend-engineer. **Revisão:** security-engineer (sabotagem: logar a senha de propósito e ver vermelho), main. **Depende de:** ADR-S4, NL-2.0. Vem antes de NL-2.8.
 
 #### NL-2.8 Cliente Sefin e política de retry (Mid)
-- **Interfaces:** `ClienteSefin : GatewaySefin` com `emitir(DpsAssinada)`, `consultarNota(ChaveAcesso)`, `consultarDps(IdDps)`; `CatalogoErrosSefin` mapeia código E para mensagem.
-- **Regra de retry (DECISÃO DO CTO, a confirmar):** GET e HEAD repetem com backoff exponencial em erro transitório. POST /nfse nunca repete sozinho: em erro transitório consulta GET /dps/{id} e só reenvia se a DPS não chegou. Rejeição com código E nunca repete. Número de tentativas: valor configurável, fixado na pesquisa de abertura com medição na Onda 11 (spec 4.6, EM ABERTO).
-- **Testes primeiro:** `postTransitorioConsultaDpsAntesDeReenviar`, `rejeicaoE0014NaoRepete`, `sucessoExtraiChaveDe50Posicoes`.
+- **Interfaces:** `ClienteSefin : GatewaySefin` com `emitir(DpsAssinada)`, `consultarNota(ChaveAcesso)`, `consultarDps(IdDps)`; `CatalogoErrosSefin` mapeia código E para mensagem; o leitor de erro aceita `erro` e `erros`, `Codigo` e `codigo` (INFERÊNCIA, pesquisa g).
+- **Regra de retry (DECISÃO DO CTO, a confirmar):** GET e HEAD repetem com backoff exponencial em erro transitório. POST /nfse nunca repete sozinho: em erro transitório consulta GET /dps/{id} com o certificado do próprio emissor (caminho de ator, FATO do manual 1.0, 1.4) e só reenvia se a DPS não gerou nota (404 com E2404, INFERÊNCIA). 409 de DPS duplicada vira "já existe, consultar", nunca reenvio. Rejeição com código E nunca repete. Número de tentativas: configurável, medido na NL-2.10 e na Onda 11.
+- **Testes primeiro:** `postTransitorioConsultaDpsAntesDeReenviar`, `dps404E2404LiberaReenvio`, `conflito409ConsultaENaoReenvia`, `rejeicaoE0014NaoRepete`, `sucessoExtraiChaveDe50Posicoes`.
 - **Executor:** backend-engineer. **Revisão:** qa-engineer, main. **Depende de:** NL-2.4, NL-2.5, NL-2.7.
 
 #### NL-2.9 Caso de uso EmitirNota e CLI `notalivre emitir`
-- **Objetivo:** `EmitirNota` com ports em memória; CLI que emite contra o servidor falso com `--url-base`; senha lida do terminal sem eco, nunca por argumento.
+- **Objetivo:** `EmitirNota` com ports em memória; CLI que emite contra o servidor falso com o ambiente e a base vindos da configuração (DA-2.5); senha lida do terminal sem eco, nunca por argumento; série e número informados na linha de comando enquanto o protocolo durável (P3, NL-3.7) não existe, com o número usado gravado no log local.
 - **Trava de Produção (DECISÃO DO CTO, a confirmar):** o ambiente Produção nasce bloqueado por configuração e só destrava depois do go/no-go do líder (Onda 12), além da confirmação digitada e da senha sempre pedida (spec 4.12). Protege o anti-objetivo "emitir nota real por engano".
-- **Testes primeiro (e2e):** `cliEmiteDpsAceitaPeloServidorFalso`, `cliRecusaProducaoBloqueada`, `cliRecusaProducaoSemCnpjDigitado`, `senhaNaoApareceEmArgvNemLog`.
+- **Testes primeiro (e2e):** `cliEmiteDpsAceitaPeloServidorFalso`, `cliRecusaProducaoBloqueada`, `cliRecusaProducaoSemCnpjDigitado`, `senhaNaoApareceEmArgvNemLog`, `respostaCruaGravadaParaAnalise` (corpo da resposta salvo localmente, com a PII do log mascarada).
 - **Executor:** backend-engineer. **Revisão:** qa-engineer e security-engineer, main. **Depende de:** NL-2.3, NL-2.8.
 
-**Definição de fechamento da Onda 2:** (1) em contêiner local e no CI, a CLI emite uma DPS que o servidor falso aceita, com o XSD conferido pelo `xmllint` e a assinatura pelo `xmlsec1 --verify`; (2) sem certificado de cliente, o handshake é recusado; (3) XML adulterado é rejeitado; (4) com corte de conexão roteirizado depois do aceite, o cliente consulta GET /dps/{id} antes de qualquer reenvio; (5) portão de PII em log com zero ocorrências e visto vermelho por sabotagem; (6) cada pergunta da pesquisa de abertura tem resposta com fonte citada na fatia que dependia dela; (7) internal-auditor sem CRÍTICO; (8) CI verde nas quatro distros. É o primeiro marco que o líder pode ver funcionando, ainda sem A1 real: ele vê pelo log e pelos artefatos, já que nada roda na sessão dele.
+#### NL-2.10 Emissão de teste do líder em Produção Restrita (nova, DECISÃO DO LÍDER, 27/10/2026: "Testar na Produção Restrita (Recomendado)")
+- **Objetivo:** primeira DPS do NotaLivre enviada à Sefin real, em Produção Restrita, sem validade fiscal, com o A1 do líder. Confirma ou refuta cada INFERÊNCIA desta onda: corpo e chave do JSON, GZip, Content-Type, base `/SefinNacional` ou `/API/SefinNacional`, algoritmo `rsa-sha1` ou `rsa-sha256`, URI da referência, formato de sucesso e de erro, extração do CNPJ ou CPF do certificado.
+- **Preparo (devops-sre, sem tocar o certificado):** bundle Flatpak com o `notalivre-cli` (o manifesto já instala `notalivre-cli` em `/app/bin`), configuração de Produção Restrita com as duas bases candidatas, Produção bloqueada (NL-2.9), e um roteiro de comandos para o líder: instalar o bundle, rodar `flatpak run --command=notalivre-cli io.github.petrinhu.notalivre emitir ...`, e onde fica o log local. Nenhum agente roda o bundle na sessão do líder (L-50); quem roda é ele.
+- **O que exige do líder:** (1) o A1 dele (.pfx ou .p12, e-CNPJ ou e-CPF, com EKU clientAuth) e a senha, digitada por ele; (2) confirmar que o município do emissor dele aderiu ao Sistema Nacional (INFERÊNCIA: sem adesão a Sefin rejeita); (3) os dados da DPS de teste: cTribNac do serviço que ele presta, valor pequeno, regime (não optante, MEI ou Simples), e sem tomador, para não expor dado de terceiro e não depender de cadastro (toma é 0-1); (4) rodar o roteiro e devolver o log local, que sai com a PII mascarada pela NL-2.7; (5) opcional, antes da NL-2.4: baixar pelo navegador dele o manual de contribuintes com versão real e o JSON do Swagger de Produção Restrita, se o site permitir (pesquisa b, item 4 do "Em aberto").
+- **Plano de tentativa:** primeiro envio com a configuração padrão (base `/SefinNacional`, `rsa-sha1`); se a rota der 404, segunda base; se vier E0714, `rsa-sha256` pela pasta do leiaute; cada tentativa com número novo de DPS e registrada. Rejeição com código E de regra de negócio é resultado útil, nunca motivo para tentar às cegas: volta ao CTO com o log.
+- **Saída:** `docs/pesquisa/onda2_producao_restrita.md` com cada INFERÊNCIA marcada CONFIRMADA ou REFUTADA, com o trecho do log; o canon (spec C4, este plano) atualizado no mesmo commit.
+- **Executor:** devops-sre (preparo) e o líder (operação). **Revisão:** qa-engineer (lê o log e confere a PII mascarada), main. **Depende de:** NL-2.9.
+
+**Definição de fechamento da Onda 2:** (1) NL-2.0 aceita: todo verde local da onda traz o SHA no topo e nenhum teste de outra fatia, e o `xmlsec1` responde nas quatro imagens; (2) em contêiner local e no CI, a CLI emite uma DPS que o servidor falso aceita, com o XSD conferido pelo `xmllint` e a assinatura pelo `xmlsec1 --verify` nas linhas 1.2 e 1.3; (3) sem certificado de cliente, o handshake é recusado; (4) XML adulterado é rejeitado; (5) com corte de conexão roteirizado depois do aceite, o cliente consulta GET /dps/{id} antes de qualquer reenvio, e 409 nunca vira reenvio; (6) portão de PII em log com zero ocorrências e visto vermelho por sabotagem; (7) .pfx legado carrega sem desligar o provider default; (8) NL-2.10 executada pelo líder: NFS-e gerada em Produção Restrita com chave de 50 posições registrada, ou, se a recusa tiver causa fora do app (adesão do município, certificado, indisponibilidade da Sefin), a causa medida no log e levada ao líder, que decide se a onda fecha; (9) `docs/pesquisa/onda2_producao_restrita.md` com cada INFERÊNCIA desta seção marcada CONFIRMADA ou REFUTADA, e o canon atualizado; (10) internal-auditor sem CRÍTICO; (11) CI verde nas quatro distros, como uma linha entre as outras (L-24); (12) DA-2.1 em diante no registro de decisões autônomas para a ratificação do líder. O líder vê a onda funcionando pela emissão de teste que ele mesmo opera.
 
 ### Onda 3: persistência cifrada e assistente de banco
 
