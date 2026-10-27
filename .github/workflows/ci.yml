@@ -198,6 +198,13 @@ jobs:
           docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/spdx.py /src && bash /src/tools/portoes/autoteste_spdx.sh'
 
+      # NL-2.1 (L-36): o autoteste dos portões roda no CI (inclui o teste de chave privada commitada, S8).
+      - name: Autoteste dos portões de higiene (A0-06 e NL-2.1)
+        id: autoteste_higiene
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'git config --global --add safe.directory /src && bash /src/tools/portoes/autoteste_higiene.sh'
+
       # NL-1.8 (L-36): hexadecimal de cor só em apps/gui/qml/Theme.qml; o tema gerado tem de bater com a spec visual.
       - name: Hexadecimal só no Theme (portão nenhum_hex_fora_do_theme)
         id: hex

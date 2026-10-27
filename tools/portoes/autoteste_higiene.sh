@@ -322,6 +322,16 @@ enc=$(campo "$WORK/s7.out" encontrados)
 falha=0; [ "$enc" -eq 0 ] || falha=1; formato_seg "$WORK/s7.out" || falha=1
 veredito "S7 segredos varredura vazia" 1 "$RC" "$falha" "encontrados=$enc"
 
+echo "== Chave privada commitada (test_certificados.py, gitleaks git num repositorio temporario)"
+
+# S8: a regra do projeto reprova chave privada COMMITADA num repositório temporário, e um repositório sem segredo
+# passa (controle). O teste mora em tests/fixtures/certificados e lê o .gitleaks.toml da própria árvore.
+TESTE_SEG="$RAIZ_REPO/tests/fixtures/certificados/test_certificados.py"
+python3 -I "$TESTE_SEG" nenhumaChavePrivadaRastreadaNoGit > "$WORK/s8.out" 2>&1
+RC=$?
+falha=0; [ -f "$TESTE_SEG" ] || falha=1
+veredito "S8 chave privada commitada reprovada pelo gitleaks git (teste de certificados)" 0 "$RC" "$falha" "$(tail -n 1 "$WORK/s8.out")"
+
 echo "FALHAS=$FALHAS"
 [ "$FALHAS" -eq 0 ] || exit 1
 echo "AUTOTESTE: todos os controles conferem"
