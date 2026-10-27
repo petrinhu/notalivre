@@ -116,7 +116,7 @@ class TesteCertificados(unittest.TestCase):
         cnf = tempfile.mkstemp(prefix="nl21-cnf-vazio-", suffix=".cnf", dir=os.environ.get("TMPDIR") or "/var/tmp")
         os.close(cnf[0])
         self.cnf_vazio = Path(cnf[1])
-        self.cnf_vazio.write_text("# sem seção de provider: só o default, como o OpenSSL 3 sem configuração\n",
+        self.cnf_vazio.write_text("# sem secao de provider: so o default, como o OpenSSL 3 sem configuracao\n",
                                   encoding="ascii")
         self.addCleanup(self.cnf_vazio.unlink, missing_ok=True)
 
@@ -239,6 +239,10 @@ class TesteCertificados(unittest.TestCase):
         r = rodar(["openssl", "verify", "-CAfile", str(self.ac), str(servidor)])
         self.assertEqual(r.returncode, 0, saida_toda(r))
 
+
+class TesteSegredos(unittest.TestCase):
+    # Não usa a fixture de certificados: roda com repositório temporário próprio.
+
     def nenhumaChavePrivadaRastreadaNoGit(self):
         # Prova que o portão do projeto (.gitleaks.toml) reprova chave privada COMMITADA, num repositório
         # temporário fora do projeto. O controle sem segredo garante que o portão não reprova tudo.
@@ -283,6 +287,7 @@ if __name__ == "__main__":
     if len(sys.argv) != 2:
         sys.exit("uso: test_certificados.py <nome-do-teste>")
     nome = sys.argv.pop(1)
-    suite = unittest.TestSuite([TesteCertificados(nome)])
+    classe = TesteSegredos if hasattr(TesteSegredos, nome) else TesteCertificados
+    suite = unittest.TestSuite([classe(nome)])
     resultado = unittest.TextTestRunner(verbosity=2).run(suite)
     sys.exit(0 if resultado.wasSuccessful() else 1)
