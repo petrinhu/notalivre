@@ -10,6 +10,18 @@ set(NL_TESTE_SERVIDOR_FALSO "${CMAKE_CURRENT_SOURCE_DIR}/test_servidor_falso.py"
 set(NL_AMBIENTE_SERVIDOR_FALSO
     "NL_XMLLINT=${NL_XMLLINT_SF};NL_XMLSEC1=${NL_XMLSEC1_SF};NL_XSD_PRODREST_DIR=${NL_XSD_PRODREST_DIR};NL_SF_DIR=${CMAKE_BINARY_DIR}/servidor_falso")
 
+# Arnês do fedora44 (DA-2.10, ADR 0007): só nessa distro a variável de SHA-1 entra no ambiente dos testes, e o
+# configure escreve a linha no log do job. O ctest esconde a saída de testes que passam, por isso não é o teste que a imprime.
+file(READ "/etc/os-release" NL_OS_RELEASE_SF)
+if(NL_OS_RELEASE_SF MATCHES "(^|
+)ID=fedora(
+|$)" AND NL_OS_RELEASE_SF MATCHES "(^|
+)VERSION_ID="?44"?(
+|$)")
+    message(STATUS "servidor falso: arnês fedora44 ativo, OPENSSL_ENABLE_SHA1_SIGNATURES=1 (DA-2.10, ADR 0007)")
+    string(APPEND NL_AMBIENTE_SERVIDOR_FALSO ";OPENSSL_ENABLE_SHA1_SIGNATURES=1")
+endif()
+
 foreach(nome IN ITEMS
     dpsValidaRecebeChave50
     dpsAdulteradaRejeitada

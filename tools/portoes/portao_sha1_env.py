@@ -26,6 +26,7 @@ PERMITIDOS = frozenset({
     "tools/portoes/portao_sha1_env.py",
     "tests/tools/servidor_falso/test_servidor_falso.py",
     "tests/tools/portoes/test_portao_sha1_env.py",
+    "tests/tools/servidor_falso/CMakeLists.txt",
 })
 PODAR = frozenset({".git", "__pycache__", "worktrees", "out"})
 
