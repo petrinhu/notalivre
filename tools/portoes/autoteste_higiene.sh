@@ -237,13 +237,20 @@ docs=$(campo "$WORK/t15.out" encontrados_docs)
 falha=0; [ "$docs" -eq 0 ] || falha=1; formato_trav "$WORK/t15.out" || falha=1
 veredito "T15 travessao piso DOCS (sem README, so UI)" 1 "$RC" "$falha" "encontrados_docs=$docs"
 
-# T16: piso UI desligado na configuração: raiz só com README passa
+# T16: piso UI desligado explicitamente (--piso-ui=off): raiz só com README passa
 rm -rf "$WORK/t16"; mkdir -p "$WORK/t16"; printf 'Projeto de teste\n' > "$WORK/t16/README.md"
-roda_trav "$WORK/t16.out" "$WORK/t16"
+roda_trav "$WORK/t16.out" --piso-ui=off "$WORK/t16"
 ui=$(campo "$WORK/t16.out" encontrados_ui)
 falha=0; [ "$ui" -eq 0 ] || falha=1; formato_trav "$WORK/t16.out" || falha=1
 /usr/bin/grep -q 'piso_ui_ligado=False' "$WORK/t16.out" || falha=1
-veredito "T16 travessao piso UI desligado por configuracao (so README)" 0 "$RC" "$falha" "encontrados_ui=$ui piso=configuracao"
+veredito "T16 travessao piso UI desligado explicitamente (--piso-ui=off, so README)" 0 "$RC" "$falha" "encontrados_ui=$ui piso=off-explicito"
+
+# T16b: a configuração real (piso_ui_ligado=true desde a NL-1.8) reprova raiz só com README: o piso vem da configuração
+roda_trav "$WORK/t16b.out" "$WORK/t16"
+ui=$(campo "$WORK/t16b.out" encontrados_ui)
+falha=0; [ "$ui" -eq 0 ] || falha=1; formato_trav "$WORK/t16b.out" || falha=1
+/usr/bin/grep -q 'piso_ui_ligado=True' "$WORK/t16b.out" || falha=1
+veredito "T16b travessao piso UI ligado pela configuracao (so README)" 1 "$RC" "$falha" "encontrados_ui=$ui piso=configuracao"
 
 # T17: o mesmo caso com --piso-ui=on reprova: o interruptor da configuração é real
 rm -rf "$WORK/t17"; mkdir -p "$WORK/t17"; printf 'Projeto de teste\n' > "$WORK/t17/README.md"

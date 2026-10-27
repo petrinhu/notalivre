@@ -1,0 +1,40 @@
+{
+  "tpAmb": "2",
+  "dhEmi": "2026-10-25T10:00:00-03:00",
+  "verAplic": "NotaLivre 0.1",
+  "serie": 1,
+  "nDps": 1,
+  "dCompet": "2026-10-01",
+  "cLocEmi": "4305108",
+  "prestador": {
+    "cnpj": "11222333000181",
+    "im": "123456",
+    "xNome": "Empresa Simples Teste",
+    "endereco": {
+      "cMun": "4305108",
+      "cep": "01001-000",
+      "xLgr": "Rua das Flores",
+      "nro": "10",
+      "xBairro": "Centro"
+    },
+    "regime": { "opSimpNac": "3", "regApTribSN": "1", "regEspTrib": "0" }
+  },
+  "servico": {
+    "cLocPrestacao": "4305108",
+    "cTribNac": "170201",
+    "cNbs": "123456789",
+    "xDescServ": "Consultoria em tecnologia"
+  },
+  "valores": {
+    "vServ": "100,00",
+    "tribMun": { "tribISSQN": "1", "tpRetISSQN": "1", "pAliq": "5.00" },
+    "totTrib": { "vTotTribFed": "0,00", "vTotTribEst": "0,00", "vTotTribMun": "0,00" }
+  },
+  "ibscbs": {
+    "cIndOp": "000001",
+    "tpOper": "1",
+    "indDest": "0",
+    "cst": "000",
+    "cClassTrib": "000001"
+  }
+}

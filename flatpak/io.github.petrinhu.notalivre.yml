@@ -19,7 +19,9 @@ modules:
   - name: notalivre
     buildsystem: simple
     build-commands:
-      - cmake -S . -B _build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      # NL-1.6a: o build não tem rede. O ZIP do XSD entra como fonte com SHA-256 (flatpak-builder confere) e o
+      # CMake o lê por NL_XSD_ZIP_CACHE (diretório do próprio build, $PWD); o SHA do ZIP é conferido de novo pelo CMake.
+      - cmake -S . -B _build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNL_XSD_ZIP_CACHE="$PWD"
       - cmake --build _build
       - install -Dm755 _build/apps/gui/notalivre-gui /app/bin/notalivre-gui
       - install -Dm755 _build/apps/cli/notalivre-cli /app/bin/notalivre-cli
@@ -29,6 +31,10 @@ modules:
         skip:
           - .git
           - tools/conteiner
+      - type: file
+        url: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas_prod_restrita_20261020.zip
+        sha256: 25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
+        dest-filename: esquemas_prod_restrita_20261020.zip
   - name: notalivre-qml-smoke
     buildsystem: cmake-ninja
     sources:

@@ -1,0 +1,14 @@
+Proveniência das fontes da GUI do NotaLivre (NL-1.8). Licença: SIL Open Font License 1.1 (OFL), texto completo nos arquivos OFL-*.txt.
+Origem: repositório oficial google/fonts (github.com/google/fonts, branch main, pasta ofl/). Baixado em 25/10/2026 por URL raw do GitHub.
+Conferência: o SHA-1 de blob git de cada arquivo confere com o campo sha da API do GitHub (gh api repos/google/fonts/contents/ofl/<familia>), e o SHA-256 abaixo foi medido sobre o arquivo copiado.
+
+Arquivo aqui                          | Original no repositório                                  | Bytes  | SHA-256
+BricolageGrotesque-VF.ttf             | ofl/bricolagegrotesque/BricolageGrotesque[opsz,wdth,wght].ttf | 408496 | 413e7357809ddd12fd80a96a8a396de0e401638d4acd3cb3e37532f0472ac682
+AtkinsonHyperlegible-Regular.ttf      | ofl/atkinsonhyperlegible/AtkinsonHyperlegible-Regular.ttf    | 54348  | 7fb917c89019896d0b52ee84b7cbb3304c18cb90b19a62f5e32712bd23e97669
+AtkinsonHyperlegible-Bold.ttf         | ofl/atkinsonhyperlegible/AtkinsonHyperlegible-Bold.ttf       | 55256  | 5a3b0c8cc8ca545155150b4512a1fa248298df121c50d6557e651e61fbdab92f
+OFL-BricolageGrotesque.txt            | ofl/bricolagegrotesque/OFL.txt                               | 4403   | 4b5a7d8f37f5602621c8a8d7358a6a2e71317e6c231c661e15aef0275d3e07ba
+OFL-AtkinsonHyperlegible.txt          | ofl/atkinsonhyperlegible/OFL.txt                             | 4352   | f32d22b3908fcad2c86a74000614ec22e6a7f66ea7e867e616026a27aebdc143
+
+URLs de download (raw.githubusercontent.com/google/fonts/main/ofl/...), com os nomes originais acima.
+Os nomes foram trocados para não usar colchetes no recurso Qt. Família do Bricolage: "Bricolage Grotesque" (fonte variável, eixo wght).
+Pendência declarada, fora desta fatia: o parecer sobre OFL e GPL (spec visual, seção 2) é do empacotamento Flatpak.

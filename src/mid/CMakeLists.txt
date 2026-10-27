@@ -7,3 +7,7 @@ target_include_directories(nl_mid PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(nl_mid PUBLIC nl_foundation_base)
 target_link_libraries(nl_mid PRIVATE nl_back nl_foundation)
 target_link_libraries(nl_mid PRIVATE nl_warnings)
+
+# Ganchos da NL-1.0 (costura de build): diretórios que as fatias da Onda 1 enchem.
+add_subdirectory(sefin)
+add_subdirectory(composicao)

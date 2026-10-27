@@ -9,7 +9,7 @@ pacman-key --init
 pacman-key --populate archlinux manjaro
 pacman -Syu --noconfirm --needed \
     gcc cmake ninja pkgconf git python python-pip openssl \
-    mesa libglvnd libxkbcommon libx11 fontconfig freetype2 dbus glib2 krb5 brotli
+    mesa libglvnd libxkbcommon libx11 fontconfig freetype2 dbus glib2 krb5 brotli libxml2
 pacman -Scc --noconfirm
 
 # aqtinstall num venv próprio, fora do Python do sistema.

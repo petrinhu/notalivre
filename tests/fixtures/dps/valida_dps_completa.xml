@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01">
+    <infDPS Id="DPS430510821122233300018100001000000000000001">
+        <tpAmb>2</tpAmb>
+        <dhEmi>2026-10-25T10:00:00-03:00</dhEmi>
+        <verAplic>NotaLivre 0.1</verAplic>
+        <serie>1</serie>
+        <nDPS>1</nDPS>
+        <dCompet>2026-10-01</dCompet>
+        <tpEmit>1</tpEmit>
+        <finNFSe>0</finNFSe>
+        <cLocEmi>4305108</cLocEmi>
+        <subst>
+            <chSubstda>12345612ABC34501DE35123456789012345678901234567890</chSubstda>
+            <cMotivo>01</cMotivo>
+            <xMotivo>Erro de digitacao no valor</xMotivo>
+        </subst>
+        <prest>
+            <CNPJ>11222333000181</CNPJ>
+            <IM>123456</IM>
+            <xNome>Empresa Simples Teste</xNome>
+            <end>
+                <endNac>
+                    <cMun>4305108</cMun>
+                    <CEP>01001000</CEP>
+                </endNac>
+                <xLgr>Rua das Flores</xLgr>
+                <nro>10</nro>
+                <xBairro>Centro</xBairro>
+            </end>
+            <regTrib>
+                <opSimpNac>3</opSimpNac>
+                <regApTribSN>1</regApTribSN>
+                <regEspTrib>0</regEspTrib>
+            </regTrib>
+        </prest>
+        <toma>
+            <NIF>ABC123</NIF>
+            <xNome>Tomador Exterior</xNome>
+            <end>
+                <endExt>
+                    <cPais>US</cPais>
+                    <cEndPost>33101</cEndPost>
+                    <xCidade>Miami</xCidade>
+                    <xEstProvReg>FL</xEstProvReg>
+                </endExt>
+                <xLgr>Brickell Avenue</xLgr>
+                <nro>1</nro>
+                <xBairro>Downtown</xBairro>
+            </end>
+            <fone>11988887777</fone>
+            <email>contato@exemplo.com</email>
+        </toma>
+        <serv>
+            <locPrest>
+                <cLocPrestacao>4305108</cLocPrestacao>
+            </locPrest>
+            <cServ>
+                <cTribNac>170201</cTribNac>
+                <cNBS>123456789</cNBS>
+                <xDescServ>Consultoria em tecnologia</xDescServ>
+            </cServ>
+        </serv>
+        <valores>
+            <vServPrest>
+                <vServ>100.00</vServ>
+            </vServPrest>
+            <trib>
+                <tribMun>
+                    <tribISSQN>1</tribISSQN>
+                    <tpRetISSQN>1</tpRetISSQN>
+                    <pAliq>5.00</pAliq>
+                </tribMun>
+                <totTrib>
+                    <pTotTrib>
+                        <pTotTribFed>1.00</pTotTribFed>
+                        <pTotTribEst>1.00</pTotTribEst>
+                        <pTotTribMun>1.00</pTotTribMun>
+                    </pTotTrib>
+                </totTrib>
+            </trib>
+        </valores>
+        <IBSCBS>
+            <cIndOp>000001</cIndOp>
+            <tpOper>2</tpOper>
+            <gRefNFSe>
+                <refNFSe>12345612ABC34501DE35123456789012345678901234567890</refNFSe>
+            </gRefNFSe>
+            <indDest>1</indDest>
+            <valores>
+                <trib>
+                    <CST>000</CST>
+                    <cClassTrib>000001</cClassTrib>
+                </trib>
+            </valores>
+        </IBSCBS>
+    </infDPS>
+</DPS>

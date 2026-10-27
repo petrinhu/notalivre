@@ -39,7 +39,7 @@
 
 **Rodada 1, personalidade (25/10/2026).** Verbatim: "opcao B. Talao. Mas o campo de descricao do servico deve ser mais de uma linha. Observe o limite de chars qual é, mas é maior que campos de uma linha somente."
 - Direção: **B, Talão**. Canhoto de nota em papel, picote, abas de série em pílula.
-- Descrição do serviço: área de várias linhas, com contador. Limite: **1000 caracteres**. Fato: Anexo I v1.01, aba "LEIAUTE DPS_NFS-e", linha 197, xDescServ, tipo C, obrigatório (1-1), tamanho 1000. Fonte: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/anexo_i-sefin_adn-dps_nfse-snnfse-v1-01-20260209.xlsx (lido localmente).
+- Descrição do serviço: área de várias linhas, com contador. Limite: **2000 caracteres**. Fato: Anexo I de Produção Restrita de 20/10/2026, aba "LEIAUTE DPS_NFS-e 1.01", linha Excel 201 (coluna `#` 200), xDescServ, tipo C, obrigatório (1-1), tamanho 2000. Fonte: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/anexo_i-sefin_adn-dps_nfse-snnfse_prodrest-v1-01-20261020.xlsx (lido localmente; SHA-256 em `docs/pesquisa/onda1_leiaute.md`, seção 0); XSD `tiposSimples_v1.01.xsd:1439-1445` (TSDesc2000, maxLength 2000) e `tiposComplexos_v1.01.xsd:1495` (DA-1.2). No Anexo de 09/02 (linha Excel 197) o limite era 1000 caracteres.
 
 **Rodada 2, paleta (25/10/2026, AskUserQuestion do orquestrador).** Paleta "Musgo (Recomendado)": #2F5D50 no claro, #8FD0B7 no escuro.
 
@@ -132,7 +132,7 @@ Regra: rótulo em caixa normal, nunca em caixa alta espaçada. Números em algar
 - **Botão primário:** `brand` com `on-brand`. Hover em `brand-hover`, pressionado em `brand-press`, carregando com indicador e texto que não muda, desabilitado em `dis-bg`.
 - **Botão secundário:** borda `border`, texto `brand`, hover em `hover`.
 - **Campo:** rótulo acima, borda `border` (3:1 contra `surface`), ajuda abaixo. Erro: borda `danger` e mensagem.
-- **Área de texto:** campo com contador "Restam N de 1000 caracteres" alinhado à direita.
+- **Área de texto:** campo com contador "Restam N de 2000 caracteres" alinhado à direita.
 - **Lista suspensa:** campo com lista de opções. Padrão sempre no topo, marcado.
 - **Caixa de seleção e radio:** rótulo ao lado, área de toque de 32 px ou mais.
 - **Tabela:** cabeçalho em `text-2` negrito, linha de 52 px, linha selecionada em `sel`, hover em `hover`. Situação sempre com ícone e texto (bolinha colorida mais palavra).
@@ -191,12 +191,12 @@ Mockup de referência: `docs/design/mockups/04-telas-principais.html` (claro e e
 
 - **Objetivo:** emitir uma NFS-e pela API oficial sem se perder no formulário.
 - **Layout:** cabeçalho, faixa de Produção Restrita, série e próxima DPS no topo. Blocos: Tomador, Serviço, Confirmação para Produção (aparece só em Produção). Rodapé com "Salvar rascunho" e "Emitir nota".
-- **Campos (nomes do leiaute):** CNPJ ou CPF do tomador; Nome ou razão social; Município do tomador; caixa "Atualizar o cadastro deste tomador ao emitir (mostra o que muda)"; Descrição do serviço (área de texto, até 1000 caracteres, xDescServ); Valor do serviço; Alíquota do ISSQN; Classificação para IBS e CBS (sugerida pelo serviço).
+- **Campos (nomes do leiaute):** CNPJ ou CPF do tomador; Nome ou razão social; Município do tomador; caixa "Atualizar o cadastro deste tomador ao emitir (mostra o que muda)"; Descrição do serviço (área de texto, até 2000 caracteres, xDescServ); Valor do serviço; Alíquota do ISSQN; Classificação para IBS e CBS (sugerida pelo serviço).
 - **Texto de ajuda da classificação:** "Confirme antes de emitir. O cálculo do imposto não é feito pelo app." (a DPS v1.01 não traz alíquota: conforme spec funcional, seção 4.11).
 - **Confirmação forte em Produção:** digitar o CNPJ do emitente para liberar "Emitir nota". Conforme spec funcional, rodada 5 (paráfrase). O botão fica desabilitado até conferir, e a mensagem diz o que falta. Texto exato: ux-writer.
 - **Estados:**
   - vazio: campos vazios com ajuda por campo;
-  - validando: erro no campo com mensagem, por exemplo "Descrição do serviço passou de 1000 caracteres. Encurte o texto para emitir.";
+  - validando: erro no campo com mensagem, por exemplo "Descrição do serviço passou de 2000 caracteres. Encurte o texto para emitir.";
   - carregando: botão mostra "Emitindo..." com indicador, campos bloqueados (orquestrador, a confirmar);
   - erro da API: "Não foi possível emitir. [motivo do código E]. [o que fazer]." Exemplo: "O município não aceitou o código do serviço. Escolha outro item da lista e emita de novo.";
   - sucesso: o resultado aparece como "Nota emitida" com o número da NFS-e (orquestrador, a confirmar).
@@ -206,7 +206,7 @@ Mockup de referência: `docs/design/mockups/04-telas-principais.html` (claro e e
 - **Objetivo:** emitir várias notas a partir de uma planilha, sem perder a numeração e sem reemitir às cegas.
 - **Layout:** cabeçalho com nome da planilha e total de linhas. Barra de progresso com texto ao lado ("34 de 40 processadas"). Tabela com Tomador, Valor, Situação e Motivo. Relatório de falhas no rodapé.
 - **Comportamento:** o lote continua até o fim e relata no fim. Só as falhas são reenviadas (conforme spec funcional, rodada 3). Antes de reenviar, o app consulta a DPS (GET /dps/{id}), para não emitir de novo nota que já saiu (spec funcional, seção 4.14).
-- **Relatório de falhas:** motivo com código e ação, por exemplo "E0234: endereço obrigatório para este caso" e "E0190: CNPJ ou CPF não encontrado na data da competência". Ação: "Exportar relatório" e "Reenviar N falhas".
+- **Relatório de falhas:** motivo com código e ação, por exemplo "E0238: código do município do endereço do tomador não existe" (Anexo de 20/10, aba RN, linha Excel 281) e "E0190: CNPJ ou CPF não encontrado na data da competência". Ação: "Exportar relatório" e "Reenviar N falhas".
 - **Estados:** vazio ("Escolha uma planilha para começar"), em andamento (barra e contagem), concluído com falhas (relatório), concluído sem falhas ("Lote concluído. 40 notas emitidas."), erro de leitura da planilha com a coluna que faltou.
 - **Colunas e tamanho máximo do lote:** EM ABERTO.
 

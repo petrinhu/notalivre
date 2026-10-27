@@ -1,0 +1,31 @@
+{
+  "tpAmb": 2,
+  "dhEmi": "2026-10-25T10:00:00-03:00",
+  "verAplic": "NotaLivre 0.1",
+  "serie": 1,
+  "nDps": 1,
+  "dCompet": "2026-10-01",
+  "cLocEmi": "4305108",
+  "prestador": {
+    "cnpj": "11222333000181",
+    "regime": {
+      "opSimpNac": "2",
+      "regEspTrib": "0"
+    }
+  },
+  "servico": {
+    "cLocPrestacao": "4305108",
+    "cTribNac": "170201",
+    "xDescServ": "Consultoria em tecnologia"
+  },
+  "valores": {
+    "vServ": "100,00",
+    "tribMun": {
+      "tribISSQN": "1",
+      "tpRetISSQN": "1"
+    },
+    "totTrib": {
+      "indTotTrib": "0"
+    }
+  }
+}

@@ -24,6 +24,7 @@ Limitação de ferramenta: o agente não tem shell (sem Bash). Xlsx e PDFs chega
 - Regras E no grupo (coluna K = emissores públicos Sefin/WEB/APP; M = ADN):
   - E0901 cIndOp inexistente (Rej; K=V, M=V)
   - E0905 gRefNFSe obrigatório se tpOper 2 ou 3 (K=V)
+  - E0906 gRefNFSe proibido se tpOper não for informado ou for 1, 4 ou 5 (K=V; FATO, Anexo I de Produção Restrita de 20/10/2026, aba RN DPS_NFS-e 1.01, linha Excel 577; E0905 na linha 576)
   - E0907 chave de refNFSe com DV (K=V)
   - E0910 dest só pode ser identificado se indDest = 1 (K=V)
   - E0911 CNPJ do dest com DV; E0913 CPF do dest com DV
@@ -103,8 +104,8 @@ Limitação de ferramenta: o agente não tem shell (sem Bash). Xlsx e PDFs chega
   - Opção de regime SN (IBS/CBS pelo SN ou regime regular) a partir de 2027, com opção "entre 1º e 30/09/2026" (secundário, Poder360: https://www.poder360.com.br/poder-economia/reforma-tributaria-saiba-o-que-muda-para-o-mei/). NÃO CONFIRMADO em texto oficial.
 - MEI, leitura do primário (FATO + INFERÊNCIA): o Anexo I v1.01 (I336) diz "Para optantes dos Simples Nacional, os grupos IBSCBS só serão obrigatórios a partir de 2027". A NT 009 §2.4 (p.8) define opSimpNac com "2 - Optante - Microempreendedor Individual (MEI)" e "3 - Optante - Microempresa ou Empresa de Pequeno Porte (ME/EPP)". INFERÊNCIA: como o próprio domínio do leiaute classifica o MEI como optante do Simples (código 2), a regra de 2027 do I336 cobre o MEI. A NT não diz isso em texto. Confirmar com contador.
 - MEI (FATO secundário com conflito): IBS/CBS exigidos na nota do MEI a partir de 01/01/2027 (Meu Contador Online: https://www.meucontadoronline.com.br/blog/nota-fiscal-do-mei-ibs-cbs-2027/) ou 04/01/2027 (Poder360 e Bling: https://ajuda.bling.com.br/hc/pt-br/articles/35704385019031-Quem-pode-emitir-notas-fiscais-com-a-Reforma-Tribut%C3%A1ria). O MEI não faz opção de regime, segue no SIMEI (Poder360). Em 2026 o MEI não precisa preencher os campos (secundário).
-  - Não encontrado: dispensa de IBS/CBS para MEI na NT 009 ou no Anexo I (procurei "opSimpNac 2", "MEI", "E1302" no Anexo I: só E1302, vLiq, para MEI). Regra de MEI em NFS-e: NÃO ENCONTRADO no texto primário lido.
-- Caveat: o Anexo I v1.01 traz E1302 (MEI só vLiq) (pesquisa anterior, FATO). Confirmar no Anexo I 20261020 (não lido).
+  - Não encontrado: dispensa de IBS/CBS para MEI na NT 009 ou no Anexo I (procurei "opSimpNac 2", "MEI", "E1302" no Anexo I: só E1302, vLiq, para MEI). Atualização de 26/10/2026: a E1302 trata do grupo valores da NFS-e que a Sefin gera, não da DPS (FATO, Anexo I de Produção Restrita de 20/10/2026, aba RN DPS_NFS-e 1.01, linha Excel 49: B49 = `NFSe/infNFSe/`, C49 = `valores`; DA-1.22 do plano, decisão autônoma do CTO, a ratificar pelo líder). Regra de MEI em NFS-e: NÃO ENCONTRADO no texto primário lido.
+- Caveat: o Anexo I v1.01 traz E1302 (MEI só vLiq) (pesquisa anterior, FATO). Conferido no Anexo I de 20/10/2026 (lido na NL-1.11): a E1302 está na linha Excel 49, sobre o grupo valores da NFS-e (`NFSe/infNFSe/valores`), não sobre a DPS; não há regra local (DA-1.22, decisão autônoma do CTO, a ratificar pelo líder).
 
 ## Q3 ISS municipal e IBS/CBS na mesma DPS (2026-2027)
 

@@ -1,0 +1,22 @@
+{
+  "versao_formato": 1,
+  "data_download": "2026-10-25",
+  "anexos": {
+    "A": {
+      "arquivo": "anexo_a.xlsx",
+      "url": "https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/anexo_a-municipio_ibge-paises_iso2-v1-00-snnfse-20251210.xlsx",
+      "versao": "1.00",
+      "data_publicacao": "2025-12-10",
+      "bytes": 218140,
+      "sha256": "238b715ab2dcc2c9e0857c44d69048e0af806b45ec8499568342de4a37f4419d"
+    },
+    "B": {
+      "arquivo": "anexo_b.xlsx",
+      "url": "https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/anexo_b-nbs2-lista_servico_nacional-snnfse-v1-01-20260122.xlsx",
+      "versao": "1.01",
+      "data_publicacao": "2026-01-22",
+      "bytes": 85008,
+      "sha256": "e74b0be8ad204e458932efb1716225a3fb5703a84e5475ce5c4c6789d1c61b1a"
+    }
+  }
+}

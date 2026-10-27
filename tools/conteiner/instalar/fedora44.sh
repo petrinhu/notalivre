@@ -10,7 +10,8 @@ dnf -y install --setopt=install_weak_deps=False \
     gcc-c++ libasan libubsan cmake ninja-build pkgconf-pkg-config python3-pip \
     git-core openssl \
     mesa-libGL-devel mesa-libEGL-devel libxkbcommon-devel fontconfig-devel \
-    freetype-devel libX11-devel dbus-libs krb5-libs
+    freetype-devel libX11-devel dbus-libs krb5-libs \
+    libxml2-devel libxml2
 dnf clean all
 
 # aqtinstall num venv próprio: só é usado para instalar Qt no volume (build_local.sh qt) e no cache do CI.

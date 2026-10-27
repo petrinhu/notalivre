@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01">
+    <infDPS Id="DPS430510821122233300018100001000000000000001">
+        <tpAmb>2</tpAmb>
+        <dhEmi>2026-10-25T10:00:00-03:00</dhEmi>
+        <verAplic>NotaLivre 0.1</verAplic>
+        <serie>1</serie>
+        <nDPS>1</nDPS>
+        <dCompet>2026-10-01</dCompet>
+        <tpEmit>1</tpEmit>
+        <finNFSe>0</finNFSe>
+        <cLocEmi>4305108</cLocEmi>
+        <prest>
+            <CNPJ>11222333000181</CNPJ>
+            <end>
+                <endNac>
+                    <cMun>4305108</cMun>
+                    <CEP>01001000</CEP>
+                </endNac>
+                <xLgr>Rua das Flores</xLgr>
+                <nro>10</nro>
+                <xBairro>Centro</xBairro>
+            </end>
+            <regTrib>
+                <opSimpNac>2</opSimpNac>
+                <regEspTrib>0</regEspTrib>
+            </regTrib>
+        </prest>
+        <serv>
+            <locPrest>
+                <cLocPrestacao>4305108</cLocPrestacao>
+            </locPrest>
+            <cServ>
+                <cTribNac>170201</cTribNac>
+                <xDescServ>Consultoria em tecnologia</xDescServ>
+            </cServ>
+        </serv>
+        <valores>
+            <vServPrest>
+                <vServ>100.00</vServ>
+            </vServPrest>
+            <trib>
+                <tribMun>
+                    <tribISSQN>1</tribISSQN>
+                    <tpRetISSQN>1</tpRetISSQN>
+                </tribMun>
+                <totTrib>
+                    <indTotTrib>0</indTotTrib>
+                </totTrib>
+            </trib>
+        </valores>
+    </infDPS>
+</DPS>
