@@ -14,6 +14,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+
+import importlib.util
 
 DIR = Path(os.environ.get("NL_CERTIFICADOS_DIR", ""))
 VAR_SENHA = "NL_SENHA_TESTE"
@@ -48,6 +51,28 @@ def rodar(argv, env=None):
 
 def saida_toda(resultado):
     return resultado.stdout + resultado.stderr
+
+
+def linhas_do_bag(txt, prefixo):
+    # Cada bag tem a própria cifra: a linha do cert bag e a do key bag são conferidas separadamente.
+    return [linha for linha in txt.splitlines() if linha.startswith(prefixo)]
+
+
+def corpo_pem(caminho):
+    # Só o base64 do certificado, sem BEGIN/END: o pkcs12 imprime o mesmo corpo, com outros cabeçalhos em volta.
+    linhas = caminho.read_text(encoding="ascii").splitlines()
+    inicio = linhas.index("-----BEGIN CERTIFICATE-----")
+    fim = linhas.index("-----END CERTIFICATE-----")
+    return "\n".join(linhas[inicio + 1:fim])
+
+
+def carregar_gerador():
+    # Importa o gerador pelo caminho do arquivo (ele não é pacote), só para testar uma função dele.
+    caminho = Path(__file__).with_name("gerar_certificados.py")
+    spec = importlib.util.spec_from_file_location("gerar_certificados_teste", caminho)
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+    return modulo
 
 
 def env_com_senha():
@@ -162,16 +187,27 @@ class TesteCertificados(unittest.TestCase):
                        f"env:{VAR_SENHA}"], env=self.env_isolado())
             txt = saida_toda(r)
             self.assertEqual(r.returncode, 0, f"{pfx}: {txt}")
-            self.assertIn("PBES2, PBKDF2, AES-256-CBC", txt, pfx)
-            self.assertNotIn("RC2", txt, pfx)
+            certs = linhas_do_bag(txt, "PKCS7 Encrypted data:")
+            chaves = linhas_do_bag(txt, "Shrouded Keybag:")
+            self.assertTrue(certs and chaves, f"{pfx}: bag não encontrado")
+            for linha in certs + chaves:
+                self.assertIn("PBES2, PBKDF2, AES-256-CBC", linha, pfx)
+                self.assertNotIn("RC2", linha, pfx)
+                self.assertNotIn("3DES", linha, pfx)
 
     def pfxLegadoUsaRc2EDes(self):
         r = rodar(["openssl", "pkcs12", "-legacy", "-in", str(DIR / "cnpj_ok_legado.pfx"), "-info", "-noout",
                    "-passin", f"env:{VAR_SENHA}"], env=env_com_senha())
         txt = saida_toda(r)
         self.assertEqual(r.returncode, 0, txt)
-        self.assertIn("pbeWithSHA1And40BitRC2-CBC", txt)
-        self.assertIn("pbeWithSHA1And3-KeyTripleDES-CBC", txt)
+        certs = linhas_do_bag(txt, "PKCS7 Encrypted data:")
+        chaves = linhas_do_bag(txt, "Shrouded Keybag:")
+        self.assertTrue(certs and chaves, "bag não encontrado")
+        for linha in certs:
+            self.assertIn("pbeWithSHA1And40BitRC2-CBC", linha)
+        for linha in chaves:
+            self.assertIn("pbeWithSHA1And3-KeyTripleDES-CBC", linha)
+            self.assertNotIn("AES", linha)
 
     def cnpjNoOtherNameConfereComOid(self):
         esperados = {
@@ -200,8 +236,10 @@ class TesteCertificados(unittest.TestCase):
     def ekuClientAuthSoNoCertificadoDeCliente(self):
         for nome in CLIENTES_COM_CLIENTAUTH:
             r = rodar(["openssl", "x509", "-in", str(DIR / (nome + ".pem")), "-noout", "-ext", "extendedKeyUsage"])
+            self.assertEqual(r.returncode, 0, f"{nome}: {saida_toda(r)}")
             self.assertIn(EKU_CLIENTE, r.stdout, nome)
         r = rodar(["openssl", "x509", "-in", str(DIR / "sem_clientauth.pem"), "-noout", "-ext", "extendedKeyUsage"])
+        self.assertEqual(r.returncode, 0, f"sem_clientauth: {saida_toda(r)}")
         self.assertNotIn(EKU_CLIENTE, r.stdout, "sem_clientauth tem clientAuth")
         self.assertEqual(r.stdout.strip(), "", "sem_clientauth deveria não ter EKU")
         ku = rodar(["openssl", "x509", "-in", str(DIR / "cnpj_ok.pem"), "-noout", "-ext", "keyUsage"]).stdout
@@ -222,6 +260,17 @@ class TesteCertificados(unittest.TestCase):
         self.assertIn("certificate revoked", saida_toda(r))
         controle = rodar(base + [str(DIR / "cnpj_ok.pem")])
         self.assertEqual(controle.returncode, 0, saida_toda(controle))
+
+    def pfxTemCadeiaDaAc(self):
+        # A AC de teste precisa estar no pfx (bag de CA), para o carregador da NL-2.2 montar a cadeia sem arquivo extra.
+        corpo = corpo_pem(DIR / "ac.pem")
+        alvos = [(pfx, []) for pfx in PFX_MODERNOS] + [("cnpj_ok_legado.pfx", ["-legacy"])]
+        for pfx, extra in alvos:
+            argv = ["openssl", "pkcs12"] + extra + ["-in", str(DIR / pfx), "-cacerts", "-nokeys",
+                                                    "-passin", f"env:{VAR_SENHA}"]
+            r = rodar(argv, env=self.env_isolado())
+            self.assertEqual(r.returncode, 0, f"{pfx}: {saida_toda(r)}")
+            self.assertIn(corpo, r.stdout, f"{pfx} sem a AC no bag de CA")
 
     def cnpjsDeTesteTemDvValido(self):
         # Lê o identificador de DENTRO dos certificados gerados (otherName) e confere o DV com o algoritmo
@@ -244,6 +293,51 @@ class TesteCertificados(unittest.TestCase):
         self.assertIn("TLS Web Server Authentication", eku)
         r = rodar(["openssl", "verify", "-CAfile", str(self.ac), str(servidor)])
         self.assertEqual(r.returncode, 0, saida_toda(r))
+
+
+class TesteAlgoritmos(unittest.TestCase):
+    # Vetores publicados (RFB Q.14, Q.17, Q.23 Ex2 e Ex3; Serpro 1.1 e 1.2). O vetor X1 (AA345678/0003-29) fica de
+    # fora: a pesquisa Onda 1 (a5) mostra que ele diverge da regra, então não serve de oráculo.
+    def dvAlfanumericoVetoresOficiais(self):
+        vetores = {
+            "12ABC34501DE35": "12ABC34501DE",  # Serpro e RFB, exemplo completo (V1)
+            "AA345678000A29": "AA345678000A",  # RFB Q.23 Ex2 (V2)
+            "12345678000A08": "12345678000A",  # RFB Q.23 Ex3 (V3): único vetor com resto 1, DV1 = 0
+            "12345678000195": "123456780001",  # RFB Q.17, numérico
+        }
+        for esperado, base in vetores.items():
+            self.assertEqual(dv_cnpj(base), esperado, base)
+
+
+class TesteGerador(unittest.TestCase):
+    # Não usa a fixture: gera em diretórios temporários próprios (duas gerações, para comparar as senhas).
+
+    def gerar_em_tmp(self):
+        base = Path(tempfile.mkdtemp(prefix="nl21-gera-", dir=os.environ.get("TMPDIR") or "/var/tmp"))
+        self.addCleanup(shutil.rmtree, base, True)
+        saida = base / "out"
+        r = rodar([sys.executable, "-I", str(Path(__file__).with_name("gerar_certificados.py")), str(saida)])
+        self.assertEqual(r.returncode, 0, saida_toda(r))
+        return saida
+
+    def senhaAleatoriaPorExecucao(self):
+        primeira = (self.gerar_em_tmp() / "senha_teste.txt").read_text(encoding="ascii").strip()
+        segunda = (self.gerar_em_tmp() / "senha_teste.txt").read_text(encoding="ascii").strip()
+        self.assertGreaterEqual(len(primeira), 20, "senha curta demais")
+        self.assertNotEqual(primeira, segunda, "duas gerações deram a mesma senha: senha constante")
+
+    def senhaNasceCom0600(self):
+        # O arquivo tem de nascer com 0600: a função não pode depender de chmod depois de gravar (janela com 0644).
+        gerador = carregar_gerador()
+        base = Path(tempfile.mkdtemp(prefix="nl21-senha-", dir=os.environ.get("TMPDIR") or "/var/tmp"))
+        self.addCleanup(shutil.rmtree, base, True)
+        alvo = base / "senha_teste.txt"
+        velho = os.umask(0o022)
+        self.addCleanup(os.umask, velho)
+        with mock.patch("os.chmod", side_effect=AssertionError("gravar_senha não pode depender de chmod")):
+            gerador.gravar_senha(alvo, "senha-de-teste-aleatoria")
+        self.assertEqual(oct(stat.S_IMODE(alvo.stat().st_mode)), "0o600")
+        self.assertEqual(alvo.read_text(encoding="ascii").strip(), "senha-de-teste-aleatoria")
 
 
 class TesteSegredos(unittest.TestCase):
@@ -293,7 +387,10 @@ if __name__ == "__main__":
     if len(sys.argv) != 2:
         sys.exit("uso: test_certificados.py <nome-do-teste>")
     nome = sys.argv.pop(1)
-    classe = TesteSegredos if hasattr(TesteSegredos, nome) else TesteCertificados
+    classes = [TesteCertificados, TesteGerador, TesteAlgoritmos, TesteSegredos]
+    classe = next((c for c in classes if hasattr(c, nome)), None)
+    if classe is None:
+        sys.exit(f"teste desconhecido: {nome}")
     suite = unittest.TestSuite([classe(nome)])
     resultado = unittest.TextTestRunner(verbosity=2).run(suite)
     sys.exit(0 if resultado.wasSuccessful() else 1)
