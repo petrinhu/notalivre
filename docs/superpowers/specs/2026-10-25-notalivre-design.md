@@ -146,7 +146,7 @@
 - **Linguagem:** C++23 com Qt 6 (decisão do líder, rodada 1). Verbatim da mesma rodada: "Quero fazer um app linux, qt[latest]."
 - **Versão do Qt:** 6.12, via runtime (decisão do líder, rodada 2). FATO: Qt 6.12 LTS, suporte até 30/09/2031 (doc.qt.io/qt-6/qt-releases.html). Se o runtime KDE não trouxer o 6.12, a proposta do orquestrador é embutir o Qt 6.12 no manifesto (ver 3.3 e 4.14). Isso se desvia de "via runtime", da rodada 2, e precisa de confirmação do líder.
 - **Interface:** QML e Qt Quick (decisão do líder, rodada 4).
-- **Arquitetura:** biblioteca núcleo, CLI e interface gráfica (decisão do líder, rodada 2).
+- **Arquitetura:** biblioteca núcleo, CLI e interface gráfica (decisão do líder, rodada 2). A CLI faz tudo que a GUI faz e tem modo headless (decisão do líder, 27/10/2026; ver 4.15).
 - **Camadas.** Verbatim do líder (rodada 1): "quero um app bem atomico, com camadas bem definidas". Lei aplicável: L-33 (quatro camadas Front, Mid, Back e Foundation, com dependência em uma só direção; SOLID; DRY só a partir da terceira ocorrência) e L-34 (nenhum monolito). EM ABERTO: o mapeamento dos módulos nas quatro camadas. É trabalho do C-level (L-16).
 - **Padrão de stack.** Lei aplicável: L-66 (default global de C++ e Qt, com práticas Qt 6: connect tipado, QPointer, RAII, nenhum I/O pesado na thread da UI). Este projeto tem decisão própria do líder, que prevalece sobre o default.
 
@@ -351,6 +351,14 @@ Propostas do orquestrador, registradas em 25/10/2026 após a revisão com as res
 - **Prazo de apagar inativos (N):** 5 anos, configurável, até o contador confirmar a guarda fiscal (ver 3.2 e seção 6).
 - **cIndOp:** o app sugere pelo serviço e o usuário confirma. A regra final depende do contador (seção 6).
 - **Critério de pronto da v1:** emitir, consultar, cancelar e substituir em Produção Restrita com o A1 real, mais o lote e o e-mail funcionando, com CI verde nas 4 distros. Duas ressalvas: (a) o A1 real é dependência. Na rodada 1 o líder disse que ainda não tinha o certificado (verbatim da memória); a situação atual não está registrada, e precisa ser confirmada; (b) CI verde é condição necessária, não suficiente para fechar uma onda (L-24): a definição de fechamento fica no plano da própria onda.
+
+### 4.15 Modo CLI e modo headless (decisão do líder, 27/10/2026)
+
+- **Pedido do líder, verbatim:** "quero opcao de modo cli e headless".
+- **Modo CLI (decisão do líder, 27/10/2026, opção escolhida: "Tudo que a GUI faz (Recomendado)").** Emitir, lote, consultar, cancelar, DANFSe, e-mail, tomadores, emissores e configuração, tudo pelo terminal. Toda ação da GUI tem comando equivalente na CLI, sobre as mesmas fachadas (paridade verificada por portão; plano, NL-3.8).
+- **Modo headless (decisão do líder, 27/10/2026, opção escolhida: "CLI sem tela nem pergunta (Recomendado)").** A CLI roda em script, cron ou servidor sem sessão gráfica, com saída JSON e códigos de saída estáveis, sem nada interativo. Quando falta um dado, sai com erro explícito, nunca pergunta. Não é serviço local em segundo plano, que o líder recusou.
+- **Desenho técnico (decisão autônoma do CTO, a ratificar; plano, NL-3.8):** um objeto JSON por execução na saída padrão, com versão do contrato; mensagens de diagnóstico na saída de erro; tabela fixa de códigos de saída; segredos nunca por argumento nem por variável de ambiente.
+- **EM ABERTO, para o líder:** como o modo headless obtém a senha do certificado e a senha-mestra, e como cumpre as regras que hoje pedem ação da pessoa ("sempre pedir senha antes de emitir em Produção", 4.5; "digitar CPF ou CNPJ antes de emitir em Produção", 4.6 e 4.12). As opções estão no plano, NL-3.9; nada disso é decidido sem o líder.
 
 ## 5. Fatos externos que condicionam o desenho
 
