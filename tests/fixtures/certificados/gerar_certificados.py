@@ -62,6 +62,14 @@ VENCIDO_INICIO = "20200101000000Z"
 VENCIDO_FIM = "20210101000000Z"
 
 
+def gravar_senha(caminho, senha):
+    """Grava a senha de teste já com modo 0600 na criação: sem chmod depois, não existe janela com 0644."""
+    caminho.unlink(missing_ok=True)
+    fd = os.open(caminho, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="ascii") as arquivo:
+        arquivo.write(senha + "\n")
+
+
 def rodar(argv, env=None):
     resultado = subprocess.run(argv, capture_output=True, text=True, env=env, check=False)
     if resultado.returncode != 0:
@@ -176,9 +184,7 @@ def gerar(saida):
     (estado / "crlnumber").write_text("01\n", encoding="ascii")
 
     senha = secrets.token_urlsafe(24)
-    senha_arq = saida / "senha_teste.txt"
-    senha_arq.write_text(senha + "\n", encoding="ascii")
-    os.chmod(senha_arq, 0o600)
+    gravar_senha(saida / "senha_teste.txt", senha)
     env = dict(os.environ, **{VAR_SENHA: senha})
 
     try:
