@@ -329,7 +329,11 @@ echo "== Chave privada commitada (test_certificados.py, gitleaks git num reposit
 TESTE_SEG="$RAIZ_REPO/tests/fixtures/certificados/test_certificados.py"
 python3 -I "$TESTE_SEG" nenhumaChavePrivadaRastreadaNoGit > "$WORK/s8.out" 2>&1
 RC=$?
+# O RC sozinho não basta: o teste tem de imprimir a linha OK e exatamente um teste rodado. Assim um teste que
+# falha e sai com 0 (FAILED na saída) reprova aqui, e um teste que não rodou (zero testes) também (L-45).
 falha=0; [ -f "$TESTE_SEG" ] || falha=1
+grep -qx 'OK' "$WORK/s8.out" || falha=1
+grep -q '^Ran 1 test' "$WORK/s8.out" || falha=1
 veredito "S8 chave privada commitada reprovada pelo gitleaks git (teste de certificados)" 0 "$RC" "$falha" "$(tail -n 1 "$WORK/s8.out")"
 
 echo "FALHAS=$FALHAS"
