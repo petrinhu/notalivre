@@ -5,6 +5,7 @@ add_subdirectory(sanidade)
 
 # Ganchos da NL-1.0 (costura de build): e2e, qml, testes unitários por camada e ferramentas.
 add_subdirectory(unit)
+add_subdirectory(fixtures/certificados)
 add_subdirectory(e2e)
 add_subdirectory(qml)
 add_subdirectory(tools)

@@ -3,3 +3,4 @@
 # Agrupa os testes unitários da Foundation (base, e os motores que a fatia de cada um acrescentar).
 add_subdirectory(base)
 add_subdirectory(xml)
+add_subdirectory(log)

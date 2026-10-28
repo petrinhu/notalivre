@@ -322,6 +322,44 @@ enc=$(campo "$WORK/s7.out" encontrados)
 falha=0; [ "$enc" -eq 0 ] || falha=1; formato_seg "$WORK/s7.out" || falha=1
 veredito "S7 segredos varredura vazia" 1 "$RC" "$falha" "encontrados=$enc"
 
+echo "== Chave privada commitada (test_certificados.py, gitleaks git num repositorio temporario)"
+
+# roda_s8 ARQUIVO_TESTE SAIDA: roda o teste de chave privada commitada e decide o veredito DESTE wrapper.
+# Passa (VEREDITO_S8=0) só se: RC 0, a linha OK e exatamente um caso rodado ("Ran 1 test"). O RC sozinho não basta:
+# um teste que falha e sai com 0, ou uma suíte vazia (Ran 0), não podem passar (L-45).
+roda_s8() {
+    local saida="$WORK/$2.out" falha=0
+    python3 -I "$1" nenhumaChavePrivadaRastreadaNoGit > "$saida" 2>&1
+    RC_S8=$?
+    [ "$RC_S8" -eq 0 ] || falha=1
+    grep -qx 'OK' "$saida" || falha=1
+    grep -q '^Ran 1 test' "$saida" || falha=1
+    VEREDITO_S8=$falha
+    DETALHE_S8="$(tail -n 1 "$saida")"
+}
+
+# S8: o teste real, na árvore, tem de passar pelo wrapper
+TESTE_SEG="$RAIZ_REPO/tests/fixtures/certificados/test_certificados.py"
+roda_s8 "$TESTE_SEG" s8
+veredito "S8 chave privada commitada reprovada pelo gitleaks git (teste de certificados)" 0 "$VEREDITO_S8" 0 "$DETALHE_S8"
+
+# S9a (controle negativo do wrapper): fixture cujo teste FALHA (espera segredo onde o portão acha, invertido).
+# O wrapper tem de reprovar. A guarda garante que a fixture foi de fato alterada.
+nova_arvore s9a
+ARQ_S9A="$WORK/s9a/tests/fixtures/certificados/test_certificados.py"
+sed -i 's/self.assertEqual(portao(com_chave), 1,/self.assertEqual(portao(com_chave), 0,/' "$ARQ_S9A"
+[ "$(/usr/bin/grep -c 'portao(com_chave), 0,' "$ARQ_S9A")" -eq 1 ] || VEREDITO_S8=99
+roda_s8 "$ARQ_S9A" s9a
+veredito "S9a wrapper reprova teste que falha (controle negativo)" 1 "$VEREDITO_S8" 0 "$DETALHE_S8"
+
+# S9b (controle negativo do wrapper): fixture com suíte VAZIA (Ran 0 tests, OK, RC 0). O wrapper tem de reprovar.
+nova_arvore s9b
+ARQ_S9B="$WORK/s9b/tests/fixtures/certificados/test_certificados.py"
+sed -i 's/    suite = unittest.TestSuite(\[classe(nome)\])/    suite = unittest.TestSuite([])/' "$ARQ_S9B"
+[ "$(/usr/bin/grep -c 'TestSuite(\[\])' "$ARQ_S9B")" -eq 1 ] || VEREDITO_S8=99
+roda_s8 "$ARQ_S9B" s9b
+veredito "S9b wrapper reprova suite vazia Ran 0 (controle negativo)" 1 "$VEREDITO_S8" 0 "$DETALHE_S8"
+
 echo "FALHAS=$FALHAS"
 [ "$FALHAS" -eq 0 ] || exit 1
 echo "AUTOTESTE: todos os controles conferem"
