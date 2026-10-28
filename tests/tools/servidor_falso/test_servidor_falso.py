@@ -18,7 +18,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
+from unittest import mock
 
 RAIZ = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(RAIZ / "tools"))
@@ -26,6 +28,31 @@ sys.path.insert(0, str(RAIZ / "tools"))
 from servidor_falso import certificados, envelope, oraculo, referencia, roteiro, servidor  # noqa: E402
 
 FIXTURE_DPS = RAIZ / "tests" / "fixtures" / "dps" / "valida_dps_mei_minima.xml"
+
+
+def _assinar_no_teste(xmlsec1, template, chave, certificado, trabalho, versao):
+    """Assinatura do SETUP, feita pelo próprio teste (regra de versão escrita aqui, não em oraculo).
+
+    Isolada de propósito: se o código do oráculo quebrar a verificação, o teste de verificação morre na
+    asserção de verificação, não aqui. A regra de versão é a mesma: a linha 1.3 precisa de --lax-key-search.
+    """
+    os.makedirs(trabalho, exist_ok=True)
+    entrada = os.path.join(trabalho, "template.xml")
+    saida = os.path.join(trabalho, "assinado.xml")
+    with open(entrada, "wb") as f:
+        f.write(template)
+    lax = ["--lax-key-search"] if versao >= (1, 3) else []
+    comando = [xmlsec1, "--sign", *lax, "--id-attr:Id", "infDPS",
+               "--privkey-pem", f"{chave},{certificado}", "--output", saida, entrada]
+    r = subprocess.run(comando, capture_output=True, text=True, env={**os.environ, **_ambiente_arnes()})
+    if r.returncode != 0 or not os.path.isfile(saida) or os.path.getsize(saida) == 0:
+        raise RuntimeError(f"setup não assinou a DPS de referência (rc={r.returncode}): {r.stderr}")
+    with open(saida, "rb") as f:
+        return f.read()
+
+
+def _ambiente_arnes():
+    return oraculo.ambiente_do_arnes(oraculo.ler_os_release())
 
 
 class TesteServidorFalso(unittest.TestCase):
@@ -38,8 +65,11 @@ class TesteServidorFalso(unittest.TestCase):
         xsd = os.path.join(os.environ["NL_XSD_PRODREST_DIR"], "DPS_v1.01.xsd")
         self.oraculo = oraculo.Oraculo(os.environ["NL_XMLLINT"], os.environ["NL_XMLSEC1"], xsd,
                                        self.certs.ca, os.path.join(self.dir, "trabalho"))
-        self.dps = referencia.assinar(self.oraculo, FIXTURE_DPS.read_bytes(),
-                                      self.certs.cliente_key, self.certs.cliente_cert)
+        versao = self.oraculo.versao
+        base_xml = FIXTURE_DPS.read_bytes()
+        template = referencia.montar_template(base_xml, referencia.id_do_infdps(base_xml))
+        self.dps = _assinar_no_teste(os.environ["NL_XMLSEC1"], template, self.certs.cliente_key,
+                                     self.certs.cliente_cert, os.path.join(self.dir, "setup"), versao)
         self.id_dps = referencia.id_do_infdps(self.dps)
 
     # --- auxiliares de teste ---------------------------------------------------------------------
@@ -106,12 +136,17 @@ class TesteServidorFalso(unittest.TestCase):
     def test_assinaturaSha1AceitaPeloOraculo(self):
         self.assertIn(referencia.URI_RSA_SHA1.encode(), self.dps)
         self.assertIn(referencia.URI_SHA1.encode(), self.dps)
+        # Etapa 1, isolada do servidor: o oráculo verifica a DPS assinada (falha aqui, não no setup).
+        ok, saida = self.oraculo.verificar_assinatura(self.dps)
+        self.assertTrue(ok, f"o oráculo recusou a DPS assinada em SHA-1: {saida}")
+        # Etapa 2: o mesmo comando, direto no xmlsec1, com o arquivo gravado.
         caminho = os.path.join(self.dir, "verificar-direto.xml")
         with open(caminho, "wb") as f:
             f.write(self.dps)
-        comando = self.oraculo.comando_verificar(caminho)
-        r = subprocess.run(comando, env=self.oraculo._env(), capture_output=True, text=True)
+        r = subprocess.run(self.oraculo.comando_verificar(caminho), env=self.oraculo._env(),
+                           capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        # Etapa 3: o servidor aceita a mesma DPS.
         srv = self.subir()
         status, corpo = self.postar_dps(srv)
         self.assertEqual(status, 201, corpo)
@@ -173,6 +208,69 @@ class TesteServidorFalso(unittest.TestCase):
                          {"OPENSSL_ENABLE_SHA1_SIGNATURES": "1"})
         self.assertEqual(oraculo.ambiente_do_arnes({"ID": "ubuntu", "VERSION_ID": "26.04"}), {})
         self.assertEqual(oraculo.ambiente_do_arnes({"ID": "fedora", "VERSION_ID": "43"}), {})
+
+    def test_ambienteDoXmlsec1SoNoFedora44(self):
+        # Captura o ambiente que o oráculo ENTREGA ao xmlsec1 (não o que a função de regra devolve).
+        xsd = os.path.join(os.environ["NL_XSD_PRODREST_DIR"], "DPS_v1.01.xsd")
+        trabalho = os.path.join(self.dir, "ambiente")
+        original = subprocess.run
+        capturados = []
+
+        def gravar(args, **kwargs):
+            if "--verify" in args:  # só a verificação: a leitura da versão também chama o xmlsec1
+                capturados.append(kwargs.get("env") or {})
+            return original(args, **kwargs)
+
+        with mock.patch.object(oraculo.subprocess, "run", side_effect=gravar):
+            ubuntu = oraculo.Oraculo(os.environ["NL_XMLLINT"], os.environ["NL_XMLSEC1"], xsd, self.certs.ca,
+                                     trabalho, os_release={"ID": "ubuntu", "VERSION_ID": "26.04"})
+            ubuntu.verificar_assinatura(self.dps)
+            fedora = oraculo.Oraculo(os.environ["NL_XMLLINT"], os.environ["NL_XMLSEC1"], xsd, self.certs.ca,
+                                     trabalho, os_release={"ID": "fedora", "VERSION_ID": "44"})
+            fedora.verificar_assinatura(self.dps)
+        self.assertEqual(len(capturados), 2, "o xmlsec1 tinha que ser chamado uma vez por oráculo")
+        self.assertNotIn("OPENSSL_ENABLE_SHA1_SIGNATURES", capturados[0],
+                         "fora do fedora44 a variável não pode chegar ao xmlsec1")
+        self.assertEqual(capturados[1].get("OPENSSL_ENABLE_SHA1_SIGNATURES"), "1",
+                         "no fedora44 a variável tem de chegar ao xmlsec1")
+
+    def test_envelopeZlibCruRecusadoCom400(self):
+        srv = self.subir()
+        xml_zlib_dentro_do_json = json.dumps({
+            envelope.CHAVE_ENVELOPE: base64.b64encode(zlib.compress(self.dps)).decode("ascii")}).encode("utf-8")
+        status, corpo = self.enviar(srv, "POST", "/nfse", xml_zlib_dentro_do_json)
+        self.assertEqual(status, 400, corpo)
+        self.assertEqual(corpo["Codigo"], "ENVELOPE_INVALIDO")
+        status, corpo = self.enviar(srv, "POST", "/nfse", zlib.compress(self.dps))  # zlib cru, sem JSON
+        self.assertEqual(status, 400, corpo)
+        self.assertEqual(corpo["Codigo"], "ENVELOPE_INVALIDO")
+        sem_chave = json.dumps({"outraChave": envelope.gzip_b64(self.dps)}).encode("utf-8")
+        status, corpo = self.enviar(srv, "POST", "/nfse", sem_chave)
+        self.assertEqual(status, 400, corpo)
+        self.assertEqual(corpo["Codigo"], "ENVELOPE_INVALIDO")
+        self.assertEqual(srv.dps_aceitas, {}, "nenhum envelope inválido pode gravar DPS")
+
+    def test_tlsMinimoTls12RecusaTls11(self):
+        srv = self.subir()
+        self.assertEqual(srv.contexto.minimum_version, ssl.TLSVersion.TLSv1_2)
+        ctx = ssl.create_default_context(cafile=self.certs.ca)
+        ctx.load_cert_chain(self.certs.cliente_cert, self.certs.cliente_key)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_1
+        ctx.maximum_version = ssl.TLSVersion.TLSv1_1
+        recusado = False
+        try:
+            conn = http.client.HTTPSConnection("127.0.0.1", srv.porta, timeout=10, context=ctx)
+            conn.request("GET", "/dps/" + self.id_dps)
+            conn.getresponse()
+        except (ssl.SSLError, OSError, http.client.HTTPException):
+            recusado = True
+        self.assertTrue(recusado, "cliente TLS 1.1 tinha que ser recusado")
+        self.assertEqual(srv.requisicoes, 0)
+
+    def test_escutaSoEmLoopback(self):
+        srv = self.subir()
+        self.assertEqual(srv.server_address[0], "127.0.0.1", "o servidor falso escuta só em loopback")
+        self.assertEqual(self.enviar(srv, "GET", f"/dps/{self.id_dps}")[0], 404)
 
 
 if __name__ == "__main__":

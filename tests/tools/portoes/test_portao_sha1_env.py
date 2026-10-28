@@ -51,6 +51,27 @@ class TestePortaoSha1(unittest.TestCase):
         self.assertIn("violacoes=1", saida)
         self.assertIn("src/vazamento.cpp", saida)
 
+    def test_portaoSha1ViolacaoEmSrcOutReprova(self):
+        # Nome de diretório não é isenção: "out" dentro de src/ é código como qualquer outro.
+        raiz = self._arvore({
+            "src/out/vazamento.cpp": f'const char *v = "{VARIAVEL}=1";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("violacoes=1", saida)
+        self.assertIn("src/out/vazamento.cpp", saida)
+
+    def test_portaoSha1ViolacaoEmSrcBuildXReprova(self):
+        raiz = self._arvore({
+            "src/build_x/vazamento.cpp": f'const char *v = "{VARIAVEL}=1";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("violacoes=1", saida)
+        self.assertIn("src/build_x/vazamento.cpp", saida)
+
     def test_portaoSha1ArnesPermitido(self):
         raiz = self._arvore({
             "tools/servidor_falso/oraculo.py": f'ENV_SHA1 = "{VARIAVEL}"\n',
@@ -66,6 +87,14 @@ class TestePortaoSha1(unittest.TestCase):
         rc, saida = self._rodar(raiz)
         self.assertEqual(rc, 1, saida)
         self.assertIn("encontrados=0", saida)
+
+    def test_ciHigieneLigaPortaoSha1(self):
+        # Job higiene do ci.yml (fronteira: o job seguinte, camadas). O portão tem de rodar sobre o workspace inteiro.
+        texto = (RAIZ / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("\n  higiene:", texto)
+        bloco = texto.split("\n  higiene:", 1)[1].split("\n  camadas:", 1)[0]
+        self.assertIn("python3 -I /src/tools/portoes/portao_sha1_env.py /src", bloco, "job higiene sem o portão SHA-1")
+        self.assertIn("portao_sha1_env", bloco)
 
 
 if __name__ == "__main__":
