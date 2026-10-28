@@ -24,6 +24,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+using nl::foundation::log::aplicarRegra;
 using nl::foundation::log::Campo;
 using nl::foundation::log::DeclaracaoCampo;
 using nl::foundation::log::Log;
@@ -36,6 +37,16 @@ constexpr std::size_t kTamanhoIdDps = 45;
 constexpr std::string_view kMunicipio = "3550308";
 constexpr std::string_view kSerie = "00001";
 constexpr std::string_view kNumero = "000000000000001";
+
+/// Campos da classe Proibido da ADR-0005 §1 (nomes de referência). Nenhum deles pode sair em claro, declarado ou não.
+const std::vector<std::string> kCamposProibidosAdr = {
+    "senhaMestra",      "senhaCertificado", "senhaSmtp",        "tokenOauth",     "chaveDek",
+    "chaveKek",         "codigoRecuperacao", "conteudoA1",      "cpfTomador",     "cnpjTomador",
+    "nome",             "endereco",         "telefone",         "email",          "inscricaoMunicipal",
+    "corpoEmail",       "anexoEmail",       "xmlDps",           "xmlNfse",        "xmlEvento",
+    "corpoHttp",        "textoErroApi",     "cabecalhoAutenticacao", "cookie",    "dadosCertificado",
+    "nomeArquivo",      "caminhoArquivo",   "senha",            "token",          "envelopeAssinado",
+};
 
 /// Allowlist de referência: o que o app declara. Qualquer outro nome é descartado.
 std::vector<DeclaracaoCampo> allowlistDeReferencia()
@@ -90,12 +101,51 @@ void publicarNoLogDeReferencia(const QString& nome, const std::string& conteudo)
 struct Sessao
 {
     std::ostringstream destino;
-    Log log{destino, "notalivre", allowlistDeReferencia()};
+    Log log;
+
+    explicit Sessao(std::vector<DeclaracaoCampo> allow = allowlistDeReferencia())
+        : log{destino, "notalivre", std::move(allow)}
+    {
+    }
 };
 
 std::vector<Campo> umCampo(std::string nome, std::string valor)
 {
     return {Campo{std::move(nome), std::move(valor)}};
+}
+
+/// Resultado de uma execução da varredura de logs (python3 -I varredura_logs.py).
+struct Varredura
+{
+    bool terminou = false;
+    int codigo = -1;
+    QString saida;
+};
+
+Varredura executarVarredura(const QString& pasta)
+{
+    QProcess processo;
+    processo.start(QStringLiteral(NL_PYTHON3),
+                   {QStringLiteral("-I"), QStringLiteral(NL_VARREDURA_LOGS), QStringLiteral("--dir"), pasta,
+                    QStringLiteral("--termos"), QStringLiteral(NL_FIXTURES_PII) + QStringLiteral("/referencia.txt")});
+    Varredura resultado;
+    if (!processo.waitForStarted(10000) || !processo.waitForFinished(30000)) {
+        return resultado;
+    }
+    resultado.terminou = processo.exitStatus() == QProcess::NormalExit;
+    resultado.codigo = processo.exitCode();
+    resultado.saida = QString::fromUtf8(processo.readAllStandardOutput());
+    return resultado;
+}
+
+/// Grava conteudo em pasta/nome. Devolve false se não conseguiu.
+bool gravarArquivo(const QString& pasta, const QString& nome, const std::string& conteudo)
+{
+    QFile arquivo{pasta + QLatin1Char('/') + nome};
+    if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return false;
+    }
+    return arquivo.write(QByteArray::fromStdString(conteudo)) >= 0;
 }
 
 } // namespace
@@ -113,6 +163,13 @@ private slots:
     void campoSemDeclaracaoDescartadoEContado();
     void quebraDeLinhaNaoCriaLinhaFalsa();
     void varreduraDeLogVaziaReprova();
+    void varreduraAnalisaTodosOsArquivos();
+    void varreduraAceitaDoisArquivosLimpos();
+    void controleAbaixoDe0x20Escapado();
+    void separadoresUnicodeEscapados();
+    void eventoComDigitosNaoVaiAoLog();
+    void idDpsSemPrefixoOuTamanhoErradoNaoMascara();
+    void campoProibidoNuncaSaiMesmoDeclarado();
 };
 
 void TstLog::initTestCase()
@@ -227,18 +284,137 @@ void TstLog::varreduraDeLogVaziaReprova()
     QTemporaryDir vazio;
     QVERIFY(vazio.isValid());
 
-    QProcess processo;
-    processo.start(QStringLiteral(NL_PYTHON3),
-                   {QStringLiteral("-I"), QStringLiteral(NL_VARREDURA_LOGS), QStringLiteral("--dir"), vazio.path(),
-                    QStringLiteral("--termos"), QStringLiteral(NL_FIXTURES_PII) + QStringLiteral("/referencia.txt")});
-    QVERIFY2(processo.waitForStarted(10000), "não iniciou o python da varredura");
-    QVERIFY2(processo.waitForFinished(30000), "a varredura não terminou");
+    const Varredura v = executarVarredura(vazio.path());
+    QVERIFY2(v.terminou, "a varredura não terminou por código de saída");
+    QCOMPARE(v.codigo, 1);
+    QVERIFY2(v.saida.contains(QStringLiteral("analisados=0")), "a varredura vazia precisa contar zero analisados");
+    QVERIFY2(v.saida.contains(QStringLiteral("REPROVA")), "varredura vazia precisa reprovar");
+}
 
-    const QString saida = QString::fromUtf8(processo.readAllStandardOutput());
-    QVERIFY2(processo.exitStatus() == QProcess::NormalExit, "a varredura morreu por sinal");
-    QCOMPARE(processo.exitCode(), 1);
-    QVERIFY2(saida.contains(QStringLiteral("analisados=0")), "a varredura vazia precisa contar zero analisados");
-    QVERIFY2(saida.contains(QStringLiteral("REPROVA")), "varredura vazia precisa reprovar");
+void TstLog::varreduraAnalisaTodosOsArquivos()
+{
+    // Vazamento só no segundo arquivo: a varredura tem de ler os dois e reprovar pelo segundo.
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    const std::string senha = referencia(QStringLiteral("senha"));
+    QVERIFY(!senha.empty());
+    QVERIFY(gravarArquivo(pasta.path(), QStringLiteral("a.log"), "linha limpa\n"));
+    QVERIFY(gravarArquivo(pasta.path(), QStringLiteral("b.log"), "vazou " + senha + "\n"));
+
+    const Varredura v = executarVarredura(pasta.path());
+    QVERIFY2(v.terminou, "a varredura não terminou por código de saída");
+    QCOMPARE(v.codigo, 1);
+    QVERIFY2(v.saida.contains(QStringLiteral("encontrados=2 analisados=2")),
+             "a varredura precisa encontrar e analisar os dois arquivos");
+    QVERIFY2(v.saida.contains(QStringLiteral("OCORRENCIA categoria=senha arquivo=b.log")),
+             "o vazamento do segundo arquivo não foi visto");
+    QVERIFY(v.saida.contains(QStringLiteral("REPROVA")));
+}
+
+void TstLog::varreduraAceitaDoisArquivosLimpos()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    QVERIFY(gravarArquivo(pasta.path(), QStringLiteral("a.log"), "linha limpa\n"));
+    QVERIFY(gravarArquivo(pasta.path(), QStringLiteral("b.log"), "outra linha limpa\n"));
+
+    const Varredura v = executarVarredura(pasta.path());
+    QVERIFY2(v.terminou, "a varredura não terminou por código de saída");
+    QCOMPARE(v.codigo, 0);
+    QVERIFY2(v.saida.contains(QStringLiteral("encontrados=2 analisados=2")), "precisa analisar os dois arquivos");
+    QVERIFY(v.saida.contains(QStringLiteral("VERDE")));
+}
+
+void TstLog::controleAbaixoDe0x20Escapado()
+{
+    std::string valor = "A";
+    valor += '\x1b';  // ESC: início de sequência ANSI, nunca pode sair cru no log
+    valor += "[31m";
+    valor += '\x01';
+    valor += "B";
+
+    Sessao sessao;
+    QVERIFY(sessao.log.registrar(Nivel::Erro, "api.erro", umCampo("codigoErro", valor)).has_value());
+    const std::string saida = sessao.destino.str();
+    publicarNoLogDeReferencia(QStringLiteral("controleAbaixoDe0x20Escapado"), saida);
+
+    QVERIFY2(saida.find('\x1b') == std::string::npos, "ESC cru apareceu no log");
+    QVERIFY2(saida.find('\x01') == std::string::npos, "byte de controle 0x01 cru apareceu no log");
+    QVERIFY(saida.find("\\u001b") != std::string::npos);
+    QVERIFY(saida.find("\\u0001") != std::string::npos);
+    QCOMPARE(static_cast<std::size_t>(std::count(saida.begin(), saida.end(), '\n')), std::size_t{1});
+}
+
+void TstLog::separadoresUnicodeEscapados()
+{
+    // U+0085 (NEL), U+2028 (LS) e U+2029 (PS): splitlines() do Python e outros leitores quebram a linha neles.
+    const std::string valor = std::string{"a"} + "\xC2\x85" + "b" + "\xE2\x80\xA8" + "c" + "\xE2\x80\xA9" + "d";
+
+    Sessao sessao;
+    QVERIFY(sessao.log.registrar(Nivel::Erro, "api.erro", umCampo("codigoErro", valor)).has_value());
+    const std::string saida = sessao.destino.str();
+    publicarNoLogDeReferencia(QStringLiteral("separadoresUnicodeEscapados"), saida);
+
+    QVERIFY2(saida.find("\xC2\x85") == std::string::npos, "U+0085 cru apareceu no log");
+    QVERIFY2(saida.find("\xE2\x80\xA8") == std::string::npos, "U+2028 cru apareceu no log");
+    QVERIFY2(saida.find("\xE2\x80\xA9") == std::string::npos, "U+2029 cru apareceu no log");
+    QVERIFY(saida.find("\\u0085") != std::string::npos);
+    QVERIFY(saida.find("\\u2028") != std::string::npos);
+    QVERIFY(saida.find("\\u2029") != std::string::npos);
+}
+
+void TstLog::eventoComDigitosNaoVaiAoLog()
+{
+    // O nome do evento não passa pela allowlist de campos: sem regra, um CPF nele sairia em claro.
+    const std::string cpf = referencia(QStringLiteral("cpf"));
+    QVERIFY(!cpf.empty());
+
+    Sessao sessao;
+    QVERIFY(sessao.log.registrar(Nivel::Info, "dps." + cpf, {}).has_value());
+    const std::string saida = sessao.destino.str();
+    publicarNoLogDeReferencia(QStringLiteral("eventoComDigitosNaoVaiAoLog"), saida);
+
+    QVERIFY2(saida.find(cpf) == std::string::npos, "CPF no nome do evento apareceu no log");
+    QVERIFY(saida.find("evento.invalido") != std::string::npos);
+    QCOMPARE(sessao.log.descartados(), std::size_t{1});
+}
+
+void TstLog::idDpsSemPrefixoOuTamanhoErradoNaoMascara()
+{
+    // Falha fechada: valor de 45 posições sem o prefixo DPS, ou de outro tamanho, não é mascarado e não é gravado.
+    const std::string cpf = referencia(QStringLiteral("cpf"));
+    QVERIFY(!cpf.empty());
+    const std::string semPrefixo = "XYZ" + std::string{kMunicipio} + "1" + "000" + cpf + std::string{kSerie} + std::string{kNumero};
+    QCOMPARE(semPrefixo.size(), kTamanhoIdDps);
+    QVERIFY2(!aplicarRegra(Regra::InscricaoMascarada, semPrefixo).has_value(),
+             "valor de 45 posições sem DPS foi mascarado em vez de descartado");
+
+    const std::string curto = idDps('1', std::string(14, '#')).substr(0, kTamanhoIdDps - 1);
+    QVERIFY2(!aplicarRegra(Regra::InscricaoMascarada, curto).has_value(),
+             "valor de 44 posições foi aceito em vez de descartado");
+}
+
+void TstLog::campoProibidoNuncaSaiMesmoDeclarado()
+{
+    // Quem declara a allowlist não decide: nome da lista Proibido da ADR-0005 §1 é descartado em qualquer regra.
+    const std::string cpf = referencia(QStringLiteral("cpf"));
+    QVERIFY(!cpf.empty());
+    const std::string valor = "valor-proibido-NL27";
+    const std::string idComCpf = idDps('1', "000" + cpf);
+
+    for (const std::string& nome : kCamposProibidosAdr) {
+        Sessao cru{{DeclaracaoCampo{nome, Regra::Cru}}};
+        QVERIFY(cru.log.registrar(Nivel::Info, "teste.proibido", umCampo(nome, valor)).has_value());
+        QVERIFY2(cru.destino.str().find(valor) == std::string::npos,
+                 qPrintable(QStringLiteral("campo proibido '%1' saiu em claro com regra Cru").arg(QString::fromStdString(nome))));
+        QCOMPARE(cru.log.descartados(), std::size_t{1});
+
+        Sessao mascarado{{DeclaracaoCampo{nome, Regra::InscricaoMascarada}}};
+        QVERIFY(mascarado.log.registrar(Nivel::Info, "teste.proibido", umCampo(nome, idComCpf)).has_value());
+        QVERIFY2(mascarado.destino.str().find(cpf) == std::string::npos,
+                 qPrintable(QStringLiteral("CPF saiu pelo campo proibido '%1'").arg(QString::fromStdString(nome))));
+        QCOMPARE(mascarado.log.descartados(), std::size_t{1});
+    }
 }
 
 QTEST_GUILESS_MAIN(TstLog)
