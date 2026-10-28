@@ -119,4 +119,14 @@ bool ehCampoSoMascara(std::string_view nome)
     return std::ranges::any_of(kCamposSoMascara, [nome](std::string_view campo) { return igualSemCaixa(campo, nome); });
 }
 
+std::span<const std::string_view> radicaisDeCampoProibido() noexcept
+{
+    return kRadicaisProibidos;
+}
+
+std::span<const std::string_view> camposProibidosDeReferencia() noexcept
+{
+    return kCamposProibidos;
+}
+
 } // namespace nl::foundation::log

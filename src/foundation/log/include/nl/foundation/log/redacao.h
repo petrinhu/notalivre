@@ -6,6 +6,7 @@
 #define NL_FOUNDATION_LOG_REDACAO_H
 
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -28,6 +29,13 @@ bool ehCampoProibido(std::string_view nome);
 
 /// idDps, idNfse e chaveAcesso (DA-2.23): só aceitam a regra InscricaoMascarada. Declarados de outro jeito são descartados.
 bool ehCampoSoMascara(std::string_view nome);
+
+/// Radicais do lado fechado de ehCampoProibido (comparação sem caixa). Todo nome de camposProibidosDeReferencia()
+/// tem de conter ao menos um destes: o teste radicaisCobremTodosOsNomesProibidos confere.
+std::span<const std::string_view> radicaisDeCampoProibido() noexcept;
+
+/// Nomes exatos da classe Proibido (ADR-0005 §1 e DA-2.23), em forma de referência para testes e auditoria.
+std::span<const std::string_view> camposProibidosDeReferencia() noexcept;
 
 } // namespace nl::foundation::log
 

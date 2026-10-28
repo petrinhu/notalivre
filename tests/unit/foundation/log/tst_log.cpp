@@ -194,6 +194,7 @@ private slots:
     void campoProibidoNuncaSaiMesmoDeclarado();
     void idNfseEChaveAcessoSoAceitamMascara();
     void proibidoIgnoraCaixaEVariacoes();
+    void radicaisCobremTodosOsNomesProibidos();
 };
 
 void TstLog::initTestCase()
@@ -541,6 +542,29 @@ void TstLog::proibidoIgnoraCaixaEVariacoes()
         QVERIFY2(sessao.destino.str().find(valor) == std::string::npos,
                  qPrintable(QStringLiteral("variação '%1' do nome proibido saiu em claro").arg(QString::fromStdString(nome))));
         QCOMPARE(sessao.log.descartados(), std::size_t{1});
+    }
+}
+
+void TstLog::radicaisCobremTodosOsNomesProibidos()
+{
+    // Lado fechado: todo nome da lista Proibido tem de conter ao menos um radical, para que nenhuma variação de nome
+    // dependa só da comparação exata (revisão automática de segurança, rodada 3).
+    const auto radicais = nl::foundation::log::radicaisDeCampoProibido();
+    const auto nomes = nl::foundation::log::camposProibidosDeReferencia();
+    QVERIFY(!radicais.empty());
+    QCOMPARE(nomes.size(), kCamposProibidosAdr.size());
+    for (const std::string_view nome : nomes) {
+        std::string minusculo{nome};
+        for (char& caractere : minusculo) {
+            if (caractere >= 'A' && caractere <= 'Z') {
+                caractere = static_cast<char>(caractere - 'A' + 'a');
+            }
+        }
+        const bool coberto = std::ranges::any_of(radicais, [&minusculo](std::string_view radical) {
+            return minusculo.find(radical) != std::string::npos;
+        });
+        QVERIFY2(coberto, qPrintable(QStringLiteral("nome proibido sem radical: %1")
+                                          .arg(QString::fromUtf8(nome.data(), static_cast<qsizetype>(nome.size())))));
     }
 }
 
