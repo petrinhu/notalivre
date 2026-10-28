@@ -261,16 +261,31 @@ class TesteCertificados(unittest.TestCase):
         controle = rodar(base + [str(DIR / "cnpj_ok.pem")])
         self.assertEqual(controle.returncode, 0, saida_toda(controle))
 
+    def dados_x509(self, caminho):
+        # Sujeito, impressão digital SHA-256 e basicConstraints do certificado: a identidade inteira da AC.
+        r = rodar(["openssl", "x509", "-in", str(caminho), "-noout", "-subject", "-fingerprint", "-sha256",
+                   "-ext", "basicConstraints"])
+        self.assertEqual(r.returncode, 0, saida_toda(r))
+        return r.stdout.strip()
+
     def pfxTemCadeiaDaAc(self):
-        # A AC de teste precisa estar no pfx (bag de CA), para o carregador da NL-2.2 montar a cadeia sem arquivo extra.
-        corpo = corpo_pem(DIR / "ac.pem")
+        # O bag de CA tem de conter EXATAMENTE a AC de teste (um certificado, o mesmo sujeito, a mesma impressão
+        # digital e CA:TRUE). Um certificado de cliente no bag, ou um bundle com a AC e o cliente, reprova.
+        referencia = self.dados_x509(DIR / "ac.pem")
+        self.assertIn("CA:TRUE", referencia)
         alvos = [(pfx, []) for pfx in PFX_MODERNOS] + [("cnpj_ok_legado.pfx", ["-legacy"])]
         for pfx, extra in alvos:
             argv = ["openssl", "pkcs12"] + extra + ["-in", str(DIR / pfx), "-cacerts", "-nokeys",
                                                     "-passin", f"env:{VAR_SENHA}"]
             r = rodar(argv, env=self.env_isolado())
             self.assertEqual(r.returncode, 0, f"{pfx}: {saida_toda(r)}")
-            self.assertIn(corpo, r.stdout, f"{pfx} sem a AC no bag de CA")
+            blocos = re.findall(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", r.stdout, re.S)
+            self.assertEqual(len(blocos), 1, f"{pfx}: bag de CA com {len(blocos)} certificados, esperado 1 (só a AC)")
+            fd, tmp = tempfile.mkstemp(prefix="nl21-cadeia-", suffix=".pem", dir=os.environ.get("TMPDIR") or "/var/tmp")
+            self.addCleanup(os.unlink, tmp)
+            with os.fdopen(fd, "w", encoding="ascii") as arquivo:
+                arquivo.write(blocos[0] + "\n")
+            self.assertEqual(self.dados_x509(tmp), referencia, f"{pfx}: certificado do bag de CA não é a AC de teste")
 
     def cnpjsDeTesteTemDvValido(self):
         # Lê o identificador de DENTRO dos certificados gerados (otherName) e confere o DV com o algoritmo

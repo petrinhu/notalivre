@@ -29,11 +29,18 @@ foreach(nome IN ITEMS
            COMMAND Python3::Interpreter -I "${NL_CERT_TESTES}" ${nome})
   set_tests_properties(certificados.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
-                       ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}")
+                       ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
+                       PASS_REGULAR_EXPRESSION "Ran 1 test in"
+                       FAIL_REGULAR_EXPRESSION "FAILED")
 endforeach()
 
 # Não usam a fixture: o gerador roda dentro do próprio teste (duas gerações), ou o teste só lê vetores.
 foreach(nome IN ITEMS senhaAleatoriaPorExecucao senhaNasceCom0600 dvAlfanumericoVetoresOficiais)
   add_test(NAME certificados.${nome}
            COMMAND Python3::Interpreter -I "${NL_CERT_TESTES}" ${nome})
+  # Passa só se o unittest rodou exatamente um caso (linha "Ran 1 test in") e não houve FAILED.
+  # Sem isso, uma suíte vazia ("Ran 0 tests", OK) dava verde com RC 0.
+  set_tests_properties(certificados.${nome} PROPERTIES
+                       PASS_REGULAR_EXPRESSION "Ran 1 test in"
+                       FAIL_REGULAR_EXPRESSION "FAILED")
 endforeach()
