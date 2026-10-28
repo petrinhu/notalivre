@@ -5,8 +5,8 @@
 A variável OPENSSL_ENABLE_SHA1_SIGNATURES só pode aparecer no arnês de teste do fedora44 (tools/servidor_falso/oraculo.py).
 Qualquer outro arquivo de código que a cite reprova, porque ela desliga a política de cripto do sistema.
 
-Varredura: src/, apps/, flatpak/, .github/, tools/, tests/ e CMakeLists.txt, CMakePresets.json na raiz. Documentos (docs/)
-não entram: o ADR cita a variável por nome.
+Varredura: src/, apps/, flatpak/, .github/, tools/, tests/ e CMakeLists.txt, CMakePresets.json na raiz. Só .git é podado.
+Documentos (docs/) não entram: o ADR cita a variável por nome.
 
 Saída obrigatória, mesmo com zero: "encontrados=N analisados=M violacoes=V permitidos=P".
 Sai com 1 se houver violação, se algum arquivo listado não puder ser lido, se a varredura achar zero arquivos
@@ -28,11 +28,11 @@ PERMITIDOS = frozenset({
     "tests/tools/portoes/test_portao_sha1_env.py",
     "tests/tools/servidor_falso/CMakeLists.txt",
 })
-PODAR = frozenset({".git", "__pycache__", "worktrees", "out"})
+PODAR = frozenset({".git"})  # só o histórico do git. Nenhum outro nome de diretório é isenção (rodada 2, item 1).
 
 
 def _podar(nome):
-    return nome in PODAR or nome.startswith("build")
+    return nome in PODAR
 
 
 def listar(raiz):

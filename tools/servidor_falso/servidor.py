@@ -20,6 +20,9 @@ from .roteiro import Roteiro
 
 ROTA_DPS = "/dps/"
 ROTA_NFSE = "/nfse/"
+# Fora desta fatia (NL-2.6), declarado: POST /nfse/{chave}/eventos é da NL-4.1 (cancelar e substituir) e
+# GET /DFe/{NSU} é da NL-4.2 (consultar e baixar do ADN). Ambas respondem 501. GET /nfse/{chave}/eventos cai na
+# consulta de NFS-e e devolve 404 (NFSE_NAO_ENCONTRADA) até a NL-4.2 modelar os eventos do ADN.
 PREFIXO_NAO_IMPLEMENTADO = ("/DFe/",)
 
 
@@ -40,6 +43,7 @@ class ServidorFalso(http.server.HTTPServer):
     def __init__(self, certs, oraculo, roteiro=None):
         self.contexto = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self.contexto.load_cert_chain(certs.servidor_cert, certs.servidor_key)
+        self.contexto.minimum_version = ssl.TLSVersion.TLSv1_2  # explícito: nada abaixo de TLS 1.2 (rodada 2, item 4)
         self.contexto.verify_mode = ssl.CERT_REQUIRED
         self.contexto.load_verify_locations(certs.ca)
         self.oraculo = oraculo

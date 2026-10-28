@@ -72,7 +72,10 @@ class Oraculo:
             print(f"oraculo: {ENV_SHA1}=1 (arnês fedora44, DA-2.10)", file=sys.stderr, flush=True)
 
     def _env(self):
-        return {**os.environ, **self.ambiente}
+        """Ambiente do xmlsec1: o do processo sem a variável de SHA-1, mais o do arnês (só no fedora44)."""
+        env = {chave: valor for chave, valor in os.environ.items() if chave != ENV_SHA1}
+        env.update(self.ambiente)
+        return env
 
     def _escrever(self, dados, nome):
         fd, caminho = tempfile.mkstemp(prefix=f"{nome}-", suffix=".xml", dir=self.trabalho)
