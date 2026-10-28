@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <format>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -38,15 +39,32 @@ constexpr std::string_view kMunicipio = "3550308";
 constexpr std::string_view kSerie = "00001";
 constexpr std::string_view kNumero = "000000000000001";
 
-/// Campos da classe Proibido da ADR-0005 §1 (nomes de referência). Nenhum deles pode sair em claro, declarado ou não.
+/// Campos da classe Proibido da ADR-0005 §1 (nomes de referência, 30 da NL-2.7 e 14 da DA-2.23).
+/// Nenhum deles pode sair em claro, declarado ou não, em qualquer forma de escrita.
 const std::vector<std::string> kCamposProibidosAdr = {
-    "senhaMestra",      "senhaCertificado", "senhaSmtp",        "tokenOauth",     "chaveDek",
-    "chaveKek",         "codigoRecuperacao", "conteudoA1",      "cpfTomador",     "cnpjTomador",
-    "nome",             "endereco",         "telefone",         "email",          "inscricaoMunicipal",
-    "corpoEmail",       "anexoEmail",       "xmlDps",           "xmlNfse",        "xmlEvento",
-    "corpoHttp",        "textoErroApi",     "cabecalhoAutenticacao", "cookie",    "dadosCertificado",
-    "nomeArquivo",      "caminhoArquivo",   "senha",            "token",          "envelopeAssinado",
+    "senhaMestra",           "senhaCertificado",      "senhaSmtp",           "tokenOauth",
+    "chaveDek",              "chaveKek",              "codigoRecuperacao",   "conteudoA1",
+    "cpfTomador",            "cnpjTomador",           "nome",                "endereco",
+    "telefone",              "email",                 "inscricaoMunicipal",  "corpoEmail",
+    "anexoEmail",            "xmlDps",                "xmlNfse",             "xmlEvento",
+    "corpoHttp",             "textoErroApi",          "cabecalhoAutenticacao", "cookie",
+    "dadosCertificado",      "nomeArquivo",           "caminhoArquivo",      "senha",
+    "token",                 "envelopeAssinado",
+    // DA-2.23 (decisão do CISO, 28/10/2026)
+    "cpfEmitente",           "cnpjEmitente",          "inscricaoEmitente",   "cpf",
+    "cnpj",                  "inscricao",             "nifTomador",          "titularCertificado",
+    "numeroSerieCertificado", "chavePrivada",         "chaveHeadless",       "senhaBanco",
+    "corpoRequisicao",       "corpoResposta",
 };
+
+/// Nomes que só aceitam a regra InscricaoMascarada (DA-2.23): declarados como texto cru ou proibido, são descartados.
+const std::vector<std::string> kCamposSoMascara = {"idDps", "idNfse", "chaveAcesso"};
+
+/// Catálogo fechado de eventos de referência (DA-2.24). Evento fora dele vira evento.invalido.
+std::vector<std::string> catalogoDeReferencia()
+{
+    return {"certificado.senha_incorreta", "dps.gerada", "dps.assinada", "campo.novo", "api.erro", "teste.proibido"};
+}
 
 /// Allowlist de referência: o que o app declara. Qualquer outro nome é descartado.
 std::vector<DeclaracaoCampo> allowlistDeReferencia()
@@ -103,8 +121,9 @@ struct Sessao
     std::ostringstream destino;
     Log log;
 
-    explicit Sessao(std::vector<DeclaracaoCampo> allow = allowlistDeReferencia())
-        : log{destino, "notalivre", std::move(allow)}
+    explicit Sessao(std::vector<DeclaracaoCampo> allow = allowlistDeReferencia(),
+                    std::vector<std::string> catalogo = catalogoDeReferencia())
+        : log{destino, "notalivre", std::move(allow), std::move(catalogo)}
     {
     }
 };
@@ -167,9 +186,14 @@ private slots:
     void varreduraAceitaDoisArquivosLimpos();
     void controleAbaixoDe0x20Escapado();
     void separadoresUnicodeEscapados();
+    void controlesC1EUnicodeSeparadoresEscapados();
     void eventoComDigitosNaoVaiAoLog();
+    void eventoForaDoCatalogoVaiComoInvalido();
+    void eventoNoLimiteDeCaracteres();
     void idDpsSemPrefixoOuTamanhoErradoNaoMascara();
     void campoProibidoNuncaSaiMesmoDeclarado();
+    void idNfseEChaveAcessoSoAceitamMascara();
+    void proibidoIgnoraCaixaEVariacoes();
 };
 
 void TstLog::initTestCase()
@@ -363,9 +387,40 @@ void TstLog::separadoresUnicodeEscapados()
     QVERIFY(saida.find("\\u2029") != std::string::npos);
 }
 
+void TstLog::controlesC1EUnicodeSeparadoresEscapados()
+{
+    // Controles C1 de U+0080 a U+009F (em UTF-8, C2 80 a C2 9F), incluindo U+009B (CSI de 8 bits), mais U+2029.
+    std::string valor = "a";
+    for (unsigned int codigo = 0x80; codigo <= 0x9F; ++codigo) {
+        valor += "\xC2";
+        valor += static_cast<char>(codigo);
+        valor += "b";
+    }
+    valor += "\xE2\x80\xA9";
+    valor += "c";
+
+    Sessao sessao;
+    QVERIFY(sessao.log.registrar(Nivel::Erro, "api.erro", umCampo("codigoErro", valor)).has_value());
+    const std::string saida = sessao.destino.str();
+    publicarNoLogDeReferencia(QStringLiteral("controlesC1EUnicodeSeparadoresEscapados"), saida);
+
+    for (unsigned int codigo = 0x80; codigo <= 0x9F; ++codigo) {
+        std::string cru;
+        cru += "\xC2";
+        cru += static_cast<char>(codigo);
+        QVERIFY2(saida.find(cru) == std::string::npos,
+                 qPrintable(QStringLiteral("controle C1 U+%1 saiu cru").arg(codigo, 4, 16, QLatin1Char('0'))));
+        QVERIFY2(saida.find(std::format("\\u{:04x}", codigo)) != std::string::npos,
+                 qPrintable(QStringLiteral("controle C1 U+%1 sem escape").arg(codigo, 4, 16, QLatin1Char('0'))));
+    }
+    QVERIFY2(saida.find("\xE2\x80\xA9") == std::string::npos, "U+2029 cru apareceu no log");
+    QVERIFY(saida.find("\\u2029") != std::string::npos);
+}
+
 void TstLog::eventoComDigitosNaoVaiAoLog()
 {
-    // O nome do evento não passa pela allowlist de campos: sem regra, um CPF nele sairia em claro.
+    // O nome do evento vem do catálogo fechado (DA-2.24): um CPF no nome não está no catálogo, e os dígitos também
+    // são barrados pela regra de caracteres (segunda barreira).
     const std::string cpf = referencia(QStringLiteral("cpf"));
     QVERIFY(!cpf.empty());
 
@@ -375,6 +430,41 @@ void TstLog::eventoComDigitosNaoVaiAoLog()
     publicarNoLogDeReferencia(QStringLiteral("eventoComDigitosNaoVaiAoLog"), saida);
 
     QVERIFY2(saida.find(cpf) == std::string::npos, "CPF no nome do evento apareceu no log");
+    QVERIFY(saida.find("evento.invalido") != std::string::npos);
+    QCOMPARE(sessao.log.descartados(), std::size_t{1});
+}
+
+void TstLog::eventoForaDoCatalogoVaiComoInvalido()
+{
+    // DA-2.24: "tomador.mariasilva" passa na regra de caracteres (letras e ponto), mas não está no catálogo.
+    Sessao sessao;
+    QVERIFY(sessao.log.registrar(Nivel::Info, "tomador.mariasilva", {}).has_value());
+    QVERIFY(sessao.log.registrar(Nivel::Info, "dps.gerada", {}).has_value());
+    const std::string saida = sessao.destino.str();
+    publicarNoLogDeReferencia(QStringLiteral("eventoForaDoCatalogoVaiComoInvalido"), saida);
+
+    QVERIFY2(saida.find("tomador.mariasilva") == std::string::npos, "evento fora do catálogo apareceu no log");
+    QVERIFY(saida.find("evento.invalido") != std::string::npos);
+    QVERIFY2(saida.find("\"evento\":\"dps.gerada\"") != std::string::npos, "evento do catálogo precisa sair");
+    QCOMPARE(sessao.log.descartados(), std::size_t{1});
+}
+
+void TstLog::eventoNoLimiteDeCaracteres()
+{
+    // Limite de 64 caracteres: 64 sai, 65 vira evento.invalido. Os dois estão no catálogo, então só a regra de
+    // tamanho decide.
+    const std::string noLimite(64, 'a');
+    const std::string acimaDoLimite(65, 'a');
+
+    Sessao sessao{allowlistDeReferencia(), {noLimite, acimaDoLimite}};
+    QVERIFY(sessao.log.registrar(Nivel::Info, noLimite, {}).has_value());
+    QVERIFY(sessao.log.registrar(Nivel::Info, acimaDoLimite, {}).has_value());
+    const std::string saida = sessao.destino.str();
+    publicarNoLogDeReferencia(QStringLiteral("eventoNoLimiteDeCaracteres"), saida);
+
+    QVERIFY2(saida.find("\"evento\":\"" + noLimite + "\"") != std::string::npos,
+             "evento de 64 caracteres precisa sair");
+    QVERIFY2(saida.find(acimaDoLimite) == std::string::npos, "evento de 65 caracteres apareceu no log");
     QVERIFY(saida.find("evento.invalido") != std::string::npos);
     QCOMPARE(sessao.log.descartados(), std::size_t{1});
 }
@@ -414,6 +504,43 @@ void TstLog::campoProibidoNuncaSaiMesmoDeclarado()
         QVERIFY2(mascarado.destino.str().find(cpf) == std::string::npos,
                  qPrintable(QStringLiteral("CPF saiu pelo campo proibido '%1'").arg(QString::fromStdString(nome))));
         QCOMPARE(mascarado.log.descartados(), std::size_t{1});
+    }
+}
+
+void TstLog::idNfseEChaveAcessoSoAceitamMascara()
+{
+    // DA-2.23: idDps, idNfse e chaveAcesso só aceitam a máscara de inscrição. Declarados como texto cru ou como
+    // proibido, são descartados e o valor não sai.
+    const std::string cpf = referencia(QStringLiteral("cpf"));
+    QVERIFY(!cpf.empty());
+    const std::string valor = idDps('1', "000" + cpf);
+
+    for (const std::string& nome : kCamposSoMascara) {
+        for (const Regra regra : {Regra::Cru, Regra::Proibido}) {
+            Sessao sessao{{DeclaracaoCampo{nome, regra}}};
+            QVERIFY(sessao.log.registrar(Nivel::Info, "teste.proibido", umCampo(nome, valor)).has_value());
+            QVERIFY2(sessao.destino.str().find(cpf) == std::string::npos,
+                     qPrintable(QStringLiteral("CPF saiu pelo campo '%1' sem máscara").arg(QString::fromStdString(nome))));
+            QCOMPARE(sessao.log.descartados(), std::size_t{1});
+        }
+    }
+}
+
+void TstLog::proibidoIgnoraCaixaEVariacoes()
+{
+    // Ressalva 3 do revisor: a comparação era exata. Agora é sem caixa e por radical (lado fechado): nome que
+    // contém um radical sensível é proibido. Super-bloqueio aceito, porque descarta um campo e nunca vaza.
+    const std::string valor = "valor-variacao-NL27";
+    const std::vector<std::string> variacoes = {
+        "Senha",          "SENHA",               "senhaSmtpServidor",   "SenhaSmtpServidor", "CpfTomadorAntigo",
+        "xmlDpsAssinado", "NomeCompletoTomador", "tokenDeAcessoNovo",   "CertificadoValidade",
+    };
+    for (const std::string& nome : variacoes) {
+        Sessao sessao{{DeclaracaoCampo{nome, Regra::Cru}}};
+        QVERIFY(sessao.log.registrar(Nivel::Info, "teste.proibido", umCampo(nome, valor)).has_value());
+        QVERIFY2(sessao.destino.str().find(valor) == std::string::npos,
+                 qPrintable(QStringLiteral("variação '%1' do nome proibido saiu em claro").arg(QString::fromStdString(nome))));
+        QCOMPARE(sessao.log.descartados(), std::size_t{1});
     }
 }
 

@@ -127,8 +127,10 @@ std::string carimboUtc()
 
 } // namespace
 
-Log::Log(std::ostream& destino, std::string servico, std::vector<DeclaracaoCampo> allowlist)
-    : destino_{destino}, servico_{std::move(servico)}, allowlist_{std::move(allowlist)}
+Log::Log(std::ostream& destino, std::string servico, std::vector<DeclaracaoCampo> allowlist,
+         std::vector<std::string> catalogoEventos)
+    : destino_{destino}, servico_{std::move(servico)}, allowlist_{std::move(allowlist)},
+      catalogoEventos_{std::move(catalogoEventos)}
 {
 }
 

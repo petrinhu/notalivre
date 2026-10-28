@@ -39,7 +39,10 @@ struct Campo {
 
 class Log {
 public:
-    Log(std::ostream& destino, std::string servico, std::vector<DeclaracaoCampo> allowlist);
+    /// catalogoEventos: nomes de evento permitidos (catálogo fechado, ADR-0005 seção 3 e DA-2.24). Evento fora dele vira
+    /// evento.invalido e conta como descartado.
+    Log(std::ostream& destino, std::string servico, std::vector<DeclaracaoCampo> allowlist,
+        std::vector<std::string> catalogoEventos);
 
     /// Grava uma linha JSON com nível, carimbo UTC, serviço, evento e os campos permitidos. Campo redigido ou
     /// descartado não deixa o valor na saída. Devolve erro só se a escrita no destino falhar.
@@ -59,6 +62,7 @@ private:
     std::ostream& destino_;
     std::string servico_;
     std::vector<DeclaracaoCampo> allowlist_;
+    std::vector<std::string> catalogoEventos_;
     std::size_t descartados_{0};
 };
 
