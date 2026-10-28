@@ -56,7 +56,7 @@ constexpr auto kCamposProibidos = std::to_array<std::string_view>({
 constexpr auto kRadicaisProibidos = std::to_array<std::string_view>({
     "senha", "token", "chave", "cpf", "cnpj", "nif", "titular", "certificado", "numeroserie", "xml", "corpo",
     "conteudo", "cookie", "nome", "endereco", "telefone", "email", "inscricao", "cabecalho", "caminho", "anexo",
-    "textoerro",
+    "textoerro", "recupera", "envelope",
 });
 
 constexpr auto kCamposSoMascara = std::to_array<std::string_view>({"idDps", "idNfse", "chaveAcesso"});
