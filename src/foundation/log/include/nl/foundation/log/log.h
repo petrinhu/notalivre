@@ -56,6 +56,9 @@ private:
     /// Valor pronto para gravar, ou nullopt se o campo deve ser descartado (sem declaração ou classe Proibido).
     [[nodiscard]] std::optional<std::string> valorGravavel(const Campo& campo) const;
 
+    /// Verdadeiro se o evento está no catálogo fechado e passa na regra de caracteres (segunda barreira, DA-2.24).
+    [[nodiscard]] bool eventoAceito(std::string_view evento) const;
+
     /// Pares "nome":"valor" já redigidos, separados por vírgula. Conta em descartados os campos que não saem.
     [[nodiscard]] std::string serializarCampos(const std::vector<Campo>& campos, std::size_t& descartados) const;
 

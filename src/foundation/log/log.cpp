@@ -20,32 +20,38 @@
 namespace nl::foundation::log {
 namespace {
 
-// Separadores Unicode que leitores de linha tratam como quebra (splitlines do Python e similares).
-constexpr std::string_view kNel = "\xC2\x85";        // U+0085
+// Separadores de linha Unicode que leitores tratam como quebra (splitlines do Python e similares). U+2028 e U+2029
+// têm sequência própria; os C1 (U+0080 a U+009F, em UTF-8 C2 80 a C2 9F) são tratados numa faixa só.
 constexpr std::string_view kSeparadorLinha = "\xE2\x80\xA8";     // U+2028
 constexpr std::string_view kSeparadorParagrafo = "\xE2\x80\xA9"; // U+2029
+constexpr unsigned char kPrimeiroC1Segundo = 0x80;               // segundo byte de U+0080 em UTF-8
+constexpr unsigned char kUltimoC1Segundo = 0x9F;                 // segundo byte de U+009F em UTF-8
 
 constexpr std::string_view kEventoInvalido = "evento.invalido";
 constexpr std::size_t kTamanhoMaximoEvento = 64;
 
 struct SequenciaEscapada
 {
-    std::string_view escape;
+    std::string escape;
     std::size_t bytes;
 };
 
-/// Se o byte em posicao começa um separador Unicode, devolve a sequência de escape e quantos bytes ela ocupa.
+/// Se o byte em posicao começa um separador Unicode ou um controle C1, devolve a sequência de escape e quantos bytes
+/// ela ocupa. Os C1 incluem U+0085 (NEL) e U+009B (CSI de 8 bits), que terminais também interpretam.
 std::optional<SequenciaEscapada> separadorUnicodeEm(std::string_view texto, std::size_t posicao)
 {
     const std::string_view resto = texto.substr(posicao);
-    if (resto.starts_with(kNel)) {
-        return SequenciaEscapada{"\\u0085", kNel.size()};
-    }
     if (resto.starts_with(kSeparadorLinha)) {
         return SequenciaEscapada{"\\u2028", kSeparadorLinha.size()};
     }
     if (resto.starts_with(kSeparadorParagrafo)) {
         return SequenciaEscapada{"\\u2029", kSeparadorParagrafo.size()};
+    }
+    if (resto.size() >= 2 && resto[0] == '\xC2') {
+        const auto segundo = static_cast<unsigned char>(resto[1]);
+        if (segundo >= kPrimeiroC1Segundo && segundo <= kUltimoC1Segundo) {
+            return SequenciaEscapada{std::format("\\u{:04x}", static_cast<unsigned int>(segundo)), 2};
+        }
     }
     return std::nullopt;
 }
@@ -96,7 +102,7 @@ std::string escaparJson(std::string_view texto)
 }
 
 /// Nome de evento é código, não texto: letras minúsculas, ponto e sublinhado, até 64 caracteres. Sem dígito, um CPF
-/// ou CNPJ não cabe nele. Fora disso o evento vira "evento.invalido" e conta como descartado (ADR-S4, seção 3).
+/// ou CNPJ não cabe nele. É a segunda barreira do catálogo fechado (DA-2.24).
 bool eventoEhCodigo(std::string_view evento)
 {
     if (evento.empty() || evento.size() > kTamanhoMaximoEvento) {
@@ -137,9 +143,9 @@ Log::Log(std::ostream& destino, std::string servico, std::vector<DeclaracaoCampo
 std::expected<void, nl::base::Erro> Log::registrar(Nivel nivel, std::string_view evento, const std::vector<Campo>& campos)
 {
     std::size_t descartadosNesta = 0;
-    const bool eventoOk = eventoEhCodigo(evento);
+    const bool eventoOk = eventoAceito(evento);
     if (!eventoOk) {
-        ++descartadosNesta;
+        ++descartadosNesta;  // evento fora do catálogo conta como descarte, como um campo
     }
 
     std::string linha = "{\"level\":\"";
@@ -162,6 +168,14 @@ std::expected<void, nl::base::Erro> Log::registrar(Nivel nivel, std::string_view
         return std::unexpected(nl::base::Erro{"log.escrita", std::nullopt, "não consegui gravar a linha do log"});
     }
     return {};
+}
+
+bool Log::eventoAceito(std::string_view evento) const
+{
+    if (!eventoEhCodigo(evento)) {
+        return false;
+    }
+    return std::ranges::any_of(catalogoEventos_, [evento](const std::string& declarado) { return declarado == evento; });
 }
 
 std::string Log::serializarCampos(const std::vector<Campo>& campos, std::size_t& descartados) const
@@ -194,14 +208,18 @@ std::size_t Log::descartados() const noexcept
 
 std::optional<std::string> Log::valorGravavel(const Campo& campo) const
 {
-    if (ehCampoProibido(campo.nome)) {
-        return std::nullopt;  // classe Proibido da ADR-0005 §1: sai em nenhuma hipótese, declarada ou não
-    }
     const auto declarado = std::ranges::find_if(allowlist_, [&campo](const DeclaracaoCampo& declaracao) {
         return declaracao.nome == campo.nome;
     });
     if (declarado == allowlist_.end()) {
         return std::nullopt;  // campo sem declaração: descartado, valor nunca gravado (ADR-S4, seção 3)
+    }
+    if (ehCampoSoMascara(campo.nome)) {
+        if (declarado->regra != Regra::InscricaoMascarada) {
+            return std::nullopt;  // DA-2.23: idDps, idNfse e chaveAcesso só aceitam a máscara
+        }
+    } else if (ehCampoProibido(campo.nome)) {
+        return std::nullopt;  // classe Proibido: sai em nenhuma hipótese, declarada ou não
     }
     return aplicarRegra(declarado->regra, campo.valor);
 }
