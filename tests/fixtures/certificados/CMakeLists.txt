@@ -23,10 +23,17 @@ foreach(nome IN ITEMS
     vencidoRejeitadoPeloVerify
     revogadoRejeitadoPorLcr
     cnpjsDeTesteTemDvValido
-    servidorFalsoTemSanEEkuServerAuth)
+    servidorFalsoTemSanEEkuServerAuth
+    pfxTemCadeiaDaAc)
   add_test(NAME certificados.${nome}
            COMMAND Python3::Interpreter -I "${NL_CERT_TESTES}" ${nome})
   set_tests_properties(certificados.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}")
+endforeach()
+
+# Não usam a fixture: o gerador roda dentro do próprio teste (duas gerações), ou o teste só lê vetores.
+foreach(nome IN ITEMS senhaAleatoriaPorExecucao senhaNasceCom0600 dvAlfanumericoVetoresOficiais)
+  add_test(NAME certificados.${nome}
+           COMMAND Python3::Interpreter -I "${NL_CERT_TESTES}" ${nome})
 endforeach()
