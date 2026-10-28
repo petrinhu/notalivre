@@ -22,6 +22,10 @@ enum class Regra {
 /// formato esperado (fail-closed). Quem chama descarta o campo e conta o descarte, sem gravar o valor.
 std::optional<std::string> aplicarRegra(Regra regra, std::string_view valor);
 
+/// Nome de campo da classe Proibido da ADR-0005 §1 (senha, token, CPF de tomador, XML, corpo de e-mail etc.).
+/// Vale sobre a allowlist: quem declara o campo como Cru ou InscricaoMascarada não muda o descarte.
+bool ehCampoProibido(std::string_view nome) noexcept;
+
 } // namespace nl::foundation::log
 
 #endif // NL_FOUNDATION_LOG_REDACAO_H

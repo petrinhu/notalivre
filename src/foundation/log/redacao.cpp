@@ -4,6 +4,8 @@
 
 #include <nl/foundation/log/redacao.h>
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -31,6 +33,16 @@ std::optional<std::string> mascararInscricao(std::string_view valor)
     return mascarado;
 }
 
+// Lista da ADR-0005 §1, classe Proibido, em nomes de campo. A mesma lista está no teste campoProibidoNuncaSaiMesmoDeclarado.
+constexpr std::array<std::string_view, 30> kCamposProibidos = {
+    "senhaMestra",           "senhaCertificado",      "senhaSmtp",       "tokenOauth",       "chaveDek",
+    "chaveKek",              "codigoRecuperacao",     "conteudoA1",      "cpfTomador",       "cnpjTomador",
+    "nome",                  "endereco",              "telefone",        "email",            "inscricaoMunicipal",
+    "corpoEmail",            "anexoEmail",            "xmlDps",          "xmlNfse",          "xmlEvento",
+    "corpoHttp",             "textoErroApi",          "cabecalhoAutenticacao", "cookie",     "dadosCertificado",
+    "nomeArquivo",           "caminhoArquivo",        "senha",           "token",            "envelopeAssinado",
+};
+
 } // namespace
 
 std::optional<std::string> aplicarRegra(Regra regra, std::string_view valor)
@@ -44,6 +56,11 @@ std::optional<std::string> aplicarRegra(Regra regra, std::string_view valor)
         return std::nullopt;
     }
     return std::nullopt;  // falha fechada
+}
+
+bool ehCampoProibido(std::string_view nome) noexcept
+{
+    return std::ranges::find(kCamposProibidos, nome) != kCamposProibidos.end();
 }
 
 } // namespace nl::foundation::log
