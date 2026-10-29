@@ -6,6 +6,8 @@
 
 ## INBOX (descobertas não priorizadas)
 
+- (sem ID): NL-2.6, recomendação do revisor na rodada 3: condicionar o --lax-key-search do oráculo ao caminho com chaves públicas (oraculo.py:99) e corrigir a docstring oraculo.py:5-6, porque a sonda no ubuntu26.04 deu rc igual com e sem lax no caminho padrão e a cadeia da DA-2.10 não foi reproduzida. O CTO decide; o plano (DA-2.10) cita o lax como FATO medido.
+- (sem ID): NL-2.6, controle 1 do ADR 0007 (assinaSha1NoSdkKdeSemVariavel no job Flatpak) pendente e atrelado à NL-2.3 (DA-2.27); ADR em PROPOSTO até lá.
 - (sem ID): Narciso revisa o que acontece com a senha guardada no chaveiro quando o usuário troca de certificado (recomendação do CTO: apagar a antiga no mesmo ato) e o limite de emissores por instalação (recomendação do CTO: sem limite fixo). Fonte: docs/superpowers/plans/2026-10-25-notalivre-plano.md, NL-4.3.
 - (sem ID): Narciso e o CTO decidem a recuperação da numeração depois de perder o banco, e o cadastro de tomadores que não volta pelo ADN. Fonte: plano, seção 9 (spec 4.4), prevista para a Onda 3.
 - (sem ID): Capitolino e Celso tratam suporte ao usuário, o "por que agora" e a métrica de sucesso (spec seções 1 e 3.4). Fonte: plano, seção 9.
@@ -85,7 +87,7 @@
 | NL-2.2 | W2 | Engenharia | Carregador PKCS#12 na Foundation com erros distintos (SenhaErrada, CifraLegadaIndisponivel, Vencido, CadeiaInvalida, SemInscricao); senha zerada após o uso. Plano, seção 2, NL-2.2. | Média (inferido) | NL-2.1, NL-1.9 (ADR-S1) | Média (inferido) | ⏳ Pendente | — |
 | NL-2.3 | W2 | Segurança | Assinador e verificador XMLDSIG na Foundation, com xmlsec1 atrás de adaptador; oráculo xmlsec1 --verify. Plano, seção 2, NL-2.3. | Média (inferido) | NL-1.6, NL-2.2 | Média (inferido) | ⏳ Pendente | — |
 | NL-2.4 | W2 | Engenharia | Envelope da DPS no Mid: Base64, e GZip só se o manual pedir (ponto D2.4). Plano, seção 2, NL-2.4. | Média (inferido) | Pesquisa W2 (b) | Média (inferido) | ⏳ Pendente | — |
-| NL-2.6 | W2 | Engenharia | Servidor falso da API em Python (biblioteca padrão) em tools/servidor_falso, com TLS e certificado de cliente obrigatório, oráculos xmllint e xmlsec1 em série e falhas roteirizáveis. Plano, seção 2, NL-2.6; spec 5.1. | Média (inferido) | — | Média (inferido) | ⏳ Pendente | — |
+| NL-2.6 | W2 | Engenharia | Servidor falso da API em Python (biblioteca padrão) em tools/servidor_falso, com TLS e certificado de cliente obrigatório, oráculos xmllint e xmlsec1 em série e falhas roteirizáveis. Plano, seção 2, NL-2.6; spec 5.1. | Média (inferido) | — | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-2.5 | W2 | Segurança | Transporte HTTPS com mTLS na Foundation, com erro transitório separado do definitivo; testes de integração contra o servidor falso. Plano, seção 2, NL-2.5. | Média (inferido) | NL-2.2, NL-2.6 | Média (inferido) | ⏳ Pendente | — |
 | NL-2.7 | W2 | Segurança | Log com redação de PII na Foundation pelo ADR-S4, com varredura não vazia e sabotagem de estreia. Plano, seção 2, NL-2.7. | Média (inferido) | NL-1.9 (ADR-S4) | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-2.8 | W2 | Engenharia | Cliente Sefin no Mid e política de retry: POST nunca repete sozinho e consulta GET /dps/{id} antes de reenviar; rejeição com código E não repete. Plano, seção 2, NL-2.8. | Média (inferido) | NL-2.4, NL-2.5, NL-2.7 | Média (inferido) | ⏳ Pendente | — |

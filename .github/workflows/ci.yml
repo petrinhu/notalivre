@@ -218,6 +218,13 @@ jobs:
           docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             python3 -I /src/tools/tema/gerar_theme.py --raiz /src --verificar
 
+      # NL-2.6 (DA-2.10, ADR 0007): a variável de SHA-1 só pode aparecer no arnês de teste do fedora44.
+      - name: Variável de SHA-1 fora do arnês fedora44 (portao_sha1_env)
+        id: sha1_env
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            python3 -I /src/tools/portoes/portao_sha1_env.py /src
+
       - name: Fixação do CI (digest, SHA e privilégio; ADR 0001, A0-07)
         id: fixacao
         run: |
@@ -237,6 +244,7 @@ jobs:
             echo "| Cabeçalho SPDX (portão e autoteste) | ${{ steps.spdx.outcome }} |"
             echo "| Hexadecimal só no Theme (nenhum_hex_fora_do_theme) | ${{ steps.hex.outcome }} |"
             echo "| Tema gerado bate com a spec visual (gerar_theme --verificar) | ${{ steps.tema.outcome }} |"
+            echo "| Variável de SHA-1 fora do arnês fedora44 (portao_sha1_env) | ${{ steps.sha1_env.outcome }} |"
             echo "| Fixação do CI (digest, SHA e privilégio) | ${{ steps.fixacao.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
