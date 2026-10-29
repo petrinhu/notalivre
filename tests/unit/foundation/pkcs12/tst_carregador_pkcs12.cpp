@@ -294,14 +294,17 @@ bool pfxTemChaveDescasada(const QByteArray& pfx, const QByteArray& senha) {
     if (p12 == nullptr) {
         return false;
     }
+    // PKCS12_parse só põe em *cert o certificado que confere com a chave (p12_kiss.c). Com par descasado, o
+    // certificado cai em ca. Por isso a leitura é pelo ca, e não pelo cert.
     EVP_PKEY* chave = nullptr;
-    X509* cert = nullptr;
     STACK_OF(X509)* ca = nullptr;
-    const int ok = PKCS12_parse(p12, senha.constData(), &chave, &cert, &ca);
+    const int ok = PKCS12_parse(p12, senha.constData(), &chave, nullptr, &ca);
     PKCS12_free(p12);
+    bool descasada = false;
+    if (ok == 1 && chave != nullptr && ca != nullptr && sk_X509_num(ca) == 1) {
+        descasada = X509_check_private_key(sk_X509_value(ca, 0), chave) != 1;
+    }
     sk_X509_pop_free(ca, X509_free);
-    const bool descasada = ok == 1 && chave != nullptr && cert != nullptr && X509_check_private_key(cert, chave) != 1;
-    X509_free(cert);
     EVP_PKEY_free(chave);
     return descasada;
 }
