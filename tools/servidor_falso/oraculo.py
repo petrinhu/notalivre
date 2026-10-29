@@ -89,14 +89,16 @@ class Oraculo:
                            input=xml, capture_output=True)
         return r.returncode == 0, r.stderr.decode("utf-8", errors="replace")
 
-    def comando_verificar(self, caminho):
+    def comando_verificar(self, caminho, chaves_publicas=()):
+        # ESQUELETO VERMELHO (rodada 3): chaves_publicas ainda não entra no comando.
         return [self.xmlsec1, "--verify", *argumentos_lax(self.versao), *ID_ATTR,
                 "--trusted-pem", self.ca_pem, caminho]
 
-    def verificar_assinatura(self, xml):
+    def verificar_assinatura(self, xml, chaves_publicas=()):
         """xmlsec1 --verify com a AC de teste. Devolve (ok, saída)."""
         caminho = self._escrever(xml, "verificar")
-        r = subprocess.run(self.comando_verificar(caminho), env=self._env(), capture_output=True, text=True)
+        r = subprocess.run(self.comando_verificar(caminho, chaves_publicas), env=self._env(),
+                           capture_output=True, text=True)
         return r.returncode == 0, r.stdout + r.stderr
 
     def assinar(self, template, chave, certificado):

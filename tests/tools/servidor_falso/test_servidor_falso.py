@@ -8,6 +8,7 @@ do campo de NFS-e são do servidor falso (pesquisa g). O oráculo é o xmllint e
 
 import base64
 import gzip
+import re
 import http.client
 import json
 import os
@@ -53,6 +54,11 @@ def _assinar_no_teste(xmlsec1, template, chave, certificado, trabalho, versao):
 
 def _ambiente_arnes():
     return oraculo.ambiente_do_arnes(oraculo.ler_os_release())
+
+
+def _sem_keyinfo(xml):
+    """DPS com o KeyInfo vazio. O KeyInfo não está no Reference, então a assinatura continua válida."""
+    return re.sub(rb"<KeyInfo>.*?</KeyInfo>", b"<KeyInfo/>", xml, flags=re.S)
 
 
 class TesteServidorFalso(unittest.TestCase):
@@ -208,6 +214,40 @@ class TesteServidorFalso(unittest.TestCase):
                          {"OPENSSL_ENABLE_SHA1_SIGNATURES": "1"})
         self.assertEqual(oraculo.ambiente_do_arnes({"ID": "ubuntu", "VERSION_ID": "26.04"}), {})
         self.assertEqual(oraculo.ambiente_do_arnes({"ID": "fedora", "VERSION_ID": "43"}), {})
+
+    def test_verificacaoLaxObrigatoriaNa13(self):
+        # Cadeia que a busca estrita da 1.3 não acha (medida em 1.3.9 e 1.3.12): KeyInfo vazio, a chave do emissor
+        # entra pelo armazém de chaves (--pubkey-cert-pem) e a AC de teste continua em --trusted-pem. Estrito: KEY-NOT-FOUND;
+        # com --lax-key-search: rc 0. Na 1.2 a opção não existe e a mesma cadeia verifica em estrito (rc 0).
+        doc = _sem_keyinfo(self.dps)
+        caminho = os.path.join(self.dir, "sem-keyinfo.xml")
+        with open(caminho, "wb") as f:
+            f.write(doc)
+        cliente = self.certs.cliente_cert
+        ok, saida = self.oraculo.verificar_assinatura(doc, chaves_publicas=[cliente])
+        self.assertTrue(ok, f"o oráculo recusou a DPS sem KeyInfo com a chave do emissor: {saida}")
+        comando = self.oraculo.comando_verificar(caminho, chaves_publicas=[cliente])
+        if self.oraculo.versao >= (1, 3):
+            self.assertIn("--lax-key-search", comando)
+            sem_lax = [a for a in comando if a != "--lax-key-search"]
+            r = subprocess.run(sem_lax, env=self.oraculo._env(), capture_output=True, text=True)
+            self.assertNotEqual(r.returncode, 0, "na 1.3 a busca estrita tinha de falhar sem --lax-key-search")
+        else:
+            self.assertNotIn("--lax-key-search", comando)
+
+    def test_oraculoSemAssinarSemChamador(self):
+        # Sem chamador na árvore (grep em git ls-files), oraculo.assinar e referencia.assinar saem do código.
+        self.assertFalse(hasattr(oraculo.Oraculo, "assinar"))
+        self.assertFalse(hasattr(referencia, "assinar"))
+
+    def test_rotasDeEventoEDfeRespondem501(self):
+        # Fora da NL-2.6, por DA-2.27: POST /nfse/{chave}/eventos é da NL-4.1 e GET /DFe/{NSU} é da NL-4.2.
+        srv = self.subir()
+        chave = "1" * 50
+        self.assertEqual(self.enviar(srv, "POST", f"/nfse/{chave}/eventos", b"{}")[0], 501)
+        self.assertEqual(self.enviar(srv, "GET", "/DFe/1")[0], 501)
+        # GET de eventos de NFS-e cai na consulta de NFS-e (404) até a NL-4.2 modelar os eventos do ADN
+        self.assertEqual(self.enviar(srv, "GET", f"/nfse/{chave}/eventos")[0], 404)
 
     def test_ambienteDoXmlsec1SoNoFedora44(self):
         # Captura o ambiente que o oráculo ENTREGA ao xmlsec1 (não o que a função de regra devolve).
