@@ -59,6 +59,7 @@
 - (sem ID): Fatia que baixa e carrega as raízes da ICP-Brasil do ITI, com URL e SHA-256 versionados e conferência na carga (autorizado pelo líder). Fonte: revisão da NL-2.2.
 - (sem ID): Trocar o interior da SenhaSegura (hoje OPENSSL_cleanse, NL-2.2) por libsodium (sodium_memzero e memória protegida), mantendo a interface (autorizado pelo líder). Fonte: revisão da NL-2.2.
 - (sem ID): Subir o piso de contagem de testes de 116 para o verde atual (118) quando conveniente, com o piso visto vermelho por um a menos. Fonte: revisão da NL-2.2.
+- (sem ID): Mensagem "senha errada ou arquivo danificado" na tela de importação do A1, pelo ux-writer (DA-2.32: senha errada em .pfx sem MAC aparece como arquivo danificado). Fonte: decisões do CISO na NL-2.2.
 
 ## Backlog
 

@@ -103,3 +103,13 @@
 **Risco residual que registro, e não mitigo por desenho:** o `.pfx` original costuma ficar no mesmo disco do banco, e o PKCS#12 pode ser fraco contra força bruta offline (seção "Riscos residuais"). A mitigação é orientação no assistente de primeiro uso (NL-8.9). Isso alimenta o aceite do trade-off da cópia pelo A1, que é do líder (ponto L4, ADR-0003).
 
 **Nada deste ADR sobe ao líder,** exceto o que já é dele no ADR-0003 (ponto 7 e trade-off N4).
+
+## Decisões do CISO na NL-2.2 (29/10/2026, decisões autônomas, a ratificar pelo líder)
+
+Registradas durante as rodadas da NL-2.2 (integrada em `af45650`); IDs do plano, seção da NL-2.2.
+
+1. **DA-2.31, seam da `SenhaSegura`.** Complementa o item 4 e a decisão 5 da revisão de 25/10/2026: o `OPENSSL_cleanse` roda sempre (`src/foundation/pkcs12/senha_segura.cpp:65`). O teste observa a zeragem por um observador por ponteiro de função, fixado na construção e imutável, chamado depois da zeragem e antes do `munlock` (`senha_segura.cpp:72`). O acesso de teste é a `friend struct AcessoDeTesteSenhaSegura` (`senha_segura.h:39`), definida só em `tests/unit/foundation/pkcs12/acesso_teste_senha.h`, fora do cabeçalho público instalado. A troca do interior por libsodium, autorizada pelo líder em 29/10/2026, mantém o seam.
+2. **DA-2.32, `.pfx` sem MAC.** Com a senha certa, carrega (aceitação escrita do CISO às 15:12 de 29/10/2026). Condição: âncoras sempre externas (`verificador_cadeia.cpp:35-39`) e certificados do arquivo só na pilha não confiável (`verificador_cadeia.cpp:50-54`). Senha errada sem MAC é falha fechada, apresentada como arquivo danificado. No OpenSSL 3.0.x o teste espera a recusa. Risco residual: sem MAC, a integridade do contêiner depende só da cadeia até a âncora externa e da conferência do par.
+3. **DA-2.33, chave em claro.** Contêiner com chave sem cifra (`-keypbe NONE`) é recusado. A conferência entre chave e certificado é função própria (`conferencia_chave.cpp`), testada direto.
+4. **DA-2.34, revogação fora do carregador.** O carregador não consulta revogação. Decisão do líder de 29/10/2026 ("Fora da v1 (Recomendado)"): o certificado revogado é detectado pela recusa da Sefin, mapeada na NL-2.8 (DA-2.29).
+
