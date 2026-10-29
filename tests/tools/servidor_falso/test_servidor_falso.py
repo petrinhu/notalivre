@@ -321,6 +321,100 @@ class TesteServidorFalso(unittest.TestCase):
         self.assertEqual(self.enviar(srv, "GET", f"/dps/{self.id_dps}")[0], 404)
 
 
+    def test_corpoTruncadoFechaNoMeio(self):
+        # falha roteirizada: GET com status 200 e Content-Length, a conexão cai no meio do corpo, e a falha vale uma vez
+        rot = roteiro.Roteiro()
+        with self.assertRaises(ValueError):
+            rot.agendar("POST", "/nfse", "corpo_truncado")  # só GET: o corte de corpo é de resposta
+        rot.agendar("GET", "/dps/" + self.id_dps, "corpo_truncado")
+        srv = self.subir(rot)
+        conn = self.conexao(srv)
+        try:
+            conn.request("GET", "/dps/" + self.id_dps)
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 200)
+            total = int(resp.getheader("Content-Length"))
+            with self.assertRaises(http.client.IncompleteRead) as ctx:
+                resp.read()
+            self.assertGreater(len(ctx.exception.partial), 0)
+            self.assertLess(len(ctx.exception.partial), total)
+        finally:
+            conn.close()
+        self.assertEqual(rot.pendentes(), 0)
+        self.assertEqual(self.enviar(srv, "GET", "/dps/" + self.id_dps)[0], 404)  # a segunda chamada vê a rota normal
+
+
+    def test_ecoAcceptEncodingDaFalha(self):
+        # falha roteirizada: o servidor devolve no corpo o Accept-Encoding recebido, e a falha vale uma vez
+        rot = roteiro.Roteiro()
+        with self.assertRaises(ValueError):
+            rot.agendar("POST", "/nfse", "eco_accept_encoding")  # só GET
+        rot.agendar("GET", "/dps/" + self.id_dps, "eco_accept_encoding")
+        srv = self.subir(rot)
+        conn = self.conexao(srv)
+        try:
+            conn.request("GET", "/dps/" + self.id_dps, headers={"Accept-Encoding": "identity"})
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 200)
+            self.assertEqual(resp.read(), b"identity")
+        finally:
+            conn.close()
+        self.assertEqual(rot.pendentes(), 0)
+
+    def test_contentEncodingGzipDaFalha(self):
+        # falha roteirizada: 200 com Content-Encoding gzip, corpo realmente comprimido
+        rot = roteiro.Roteiro()
+        rot.agendar("GET", "/dps/" + self.id_dps, "content_encoding_gzip")
+        srv = self.subir(rot)
+        conn = self.conexao(srv)
+        try:
+            conn.request("GET", "/dps/" + self.id_dps, headers={"Accept-Encoding": "identity"})
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 200)
+            self.assertEqual(resp.getheader("Content-Encoding"), "gzip")
+            self.assertIn(b"CONTENT_ENCODING_GZIP", gzip.decompress(resp.read()))
+        finally:
+            conn.close()
+        self.assertEqual(rot.pendentes(), 0)
+
+
+    def test_redirecionaRoteirizado(self):
+        # falha roteirizada: GET responde 302 com Location, e o servidor não segue nada; a falha vale uma vez
+        rot = roteiro.Roteiro()
+        with self.assertRaises(ValueError):
+            rot.agendar("POST", "/nfse", "redireciona")  # só GET
+        rot.agendar("GET", "/dps/" + self.id_dps, "redireciona")
+        srv = self.subir(rot)
+        conn = self.conexao(srv)
+        try:
+            conn.request("GET", "/dps/" + self.id_dps)
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 302)
+            self.assertEqual(resp.getheader("Location"), "/dps/SEGUIDO")
+            resp.read()
+        finally:
+            conn.close()
+        self.assertEqual(rot.pendentes(), 0)
+
+    def test_corpoSemTamanhoFechaNoCorpo(self):
+        # falha roteirizada: 200 sem Content-Length, 4096 bytes, e o servidor fecha a conexão; o corpo acaba no fechamento
+        rot = roteiro.Roteiro()
+        with self.assertRaises(ValueError):
+            rot.agendar("POST", "/nfse", "corpo_sem_tamanho")  # só GET
+        rot.agendar("GET", "/dps/" + self.id_dps, "corpo_sem_tamanho")
+        srv = self.subir(rot)
+        conn = self.conexao(srv)
+        try:
+            conn.request("GET", "/dps/" + self.id_dps)
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 200)
+            self.assertIsNone(resp.getheader("Content-Length"))
+            self.assertEqual(len(resp.read()), 4096)
+        finally:
+            conn.close()
+        self.assertEqual(rot.pendentes(), 0)
+
+
 if __name__ == "__main__":
     suite = unittest.TestSuite([TesteServidorFalso(sys.argv[1])])
     resultado = unittest.TextTestRunner(verbosity=2).run(suite)

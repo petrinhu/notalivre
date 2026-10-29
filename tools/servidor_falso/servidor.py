@@ -8,6 +8,7 @@ INFERÊNCIA até a NL-2.10: códigos de erro (exceto E0714, do Anexo I), a forma
 Endpoints de evento e de DFe respondem 501: fora desta fatia, sem teste, sem comportamento inventado.
 """
 
+import gzip
 import hashlib
 import http.server
 import json
@@ -105,6 +106,16 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             return self._json(504, {"Codigo": "TIMEOUT", "Descricao": "falha roteirizada"})
         if falha == "conflito409":
             return self._json(409, {"Codigo": "DPS_DUPLICADA", "Descricao": "falha roteirizada"})
+        if falha == "corpo_truncado":
+            return self._corpo_truncado()
+        if falha == "eco_accept_encoding":
+            return self._eco_accept_encoding()
+        if falha == "content_encoding_gzip":
+            return self._content_encoding_gzip()
+        if falha == "redireciona":
+            return self._redireciona()
+        if falha == "corpo_sem_tamanho":
+            return self._corpo_sem_tamanho()
         if self.command == "POST" and caminho == "/nfse":
             return self._postar_dps(corpo, falha)
         if self.command in ("GET", "HEAD") and caminho.startswith(ROTA_DPS):
@@ -158,6 +169,58 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         if xml is None:
             return self._json(404, {"Codigo": "NFSE_NAO_ENCONTRADA", "Descricao": chave})
         return self._json(200, corpo_da_nota(chave, xml))
+
+    def _eco_accept_encoding(self):
+        # Devolve, como corpo, o Accept-Encoding que chegou: a conferência do cabeçalho é do lado do servidor.
+        dados = self.headers.get("Accept-Encoding", "").encode("ascii", "replace")
+        self._corpo_bruto(200, "text/plain; charset=us-ascii", dados)
+
+    def _content_encoding_gzip(self):
+        # 200 com Content-Encoding gzip e corpo comprimido de verdade, mesmo sem o cliente ter pedido gzip.
+        dados = gzip.compress(json.dumps({"Codigo": "CONTENT_ENCODING_GZIP", "Descricao": "falha roteirizada"})
+                              .encode("utf-8"))
+        self._corpo_bruto(200, "application/json; charset=utf-8", dados, extra={"Content-Encoding": "gzip"})
+
+    def _redireciona(self):
+        # 302 para outra rota: o cliente que segue o Location chegaria em /dps/SEGUIDO (aqui, 404 sem a falha).
+        self.send_response(302)
+        self.send_header("Location", "/dps/SEGUIDO")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _corpo_sem_tamanho(self):
+        # 200 sem Content-Length: com HTTP/1.0 o corpo termina no fechamento da conexão.
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.end_headers()
+        self.wfile.write(b"x" * 4096)
+        self.wfile.flush()
+        self.close_connection = True
+
+    def _corpo_bruto(self, status, tipo, dados, extra=None):
+        self.send_response(status)
+        self.send_header("Content-Type", tipo)
+        self.send_header("Content-Length", str(len(dados)))
+        for nome, valor in (extra or {}).items():
+            self.send_header(nome, valor)
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(dados)
+
+    def _corpo_truncado(self):
+        # Status 200 e Content-Length do corpo inteiro, mas só metade vai antes do corte: o cliente lê corpo incompleto.
+        dados = json.dumps({"Codigo": "CORPO_TRUNCADO", "Descricao": "falha roteirizada " + "x" * 200},
+                           ensure_ascii=False).encode("utf-8")
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(dados)))
+            self.end_headers()
+            self.wfile.write(dados[: len(dados) // 2])
+            self.wfile.flush()
+        except OSError:
+            pass  # o cliente já desistiu: nada a fazer
+        self.close_connection = True  # fecha no meio do corpo
 
     def _json(self, status, corpo):
         dados = json.dumps(corpo, ensure_ascii=False).encode("utf-8")
