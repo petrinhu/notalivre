@@ -2,16 +2,18 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Conversão da CredencialX509 (NL-2.2) para o MaterialAssinatura do assinador (NL-2.3, DA-2.36). É do adaptador do Mid,
 // e vale só durante a chamada síncrona: a credencial tem de viver enquanto o material é usado. Não copia chave, não
-// incrementa contagem de referência e não libera nada (teste sob ASan).
+// incrementa contagem de referência e não libera nada (teste sob ASan). Cabeçalho público do Mid: só declarações antecipadas.
 #ifndef NL_MID_COFRE_MATERIAL_ASSINATURA_H
 #define NL_MID_COFRE_MATERIAL_ASSINATURA_H
-
-#include <nl/foundation/xmldsig/assinador_xml.h>
 
 #include <expected>
 
 namespace nl::foundation::pkcs12 {
 class CredencialX509;
+}
+
+namespace nl::foundation::xmldsig {
+struct MaterialAssinatura;
 }
 
 namespace nl::mid::cofre {

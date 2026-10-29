@@ -7,6 +7,7 @@
 #include <nl/foundation/pkcs12/carregador_pkcs12.h>
 #include <nl/foundation/pkcs12/credencial_x509.h>
 #include <nl/foundation/pkcs12/senha_segura.h>
+#include <nl/foundation/xmldsig/assinador_xml.h>
 #include <nl/mid/cofre/material_assinatura.h>
 
 #include <QByteArray>

@@ -9,7 +9,8 @@ target_link_libraries(tst_adaptador_credencial PRIVATE Qt6::Core Qt6::Test nl_mi
                       nl_foundation_log nl_warnings)
 
 add_executable(tst_material_assinatura tst_material_assinatura.cpp)
-target_link_libraries(tst_material_assinatura PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_pkcs12 nl_warnings)
+target_link_libraries(tst_material_assinatura PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_pkcs12
+                      nl_foundation_xmldsig nl_warnings)
 
 set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
 

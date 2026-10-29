@@ -4,6 +4,7 @@
 #include <nl/mid/cofre/material_assinatura.h>
 
 #include <nl/foundation/pkcs12/credencial_x509.h>
+#include <nl/foundation/xmldsig/assinador_xml.h>
 
 namespace nl::mid::cofre {
 
