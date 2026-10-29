@@ -16,6 +16,12 @@ target_compile_definitions(tst_codec_dps PRIVATE
     "NL_FIXTURES_DPS=\"${CMAKE_SOURCE_DIR}/tests/fixtures/dps\"")
 add_test(NAME tst_codec_dps COMMAND tst_codec_dps)
 
+# Envelope da DPS (NL-2.4, DA-2.4): INFERÊNCIA até a NL-2.10. Só codifica o GZip que o chamador entrega; o GZip fica
+# na fatia própria dele. O teste lê a chave e o Content-Type da pasta do leiaute, pelo include público de nl_mid.
+add_executable(tst_envelope_dps tst_envelope_dps.cpp)
+target_link_libraries(tst_envelope_dps PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_base nl_warnings)
+add_test(NAME tst_envelope_dps COMMAND tst_envelope_dps)
+
 # Geração das fixtures (fora da suíte normal): grava os XML do codec no diretório de build, de onde são copiados para a árvore.
 add_test(NAME gera_fixtures_dps COMMAND tst_codec_dps geraFixturesDps)
 set_tests_properties(gera_fixtures_dps PROPERTIES ENVIRONMENT "NL_FIXTURES_DPS_SAIDA=${CMAKE_BINARY_DIR}/fixtures_dps")
