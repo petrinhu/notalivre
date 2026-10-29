@@ -76,6 +76,20 @@ xd::ParametrosAssinatura parametrosSha256() {
     return {kC14n, kEnveloped, kSha256, kRsaSha256};
 }
 
+// DA-2.38: no fedora44 o OSSL_LIB_CTX próprio recusa rsa-sha1 (medido). O resto da suíte roda com rsa-sha256 ali.
+bool distroRecusaSha1() {
+    return campoDoOsRelease(QStringLiteral("ID")) == QStringLiteral("fedora") &&
+           campoDoOsRelease(QStringLiteral("VERSION_ID")) == QStringLiteral("44");
+}
+
+xd::ParametrosAssinatura parametrosDaDistro() {
+    return distroRecusaSha1() ? parametrosSha256() : parametrosSha1();
+}
+
+const char* nomeDoDigestDaDistro() {
+    return distroRecusaSha1() ? "sha256" : "sha1";
+}
+
 QString caminhoFixture(const char* nome) {
     return qEnvironmentVariable("NL_CERTIFICADOS_DIR") + QLatin1Char('/') + QString::fromUtf8(nome);
 }
@@ -212,13 +226,13 @@ class TesteAssinadorXml : public QObject {
 
 private slots:
     void assinaturaConfereNoXmlsec1Cli() {
-        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado");
         QVERIFY2(verificarComXmlsec1(*assinado), "o xmlsec1 recusou a assinatura do assinador");
     }
 
     void xmlAlteradoDepoisDeAssinarReprova() {
-        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado");
         QByteArray adulterado = *assinado;
         adulterado.replace("<vServ>100.00", "<vServ>999.00");
@@ -227,7 +241,7 @@ private slots:
     }
 
     void xmlAssinadoContinuaValidoNoXsd() {
-        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado");
         const QString xsd = qEnvironmentVariable("NL_XSD_PRODREST_DIR") + QStringLiteral("/DPS_v1.01.xsd");
         QVERIFY2(executar(qEnvironmentVariable("NL_XMLLINT"),
@@ -238,7 +252,7 @@ private slots:
     }
 
     void signatureIrmaDeInfDps() {
-        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado");
         QCOMPARE(contarNos(*assinado, "/*[local-name()='DPS']/*[local-name()='Signature']"), 1);
         QCOMPARE(contarNos(*assinado, "/*[local-name()='DPS']/*[local-name()='infDPS']"), 1);
@@ -246,14 +260,14 @@ private slots:
     }
 
     void referenciaApontaParaIdDoInfDps() {
-        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado");
         QCOMPARE(textoDoXPath(*assinado, "string(//*[local-name()='Reference']/@URI)"),
                  QStringLiteral("#") + QString::fromUtf8(kIdDps));
     }
 
     void keyInfoSoComX509Certificate() {
-        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado");
         QCOMPARE(contarNos(*assinado, "//*[local-name()='KeyInfo']/*"), 1);
         QCOMPARE(contarNos(*assinado, "//*[local-name()='KeyInfo']/*[local-name()='X509Data']/*"), 1);
@@ -265,7 +279,7 @@ private slots:
         // O infDPS da referência não redeclara o xmlns: a canonicalização do subconjunto tem de herdar o da raiz.
         const QByteArray base = dpsDeReferencia();
         QVERIFY2(!base.contains("<infDPS xmlns"), "a fixture não pode redeclarar o namespace no infDPS");
-        auto assinado = assinarComCredencial(base, parametrosSha1());
+        auto assinado = assinarComCredencial(base, parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado");
         QVERIFY2(verificarComXmlsec1(*assinado), "sem o namespace herdado o digest não confere no xmlsec1");
     }
@@ -280,19 +294,31 @@ private slots:
     }
 
     void digestValueIgualAoDouradoEmTodasAsImagens() {
-        // Dourado gravado a partir da primeira medição, comparado nas quatro imagens e no SDK (DA-2.10).
-        const QString dourado = QString::fromUtf8(
-            lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/digest_infdps.txt"))).trimmed();
-        QVERIFY2(!dourado.isEmpty(), "falta o dourado tests/fixtures/xmldsig/digest_infdps.txt");
-        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        // Dourado gravado a partir da primeira medição (DA-2.10), por algoritmo. Nesta distro, o da distro.
+        const QString algoritmo = QString::fromUtf8(nomeDoDigestDaDistro());
+        const QString dourado = QString::fromUtf8(lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") +
+                                                             QStringLiteral("/digest_infdps_") + algoritmo +
+                                                             QStringLiteral(".txt"))).trimmed();
+        QVERIFY2(!dourado.isEmpty(), "falta o dourado tests/fixtures/xmldsig/digest_infdps_<algoritmo>.txt");
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado");
+        QCOMPARE(textoDoXPath(*assinado, "string(//*[local-name()='DigestValue'])"), dourado);
+    }
+
+    void digestSha256IgualAoDouradoEmTodasAsImagens() {
+        // O SHA-256 é o mesmo em todas as imagens, inclusive o fedora44 (DA-2.38): o dourado é único.
+        const QString dourado = QString::fromUtf8(lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") +
+                                                             QStringLiteral("/digest_infdps_sha256.txt"))).trimmed();
+        QVERIFY2(!dourado.isEmpty(), "falta o dourado tests/fixtures/xmldsig/digest_infdps_sha256.txt");
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha256());
+        QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado com SHA-256");
         QCOMPARE(textoDoXPath(*assinado, "string(//*[local-name()='DigestValue'])"), dourado);
     }
 
     void assinaturaVerificaComAChavePublicaDaFixture() {
         // Segundo oráculo: openssl dgst -verify com a chave pública da fixture, sobre o SignedInfo canonicalizado
         // pelo xmllint. O xmlsec1 não entra nesta conta.
-        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado");
         const int ini = assinado->indexOf("<SignedInfo");
         const int fim = assinado->indexOf("</SignedInfo>");
@@ -336,7 +362,7 @@ private slots:
         sigArquivo.write(sig);
         sigArquivo.close();
         QVERIFY2(executar(QStringLiteral("openssl"),
-                          {QStringLiteral("dgst"), QStringLiteral("-sha1"), QStringLiteral("-verify"),
+                          {QStringLiteral("dgst"), QString::fromUtf8(nomeDoDigestDaDistro()).prepend(QLatin1Char('-')), QStringLiteral("-verify"),
                            dir.filePath(QStringLiteral("chave_publica.pem")), QStringLiteral("-signature"),
                            dir.filePath(QStringLiteral("assinatura.bin")), dir.filePath(QStringLiteral("assinado.bin"))}),
                  "openssl dgst -verify recusou o SignedInfo com a chave pública da fixture");
@@ -379,7 +405,7 @@ private slots:
         evp_pkey_st* const chave = credencial->chavePrivada();
         const xd::MaterialAssinatura material{cert, chave};
         const QStringView id = QStringLiteral("DPS430510821122233300018100001000000000000001");
-        auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), id, parametrosSha1(), material);
+        auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), id, parametrosDaDistro(), material);
         QVERIFY2(assinado.has_value(), "o assinador tem de assinar com o material emprestado");
         QVERIFY2(credencial->certificado() == cert && credencial->chavePrivada() == chave,
                  "o assinador não pode trocar os ponteiros da credencial");

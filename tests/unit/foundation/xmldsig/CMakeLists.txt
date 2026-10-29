@@ -33,6 +33,7 @@ else()
         namespaceHerdadoEntraNaCanonicalizacao
         algoritmoVemDaPastaDoLeiaute
         digestValueIgualAoDouradoEmTodasAsImagens
+        digestSha256IgualAoDouradoEmTodasAsImagens
         assinaturaVerificaComAChavePublicaDaFixture
         algoritmoBloqueadoViraErroProprio
         materialNuloDevolveErroProprio
@@ -46,6 +47,6 @@ foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
     set_tests_properties(xmldsig.${nome} PROPERTIES
                          FIXTURES_REQUIRED certificados_teste
                          ENVIRONMENT "${NL_AMBIENTE_XMLDSIG}"
-                         PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed"
+                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()

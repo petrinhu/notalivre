@@ -318,3 +318,23 @@ Objetivo (plano, NL-2.3, DA-2.10): medir se o OpenSSL do runtime KDE 6.11, que �
 - A política do contêiner Fedora (`/etc/crypto-policies/back-ends/opensslcnf.config`, perfil DEFAULT) tem `rh-allow-sha1-signatures = no`, e mesmo assim o SHA-1 passou nos runtimes. Hipótese: o OpenSSL do KDE não tem o patch do Fedora que lê essa chave, então o bloqueio do fedora44 do host (NL-2.6) não se repete no runtime. Não foi provado qual cnf entrou na primeira rodada.
 - Consequência: a condição de parada da NL-2.3 ("runtime recusar SHA-1") não se cumpre. Falta medir se o `OSSL_LIB_CTX` próprio do app se comporta igual (DA-2.10) e o teste `assinaSha1NoSdkKdeSemVariavel` no job Flatpak.
 - O runtime medido fica em `/var/tmp/notalivre-nl23/trabalho` para o teste da NL-2.3; a limpeza fica para depois da revisão (L-53).
+
+## NL-2.3 passo 1: OSSL_LIB_CTX próprio em cada distro (DA-2.38)
+
+**Objetivo (DA-2.38):** medir se o `OSSL_LIB_CTX` próprio do assinador (provider default carregado explicitamente, sem
+variável de ambiente) assina `rsa-sha1`. A expectativa por distro sai de `tests/fixtures/xmldsig/tabela_sha1_por_distro.txt`.
+
+**FATO (medido, fedora 44, contêiner local, SDK do build nativo, OpenSSL 3.5.9, xmlsec1 1.2.41):**
+- O teste `xmldsig.medirOsslLibCtxProprio` (tst_assinador_xml.cpp) registrou
+  `MEDICAO id=fedora versao=44 variavel_presente=0 osslctx_proprio=assinatura.algoritmo_bloqueado`.
+- Log: `/var/tmp/notalivre-logs/NL-2.3-r3-verde-fedora44.log` (SHA 9b2f32e; a linha do QINFO está no bloco do slot).
+- Decisão aplicada: a linha `fedora 44 algoritmo_bloqueado` da tabela. No fedora44 o resto da suíte do assinador roda com
+  `rsa-sha256` pelos `ParametrosAssinatura` (DA-2.38), e o dourado do SHA-256 é o mesmo em todas as imagens.
+
+**INFERÊNCIA (não medida ainda):** a recusa vem da política de cripto do Fedora (crypto-policy DEFAULT), que atinge
+também o contexto próprio. A NL-2.6 mediu que a variável libera o `openssl` global; o contexto próprio não foi medido com
+a variável presente, e não precisa: a variável é proibida no app (DA-2.10).
+
+**Esperado nas outras três distros (tabela):** `sha1` (ubuntu 26.04, manjaro rolling, linuxmint 22.3). Medição nelas: a
+mesma linha `MEDICAO` no log de cada build verde da NL-2.3.
+
