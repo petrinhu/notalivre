@@ -11,6 +11,7 @@
 - (sem ID): Narciso revisa o que acontece com a senha guardada no chaveiro quando o usuário troca de certificado (recomendação do CTO: apagar a antiga no mesmo ato) e o limite de emissores por instalação (recomendação do CTO: sem limite fixo). Fonte: docs/superpowers/plans/2026-10-25-notalivre-plano.md, NL-4.3.
 - (sem ID): Narciso e o CTO decidem a recuperação da numeração depois de perder o banco, e o cadastro de tomadores que não volta pelo ADN. Fonte: plano, seção 9 (spec 4.4), prevista para a Onda 3.
 - (sem ID): Capitolino e Celso tratam suporte ao usuário, o "por que agora" e a métrica de sucesso (spec seções 1 e 3.4). Fonte: plano, seção 9.
+- (sem ID): NL-2.2, pre-requisito entregue em c88553a: cabecalhos de desenvolvimento do OpenSSL nas imagens (openssl-devel no fedora44; libssl-dev no ubuntu26.04 e no mint22.3; autorizacao do lider de 28/10/2026). Falta reconstruir as imagens e confirmar o nome do pacote dentro do contexto; o Status da linha NL-2.2 segue Pendente, porque o carregador PKCS#12 ainda nao existe.
 - —: segundo portão de camadas lendo os arquivos .d (-MD) do próprio build, complemento do A2 (pega macro, __has_include, header gerado); sugerido na revisão de NL-0.3
 - —: install() no CMake, .desktop, metainfo.xml (AppStream) e ícone para o Flatpak (sugerido na revisão de NL-0.5)
 - (sem ID): Capitolino decide se IBS/CBS de bens móveis objeto de locação (IBSCBS/bensMoveis, 0 a 1000) entra na v1. Fonte: plano, Onda 1, INBOX item 1 (Anexo de 20/10, aba 6 linha 385).
