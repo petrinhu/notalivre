@@ -8,9 +8,13 @@ find_package(OpenSSL 3.0 REQUIRED)
 add_library(nl_foundation_pkcs12 STATIC
     ancoras.cpp
     carregador_pkcs12.cpp
+    contexto_ossl.cpp
     credencial_x509.cpp
+    decifrar_pfx.cpp
+    extrator_inscricao.cpp
     inscricao.cpp
-    senha_segura.cpp)
+    senha_segura.cpp
+    verificador_cadeia.cpp)
 target_include_directories(nl_foundation_pkcs12 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(nl_foundation_pkcs12 PUBLIC nl_foundation_base nl_foundation_log Qt6::Core)
 target_link_libraries(nl_foundation_pkcs12 PRIVATE OpenSSL::Crypto nl_warnings)
