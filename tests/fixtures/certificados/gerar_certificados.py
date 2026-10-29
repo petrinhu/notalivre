@@ -5,17 +5,17 @@
 
 Uso: python3 -I gerar_certificados.py DIR_SAIDA
 
-Cria em DIR_SAIDA os 29 arquivos do inventário fixo (ver test_certificados.py): uma AC de teste (raiz, com
-pathlen 1), uma AC subordinada de teste (pathlen 0, assinada pela AC), certificados de cliente (CNPJ no otherName
-2.16.76.1.3.3, CPF no 2.16.76.1.3.1, EKU clientAuth, EKU sem clientAuth, sem EKU, sem otherName, vencido, revogado
-com LCR, outro CNPJ raiz, CNPJ alfanumérico), .pfx moderno (PBES2 e AES-256) de cada cliente, um .pfx legado
-(RC2-40 no cert bag e 3DES no key bag), o certificado do servidor falso (SAN localhost e 127.0.0.1, EKU
-serverAuth), um certificado autoassinado de outra raiz e dois .pfx de cadeia (com a subordinada completa, e sem
-ela, para a cadeia incompleta).
+Cria em DIR_SAIDA os 39 arquivos do inventário fixo (ver test_certificados.py): uma AC de teste (raiz, pathlen 1),
+uma AC subordinada de teste (pathlen 0, assinada pela AC), certificados de cliente (CNPJ no otherName 2.16.76.1.3.3,
+CPF no 2.16.76.1.3.1, EKU clientAuth, EKU sem clientAuth, sem EKU, EKU malformada, sem otherName com CN de CNPJ,
+otherName de outro OID, vencido, revogado com LCR, notBefore futuro, outro CNPJ raiz, CNPJ alfanumérico), .pfx
+moderno (PBES2 e AES-256) de cada cliente, um .pfx legado (RC2-40 no cert bag e 3DES no key bag), o certificado do
+servidor falso (SAN localhost e 127.0.0.1, EKU serverAuth), um autoassinado de outra raiz, dois .pfx de cadeia da
+subordinada (completa e sem ela), um .pfx com subordinada vencida e um .pfx de outra subordinada, assinada por outra raiz.
 
 Senha de teste: aleatória a cada execução, gravada em senha_teste.txt (0600). Não há senha literal no script.
 A AC privada e as chaves dos clientes vivem numa pasta de trabalho (estado_ac) que é apagada ao fim.
-Chamadas ao openssl: sequenciais, por argv (nunca por shell); nenhum laço gasta processo por item além dos perfis.
+Chamadas ao openssl: sequenciais, por argv (nunca por shell).
 """
 import os
 import secrets
@@ -26,11 +26,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 VAR_SENHA = "NL_SENHA_TESTE"
-N_ARQUIVOS = 29
+N_ARQUIVOS = 39
 ESTADO = "estado_ac"
 SUBJ_AC = "/O=NotaLivre teste/CN=AC TESTE NOTALIVRE NAO USAR"
 SUBJ_SUBAC = "/O=NotaLivre teste/CN=AC TESTE SUBORDINADA NAO USAR"
+SUBJ_SUBAC_VENCIDA = "/O=NotaLivre teste/CN=AC TESTE SUBORDINADA VENCIDA NAO USAR"
 SUBJ_OUTRA_RAIZ = "/O=TESTE NOTALIVRE/CN=TESTE cadeia_outra_raiz"
+SUBJ_RAIZ_B = "/O=NotaLivre teste/CN=RAIZ B TESTE NAO USAR"
+SUBJ_SUBAC_B = "/O=NotaLivre teste/CN=AC TESTE SUBORDINADA B NAO USAR"
 
 CNPJ_OK = "12345678000195"
 CNPJ_OUTRO_RAIZ = "98765432000198"
@@ -40,15 +43,20 @@ CONTEUDO_CPF = "01011990" + "12345678909" + "00000000000" + "000000000000000" + 
 
 OID_CNPJ = "2.16.76.1.3.3"
 OID_CPF = "2.16.76.1.3.1"
+OID_OUTRO = "2.16.76.1.3.4"
+
+# EKU malformada: a extensão existe, mas o conteúdo não é uma sequência de OIDs.
+EKU_MALFORMADA = "ASN1:UTF8String:nao-e-sequencia-de-oid"
 
 
 @dataclass(frozen=True)
 class Cliente:
     nome: str
-    oid: "str | None"   # None: certificado sem otherName de identificação (SemInscricao)
+    oid: "str | None"   # None: certificado sem otherName de identificação
     valor: str
-    eku: str            # "clientauth", "emailprotection" ou "ausente"
-    situacao: str       # ok, vencido ou revogado
+    eku: str            # "clientauth", "emailprotection", "ausente" ou "malformada"
+    situacao: str       # ok, vencido, revogado ou futuro
+    cn: str = ""        # CN explícito; vazio: "TESTE <nome>"
 
 
 CLIENTES = (
@@ -61,11 +69,26 @@ CLIENTES = (
     Cliente("cnpj_alfanumerico", OID_CNPJ, CNPJ_ALFANUMERICO, "clientauth", "ok"),
     Cliente("eku_ausente", OID_CNPJ, CNPJ_OK, "ausente", "ok"),
     Cliente("sem_identificacao", None, "", "clientauth", "ok"),
+    Cliente("eku_malformada", OID_CNPJ, CNPJ_OK, "malformada", "ok"),
+    Cliente("folha_futura", OID_CNPJ, CNPJ_OK, "clientauth", "futuro"),
+    Cliente("cn_com_cnpj_sem_san", None, "", "clientauth", "ok", cn=CNPJ_OK),
+    Cliente("outro_oid_sem_inscricao", OID_OUTRO, CNPJ_OK, "clientauth", "ok"),
 )
 
 # Datas do certificado vencido: já expirado desde 2021 (openssl ca aceita a janela no passado).
 VENCIDO_INICIO = "20200101000000Z"
 VENCIDO_FIM = "20210101000000Z"
+# Datas do certificado de validade futura: começa só em 2099.
+FUTURO_INICIO = "20990101000000Z"
+FUTURO_FIM = "21000101000000Z"
+
+
+def datas_do(cliente):
+    if cliente.situacao == "vencido":
+        return ("-startdate", VENCIDO_INICIO, "-enddate", VENCIDO_FIM)
+    if cliente.situacao == "futuro":
+        return ("-startdate", FUTURO_INICIO, "-enddate", FUTURO_FIM)
+    return ()
 
 
 def gravar_senha(caminho, senha):
@@ -85,8 +108,8 @@ def rodar(argv, env=None):
 
 
 def escrever_configuracao(saida, estado):
-    """Config do openssl ca e das extensões de cada perfil. Um perfil por cliente, mais o do servidor, da AC e
-    da subordinada. A AC raiz tem pathlen 1 para admitir uma subordinada; a subordinada tem pathlen 0."""
+    """Config do openssl ca e das extensões de cada perfil. Um perfil por cliente, mais o do servidor, da AC raiz,
+    da subordinada e da segunda raiz (usada só para a cadeia de outra subordinada)."""
     linhas = [
         "[ca]", "default_ca = CA_TESTE",
         "[CA_TESTE]",
@@ -112,6 +135,11 @@ def escrever_configuracao(saida, estado):
         "keyUsage = critical,keyCertSign,cRLSign",
         "subjectKeyIdentifier = hash",
         "authorityKeyIdentifier = keyid:always",
+        "[ext_raiz_b]",
+        "basicConstraints = critical,CA:TRUE,pathlen:1",
+        "keyUsage = critical,keyCertSign,cRLSign",
+        "subjectKeyIdentifier = hash",
+        "authorityKeyIdentifier = keyid:always",
         "[ext_servidor]",
         "basicConstraints = CA:FALSE",
         "keyUsage = critical,digitalSignature,keyEncipherment",
@@ -131,6 +159,8 @@ def escrever_configuracao(saida, estado):
             linhas.append("extendedKeyUsage = clientAuth")
         elif c.eku == "emailprotection":
             linhas.append("extendedKeyUsage = emailProtection")
+        elif c.eku == "malformada":
+            linhas.append(f"extendedKeyUsage = {EKU_MALFORMADA}")
         linhas += [
             "subjectKeyIdentifier = hash",
             "authorityKeyIdentifier = keyid:always",
@@ -146,6 +176,10 @@ def gerar_ac(saida, estado, cnf, env):
            "-out", str(estado / "ac.key")])
     rodar(["openssl", "req", "-x509", "-new", "-key", str(estado / "ac.key"), "-config", str(cnf),
            "-extensions", "ext_ac", "-days", "3650", "-subj", SUBJ_AC, "-out", str(saida / "ac.pem")], env)
+
+
+def gerar_chave(caminho):
+    rodar(["openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:2048", "-out", str(caminho)])
 
 
 def gerar_subordinada(saida, estado, cnf, env):
@@ -169,9 +203,9 @@ def emitir(cnf, estado, nome, chave_pem, csr_subj, extensao, saida_pem, env, dat
 
 def gerar_clientes(saida, estado, cnf, env):
     for c in CLIENTES:
-        datas = ("-startdate", VENCIDO_INICIO, "-enddate", VENCIDO_FIM) if c.situacao == "vencido" else ()
-        emitir(cnf, estado, c.nome, estado / (c.nome + ".key"), f"/O=TESTE NOTALIVRE/CN=TESTE {c.nome}",
-               f"ext_{c.nome}", saida / (c.nome + ".pem"), env, datas)
+        cn = c.cn if c.cn else f"TESTE {c.nome}"
+        emitir(cnf, estado, c.nome, estado / (c.nome + ".key"), f"/O=TESTE NOTALIVRE/CN={cn}",
+               f"ext_{c.nome}", saida / (c.nome + ".pem"), env, datas_do(c))
     revogado = next(c for c in CLIENTES if c.situacao == "revogado")
     rodar(["openssl", "ca", "-batch", "-config", str(cnf), "-revoke", str(saida / (revogado.nome + ".pem"))], env)
     rodar(["openssl", "ca", "-batch", "-config", str(cnf), "-gencrl", "-out", str(saida / "crl.pem")], env)
@@ -182,10 +216,20 @@ def gerar_servidor(saida, estado, cnf, env):
            "ext_servidor", saida / "servidor.pem", env)
 
 
+def assinar_folha(cnf, estado, nome, emissor_pem, emissor_key, serial, extensao, env):
+    """Folha assinada por um emissor de teste, por openssl x509 -req. Devolve o caminho do .pem da folha."""
+    gerar_chave(estado / (nome + ".key"))
+    rodar(["openssl", "req", "-new", "-key", str(estado / (nome + ".key")),
+           "-subj", f"/O=TESTE NOTALIVRE/CN=TESTE {nome}", "-out", str(estado / (nome + ".csr"))], env)
+    rodar(["openssl", "x509", "-req", "-in", str(estado / (nome + ".csr")), "-CA", str(emissor_pem),
+           "-CAkey", str(emissor_key), "-set_serial", serial, "-days", "365",
+           "-extfile", str(cnf), "-extensions", extensao, "-out", str(estado / (nome + ".pem"))], env)
+    return estado / (nome + ".pem")
+
+
 def gerar_cadeias(saida, estado, cnf, env):
     """Folha CNPJ assinada pela subordinada (cnpj_sub); autoassinado de outra raiz (cadeia_outra_raiz)."""
-    rodar(["openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:2048",
-           "-out", str(estado / "cnpj_sub.key")])
+    gerar_chave(estado / "cnpj_sub.key")
     rodar(["openssl", "req", "-new", "-key", str(estado / "cnpj_sub.key"),
            "-subj", "/O=TESTE NOTALIVRE/CN=TESTE cnpj_sub", "-out", str(estado / "cnpj_sub.csr")], env)
     rodar(["openssl", "x509", "-req", "-in", str(estado / "cnpj_sub.csr"), "-CA", str(saida / "sub_ac.pem"),
@@ -203,6 +247,38 @@ def gerar_cadeias(saida, estado, cnf, env):
            "-addext", "keyUsage=critical,digitalSignature",
            "-addext", "extendedKeyUsage=clientAuth",
            "-addext", f"subjectAltName=otherName:{OID_CNPJ};OCT:{CNPJ_OUTRO_RAIZ}"], env)
+
+
+def gerar_cadeias_extra(saida, estado, cnf, env):
+    """Intermediária vencida (folha válida, cadeia não) e outra subordinada assinada por outra raiz (raiz B)."""
+    # Subordinada vencida, emitida pelo banco da AC com datas passadas; a folha por cima dela é válida.
+    emitir(cnf, estado, "sub_vencida", estado / "sub_vencida.key", SUBJ_SUBAC_VENCIDA, "ext_subac",
+           estado / "sub_vencida.pem", env, ("-startdate", VENCIDO_INICIO, "-enddate", VENCIDO_FIM))
+    folha = assinar_folha(cnf, estado, "int_vencida_folha", estado / "sub_vencida.pem",
+                          estado / "sub_vencida.key", "0x4001", "ext_cnpj_ok", env)
+    (estado / "cadeia_vencida.pem").write_text(
+        (estado / "sub_vencida.pem").read_text(encoding="ascii") + (saida / "ac.pem").read_text(encoding="ascii"),
+        encoding="ascii")
+    exportar_pfx(saida, "intermediaria_vencida.pfx", folha, estado / "int_vencida_folha.key", env,
+                 certfile=estado / "cadeia_vencida.pem")
+
+    # Raiz B (outra raiz, não é a âncora de teste), subordinada B e folha: a cadeia está completa, mas não chega à AC.
+    rodar(["openssl", "req", "-x509", "-new", "-config", str(cnf), "-extensions", "ext_raiz_b", "-newkey",
+           "rsa:2048", "-nodes", "-keyout", str(estado / "raiz_b.key"), "-out", str(estado / "raiz_b.pem"),
+           "-days", "3650", "-subj", SUBJ_RAIZ_B], env)
+    gerar_chave(estado / "sub_b.key")
+    rodar(["openssl", "req", "-new", "-key", str(estado / "sub_b.key"), "-subj", SUBJ_SUBAC_B,
+           "-out", str(estado / "sub_b.csr")], env)
+    rodar(["openssl", "x509", "-req", "-in", str(estado / "sub_b.csr"), "-CA", str(estado / "raiz_b.pem"),
+           "-CAkey", str(estado / "raiz_b.key"), "-set_serial", "0x5001", "-days", "365",
+           "-extfile", str(cnf), "-extensions", "ext_subac", "-out", str(estado / "sub_b.pem")], env)
+    folha_b = assinar_folha(cnf, estado, "folha_outra_sub", estado / "sub_b.pem", estado / "sub_b.key",
+                            "0x5002", "ext_cnpj_ok", env)
+    (estado / "cadeia_b.pem").write_text(
+        (estado / "sub_b.pem").read_text(encoding="ascii") + (estado / "raiz_b.pem").read_text(encoding="ascii"),
+        encoding="ascii")
+    exportar_pfx(saida, "cadeia_outra_sub.pfx", folha_b, estado / "folha_outra_sub.key", env,
+                 certfile=estado / "cadeia_b.pem")
 
 
 def exportar_pfx(saida, nome_saida, cert, chave, env, certfile=None, legado=False):
@@ -235,7 +311,7 @@ def nomes_de_saida():
     """Nomes do inventário que o gerador grava em DIR_SAIDA (usado para limpar execução anterior)."""
     nomes = ["ac.pem", "sub_ac.pem", "crl.pem", "servidor.pem", "servidor.key", "cnpj_ok_legado.pfx",
              "cadeia_outra_raiz.pem", "cadeia_outra_raiz.pfx", "cnpj_sub.pfx", "cnpj_sub_sem_intermediaria.pfx",
-             "senha_teste.txt"]
+             "intermediaria_vencida.pfx", "cadeia_outra_sub.pfx", "senha_teste.txt"]
     for c in CLIENTES:
         nomes += [c.nome + ".pem", c.nome + ".pfx"]
     return nomes
@@ -265,6 +341,7 @@ def gerar(saida):
         gerar_clientes(saida, estado, cnf, env)
         gerar_servidor(saida, estado, cnf, env)
         gerar_cadeias(saida, estado, cnf, env)
+        gerar_cadeias_extra(saida, estado, cnf, env)
         exportar_todos(saida, estado, env)
     finally:
         shutil.rmtree(estado, ignore_errors=True)

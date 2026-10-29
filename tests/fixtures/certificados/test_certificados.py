@@ -30,13 +30,14 @@ CONTEUDO_CPF = "01011990" + CPF_OK + "00000000000" + "000000000000000" + "SSPTES
 
 # EKU clientAuth presente (sem_identificacao tem EKU, mas não tem otherName: SemInscricao).
 CLIENTES_COM_CLIENTAUTH = ["cnpj_ok", "cpf_ok", "outro_cnpj_raiz", "cnpj_alfanumerico", "vencido", "revogado",
-                           "sem_identificacao"]
+                           "sem_identificacao", "folha_futura", "cn_com_cnpj_sem_san", "outro_oid_sem_inscricao"]
 # sem_clientauth: EKU emailProtection (presente, sem clientAuth). eku_ausente: sem extensão EKU.
-CLIENTES = CLIENTES_COM_CLIENTAUTH + ["sem_clientauth", "eku_ausente"]
+CLIENTES = CLIENTES_COM_CLIENTAUTH + ["sem_clientauth", "eku_ausente", "eku_malformada"]
 PFX_MODERNOS = [c + ".pfx" for c in CLIENTES]
 # Certificados de cadeia: subordinada da AC de teste, autoassinado de outra raiz, e a folha da subordinada em dois .pfx.
 EXTRAS_PEM = ["sub_ac.pem", "cadeia_outra_raiz.pem"]
-PFX_EXTRAS = ["cadeia_outra_raiz.pfx", "cnpj_sub.pfx", "cnpj_sub_sem_intermediaria.pfx"]
+PFX_EXTRAS = ["cadeia_outra_raiz.pfx", "cnpj_sub.pfx", "cnpj_sub_sem_intermediaria.pfx",
+              "intermediaria_vencida.pfx", "cadeia_outra_sub.pfx"]
 # .pfx que levam a AC de teste no bag de CA (o pfx de cadeia de outra raiz e o sem intermediária não levam).
 PFX_COM_AC = PFX_MODERNOS
 
@@ -48,7 +49,7 @@ ARQUIVOS_ESPERADOS = (
     + PFX_MODERNOS
     + PFX_EXTRAS
 )
-N_ARQUIVOS_ESPERADOS = 29
+N_ARQUIVOS_ESPERADOS = 39
 
 OID_CNPJ = "2.16.76.1.3.3"
 OID_CPF = "2.16.76.1.3.1"
