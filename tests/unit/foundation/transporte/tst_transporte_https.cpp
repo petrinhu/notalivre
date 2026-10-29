@@ -20,6 +20,7 @@
 #include <QProcess>
 #include <QSslCertificate>
 #include <QSslKey>
+#include <QSslSocket>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
@@ -123,7 +124,16 @@ public:
                 porta_ = linha.mid(6).toInt();
             }
         }
+        if (porta_ == 0) {
+            // Sem porta, o traceback do lançador é a única pista: guarda-o para a mensagem do QVERIFY2.
+            processo_.kill();
+            processo_.waitForFinished(2000);
+            diagnostico_ = QStringLiteral("servidor falso não subiu; stderr do lançador: ")
+                           + QString::fromUtf8(processo_.readAllStandardError());
+        }
     }
+
+    const QString& diagnostico() const { return diagnostico_; }
 
     ~ServidorDeTeste() {
         processo_.closeWriteChannel();
@@ -138,6 +148,7 @@ public:
 private:
     QProcess processo_;
     int porta_ = 0;
+    QString diagnostico_;
 };
 
 } // namespace
@@ -146,6 +157,10 @@ class TesteTransporteHttps : public QObject {
     Q_OBJECT
 
 private slots:
+    // initTestCase e cleanupTestCase existem de propósito: o QTest soma os dois como passes, e o CTest espera
+    // "Totals: 3 passed" (um slot + dois). Sem eles, a contagem do regex não bate (medido pelo revisor, fix(test)).
+    void initTestCase();
+    void cleanupTestCase();
     void semCertificadoDeClienteHandshakeRecusado();
     void certificadoDeOutraAcRecusado();
     void timeoutViraErroTransitorio();
@@ -153,15 +168,27 @@ private slots:
     void conexaoRecusadaViraErroTransitorio();
 };
 
+void TesteTransporteHttps::initTestCase()
+{
+    // Se o plugin TLS do Qt não carregou no contêiner, os testes de handshake falhariam por motivo que não é o transporte.
+    QVERIFY2(QSslSocket::supportsSsl(), qPrintable(QSslSocket::sslLibraryBuildVersionString()));
+    QVERIFY2(!pastaFixtures().isEmpty(), "NL_CERTIFICADOS_DIR não definido: a fixture de certificados não rodou");
+}
+
+void TesteTransporteHttps::cleanupTestCase()
+{
+}
+
 void TesteTransporteHttps::semCertificadoDeClienteHandshakeRecusado()
 {
     ServidorDeTeste servidor;
-    QVERIFY2(servidor.porta() > 0, "servidor falso não subiu");
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
     ConfiguracaoTls tls;
     tls.autoridades = autoridadeDeTeste();
     TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
     auto resposta = transporte.enviar(consultaDps());
     QVERIFY(!resposta.has_value());
+    qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
     QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
     QCOMPARE(resposta.error().causa, CausaErro::Tls);
 }
@@ -170,7 +197,7 @@ void TesteTransporteHttps::certificadoDeOutraAcRecusado()
 {
     // Certificado autoassinado de outra raiz (cadeia_outra_raiz.pfx): o servidor só confia na AC de teste.
     ServidorDeTeste servidor;
-    QVERIFY2(servidor.porta() > 0, "servidor falso não subiu");
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
     const ParCliente outra = parDoPfx(QStringLiteral("cadeia_outra_raiz.pfx"));
     QVERIFY2(!outra.certificado.isNull() && !outra.chave.isNull(), "não foi possível ler o par de outra AC");
     ConfiguracaoTls tls;
@@ -180,6 +207,7 @@ void TesteTransporteHttps::certificadoDeOutraAcRecusado()
     TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
     auto resposta = transporte.enviar(consultaDps());
     QVERIFY(!resposta.has_value());
+    qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
     QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
     QCOMPARE(resposta.error().causa, CausaErro::Tls);
 }
@@ -189,7 +217,7 @@ void TesteTransporteHttps::timeoutViraErroTransitorio()
     // O servidor segura a resposta de GET /dps/ABC (falha roteirizada, vale uma vez). O cliente desiste antes.
     ServidorDeTeste servidor({QStringLiteral("GET"), QStringLiteral("/dps/ABC"), QStringLiteral("timeout")});
     // (uma única tripla: METODO, CAMINHO, FALHA)
-    QVERIFY2(servidor.porta() > 0, "servidor falso não subiu");
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
     const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
     QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
     ConfiguracaoTls tls;
@@ -199,6 +227,7 @@ void TesteTransporteHttps::timeoutViraErroTransitorio()
     TransporteHttps transporte(urlBase(servidor.porta(), QString(), 700ms), tls);
     auto resposta = transporte.enviar(consultaDps());
     QVERIFY(!resposta.has_value());
+    qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
     QCOMPARE(resposta.error().tipo, TipoErro::Transitorio);
     QCOMPARE(resposta.error().causa, CausaErro::Timeout);
 }
@@ -208,7 +237,7 @@ void TesteTransporteHttps::baseEPrefixoVemDaConfiguracao()
     // O servidor responde 404 para rota desconhecida (ROTA_INEXISTENTE) e 404 com E2404 para a DPS sem nota. O corpo
     // diz qual rota o servidor recebeu: o prefixo da configuração tem de estar no caminho.
     ServidorDeTeste servidor;
-    QVERIFY2(servidor.porta() > 0, "servidor falso não subiu");
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
     const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
     QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
     ConfiguracaoTls tls;
@@ -237,6 +266,7 @@ void TesteTransporteHttps::conexaoRecusadaViraErroTransitorio()
     TransporteHttps transporte(urlBase(1, QString(), 3000ms), tls);
     auto resposta = transporte.enviar(consultaDps());
     QVERIFY(!resposta.has_value());
+    qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
     QCOMPARE(resposta.error().tipo, TipoErro::Transitorio);
     QCOMPARE(resposta.error().causa, CausaErro::Conexao);
 }
