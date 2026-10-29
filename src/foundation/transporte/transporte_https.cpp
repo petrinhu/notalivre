@@ -117,7 +117,7 @@ std::expected<RespostaHttp, ErroTransporte> TransporteHttps::enviar(const Requis
     QUrl url = urlBase_.base;
     url.setPath(urlBase_.prefixo + requisicao.caminho);
     QNetworkRequest pedido(url);
-    pedido.setRedirectPolicy(QNetworkRequest::ManualRedirectPolicy);
+    pedido.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     pedido.setSslConfiguration(configurarSsl(tls_));
     if (!requisicao.tipoConteudo.isEmpty()) {
         pedido.setHeader(QNetworkRequest::ContentTypeHeader, requisicao.tipoConteudo);
