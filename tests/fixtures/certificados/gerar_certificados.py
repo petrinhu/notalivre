@@ -5,7 +5,7 @@
 
 Uso: python3 -I gerar_certificados.py DIR_SAIDA
 
-Cria em DIR_SAIDA os 42 arquivos do inventário fixo (ver test_certificados.py): uma AC de teste (raiz, pathlen 1),
+Cria em DIR_SAIDA os 41 arquivos do inventário fixo (ver test_certificados.py): uma AC de teste (raiz, pathlen 1),
 uma AC subordinada de teste (pathlen 0, assinada pela AC), certificados de cliente (CNPJ no otherName 2.16.76.1.3.3,
 CPF no 2.16.76.1.3.1, EKU clientAuth, EKU sem clientAuth, sem EKU, EKU malformada, sem otherName com CN de CNPJ,
 otherName de outro OID, vencido, revogado com LCR, notBefore futuro, outro CNPJ raiz, CNPJ alfanumérico), .pfx
@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 VAR_SENHA = "NL_SENHA_TESTE"
-N_ARQUIVOS = 42
+N_ARQUIVOS = 41
 ESTADO = "estado_ac"
 SUBJ_AC = "/O=NotaLivre teste/CN=AC TESTE NOTALIVRE NAO USAR"
 SUBJ_SUBAC = "/O=NotaLivre teste/CN=AC TESTE SUBORDINADA NAO USAR"
@@ -314,9 +314,6 @@ def exportar_todos(saida, estado, env):
     # Chave em claro (sem cifra): ADR-0002 proíbe; o carregador recusa com falha fechada.
     exportar_pfx(saida, "chave_sem_cifra.pfx", saida / "cnpj_ok.pem", estado / "cnpj_ok.key", env,
                  certfile=saida / "ac.pem", nomac=True, keypbe="NONE")
-    # Chave que não pertence ao certificado: PKCS#12 íntegro, mas a chave não confere com a folha.
-    exportar_pfx(saida, "chave_nao_confere.pfx", saida / "cnpj_ok.pem", estado / "cnpj_sub.key", env,
-                 certfile=saida / "ac.pem")
 
 
 def nomes_de_saida():
@@ -324,7 +321,7 @@ def nomes_de_saida():
     nomes = ["ac.pem", "sub_ac.pem", "crl.pem", "servidor.pem", "servidor.key", "cnpj_ok_legado.pfx",
              "cadeia_outra_raiz.pem", "cadeia_outra_raiz.pfx", "cnpj_sub.pfx", "cnpj_sub_sem_intermediaria.pfx",
              "intermediaria_vencida.pfx", "cadeia_outra_sub.pfx", "sem_mac.pfx", "chave_sem_cifra.pfx",
-             "chave_nao_confere.pfx", "senha_teste.txt"]
+             "senha_teste.txt"]
     for c in CLIENTES:
         nomes += [c.nome + ".pem", c.nome + ".pfx"]
     return nomes

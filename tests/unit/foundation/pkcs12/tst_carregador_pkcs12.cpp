@@ -14,7 +14,12 @@
 #include <nl/foundation/pkcs12/senha_segura.h>
 
 #include <openssl/err.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/pkcs12.h>
 #include <openssl/pkcs12err.h>
+#include <openssl/x509.h>
 #include <openssl/provider.h>
 
 #include <nl/foundation/pkcs12/classificacao_erros.h>
@@ -256,14 +261,44 @@ void TesteCarregadorPkcs12::pfxComChaveSemCifraRecusado()
     QCOMPARE(resultado.error(), ErroCredencial::PfxMalformado);
 }
 
+// PKCS#12 com a chave de OUTRO par, montado em memória: o openssl pkcs12 -export recusa esse par, e a API PKCS12_create
+// não confere. A chave é gerada nesta execução e nada é gravado em disco. Devolve vazio se a montagem falhar.
+QByteArray pfxComChaveDeOutroPar(const QByteArray& senha) {
+    const QByteArray certPem = fixture(QStringLiteral("cnpj_ok.pem"));
+    BIO* bioCert = BIO_new_mem_buf(certPem.constData(), static_cast<int>(certPem.size()));
+    X509* cert = bioCert != nullptr ? PEM_read_bio_X509(bioCert, nullptr, nullptr, nullptr) : nullptr;
+    BIO_free(bioCert);
+    EVP_PKEY* chave = EVP_RSA_gen(2048);
+    QByteArray saida;
+    if (cert != nullptr && chave != nullptr) {
+        PKCS12* p12 = PKCS12_create(senha.constData(), "teste", chave, cert, nullptr, 0, 0, 0, 0, 0);
+        if (p12 != nullptr) {
+            BIO* bioSaida = BIO_new(BIO_s_mem());
+            if (bioSaida != nullptr && i2d_PKCS12_bio(bioSaida, p12) == 1) {
+                char* dados = nullptr;
+                const long tamanho = BIO_get_mem_data(bioSaida, &dados);
+                saida = QByteArray(dados, static_cast<qsizetype>(tamanho));
+            }
+            BIO_free(bioSaida);
+            PKCS12_free(p12);
+        }
+    }
+    X509_free(cert);
+    EVP_PKEY_free(chave);
+    return saida;
+}
+
 // PKCS#12 íntegro e senha certa, mas a chave não pertence ao certificado: recusada.
 void TesteCarregadorPkcs12::chaveNaoConfereRecusada()
 {
     CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto senha = senhaDaFixture();
-    auto resultado = carregador.carregar(fixture(QStringLiteral("chave_nao_confere.pfx")), senha, *ancoras);
+    const QByteArray senhaBruta = senhaBrutaDaFixture();
+    const QByteArray pfx = pfxComChaveDeOutroPar(senhaBruta);
+    QVERIFY2(!pfx.isEmpty(), "não foi possível montar o PKCS#12 de teste com a chave de outro par");
+    auto senha = SenhaSegura::de(senhaBruta);
+    auto resultado = carregador.carregar(pfx, senha, *ancoras);
     QVERIFY(!resultado.has_value());
     QCOMPARE(resultado.error(), ErroCredencial::PfxMalformado);
 }
