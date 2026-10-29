@@ -6,6 +6,7 @@
 // Conferências independentes: o CRC-32 é recalculado aqui, e a descompressão usa o binário gzip do sistema.
 
 #include <nl/foundation/gzip/gzip.h>
+#include <nl/foundation/gzip/gzip_interno.h>
 
 #include <QByteArray>
 #include <QProcess>
@@ -13,8 +14,11 @@
 #include <QString>
 #include <QtTest>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <span>
 #include <vector>
 
 namespace gz = nl::foundation::gzip;
@@ -106,6 +110,11 @@ private slots:
     void naoUsaQCompress();
     void oraculoGzipDescomprimeIgual();
     void gzipDeEntradaVaziaDescomprimeVazio();
+    void gzipMaisDeUmBlocoDeSaida();
+    void acumulaVariosBlocosEmOrdem();
+    void erroDoFluxoZlibViraErro();
+    void bufferSemProgressoViraErro();
+    void entradaAcimaDoLimiteDaZlibRecusada();
 };
 
 void TstGzip::gzipComCabecalhoRfc1952()
@@ -172,6 +181,97 @@ void TstGzip::gzipDeEntradaVaziaDescomprimeVazio()
     QVERIFY2(volta.encontrou, "binário gzip não achado no PATH: o oráculo não rodou");
     QVERIFY2(volta.sucesso, "gzip -dc recusou o gzip de entrada vazia");
     QVERIFY(volta.saida.isEmpty());
+}
+
+void TstGzip::gzipMaisDeUmBlocoDeSaida()
+{
+    // C1 (revisão): 64 KiB de bytes pouco compressíveis (LCG determinístico). A saída passa de 16384 bytes, ou seja,
+    // mais de um bloco de saída. Com o laço removido (mutante m5) a saída teria 16384 bytes e o teste cai.
+    std::vector<std::byte> entrada;
+    entrada.reserve(65536);
+    std::uint32_t semente = 12345u;
+    for (int indice = 0; indice < 65536; ++indice) {
+        semente = semente * 1664525u + 1013904223u;
+        entrada.push_back(static_cast<std::byte>(semente >> 24));
+    }
+
+    const auto saida = gz::comprimir(entrada);
+    QVERIFY2(saida.has_value(), "comprimir recusou 64 KiB válidos");
+    QVERIFY2(saida->size() > 16384, "a saída coube num bloco: o laço de blocos não foi exercitado");
+    QCOMPARE(lerLittleEndian32(*saida, saida->size() - 8), crc32Gzip(entrada));
+    QCOMPARE(lerLittleEndian32(*saida, saida->size() - 4), static_cast<std::uint32_t>(entrada.size()));
+
+    const Descompressao volta = descomprimirComGzipDoSistema(*saida);
+    QVERIFY2(volta.encontrou, "binário gzip não achado no PATH: o oráculo não rodou");
+    QVERIFY2(volta.sucesso, "gzip -dc recusou a saída de mais de um bloco");
+    QCOMPARE(volta.saida, QByteArray(reinterpret_cast<const char*>(entrada.data()), static_cast<qsizetype>(entrada.size())));
+}
+
+void TstGzip::acumulaVariosBlocosEmOrdem()
+{
+    // Três passos: um bloco cheio de 1, um cheio de 2 e um parcial de 5 bytes de 3, depois o fim. A saída tem 32773
+    // bytes na ordem dos passos. Com um só passo (mutante m5) sairia 16384 bytes e o teste cai.
+    int chamada = 0;
+    const detalhe::PassoFn passo = [&chamada](std::span<std::byte> bloco) -> detalhe::PassoCompressao {
+        ++chamada;
+        if (chamada == 1 || chamada == 2) {
+            std::fill(bloco.begin(), bloco.end(), static_cast<std::byte>(chamada));
+            return {detalhe::kPassoOk, bloco.size()};
+        }
+        if (chamada == 3) {
+            std::fill(bloco.begin(), bloco.begin() + 5, static_cast<std::byte>(3));
+            return {detalhe::kPassoOk, 5};
+        }
+        return {detalhe::kPassoFim, 0};
+    };
+
+    const auto saida = detalhe::acumularSaida(passo);
+    QVERIFY2(saida.has_value(), "acumularSaida recusou três blocos válidos");
+    QCOMPARE(saida->size(), std::size_t{32773});
+    QCOMPARE(byteEm(*saida, 0), 1);
+    QCOMPARE(byteEm(*saida, 16383), 1);
+    QCOMPARE(byteEm(*saida, 16384), 2);
+    QCOMPARE(byteEm(*saida, 32767), 2);
+    QCOMPARE(byteEm(*saida, 32768), 3);
+    QCOMPARE(byteEm(*saida, 32772), 3);
+}
+
+void TstGzip::erroDoFluxoZlibViraErro()
+{
+    // C2 (revisão): Z_STREAM_ERROR tem de virar erro, nunca saída. O segundo passo é o fim, para que um mutante sem a
+    // checagem (m8) termine e caia por asserção, sem laço infinito.
+    int chamada = 0;
+    const detalhe::PassoFn passo = [&chamada](std::span<std::byte>) -> detalhe::PassoCompressao {
+        ++chamada;
+        return chamada == 1 ? detalhe::PassoCompressao{detalhe::kPassoErroFluxo, 0}
+                            : detalhe::PassoCompressao{detalhe::kPassoFim, 0};
+    };
+    const auto saida = detalhe::acumularSaida(passo);
+    QVERIFY2(!saida.has_value(), "erro de fluxo da zlib virou saída");
+    QCOMPARE(QString::fromStdString(saida.error().codigo()), QStringLiteral("gzip.compactacao"));
+}
+
+void TstGzip::bufferSemProgressoViraErro()
+{
+    // C2 (revisão): Z_BUF_ERROR sem produção de bytes é erro, não repetição. Mesmo desenho: o segundo passo é o fim.
+    int chamada = 0;
+    const detalhe::PassoFn passo = [&chamada](std::span<std::byte>) -> detalhe::PassoCompressao {
+        ++chamada;
+        return chamada == 1 ? detalhe::PassoCompressao{detalhe::kPassoSemProgresso, 0}
+                            : detalhe::PassoCompressao{detalhe::kPassoFim, 0};
+    };
+    const auto saida = detalhe::acumularSaida(passo);
+    QVERIFY2(!saida.has_value(), "buffer sem progresso da zlib virou saída");
+    QCOMPARE(QString::fromStdString(saida.error().codigo()), QStringLiteral("gzip.compactacao"));
+}
+
+void TstGzip::entradaAcimaDoLimiteDaZlibRecusada()
+{
+    // O1 (revisão): a zlib recebe avail_in em uInt. Acima do maior uInt, comprimir recusa em vez de truncar. O teste
+    // cobre o limite pelo predicado que comprimir usa, sem alocar 4 GiB.
+    const auto limite = static_cast<std::size_t>(std::numeric_limits<unsigned int>::max());
+    QVERIFY2(detalhe::entradaCabeNaZlib(limite), "o maior uInt devia caber");
+    QVERIFY2(!detalhe::entradaCabeNaZlib(limite + 1), "acima de uInt devia ser recusado");
 }
 
 QTEST_GUILESS_MAIN(TstGzip)

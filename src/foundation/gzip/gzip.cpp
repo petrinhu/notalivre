@@ -4,6 +4,7 @@
 // aqui. Com windowBits 15 + 16 a própria zlib escreve o cabeçalho e o rodapé gzip (CRC-32 e ISIZE).
 
 #include <nl/foundation/gzip/gzip.h>
+#include <nl/foundation/gzip/gzip_interno.h>
 
 #include <nl/base/erro.h>
 
@@ -62,5 +63,20 @@ std::expected<std::vector<std::byte>, nl::base::Erro> comprimir(std::span<const 
     deflateEnd(&fluxo);
     return saida;
 }
+
+namespace detalhe {
+
+// STUB VERMELHO (rodada 2 da revisão): as costuras ainda não fazem nada. Os testes de tst_gzip têm de falhar aqui.
+std::expected<std::vector<std::byte>, nl::base::Erro> acumularSaida(const PassoFn&)
+{
+    return std::unexpected(erroGzip("gzip.nao_implementado", "acumularSaida ainda não implementado"));
+}
+
+bool entradaCabeNaZlib(std::size_t) noexcept
+{
+    return false;
+}
+
+} // namespace detalhe
 
 } // namespace nl::foundation::gzip

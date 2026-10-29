@@ -60,6 +60,7 @@ private slots:
     void chaveDoJsonVemDaPastaDoLeiaute();
     void contentTypeEhApplicationJson();
     void envelopeVazioRecusado();
+    void base64InvalidoRecusado();
 };
 
 void TstEnvelopeDps::envelopeIdaEVolta()
@@ -122,6 +123,19 @@ void TstEnvelopeDps::envelopeVazioRecusado()
     const auto envelope = prod::montarEnvelopeDps(QByteArray{});
     QVERIFY2(!envelope.has_value(), "montarEnvelopeDps aceitou um gzip vazio");
     QCOMPARE(QString::fromStdString(envelope.error().codigo()), QStringLiteral("envelope.vazio"));
+}
+
+void TstEnvelopeDps::base64InvalidoRecusado()
+{
+    // O4 (revisão): fora do alfabeto Base64 o corpo não é envelope. O fromBase64 padrão ignora caracteres inválidos e
+    // aceitaria "abc$def" em silêncio; a leitura tem de recusar com envelope.base64.
+    QJsonObject objeto;
+    objeto.insert(chaveDoEnvelope(), QStringLiteral("abc$def"));
+    const QByteArray corpo = QJsonDocument(objeto).toJson(QJsonDocument::Compact);
+
+    const auto lido = prod::lerEnvelopeDps(corpo);
+    QVERIFY2(!lido.has_value(), "Base64 inválido foi aceito pelo envelope");
+    QCOMPARE(QString::fromStdString(lido.error().codigo()), QStringLiteral("envelope.base64"));
 }
 
 QTEST_GUILESS_MAIN(TstEnvelopeDps)
