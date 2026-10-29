@@ -10,6 +10,9 @@ Exceções, todas escritas aqui e nenhuma outra:
   1. .git: histórico do git, não é fonte.
   2. *.md: documentação em Markdown, nunca compilada nem executada pelo build ou pelo CI. O ADR 0007 e o plano citam a
      variável por nome, e é isso que a exceção protege. Documentação conta à parte, em "documentais=N".
+  4. worktrees/ NA RAIZ (só na raiz, não em outro nível): cópias de trabalho do próprio checkout, ignoradas pelo git e
+     pelos portões que varrem por caminho (L-55). Sem essa exceção, o portão rodado na raiz do checkout principal
+     reprovaria por falso positivo. worktrees/ em src/, tools/ etc. continua sendo varrida.
   3. bytecode de Python (pyc): um pyc é derivado de um .py, só vale se o .py de origem for permitido, estiver na árvore e
      também contiver a variável (rodada 5, achados 2 e 3). Nome fora do formato <stem>.cpython-<NN>.pyc, dentro de
      __pycache__ da pasta da origem, não é derivado: é arquivo comum.
@@ -34,6 +37,7 @@ PERMITIDOS = frozenset({
     "tests/tools/servidor_falso/CMakeLists.txt",
 })
 PODAR = frozenset({".git"})  # só o histórico do git (exceção 1)
+PODAR_NA_RAIZ = frozenset({"worktrees"})  # cópias de trabalho, só na raiz (exceção 4, L-55)
 RE_PYC = re.compile(r"^(?P<stem>[A-Za-z_][A-Za-z0-9_]*)\.cpython-\d+\.pyc$")  # stem sem ponto (rodada 5, achado 2)
 
 
@@ -44,8 +48,10 @@ def _podar(nome):
 def listar(raiz):
     """Caminhos relativos (barra sempre) de todos os arquivos da raiz, em ordem. Só .git é podado."""
     caminhos = []
+    topo = os.path.normpath(raiz)
     for atual, dirs, arquivos in os.walk(raiz):
-        dirs[:] = [d for d in dirs if not _podar(d)]
+        podar_aqui = (lambda d: _podar(d) or d in PODAR_NA_RAIZ) if os.path.normpath(atual) == topo else _podar
+        dirs[:] = [d for d in dirs if not podar_aqui(d)]
         for arquivo in arquivos:
             caminho = os.path.relpath(os.path.join(atual, arquivo), raiz)
             caminhos.append(caminho.replace(os.sep, "/"))
