@@ -5,5 +5,7 @@
 find_package(ZLIB REQUIRED)
 add_library(nl_foundation_gzip STATIC gzip.cpp)
 target_include_directories(nl_foundation_gzip PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+# Costura interna (gzip_interno.h) fica num include PRIVATE: só o próprio motor a enxerga (revisão O6 da NL-2.4).
+target_include_directories(nl_foundation_gzip PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/privado)
 target_link_libraries(nl_foundation_gzip PUBLIC nl_foundation_base)
 target_link_libraries(nl_foundation_gzip PRIVATE ZLIB::ZLIB nl_warnings)

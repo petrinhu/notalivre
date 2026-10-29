@@ -37,6 +37,40 @@ nl::base::Erro erroGzip(std::string codigo, std::string mensagem)
     return nl::base::Erro{std::move(codigo), std::nullopt, std::move(mensagem)};
 }
 
+/// Dona do z_stream da zlib: deflateEnd roda no destrutor, também quando a acumulação lança (bad_alloc de vector::insert).
+/// Revisão O5 da NL-2.4: antes, um deflateEnd depois da acumulação era pulado numa exceção.
+class FluxoDeflate
+{
+public:
+    FluxoDeflate() = default;
+    FluxoDeflate(const FluxoDeflate&) = delete;
+    FluxoDeflate& operator=(const FluxoDeflate&) = delete;
+
+    ~FluxoDeflate()
+    {
+        if (iniciado_) {
+            deflateEnd(&fluxo_);
+        }
+    }
+
+    /// Inicia a compactação gzip. Falso se a zlib recusar; nesse caso não há deflateEnd a fazer.
+    [[nodiscard]] bool iniciar()
+    {
+        iniciado_ = deflateInit2(&fluxo_, Z_DEFAULT_COMPRESSION, Z_DEFLATED, kJanelaGzip, kMemoriaPadrao, Z_DEFAULT_STRATEGY)
+                    == Z_OK;
+        return iniciado_;
+    }
+
+    [[nodiscard]] z_stream& fluxo() noexcept
+    {
+        return fluxo_;
+    }
+
+private:
+    z_stream fluxo_{};
+    bool iniciado_ = false;
+};
+
 } // namespace
 
 namespace detalhe {
@@ -66,32 +100,39 @@ bool entradaCabeNaZlib(std::size_t tamanho) noexcept
     return tamanho <= static_cast<std::size_t>(std::numeric_limits<uInt>::max());
 }
 
-} // namespace detalhe
-
-std::expected<std::vector<std::byte>, nl::base::Erro> comprimir(std::span<const std::byte> entrada)
+std::expected<std::vector<std::byte>, nl::base::Erro> comprimirComLimite(std::span<const std::byte> entrada,
+                                                                         std::size_t limite)
 {
-    if (!detalhe::entradaCabeNaZlib(entrada.size())) {
+    // Guarda antes de tocar na zlib: a fiação de comprimir passa por aqui, com o limite de produção ou com o de teste.
+    if (entrada.size() > limite || !entradaCabeNaZlib(entrada.size())) {
         return std::unexpected(erroGzip("gzip.tamanho", "entrada acima do limite da zlib (uInt); não foi truncada"));
     }
 
-    z_stream fluxo{};
-    if (deflateInit2(&fluxo, Z_DEFAULT_COMPRESSION, Z_DEFLATED, kJanelaGzip, kMemoriaPadrao, Z_DEFAULT_STRATEGY) != Z_OK) {
+    FluxoDeflate compressor;
+    if (!compressor.iniciar()) {
         return std::unexpected(erroGzip("gzip.init", "a zlib não iniciou a compactação gzip"));
     }
+    z_stream& fluxo = compressor.fluxo();
 
     // A zlib não altera a entrada; a API declara next_in sem const, por isso o const_cast.
     fluxo.next_in = const_cast<Bytef*>(reinterpret_cast<const Bytef*>(entrada.data()));
     fluxo.avail_in = static_cast<uInt>(entrada.size());
 
-    const detalhe::PassoFn passo = [&fluxo](std::span<std::byte> bloco) -> detalhe::PassoCompressao {
+    const PassoFn passo = [&fluxo](std::span<std::byte> bloco) -> PassoCompressao {
         fluxo.next_out = reinterpret_cast<Bytef*>(bloco.data());
         fluxo.avail_out = static_cast<uInt>(bloco.size());
         const int codigo = deflate(&fluxo, Z_FINISH);
         return {codigo, bloco.size() - fluxo.avail_out};
     };
-    auto saida = detalhe::acumularSaida(passo);
-    deflateEnd(&fluxo);
-    return saida;
+    // Se acumularSaida lançar, o destrutor de compressor ainda roda deflateEnd (revisão O5).
+    return acumularSaida(passo);
+}
+
+} // namespace detalhe
+
+std::expected<std::vector<std::byte>, nl::base::Erro> comprimir(std::span<const std::byte> entrada)
+{
+    return detalhe::comprimirComLimite(entrada, static_cast<std::size_t>(std::numeric_limits<uInt>::max()));
 }
 
 } // namespace nl::foundation::gzip

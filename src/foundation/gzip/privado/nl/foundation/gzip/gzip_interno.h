@@ -38,6 +38,11 @@ using PassoFn = std::function<PassoCompressao(std::span<std::byte> bloco)>;
 /// A entrada cabe no avail_in da zlib (uInt)? Acima disso comprimir recusa, em vez de truncar o tamanho.
 [[nodiscard]] bool entradaCabeNaZlib(std::size_t tamanho) noexcept;
 
+/// comprimir com limite explícito: entrada acima de `limite` recusa com gzip.tamanho, antes de tocar na zlib. A produção
+/// passa o maior uInt; o teste passa um limite pequeno, para exercitar a fiação sem alocar 4 GiB (revisão O1 da NL-2.4).
+[[nodiscard]] std::expected<std::vector<std::byte>, nl::base::Erro> comprimirComLimite(std::span<const std::byte> entrada,
+                                                                                       std::size_t limite);
+
 } // namespace nl::foundation::gzip::detalhe
 
 #endif // NL_FOUNDATION_GZIP_GZIP_INTERNO_H
