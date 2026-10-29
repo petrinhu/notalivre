@@ -39,6 +39,8 @@ fi
 
 saida=$(avaliar 95 109 "$CACHE_OFF"); rc=$?
 veredito "abaixo do piso reprova (95 < 109)" 1 "$rc" "$saida"
+saida=$(avaliar 108 109 "$CACHE_OFF"); rc=$?
+veredito "fronteira: piso menos um reprova (108 < 109)" 1 "$rc" "$saida"
 saida=$(avaliar 109 109 "$CACHE_OFF"); rc=$?
 veredito "no piso passa (109 = 109)" 0 "$rc" "$saida"
 saida=$(avaliar 110 109 "$CACHE_OFF"); rc=$?
