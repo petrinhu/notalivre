@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Compactação gzip (RFC 1952) da Foundation (NL-2.4, DA-2.4). Motor agnóstico: depende só de base (DA-2.30).
 // O contrato é o formato RFC 1952. Não é zlib cru (RFC 1950) nem o prefixo de tamanho do qCompress do Qt.
-// A implementação (zlib do sistema ou gzip próprio) ainda não foi escolhida; decisão do líder (L-51).
+// A implementação usa a zlib do sistema, autorizada pelo líder em 29/10/2026 (L-51). Ela fica privada ao .cpp.
 
 #ifndef NL_FOUNDATION_GZIP_GZIP_H
 #define NL_FOUNDATION_GZIP_GZIP_H
