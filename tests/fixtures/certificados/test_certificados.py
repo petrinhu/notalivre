@@ -37,7 +37,8 @@ PFX_MODERNOS = [c + ".pfx" for c in CLIENTES]
 # Certificados de cadeia: subordinada da AC de teste, autoassinado de outra raiz, e a folha da subordinada em dois .pfx.
 EXTRAS_PEM = ["sub_ac.pem", "cadeia_outra_raiz.pem"]
 PFX_EXTRAS = ["cadeia_outra_raiz.pfx", "cnpj_sub.pfx", "cnpj_sub_sem_intermediaria.pfx",
-              "intermediaria_vencida.pfx", "cadeia_outra_sub.pfx"]
+              "intermediaria_vencida.pfx", "cadeia_outra_sub.pfx", "sem_mac.pfx", "chave_sem_cifra.pfx",
+              "chave_nao_confere.pfx"]
 # .pfx que levam a AC de teste no bag de CA (o pfx de cadeia de outra raiz e o sem intermediária não levam).
 PFX_COM_AC = PFX_MODERNOS
 
@@ -49,7 +50,7 @@ ARQUIVOS_ESPERADOS = (
     + PFX_MODERNOS
     + PFX_EXTRAS
 )
-N_ARQUIVOS_ESPERADOS = 39
+N_ARQUIVOS_ESPERADOS = 42
 
 OID_CNPJ = "2.16.76.1.3.3"
 OID_CPF = "2.16.76.1.3.1"

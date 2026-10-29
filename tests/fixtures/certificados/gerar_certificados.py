@@ -5,7 +5,7 @@
 
 Uso: python3 -I gerar_certificados.py DIR_SAIDA
 
-Cria em DIR_SAIDA os 39 arquivos do inventário fixo (ver test_certificados.py): uma AC de teste (raiz, pathlen 1),
+Cria em DIR_SAIDA os 42 arquivos do inventário fixo (ver test_certificados.py): uma AC de teste (raiz, pathlen 1),
 uma AC subordinada de teste (pathlen 0, assinada pela AC), certificados de cliente (CNPJ no otherName 2.16.76.1.3.3,
 CPF no 2.16.76.1.3.1, EKU clientAuth, EKU sem clientAuth, sem EKU, EKU malformada, sem otherName com CN de CNPJ,
 otherName de outro OID, vencido, revogado com LCR, notBefore futuro, outro CNPJ raiz, CNPJ alfanumérico), .pfx
@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 VAR_SENHA = "NL_SENHA_TESTE"
-N_ARQUIVOS = 39
+N_ARQUIVOS = 42
 ESTADO = "estado_ac"
 SUBJ_AC = "/O=NotaLivre teste/CN=AC TESTE NOTALIVRE NAO USAR"
 SUBJ_SUBAC = "/O=NotaLivre teste/CN=AC TESTE SUBORDINADA NAO USAR"
@@ -281,13 +281,16 @@ def gerar_cadeias_extra(saida, estado, cnf, env):
                  certfile=estado / "cadeia_b.pem")
 
 
-def exportar_pfx(saida, nome_saida, cert, chave, env, certfile=None, legado=False):
-    """Exporta um .pfx. certfile: arquivo com a cadeia a incluir (None = sem cadeia no contêiner)."""
+def exportar_pfx(saida, nome_saida, cert, chave, env, certfile=None, legado=False, nomac=False, keypbe=None):
+    """Exporta um .pfx. certfile: cadeia a incluir (None = sem cadeia). nomac: sem MAC (-nomac).
+    keypbe: cifra da chave; "NONE" deixa a chave em claro, para o teste de recusa (ADR-0002: chave nunca em claro)."""
     cifras = ["-certpbe", "PBE-SHA1-RC2-40", "-keypbe", "PBE-SHA1-3DES"] if legado else \
-             ["-certpbe", "AES-256-CBC", "-keypbe", "AES-256-CBC"]
+             ["-certpbe", "AES-256-CBC", "-keypbe", keypbe or "AES-256-CBC"]
     # -legacy vem depois de "pkcs12": é opção do subcomando, não do openssl.
     argv = ["openssl", "pkcs12"] + (["-legacy"] if legado else []) + ["-export", "-inkey", str(chave),
                    "-in", str(cert), "-name", "TESTE " + nome_saida, "-passout", f"env:{VAR_SENHA}", *cifras]
+    if nomac:
+        argv.append("-nomac")
     if certfile is not None:
         argv += ["-certfile", str(certfile)]
     argv += ["-out", str(saida / nome_saida)]
@@ -305,13 +308,23 @@ def exportar_todos(saida, estado, env):
     exportar_pfx(saida, "cnpj_sub.pfx", estado / "cnpj_sub.pem", estado / "cnpj_sub.key", env,
                  certfile=estado / "cadeia_sub.pem")
     exportar_pfx(saida, "cnpj_sub_sem_intermediaria.pfx", estado / "cnpj_sub.pem", estado / "cnpj_sub.key", env)
+    # Sem MAC: a senha não é verificada pelo MAC; o carregador tem de falhar fechado com senha errada.
+    exportar_pfx(saida, "sem_mac.pfx", saida / "cnpj_ok.pem", estado / "cnpj_ok.key", env,
+                 certfile=saida / "ac.pem", nomac=True)
+    # Chave em claro (sem cifra): ADR-0002 proíbe; o carregador recusa com falha fechada.
+    exportar_pfx(saida, "chave_sem_cifra.pfx", saida / "cnpj_ok.pem", estado / "cnpj_ok.key", env,
+                 certfile=saida / "ac.pem", nomac=True, keypbe="NONE")
+    # Chave que não pertence ao certificado: PKCS#12 íntegro, mas a chave não confere com a folha.
+    exportar_pfx(saida, "chave_nao_confere.pfx", saida / "cnpj_ok.pem", estado / "cnpj_sub.key", env,
+                 certfile=saida / "ac.pem")
 
 
 def nomes_de_saida():
     """Nomes do inventário que o gerador grava em DIR_SAIDA (usado para limpar execução anterior)."""
     nomes = ["ac.pem", "sub_ac.pem", "crl.pem", "servidor.pem", "servidor.key", "cnpj_ok_legado.pfx",
              "cadeia_outra_raiz.pem", "cadeia_outra_raiz.pfx", "cnpj_sub.pfx", "cnpj_sub_sem_intermediaria.pfx",
-             "intermediaria_vencida.pfx", "cadeia_outra_sub.pfx", "senha_teste.txt"]
+             "intermediaria_vencida.pfx", "cadeia_outra_sub.pfx", "sem_mac.pfx", "chave_sem_cifra.pfx",
+             "chave_nao_confere.pfx", "senha_teste.txt"]
     for c in CLIENTES:
         nomes += [c.nome + ".pem", c.nome + ".pfx"]
     return nomes
