@@ -10,9 +10,9 @@
 
 #include <zlib.h>
 
-#include <array>
 #include <cstddef>
 #include <expected>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -26,6 +26,12 @@ constexpr int kJanelaGzip = 15 + 16;  // 15 bits de janela mais 16: formato gzip
 constexpr int kMemoriaPadrao = 8;     // memLevel padrão da zlib
 constexpr std::size_t kTamanhoBloco = 16384;
 
+// Os códigos das costuras são os da zlib: se algum divergir, a compilação para aqui.
+static_assert(detalhe::kPassoOk == Z_OK);
+static_assert(detalhe::kPassoFim == Z_STREAM_END);
+static_assert(detalhe::kPassoErroFluxo == Z_STREAM_ERROR);
+static_assert(detalhe::kPassoSemProgresso == Z_BUF_ERROR);
+
 nl::base::Erro erroGzip(std::string codigo, std::string mensagem)
 {
     return nl::base::Erro{std::move(codigo), std::nullopt, std::move(mensagem)};
@@ -33,8 +39,41 @@ nl::base::Erro erroGzip(std::string codigo, std::string mensagem)
 
 } // namespace
 
+namespace detalhe {
+
+std::expected<std::vector<std::byte>, nl::base::Erro> acumularSaida(const PassoFn& passo)
+{
+    std::vector<std::byte> saida;
+    std::vector<std::byte> bloco(kTamanhoBloco);
+    for (;;) {
+        const PassoCompressao resultado = passo(bloco);
+        const bool conhecido = resultado.codigo == kPassoOk || resultado.codigo == kPassoFim
+                               || resultado.codigo == kPassoSemProgresso;
+        // Sem produção de bytes só é aceitável no fim. Ok sem bytes e Z_BUF_ERROR sem bytes são paradas sem progresso.
+        const bool progrediu = resultado.produzido > 0 || resultado.codigo == kPassoFim;
+        if (!conhecido || !progrediu || resultado.produzido > bloco.size()) {
+            return std::unexpected(erroGzip("gzip.compactacao", "a zlib parou de compactar antes do fim"));
+        }
+        saida.insert(saida.end(), bloco.begin(), bloco.begin() + static_cast<std::ptrdiff_t>(resultado.produzido));
+        if (resultado.codigo == kPassoFim) {
+            return saida;
+        }
+    }
+}
+
+bool entradaCabeNaZlib(std::size_t tamanho) noexcept
+{
+    return tamanho <= static_cast<std::size_t>(std::numeric_limits<uInt>::max());
+}
+
+} // namespace detalhe
+
 std::expected<std::vector<std::byte>, nl::base::Erro> comprimir(std::span<const std::byte> entrada)
 {
+    if (!detalhe::entradaCabeNaZlib(entrada.size())) {
+        return std::unexpected(erroGzip("gzip.tamanho", "entrada acima do limite da zlib (uInt); não foi truncada"));
+    }
+
     z_stream fluxo{};
     if (deflateInit2(&fluxo, Z_DEFAULT_COMPRESSION, Z_DEFLATED, kJanelaGzip, kMemoriaPadrao, Z_DEFAULT_STRATEGY) != Z_OK) {
         return std::unexpected(erroGzip("gzip.init", "a zlib não iniciou a compactação gzip"));
@@ -44,39 +83,15 @@ std::expected<std::vector<std::byte>, nl::base::Erro> comprimir(std::span<const 
     fluxo.next_in = const_cast<Bytef*>(reinterpret_cast<const Bytef*>(entrada.data()));
     fluxo.avail_in = static_cast<uInt>(entrada.size());
 
-    std::vector<std::byte> saida;
-    std::array<Bytef, kTamanhoBloco> bloco{};
-    int resultado = Z_OK;
-    do {
-        fluxo.next_out = bloco.data();
+    const detalhe::PassoFn passo = [&fluxo](std::span<std::byte> bloco) -> detalhe::PassoCompressao {
+        fluxo.next_out = reinterpret_cast<Bytef*>(bloco.data());
         fluxo.avail_out = static_cast<uInt>(bloco.size());
-        resultado = deflate(&fluxo, Z_FINISH);
-        const std::size_t produzido = bloco.size() - fluxo.avail_out;
-        if (resultado == Z_STREAM_ERROR || (resultado == Z_BUF_ERROR && produzido == 0)) {
-            deflateEnd(&fluxo);
-            return std::unexpected(erroGzip("gzip.compactacao", "a zlib parou de compactar antes do fim"));
-        }
-        const auto* inicio = reinterpret_cast<const std::byte*>(bloco.data());
-        saida.insert(saida.end(), inicio, inicio + produzido);
-    } while (resultado != Z_STREAM_END);
-
+        const int codigo = deflate(&fluxo, Z_FINISH);
+        return {codigo, bloco.size() - fluxo.avail_out};
+    };
+    auto saida = detalhe::acumularSaida(passo);
     deflateEnd(&fluxo);
     return saida;
 }
-
-namespace detalhe {
-
-// STUB VERMELHO (rodada 2 da revisão): as costuras ainda não fazem nada. Os testes de tst_gzip têm de falhar aqui.
-std::expected<std::vector<std::byte>, nl::base::Erro> acumularSaida(const PassoFn&)
-{
-    return std::unexpected(erroGzip("gzip.nao_implementado", "acumularSaida ainda não implementado"));
-}
-
-bool entradaCabeNaZlib(std::size_t) noexcept
-{
-    return false;
-}
-
-} // namespace detalhe
 
 } // namespace nl::foundation::gzip

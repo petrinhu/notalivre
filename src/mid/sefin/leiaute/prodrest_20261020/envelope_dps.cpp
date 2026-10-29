@@ -56,7 +56,13 @@ std::expected<QByteArray, nl::base::Erro> lerEnvelopeDps(const QByteArray& corpo
     if (objeto.size() != 1 || !objeto.contains(chaveDoEnvelope())) {
         return std::unexpected(nl::base::Erro{"envelope.chave", std::nullopt, "envelope sem a chave da pasta do leiaute"});
     }
-    const QByteArray gzip = QByteArray::fromBase64(objeto.value(chaveDoEnvelope()).toString().toLatin1());
+    // Decodificação estrita: fromBase64 padrão ignora caracteres inválidos e aceitaria o corpo em silêncio (revisão O4).
+    const QByteArray::FromBase64Result decodificado =
+        QByteArray::fromBase64Encoding(objeto.value(chaveDoEnvelope()).toString().toLatin1());
+    if (!decodificado) {
+        return std::unexpected(nl::base::Erro{"envelope.base64", std::nullopt, "envelope com Base64 inválido"});
+    }
+    const QByteArray gzip = decodificado.decoded;
     if (gzip.isEmpty()) {
         return std::unexpected(nl::base::Erro{"envelope.vazio", std::nullopt, "envelope sem gzip"});
     }
