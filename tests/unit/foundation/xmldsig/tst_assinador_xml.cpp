@@ -25,6 +25,9 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+
 #include <expected>
 #include <string_view>
 
@@ -32,6 +35,29 @@ namespace xd = nl::foundation::xmldsig;
 namespace pk = nl::foundation::pkcs12;
 
 namespace {
+
+// Senha da fixture (NL-2.1), sem o fim de linha. Vazia quando o arquivo falta: o teste falha pela asserção.
+pk::SenhaSegura senhaDeTeste() {
+    QFile senhaArquivo(qEnvironmentVariable("NL_CERTIFICADOS_DIR") + QStringLiteral("/senha_teste.txt"));
+    if (!senhaArquivo.open(QIODevice::ReadOnly)) {
+        return pk::SenhaSegura::de(QByteArray());
+    }
+    return pk::SenhaSegura::de(senhaArquivo.readLine().trimmed());
+}
+
+// Campo de /etc/os-release (sem aspas). Sem VERSION_ID (ex.: manjaro, rolling) devolve "rolling".
+QString campoDoOsRelease(const QString& campo) {
+    QFile arquivo(QStringLiteral("/etc/os-release"));
+    if (!arquivo.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    for (const QString& linha : QString::fromUtf8(arquivo.readAll()).split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
+        if (linha.startsWith(campo + QLatin1Char('='))) {
+            return linha.mid(campo.size() + 1).remove(QLatin1Char('"'));
+        }
+    }
+    return campo == QStringLiteral("VERSION_ID") ? QStringLiteral("rolling") : QString();
+}
 
 const QByteArray kIdDps = "DPS430510821122233300018100001000000000000001";
 const char kC14n[] = "http://www.w3.org/TR/2001/REC-xml-c14n-20010315";
@@ -325,6 +351,69 @@ private slots:
         QVERIFY2(assinado.error() == xd::ErroAssinatura::AlgoritmoBloqueado, "o erro tinha de ser algoritmo bloqueado");
         QVERIFY2(xd::codigo(assinado.error()) == std::string_view("assinatura.algoritmo_bloqueado"),
                  "o código do erro tem de ser assinatura.algoritmo_bloqueado");
+    }
+
+    void materialNuloDevolveErroProprio() {
+        // Ponteiro nulo é erro próprio, nunca falha silenciosa nem desreferência (DA-2.36).
+        pk::SenhaSegura senha = senhaDeTeste();
+        auto credencial = credencialDeTeste(senha);
+        QVERIFY2(credencial.has_value(), "a fixture cnpj_ok tem de carregar");
+        const QStringView id = QStringLiteral("DPS430510821122233300018100001000000000000001");
+        const xd::MaterialAssinatura semCertificado{nullptr, credencial->chavePrivada()};
+        auto a = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), id, parametrosSha1(), semCertificado);
+        QVERIFY2(!a.has_value(), "certificado nulo não pode assinar");
+        QVERIFY2(a.error() == xd::ErroAssinatura::MaterialInvalido, "certificado nulo tem de ser MaterialInvalido");
+        const xd::MaterialAssinatura semChave{credencial->certificado(), nullptr};
+        auto b = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), id, parametrosSha1(), semChave);
+        QVERIFY2(!b.has_value(), "chave nula não pode assinar");
+        QVERIFY2(b.error() == xd::ErroAssinatura::MaterialInvalido, "chave nula tem de ser MaterialInvalido");
+    }
+
+    void materialEmprestadoNaoLiberaNemCopia() {
+        // Roda sob ASan (preset asan-ubsan): o assinador não libera, não copia e não mexe na contagem de referência.
+        // Sem uso depois de liberar e sem vazamento, o sanitizer acusa. Aqui: ponteiros iguais, credencial viva, chave usável.
+        pk::SenhaSegura senha = senhaDeTeste();
+        auto credencial = credencialDeTeste(senha);
+        QVERIFY2(credencial.has_value(), "a fixture cnpj_ok tem de carregar");
+        x509_st* const cert = credencial->certificado();
+        evp_pkey_st* const chave = credencial->chavePrivada();
+        const xd::MaterialAssinatura material{cert, chave};
+        const QStringView id = QStringLiteral("DPS430510821122233300018100001000000000000001");
+        auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), id, parametrosSha1(), material);
+        QVERIFY2(assinado.has_value(), "o assinador tem de assinar com o material emprestado");
+        QVERIFY2(credencial->certificado() == cert && credencial->chavePrivada() == chave,
+                 "o assinador não pode trocar os ponteiros da credencial");
+        QVERIFY2(!credencial->descartada(), "o assinador não pode descartar a credencial");
+        QVERIFY2(EVP_PKEY_size(chave) > 0, "a chave tem de continuar usável depois da chamada");
+    }
+
+    void algoritmoDaTabelaPorDistro() {
+        // DA-2.38: a expectativa sai da tabela por distro, lida do /etc/os-release. sha1 = assina sem a variável;
+        // algoritmo_bloqueado = o OSSL_LIB_CTX próprio recusa (o esperado no fedora44 se a medição disser isso).
+        const QString id = campoDoOsRelease(QStringLiteral("ID"));
+        const QString versao = campoDoOsRelease(QStringLiteral("VERSION_ID"));
+        QVERIFY2(!id.isEmpty(), "/etc/os-release sem ID");
+        const QString tabela = qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/tabela_sha1_por_distro.txt");
+        QString esperado;
+        for (const QString& linha : QString::fromUtf8(lerArquivo(tabela)).split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
+            if (linha.startsWith(QLatin1Char('#'))) {
+                continue;
+            }
+            const QStringList colunas = linha.simplified().split(QLatin1Char(' '));
+            if (colunas.size() == 3 && colunas[0] == id && colunas[1] == versao) {
+                esperado = colunas[2];
+            }
+        }
+        QVERIFY2(!esperado.isEmpty(), "distro sem linha em tests/fixtures/xmldsig/tabela_sha1_por_distro.txt");
+        QVERIFY2(esperado == QStringLiteral("sha1") || esperado == QStringLiteral("algoritmo_bloqueado"),
+                 "expectativa da tabela ainda não medida (PENDENTE): medir e gravar antes do verde");
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        if (esperado == QStringLiteral("sha1")) {
+            QVERIFY2(assinado.has_value(), "esta distro tem de assinar SHA-1 sem a variável");
+        } else {
+            QVERIFY2(!assinado.has_value(), "esta distro recusa SHA-1: não pode assinar");
+            QVERIFY2(assinado.error() == xd::ErroAssinatura::AlgoritmoBloqueado, "o erro tem de ser algoritmo bloqueado");
+        }
     }
 
     void assinaSha1NoSdkKdeSemVariavel() {

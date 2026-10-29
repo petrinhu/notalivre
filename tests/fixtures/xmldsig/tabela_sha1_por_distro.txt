@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Expectativa do assinador por distro (NL-2.3, DA-2.38). Colunas: ID VERSION_ID ESPERADO.
+# ESPERADO = sha1 (assina SHA-1 sem a variável) ou algoritmo_bloqueado (o OSSL_LIB_CTX próprio recusa).
+# PENDENTE = ainda não medido: o teste falha até a medição ser gravada em docs/pesquisa/ci_medicao.md.
+# Manjaro é rolling (sem VERSION_ID): o teste lê "rolling" para ele.
+fedora 44 PENDENTE
+ubuntu 26.04 sha1
+manjaro rolling sha1
+linuxmint 22.3 sha1

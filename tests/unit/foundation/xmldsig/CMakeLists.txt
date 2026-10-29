@@ -34,7 +34,10 @@ else()
         algoritmoVemDaPastaDoLeiaute
         digestValueIgualAoDouradoEmTodasAsImagens
         assinaturaVerificaComAChavePublicaDaFixture
-        algoritmoBloqueadoViraErroProprio)
+        algoritmoBloqueadoViraErroProprio
+        materialNuloDevolveErroProprio
+        materialEmprestadoNaoLiberaNemCopia
+        algoritmoDaTabelaPorDistro)
 endif()
 
 foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
