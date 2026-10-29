@@ -22,6 +22,7 @@
 #include <vector>
 
 namespace gz = nl::foundation::gzip;
+namespace detalhe = nl::foundation::gzip::detalhe;
 
 namespace {
 
