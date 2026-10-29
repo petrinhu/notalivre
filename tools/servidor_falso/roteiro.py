@@ -9,8 +9,8 @@ devolve no corpo o Accept-Encoding recebido) e content_encoding_gzip (GET respon
 """
 
 FALHAS = ("erro5xx", "timeout", "conexao_cortada_apos_aceite", "conflito409", "corpo_truncado",
-          "eco_accept_encoding", "content_encoding_gzip")
-SO_GET = ("corpo_truncado", "eco_accept_encoding", "content_encoding_gzip")
+          "eco_accept_encoding", "content_encoding_gzip", "redireciona", "corpo_sem_tamanho")
+SO_GET = ("corpo_truncado", "eco_accept_encoding", "content_encoding_gzip", "redireciona", "corpo_sem_tamanho")
 
 
 class Roteiro:

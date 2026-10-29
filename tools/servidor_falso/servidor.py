@@ -112,6 +112,10 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             return self._eco_accept_encoding()
         if falha == "content_encoding_gzip":
             return self._content_encoding_gzip()
+        if falha == "redireciona":
+            return self._redireciona()
+        if falha == "corpo_sem_tamanho":
+            return self._corpo_sem_tamanho()
         if self.command == "POST" and caminho == "/nfse":
             return self._postar_dps(corpo, falha)
         if self.command in ("GET", "HEAD") and caminho.startswith(ROTA_DPS):
@@ -176,6 +180,22 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         dados = gzip.compress(json.dumps({"Codigo": "CONTENT_ENCODING_GZIP", "Descricao": "falha roteirizada"})
                               .encode("utf-8"))
         self._corpo_bruto(200, "application/json; charset=utf-8", dados, extra={"Content-Encoding": "gzip"})
+
+    def _redireciona(self):
+        # 302 para outra rota: o cliente que segue o Location chegaria em /dps/SEGUIDO (aqui, 404 sem a falha).
+        self.send_response(302)
+        self.send_header("Location", "/dps/SEGUIDO")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _corpo_sem_tamanho(self):
+        # 200 sem Content-Length: com HTTP/1.0 o corpo termina no fechamento da conexão.
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.end_headers()
+        self.wfile.write(b"x" * 4096)
+        self.wfile.flush()
+        self.close_connection = True
 
     def _corpo_bruto(self, status, tipo, dados, extra=None):
         self.send_response(status)
