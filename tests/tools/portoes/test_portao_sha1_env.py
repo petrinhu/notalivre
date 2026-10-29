@@ -29,6 +29,14 @@ class TestePortaoSha1(unittest.TestCase):
                 f.write(texto)
         return raiz
 
+    def _repo(self, arquivos, rastreados=()):
+        """Árvore que é repositório git. Só os caminhos em rastreados entram no índice (o git os rastreia)."""
+        raiz = self._arvore(arquivos)
+        subprocess.run(["git", "-C", raiz, "init", "-q"], check=True)
+        for rel in rastreados:
+            subprocess.run(["git", "-C", raiz, "add", "--", rel], check=True)
+        return raiz
+
     def _rodar(self, raiz):
         r = subprocess.run([sys.executable, "-I", str(PORTAO), raiz], capture_output=True, text=True)
         return r.returncode, r.stdout + r.stderr
@@ -162,14 +170,34 @@ class TestePortaoSha1(unittest.TestCase):
         self.assertIn("violacoes=0", saida)
 
     def test_portaoSha1WorktreeNaRaizPassa(self):
-        # Exceção 4 (L-55): worktrees/ na RAIZ é cópia de trabalho, ignorada pelo git e pelos portões por caminho.
-        raiz = self._arvore({
+        # Exceção 4 (L-55): worktrees/ na RAIZ é cópia de trabalho NÃO rastreada: o git a ignora, o portão também.
+        raiz = self._repo({
             "worktrees/nl-x/tools/servidor_falso/vazado.cpp": f'const char *v = "{VARIAVEL}=1";\n',
             "src/limpo.cpp": "int a = 1;\n",
         })
         rc, saida = self._rodar(raiz)
         self.assertEqual(rc, 0, saida)
         self.assertIn("violacoes=0", saida)
+
+    def test_portaoSha1WorktreeRastreadoNaRaizReprova(self):
+        # A poda vale só para o que o git não rastreia (rodada 6, achado 2): arquivo rastreado em worktrees/ é varrido.
+        raiz = self._repo({
+            "worktrees/nl-x/tools/servidor_falso/vazado.cpp": f'const char *v = "{VARIAVEL}=1";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        }, rastreados=["worktrees/nl-x/tools/servidor_falso/vazado.cpp", "src/limpo.cpp"])
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("worktrees/nl-x/tools/servidor_falso/vazado.cpp", saida)
+
+    def test_portaoSha1MarkdownSrcReprova(self):
+        # Exceção de .md só em docs/ e na raiz (rodada 6, achado 1): markdown dentro de src/ é varrido.
+        raiz = self._arvore({
+            "src/notas.md": f"A variável {VARIAVEL} aparece aqui.\n",
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("src/notas.md", saida)
 
     def test_portaoSha1WorktreeAninhadoReprova(self):
         # A exceção vale só na raiz: worktrees/ em outro nível é pasta comum e continua sendo varrida.
