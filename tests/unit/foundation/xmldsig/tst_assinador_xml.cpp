@@ -314,10 +314,10 @@ private slots:
             return p.readAllStandardOutput();
         }();
         QVERIFY2(!canonico.isEmpty(), "o xmllint não canonicalizou o SignedInfo");
-        QFile chaveArquivo(dir.filePath(QStringLiteral("assinado.bin")));
-        QVERIFY(chaveArquivo.open(QIODevice::WriteOnly));
-        chaveArquivo.write(canonico);
-        chaveArquivo.close();
+        QFile canonicoArquivo(dir.filePath(QStringLiteral("assinado.bin")));
+        QVERIFY(canonicoArquivo.open(QIODevice::WriteOnly));
+        canonicoArquivo.write(canonico);
+        canonicoArquivo.close();
         const QString certPem = caminhoFixture("cnpj_ok.pem");
         QVERIFY2(QFile::exists(certPem), "falta o certificado PEM da fixture cnpj_ok");
         QProcess chave;
@@ -414,6 +414,21 @@ private slots:
             QVERIFY2(!assinado.has_value(), "esta distro recusa SHA-1: não pode assinar");
             QVERIFY2(assinado.error() == xd::ErroAssinatura::AlgoritmoBloqueado, "o erro tem de ser algoritmo bloqueado");
         }
+    }
+
+    void medirOsslLibCtxProprio() {
+        // Medição do passo 1 (DA-2.38): o OSSL_LIB_CTX próprio assina rsa-sha1 nesta distro, sem a variável de ambiente?
+        // Informativo: grava o resultado no log do teste e passa. A decisão fica na tabela tabela_sha1_por_distro.txt.
+        const bool variavelPresente = qEnvironmentVariableIsSet("OPENSSL_ENABLE_SHA1_SIGNATURES");
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        const QString resultado = assinado.has_value()
+            ? QStringLiteral("sha1")
+            : QString::fromUtf8(xd::codigo(assinado.error()).data(), int(xd::codigo(assinado.error()).size()));
+        qInfo("MEDICAO id=%s versao=%s variavel_presente=%d osslctx_proprio=%s",
+              qPrintable(campoDoOsRelease(QStringLiteral("ID"))),
+              qPrintable(campoDoOsRelease(QStringLiteral("VERSION_ID"))), int(variavelPresente),
+              qPrintable(resultado));
+        QVERIFY(true);
     }
 
     void assinaSha1NoSdkKdeSemVariavel() {

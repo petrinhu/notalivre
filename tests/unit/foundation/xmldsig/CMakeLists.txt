@@ -37,7 +37,8 @@ else()
         algoritmoBloqueadoViraErroProprio
         materialNuloDevolveErroProprio
         materialEmprestadoNaoLiberaNemCopia
-        algoritmoDaTabelaPorDistro)
+        algoritmoDaTabelaPorDistro
+        medirOsslLibCtxProprio)
 endif()
 
 foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
