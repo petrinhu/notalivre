@@ -30,6 +30,11 @@ SenhaSegura SenhaSegura::de(QByteArrayView bytes) {
     return SenhaSegura(dados, capacidade, tamanho, bloqueada);
 }
 
+// Fase vermelha (revisão 3, M7): o seam ainda ignora o zerador injetado; a zeragem vai para o OPENSSL_cleanse padrão.
+SenhaSegura SenhaSegura::comZeradorDeTeste(QByteArrayView bytes, ZeradorDeMemoria) {
+    return de(bytes);
+}
+
 SenhaSegura::SenhaSegura(char* dados, std::size_t capacidade, std::size_t tamanho, bool bloqueada) noexcept
     : dados_(dados), capacidade_(capacidade), tamanho_(tamanho), bloqueada_(bloqueada) {}
 

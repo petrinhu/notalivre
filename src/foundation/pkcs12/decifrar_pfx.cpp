@@ -5,6 +5,7 @@
 // default por DER (passado por OPENSSL_cleanse) antes de o contexto próprio ser liberado.
 #include "decifrar_pfx.h"
 
+#include <nl/foundation/pkcs12/classificacao_erros.h>
 #include "contexto_ossl.h"
 
 #include <openssl/bio.h>
@@ -23,14 +24,8 @@ namespace nl::foundation::pkcs12 {
 
 namespace {
 
-/// Motivo interno de uma tentativa. Classificado pelo código do erro do OpenSSL, nunca pela mensagem em texto.
-enum class Falha {
-    SenhaErrada,
-    Unsupported,
-    Malformado,
-    LegadoIndisponivel,
-    Interno,
-};
+using interno::Falha;
+
 
 /// Partes ainda ligadas ao contexto da tentativa. Declaradas DEPOIS do ContextoOssl, então são liberadas antes dele.
 struct PartesDaTentativa {
@@ -39,28 +34,6 @@ struct PartesDaTentativa {
     std::vector<CertificadoX509> intermediarios;
 };
 
-/// Lê a fila de erros do OpenSSL e devolve o motivo. Esvazia a fila.
-Falha classificarErrosPkcs12() {
-    bool mac = false;
-    bool semSuporte = false;
-    const int motivoUnsupported = ERR_GET_REASON(ERR_R_UNSUPPORTED);
-    for (unsigned long erro = ERR_get_error(); erro != 0; erro = ERR_get_error()) {
-        if (ERR_GET_LIB(erro) == ERR_LIB_PKCS12 && ERR_GET_REASON(erro) == PKCS12_R_MAC_VERIFY_FAILURE) {
-            mac = true;
-        }
-        // ERR_R_UNSUPPORTED traz a flag ERR_RFLAG_COMMON: compara-se só o motivo, sem a flag.
-        if (ERR_GET_REASON(erro) == motivoUnsupported) {
-            semSuporte = true;
-        }
-    }
-    if (mac) {
-        return Falha::SenhaErrada;
-    }
-    if (semSuporte) {
-        return Falha::Unsupported;
-    }
-    return Falha::Malformado;
-}
 
 /// Exporta uma chave para DER no contexto de origem e a reimporta no default (contexto global). Zera o DER.
 std::expected<ChavePrivada, Falha> reimportarChave(EVP_PKEY* origem) {
@@ -158,7 +131,7 @@ std::expected<PartesPfx, Falha> tentar(QByteArrayView pfx, const SenhaSegura& se
         const int ok = PKCS12_parse(p12, senha.comoC(), &chave, &certificado, &ca);
         PKCS12_free(p12);
         if (ok != 1) {
-            const Falha motivo = classificarErrosPkcs12();
+            const Falha motivo = interno::classificarCodigos(interno::colherErrosOpenssl());
             EVP_PKEY_free(chave);
             X509_free(certificado);
             sk_X509_pop_free(ca, X509_free);

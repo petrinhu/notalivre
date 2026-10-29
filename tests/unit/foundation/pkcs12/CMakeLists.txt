@@ -43,7 +43,12 @@ foreach(nome IN ITEMS
     ancorasDePemLemUmCertificado
     ancorasSemCertificadoReprovam
     senhaSeguraZeraConteudo
-    descartarLiberaChave)
+    descartarLiberaChave
+    classificaMacComoSenhaErrada
+    classificaUnsupportedDaBibliotecaEvp
+    classificaMotivoDeOutraBibliotecaComoMalformado
+    senhaComNulEhRecusada
+    liberaZeraAntesDeLiberar)
   add_test(NAME pkcs12.${nome} COMMAND tst_carregador_pkcs12 ${nome})
   set_tests_properties(pkcs12.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
@@ -52,7 +57,7 @@ foreach(nome IN ITEMS
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
-foreach(nome IN ITEMS cifraLegadaIndisponivelSemProvider modernoNaoPrecisaDeLegadoSemProvider)
+foreach(nome IN ITEMS cifraLegadaIndisponivelSemProvider modernoNaoPrecisaDeLegadoSemProvider senhaErradaSemProvedorNaoTentaLegado)
   add_test(NAME pkcs12.${nome} COMMAND tst_carregador_pkcs12 ${nome})
   set_tests_properties(pkcs12.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste

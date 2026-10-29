@@ -13,7 +13,11 @@
 #include <nl/foundation/pkcs12/inscricao.h>
 #include <nl/foundation/pkcs12/senha_segura.h>
 
+#include <openssl/err.h>
+#include <openssl/pkcs12err.h>
 #include <openssl/provider.h>
+
+#include <nl/foundation/pkcs12/classificacao_erros.h>
 
 #include <QByteArray>
 #include <QFile>
@@ -51,6 +55,15 @@ QByteArray fixture(const QString& nome) {
 }
 
 // Senha da fixture. Sem arquivo, a senha fica vazia e o teste falha pela própria asserção (não por exceção).
+// Bytes da senha da fixture, sem o fim de linha (para montar senhas de teste a partir da real).
+QByteArray senhaBrutaDaFixture() {
+    QFile arquivo(qEnvironmentVariable("NL_CERTIFICADOS_DIR") + QStringLiteral("/senha_teste.txt"));
+    if (!arquivo.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return arquivo.readLine().trimmed();
+}
+
 SenhaSegura senhaDaFixture() {
     QFile arquivo(qEnvironmentVariable("NL_CERTIFICADOS_DIR") + QStringLiteral("/senha_teste.txt"));
     if (!arquivo.open(QIODevice::ReadOnly)) {
@@ -102,7 +115,80 @@ private slots:
     void ancorasSemCertificadoReprovam();
     void senhaSeguraZeraConteudo();
     void descartarLiberaChave();
+    void classificaMacComoSenhaErrada();
+    void classificaUnsupportedDaBibliotecaEvp();
+    void classificaMotivoDeOutraBibliotecaComoMalformado();
+    void senhaComNulEhRecusada();
+    void liberaZeraAntesDeLiberar();
+    void senhaErradaSemProvedorNaoTentaLegado();
 };
+
+// Testes novos da revisão 3 (A7, M7, M4). Ver a descrição de cada um.
+void TesteCarregadorPkcs12::classificaMacComoSenhaErrada()
+{
+    using nl::foundation::pkcs12::interno::Falha;
+    using nl::foundation::pkcs12::interno::classificarCodigos;
+    QCOMPARE(classificarCodigos({ERR_PACK(ERR_LIB_PKCS12, 0, PKCS12_R_MAC_VERIFY_FAILURE)}), Falha::SenhaErrada);
+}
+
+void TesteCarregadorPkcs12::classificaUnsupportedDaBibliotecaEvp()
+{
+    // Cifra que o provider default não abre: erro "unsupported" da biblioteca EVP (é o caso que dispara o legacy).
+    using nl::foundation::pkcs12::interno::Falha;
+    using nl::foundation::pkcs12::interno::classificarCodigos;
+    QCOMPARE(classificarCodigos({ERR_PACK(ERR_LIB_EVP, 0, ERR_R_UNSUPPORTED)}), Falha::Unsupported);
+}
+
+void TesteCarregadorPkcs12::classificaMotivoDeOutraBibliotecaComoMalformado()
+{
+    // Mesmo motivo (ERR_R_UNSUPPORTED) vindo de outra biblioteca (ASN1): não pode disparar a retentativa com legado.
+    using nl::foundation::pkcs12::interno::Falha;
+    using nl::foundation::pkcs12::interno::classificarCodigos;
+    QCOMPARE(classificarCodigos({ERR_PACK(ERR_LIB_ASN1, 0, ERR_R_UNSUPPORTED)}), Falha::Malformado);
+}
+
+void TesteCarregadorPkcs12::senhaComNulEhRecusada()
+{
+    // Senha real da fixture, NUL e lixo depois: a C-string truncaria no NUL e aceitaria a senha real. Tem de ser recusada.
+    const QByteArray real = senhaBrutaDaFixture();
+    QVERIFY(!real.isEmpty());
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    CarregadorPkcs12 carregador;
+    auto senha = SenhaSegura::de(real + QByteArray(1, '\0') + QByteArrayLiteral("x"));
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::SenhaErrada);
+}
+
+void TesteCarregadorPkcs12::liberaZeraAntesDeLiberar()
+{
+    // M7 (seam): a liberação tem de passar pela zeragem, com o buffer ainda com o segredo. Sem ler memória liberada.
+    int chamadas = 0;
+    std::string visto;
+    {
+        auto senha = SenhaSegura::comZeradorDeTeste(QByteArrayLiteral("segredo"),
+            [&chamadas, &visto](char* dados, std::size_t) {
+                ++chamadas;
+                visto.assign(dados, 7);
+            });
+    }
+    QCOMPARE(chamadas, 1);
+    QCOMPARE(visto, std::string("segredo"));
+}
+
+// Mesmo processo com OPENSSL_MODULES vazio (entrada do CMake): senha errada no .pfx moderno é SenhaErrada.
+// Mutante M4 (tentar o legado sempre) daria CifraLegadaIndisponivel aqui, porque o provider não carrega.
+void TesteCarregadorPkcs12::senhaErradaSemProvedorNaoTentaLegado()
+{
+    CarregadorPkcs12 carregador;
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = SenhaSegura::de(QByteArrayLiteral("senha-errada"));
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::SenhaErrada);
+}
 
 void TesteCarregadorPkcs12::senhaCorretaCarrega()
 {
