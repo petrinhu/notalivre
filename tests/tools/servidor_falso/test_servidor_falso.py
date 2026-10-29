@@ -378,6 +378,43 @@ class TesteServidorFalso(unittest.TestCase):
         self.assertEqual(rot.pendentes(), 0)
 
 
+    def test_redirecionaRoteirizado(self):
+        # falha roteirizada: GET responde 302 com Location, e o servidor não segue nada; a falha vale uma vez
+        rot = roteiro.Roteiro()
+        with self.assertRaises(ValueError):
+            rot.agendar("POST", "/nfse", "redireciona")  # só GET
+        rot.agendar("GET", "/dps/" + self.id_dps, "redireciona")
+        srv = self.subir(rot)
+        conn = self.conexao(srv)
+        try:
+            conn.request("GET", "/dps/" + self.id_dps)
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 302)
+            self.assertEqual(resp.getheader("Location"), "/dps/SEGUIDO")
+            resp.read()
+        finally:
+            conn.close()
+        self.assertEqual(rot.pendentes(), 0)
+
+    def test_corpoSemTamanhoFechaNoCorpo(self):
+        # falha roteirizada: 200 sem Content-Length, 4096 bytes, e o servidor fecha a conexão; o corpo acaba no fechamento
+        rot = roteiro.Roteiro()
+        with self.assertRaises(ValueError):
+            rot.agendar("POST", "/nfse", "corpo_sem_tamanho")  # só GET
+        rot.agendar("GET", "/dps/" + self.id_dps, "corpo_sem_tamanho")
+        srv = self.subir(rot)
+        conn = self.conexao(srv)
+        try:
+            conn.request("GET", "/dps/" + self.id_dps)
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 200)
+            self.assertIsNone(resp.getheader("Content-Length"))
+            self.assertEqual(len(resp.read()), 4096)
+        finally:
+            conn.close()
+        self.assertEqual(rot.pendentes(), 0)
+
+
 if __name__ == "__main__":
     suite = unittest.TestSuite([TesteServidorFalso(sys.argv[1])])
     resultado = unittest.TextTestRunner(verbosity=2).run(suite)

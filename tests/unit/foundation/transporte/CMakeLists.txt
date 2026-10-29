@@ -22,14 +22,37 @@ foreach(nome IN ITEMS
     baseEPrefixoVemDaConfiguracao
     conexaoRecusadaViraErroTransitorio
     corpo2xxTruncadoViraTransitorio
-    rejeicao4xxComCorpoContinuaRespostaHttp
+    rejeicao400ComCorpoContinuaRespostaHttp
     cabecalhoAcceptEncodingIdentityEnviado
     contentEncodingNaoIdentityViraDefinitivoProtocolo
-    mensagemDeErroNaoTrazURLNemHost)
+    mensagemDeErroNaoTrazURLNemHost
+    servidorDeOutraRaizRecusado
+    headSemCorpoNaoViraErroDeRede
+    corpoAcimaDoTetoRecusado
+    certificadoSemChaveRecusadoComoConfiguracao
+    chaveSemCertificadoRecusadoComoConfiguracao
+    redirecionamentoNaoSeguidoViraErro
+    tempoLimiteAcimaDoTetoRecusado
+    prefixoInvalidoRecusadoComoConfiguracao)
   add_test(NAME transporte.${nome} COMMAND tst_transporte_https ${nome})
   set_tests_properties(transporte.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
+                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()
+
+# Átomo de classificação (L-34): tabela de códigos do Qt, sem servidor.
+add_executable(tst_classificacao_erro tst_classificacao_erro.cpp)
+target_link_libraries(tst_classificacao_erro PRIVATE Qt6::Core Qt6::Network Qt6::Test nl_foundation_transporte
+                      nl_warnings)
+
+foreach(nome IN ITEMS
+    tabelaDeCodigosDeRede
+    faixaDeRespostaCompleta
+    redirecionamentoEhSo3xx)
+  add_test(NAME transporte.classificacao.${nome} COMMAND tst_classificacao_erro ${nome})
+  set_tests_properties(transporte.classificacao.${nome} PROPERTIES
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()

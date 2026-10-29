@@ -167,9 +167,17 @@ private slots:
     void baseEPrefixoVemDaConfiguracao();
     void conexaoRecusadaViraErroTransitorio();
     void corpo2xxTruncadoViraTransitorio();
-    void rejeicao4xxComCorpoContinuaRespostaHttp();
+    void rejeicao400ComCorpoContinuaRespostaHttp();
     void cabecalhoAcceptEncodingIdentityEnviado();
     void contentEncodingNaoIdentityViraDefinitivoProtocolo();
+    void servidorDeOutraRaizRecusado();
+    void headSemCorpoNaoViraErroDeRede();
+    void corpoAcimaDoTetoRecusado();
+    void certificadoSemChaveRecusadoComoConfiguracao();
+    void chaveSemCertificadoRecusadoComoConfiguracao();
+    void redirecionamentoNaoSeguidoViraErro();
+    void tempoLimiteAcimaDoTetoRecusado();
+    void prefixoInvalidoRecusadoComoConfiguracao();
     void mensagemDeErroNaoTrazURLNemHost();
 };
 
@@ -276,7 +284,7 @@ void TesteTransporteHttps::conexaoRecusadaViraErroTransitorio()
     QCOMPARE(resposta.error().causa, CausaErro::Conexao);
 }
 
-void TesteTransporteHttps::rejeicao4xxComCorpoContinuaRespostaHttp()
+void TesteTransporteHttps::rejeicao400ComCorpoContinuaRespostaHttp()
 {
     // POST /nfse com corpo que não é envelope: o servidor responde 400 ENVELOPE_INVALIDO. O Qt reporta 400 com um
     // NetworkError que o transporte não mapeia (ProtocolInvalidOperationError). Status recebido vale como resposta,
@@ -383,6 +391,188 @@ void TesteTransporteHttps::contentEncodingNaoIdentityViraDefinitivoProtocolo()
     QVERIFY2(!resposta.has_value(), "Content-Encoding diferente de identity não pode voltar como RespostaHttp");
     QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
     QCOMPARE(resposta.error().causa, CausaErro::Protocolo);
+}
+
+void TesteTransporteHttps::servidorDeOutraRaizRecusado()
+{
+    // Âncora de outra raiz (cadeia_outra_raiz.pfx): o servidor de teste apresenta certificado da AC de teste, que não
+    // está na âncora. A verificação do certificado do SERVIDOR tem de recusar. Sem este teste, VerifyNone passa em tudo.
+    ServidorDeTeste servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+    const ParCliente outra = parDoPfx(QStringLiteral("cadeia_outra_raiz.pfx"));
+    QVERIFY2(!outra.certificado.isNull(), "não foi possível ler a outra raiz");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = cliente.certificado;
+    tls.chaveCliente = cliente.chave;
+    tls.autoridades = QList<QSslCertificate>{outra.certificado};
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    auto resposta = transporte.enviar(consultaDps());
+    if (!resposta.has_value()) {
+        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+    }
+    QVERIFY2(!resposta.has_value(), "servidor com cadeia fora da âncora não pode ser aceito");
+    QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+    QCOMPARE(resposta.error().causa, CausaErro::Tls);
+}
+
+void TesteTransporteHttps::headSemCorpoNaoViraErroDeRede()
+{
+    // HEAD devolve status e cabeçalhos, sem corpo. Não é erro de rede: o Content-Length da resposta não tem corpo a
+    // conferir, e o parser do Qt já trata a conexão que cai antes do fim do corpo.
+    ServidorDeTeste servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = cliente.certificado;
+    tls.chaveCliente = cliente.chave;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    auto resposta = transporte.enviar(RequisicaoHttp{QByteArrayLiteral("HEAD"), QStringLiteral("/dps/ABC"), {}, {}});
+    if (!resposta.has_value()) {
+        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+    }
+    QVERIFY2(resposta.has_value(), "HEAD devia voltar como RespostaHttp, com corpo vazio");
+    QCOMPARE(resposta->status, 404);
+    QVERIFY(resposta->corpo.isEmpty());
+}
+
+void TesteTransporteHttps::corpoAcimaDoTetoRecusado()
+{
+    // Caso 1: Content-Length acima do teto. corpo_truncado anuncia 280 bytes e o teto é de 100: recusado antes da leitura.
+    {
+        ServidorDeTeste servidor({QStringLiteral("GET"), QStringLiteral("/dps/ABC"), QStringLiteral("corpo_truncado")});
+        QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+        const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+        QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+        ConfiguracaoTls tls;
+        tls.certificadoCliente = cliente.certificado;
+        tls.chaveCliente = cliente.chave;
+        tls.autoridades = autoridadeDeTeste();
+        TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+        const RequisicaoHttp pedido{QByteArrayLiteral("GET"), QStringLiteral("/dps/ABC"), {}, {}, 100};
+        auto resposta = transporte.enviar(pedido);
+        if (!resposta.has_value()) {
+            qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+        }
+        QVERIFY2(!resposta.has_value(), "Content-Length acima do teto não pode voltar como resposta");
+        QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+        QCOMPARE(resposta.error().causa, CausaErro::Protocolo);
+    }
+    // Caso 2: sem Content-Length. O servidor manda 4096 bytes e fecha; com teto de 1024, o transporte aborta na leitura.
+    {
+        ServidorDeTeste servidor({QStringLiteral("GET"), QStringLiteral("/dps/ABC"), QStringLiteral("corpo_sem_tamanho")});
+        QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+        const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+        QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+        ConfiguracaoTls tls;
+        tls.certificadoCliente = cliente.certificado;
+        tls.chaveCliente = cliente.chave;
+        tls.autoridades = autoridadeDeTeste();
+        TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+        const RequisicaoHttp pedido{QByteArrayLiteral("GET"), QStringLiteral("/dps/ABC"), {}, {}, 1024};
+        auto resposta = transporte.enviar(pedido);
+        if (!resposta.has_value()) {
+            qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+        }
+        QVERIFY2(!resposta.has_value(), "corpo acima do teto sem Content-Length não pode voltar como resposta");
+        QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+        QCOMPARE(resposta.error().causa, CausaErro::Protocolo);
+    }
+}
+
+void TesteTransporteHttps::certificadoSemChaveRecusadoComoConfiguracao()
+{
+    // Certificado sem chave: erro de configuração antes de enviar. A porta 1 não tem servidor: se o transporte tentasse
+    // enviar, daria erro de conexão, e o teste acusa a diferença.
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.certificado.isNull(), "não foi possível ler o certificado de cliente");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = cliente.certificado;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(1, QString(), 3000ms), tls);
+    auto resposta = transporte.enviar(consultaDps());
+    if (!resposta.has_value()) {
+        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+    }
+    QVERIFY(!resposta.has_value());
+    QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+    QCOMPARE(resposta.error().causa, CausaErro::Configuracao);
+}
+
+void TesteTransporteHttps::chaveSemCertificadoRecusadoComoConfiguracao()
+{
+    // Chave sem certificado: o mesmo erro de configuração, antes de enviar.
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.chave.isNull(), "não foi possível ler a chave de cliente");
+    ConfiguracaoTls tls;
+    tls.chaveCliente = cliente.chave;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(1, QString(), 3000ms), tls);
+    auto resposta = transporte.enviar(consultaDps());
+    if (!resposta.has_value()) {
+        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+    }
+    QVERIFY(!resposta.has_value());
+    QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+    QCOMPARE(resposta.error().causa, CausaErro::Configuracao);
+}
+
+void TesteTransporteHttps::redirecionamentoNaoSeguidoViraErro()
+{
+    // A falha redireciona: GET /dps/ABC responde 302 para /dps/SEGUIDO. O transporte não segue e trata 3xx como erro
+    // definitivo de protocolo. Se seguisse, a segunda chamada daria 404, e isso viraria resposta: o teste acusa.
+    ServidorDeTeste servidor({QStringLiteral("GET"), QStringLiteral("/dps/ABC"), QStringLiteral("redireciona")});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = cliente.certificado;
+    tls.chaveCliente = cliente.chave;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    auto resposta = transporte.enviar(consultaDps());
+    if (!resposta.has_value()) {
+        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+    } else {
+        qInfo().noquote() << "resposta com status" << resposta->status << "(redirecionamento não devia virar resposta)";
+    }
+    QVERIFY2(!resposta.has_value(), "3xx não pode voltar como resposta: o redirecionamento não é seguido");
+    QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+    QCOMPARE(resposta.error().causa, CausaErro::Protocolo);
+}
+
+void TesteTransporteHttps::tempoLimiteAcimaDoTetoRecusado()
+{
+    // Tempo limite de 3e9 ms, acima de INT_MAX e do teto de 10 minutos: configuração inválida, sem estouro de int.
+    ConfiguracaoTls tls;
+    tls.autoridades = autoridadeDeTeste();
+    const UrlBase base{QUrl(QStringLiteral("https://127.0.0.1:1")), QString(), std::chrono::milliseconds{3000000000LL}};
+    TransporteHttps transporte(base, tls);
+    auto resposta = transporte.enviar(consultaDps());
+    if (!resposta.has_value()) {
+        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+    }
+    QVERIFY(!resposta.has_value());
+    QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+    QCOMPARE(resposta.error().causa, CausaErro::Configuracao);
+}
+
+void TesteTransporteHttps::prefixoInvalidoRecusadoComoConfiguracao()
+{
+    // Prefixo "v1", sem barra inicial: a configuração é inválida, e o caminho sairia colado (v1/dps/ABC).
+    ConfiguracaoTls tls;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(1, QStringLiteral("v1"), 3000ms), tls);
+    auto resposta = transporte.enviar(consultaDps());
+    if (!resposta.has_value()) {
+        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+    }
+    QVERIFY(!resposta.has_value());
+    QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+    QCOMPARE(resposta.error().causa, CausaErro::Configuracao);
 }
 
 QTEST_GUILESS_MAIN(TesteTransporteHttps)

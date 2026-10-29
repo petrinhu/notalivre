@@ -58,6 +58,7 @@ struct RequisicaoHttp {
     QString caminho;         ///< Relativo ao prefixo, com barra inicial, ex.: "/dps/ID".
     QByteArray corpo;
     QByteArray tipoConteudo;
+    qint64 tetoCorpo = 16 * 1024 * 1024; ///< Teto do corpo da resposta, em bytes (padrão 16 MiB). Acima dele, erro definitivo de protocolo.
 };
 
 struct RespostaHttp {
