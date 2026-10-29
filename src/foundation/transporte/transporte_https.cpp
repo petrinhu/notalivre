@@ -102,6 +102,14 @@ bool corpoConfereComContentLength(const QNetworkReply* resposta, qsizetype lidos
     return tamanho.toLongLong() == static_cast<qint64>(lidos);
 }
 
+// O pedido sai com Accept-Encoding: identity. Resposta com Content-Encoding diferente de identity é protocolo
+// inesperado: o transporte não descomprime, e o chamador não recebe corpo que não pediu.
+bool contentEncodingEhIdentity(const QNetworkReply* resposta)
+{
+    const QByteArray valor = resposta->rawHeader("Content-Encoding").trimmed().toLower();
+    return valor.isEmpty() || valor == "identity";
+}
+
 // mTLS: autoridade de servidor só a da configuração (sem as do sistema), TLS 1.2 ou superior, verificação do servidor
 // obrigatória (nunca ignoreSslErrors). Certificado de cliente entra só se a credencial veio.
 QSslConfiguration configurarSsl(const ConfiguracaoTls& tls)
@@ -144,6 +152,8 @@ std::expected<RespostaHttp, ErroTransporte> TransporteHttps::enviar(const Requis
     url.setPath(urlBase_.prefixo + requisicao.caminho);
     QNetworkRequest pedido(url);
     pedido.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+    // identity explícito: o Qt não descomprime a resposta sozinho, e a conferência do Content-Length vale sempre.
+    pedido.setRawHeader("Accept-Encoding", "identity");
     pedido.setSslConfiguration(configurarSsl(tls_));
     if (!requisicao.tipoConteudo.isEmpty()) {
         pedido.setHeader(QNetworkRequest::ContentTypeHeader, requisicao.tipoConteudo);
@@ -192,6 +202,10 @@ std::expected<RespostaHttp, ErroTransporte> TransporteHttps::enviar(const Requis
     const QVariant statusAtributo = resposta->attribute(QNetworkRequest::HttpStatusCodeAttribute);
     const int status = statusAtributo.isValid() ? statusAtributo.toInt() : 0;
     if (status > 0) {
+        if (!contentEncodingEhIdentity(resposta)) {
+            return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
+                                        mensagemDeRede(CausaErro::Protocolo, codigo, handshakeConcluido, sslErros)));
+        }
         QByteArray corpo = resposta->readAll();
         if (faixaDeRespostaCompleta(codigo) && corpoConfereComContentLength(resposta, corpo.size())) {
             return RespostaHttp{status, std::move(corpo)};
