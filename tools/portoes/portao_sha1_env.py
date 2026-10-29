@@ -53,9 +53,24 @@ def listar(raiz):
     return sorted(caminhos)
 
 
+def origem_do_pyc(rel):
+    """Caminho do .py de origem de um bytecode de __pycache__ (pacote.cpython-XY.pyc), ou None se não for pyc."""
+    partes = rel.split("/")
+    if not rel.endswith(".pyc") or "__pycache__" not in partes:
+        return None
+    idx = len(partes) - 1 - partes[::-1].index("__pycache__")
+    dono = "/".join(partes[:idx])
+    nome = partes[-1].split(".")[0] + ".py"
+    return f"{dono}/{nome}" if dono else nome
+
+
 def analisar(raiz):
-    """Devolve (encontrados, analisados, violacoes, permitidos, lista_violacoes)."""
-    encontrados = analisados = permitidos = 0
+    """Devolve (encontrados, analisados, violacoes, permitidos, derivados, lista_violacoes).
+
+    Um .pyc herda a permissão do .py de origem (que também é varrido), e só se a origem estiver em PERMITIDOS. Pyc órfão
+    ou de fonte fora da lista continua sendo analisado como arquivo comum (rodada 4: o CI reprovou o .pyc do oraculo).
+    """
+    encontrados = analisados = permitidos = derivados = 0
     violacoes = []
     for rel in listar(raiz):
         encontrados += 1
@@ -65,20 +80,23 @@ def analisar(raiz):
         except OSError:
             continue
         analisados += 1
-        if VARIAVEL in dados:
-            if rel in PERMITIDOS:
-                permitidos += 1
-            else:
-                violacoes.append(rel)
-    return encontrados, analisados, len(violacoes), permitidos, violacoes
+        if VARIAVEL not in dados:
+            continue
+        if origem_do_pyc(rel) in PERMITIDOS:
+            derivados += 1
+        elif rel in PERMITIDOS:
+            permitidos += 1
+        else:
+            violacoes.append(rel)
+    return encontrados, analisados, len(violacoes), permitidos, derivados, violacoes
 
 
 def main(argv):
     if len(argv) != 2:
         print("uso: portao_sha1_env.py RAIZ", file=sys.stderr)
         return 2
-    enc, ana, viol, perm, lista = analisar(argv[1])
-    print(f"encontrados={enc} analisados={ana} violacoes={viol} permitidos={perm}")
+    enc, ana, viol, perm, der, lista = analisar(argv[1])
+    print(f"encontrados={enc} analisados={ana} violacoes={viol} permitidos={perm} derivados={der}")
     for rel in lista:
         print(f"VIOLACAO {rel}: a variável OPENSSL_ENABLE_SHA1_SIGNATURES só pode existir no arnês do fedora44")
     if enc == 0 or ana != enc or viol:

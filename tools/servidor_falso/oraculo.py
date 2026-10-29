@@ -2,8 +2,9 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 """Oráculo independente do servidor falso: xmllint (XSD) e xmlsec1 (assinatura), sempre por processo próprio.
 
-Uma chamada por requisição, em série (L-11). Versão do xmlsec1 detectada: na 1.3 a busca de chave é estrita e a
-chave só acha a AC com --lax-key-search depois do comando (DA-2.10). Na 1.2 a opção não existe.
+Uma chamada por requisição, em série (L-11). Versão do xmlsec1 detectada. Medido (DA-2.28): na 1.3, a cadeia sem KeyInfo
+com a chave do emissor pelo armazém de chaves só verifica com --lax-key-search depois do comando; na 1.2 essa cadeia verifica
+em estrito, e a opção não se passa. O caminho padrão (só a AC em --trusted-pem) não passa a opção.
 
 ARNÊS DO FEDORA44 (DA-2.10, L-77): a política de cripto da imagem fedora44 recusa RSA-SHA-1. Só nesse ambiente, a
 variável OPENSSL_ENABLE_SHA1_SIGNATURES=1 entra no ambiente do xmlsec1, e a linha abaixo vai para o log. Nenhum outro
@@ -96,7 +97,8 @@ class Oraculo:
         passam o certificado do emissor (DA-2.27); na 1.3 a busca relaxada é obrigatória para essa cadeia.
         """
         chaves = [arg for pem in chaves_publicas for arg in ("--pubkey-cert-pem", pem)]
-        return [self.xmlsec1, "--verify", *argumentos_lax(self.versao), *ID_ATTR,
+        # DA-2.28: --lax-key-search só com chaves_publicas (a cadeia sem KeyInfo). O caminho padrão fica em estrito.
+        return [self.xmlsec1, "--verify", *(argumentos_lax(self.versao) if chaves_publicas else []), *ID_ATTR,
                 "--trusted-pem", self.ca_pem, *chaves, caminho]
 
     def verificar_assinatura(self, xml, chaves_publicas=()):

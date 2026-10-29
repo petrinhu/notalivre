@@ -2,6 +2,14 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Testes do servidor falso da API (NL-2.6). Cada caso vira um add_test próprio, rodado com python3 -I.
 # O ambiente leva o xmllint, o xmlsec1 e o XSD de Produção Restrita, e a pasta de trabalho do build.
+# Build Flatpak (NL_FLATPAK_BUILD=ON, fixado no manifesto): o SDK KDE 6.11 não traz xmlsec1 (CI 40804430962). A opção
+# desliga estes testes, e o configure diz isso no log. Nunca se desliga por falta da ferramenta: no build nativo, o
+# find_program REQUIRED abaixo continua reprovando o configure se o xmlsec1 faltar.
+if(NL_FLATPAK_BUILD)
+    message(STATUS "servidor falso: testes desligados neste build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28)")
+    return()
+endif()
+
 find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
 find_program(NL_XMLLINT_SF xmllint REQUIRED)
 find_program(NL_XMLSEC1_SF xmlsec1 REQUIRED)
