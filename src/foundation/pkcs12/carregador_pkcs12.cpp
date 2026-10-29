@@ -75,13 +75,15 @@ std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteAr
         return std::unexpected(ErroCredencial::AindaNaoValido);
     }
 
-    if (auto cadeia = verificarCadeia(folha, partes->intermediarios, ancoras); !cadeia) {
-        return std::unexpected(cadeia.error());
-    }
-
+    // EKU da folha antes da cadeia: a EKU malformada é recusada como SemAutenticacaoCliente, e não como
+    // CadeiaInvalida pela verificação do OpenSSL, que também olha extensões (achado do vermelho/verde da rodada 2).
     auto ekuAusente = verificarEku(folha);
     if (!ekuAusente) {
         return std::unexpected(ekuAusente.error());
+    }
+
+    if (auto cadeia = verificarCadeia(folha, partes->intermediarios, ancoras); !cadeia) {
+        return std::unexpected(cadeia.error());
     }
 
     auto inscricao = extrairInscricao(folha);
