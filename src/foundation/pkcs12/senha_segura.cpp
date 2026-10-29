@@ -55,13 +55,16 @@ SenhaSegura::~SenhaSegura() {
 }
 
 void SenhaSegura::zerar() noexcept {
-    // NL-2.2, fase vermelha (revisão 2): zerar ainda não zera. A fase verde restaura o OPENSSL_cleanse.
+    if (dados_ != nullptr) {
+        OPENSSL_cleanse(dados_, capacidade_);
+    }
+    tamanho_ = 0;
 }
 
 void SenhaSegura::liberar() noexcept {
     if (dados_ != nullptr) {
-        // Zera antes de desfazer o mlock e liberar: o segredo não pode sobreviver no heap.
-        OPENSSL_cleanse(dados_, capacidade_);
+        // Uma única zeragem: liberar() passa por zerar(), então não há caminho de liberação sem o OPENSSL_cleanse.
+        zerar();
 #ifdef NL_TEM_MLOCK
         if (bloqueada_) {
             munlock(dados_, capacidade_);

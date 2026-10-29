@@ -173,7 +173,9 @@ std::expected<PartesPfx, Falha> tentar(QByteArrayView pfx, const SenhaSegura& se
         brutas.chave.reset(chave);
         brutas.certificado.reset(certificado);
         while (ca != nullptr && sk_X509_num(ca) > 0) {
-            brutas.intermediarios.emplace_back(sk_X509_pop(ca));
+            // Posse antes do push: o certificado não fica sem dono se o vetor não crescer (bad_alloc).
+            CertificadoX509 posse(sk_X509_pop(ca));
+            brutas.intermediarios.push_back(std::move(posse));
         }
         sk_X509_free(ca);
     }

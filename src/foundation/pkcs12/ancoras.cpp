@@ -22,8 +22,10 @@ std::expected<Ancoras, ErroAncora> Ancoras::dePem(QByteArrayView pem) {
         return std::unexpected(ErroAncora::FalhaInterna);
     }
     std::vector<CertificadoX509> certificados;
-    while (X509* certificado = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr)) {
-        certificados.emplace_back(certificado);
+    while (X509* lido = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr)) {
+        // Posse antes do push: se o vetor não crescer (bad_alloc), o certificado já é liberado pelo unique_ptr.
+        CertificadoX509 posse(lido);
+        certificados.push_back(std::move(posse));
     }
     BIO_free(bio);
     // A leitura termina com "no start line" no fim do texto: não é erro do chamador.

@@ -39,8 +39,8 @@ std::expected<void, ErroCredencial> verificarCadeia(x509_st* folha,
             return std::unexpected(ErroCredencial::FalhaInterna);
         }
     }
-    // O tempo é checado antes, com Vencido. Aqui só a cadeia: assim o vencido não vira CadeiaInvalida.
-    X509_STORE_set_flags(loja.get(), X509_V_FLAG_NO_CHECK_TIME);
+    // A validade (inclusive das intermediárias e da âncora) é checada pelo próprio X509_verify_cert, sem
+    // X509_V_FLAG_NO_CHECK_TIME: uma intermediária vencida reprova a cadeia (revisão 1, A2).
 
     std::unique_ptr<STACK_OF(X509), LiberadorPilha> pilha(sk_X509_new_null());
     if (!pilha) {

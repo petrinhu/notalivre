@@ -1,19 +1,109 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// NL-2.2, fase vermelha (revisão 2): carregar() recusa todo arquivo sem tocar na senha. Cada teste de
-// carregamento reprova pela própria expectativa (sucesso ou o código que ele testa).
+// Orquestração do carregamento de A1 (NL-2.2). Ordem fixa: decifrar, vencimento da folha, início da validade da
+// folha, cadeia até as âncoras de fora (com validade das intermediárias), EKU, inscrição.
+// Cada critério devolve o próprio ErroCredencial; nenhum depende da mensagem de erro do OpenSSL.
 #include <nl/foundation/pkcs12/carregador_pkcs12.h>
+
+#include "decifrar_pfx.h"
+#include "extrator_inscricao.h"
+#include "verificador_cadeia.h"
+
+#include <openssl/err.h>
+#include <openssl/obj_mac.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include <utility>
 
 namespace nl::foundation::pkcs12 {
 
+namespace {
+
+// Evento de auditoria do certificado sem EKU. Só o nome do evento: nenhum CNPJ, CPF ou nome entra no registro.
+constexpr const char* kEventoEkuAusente = "credencial.eku_ausente";
+
+// notAfter anterior ao instante atual.
+bool vencido(x509_st* certificado) {
+    return X509_cmp_current_time(X509_get0_notAfter(certificado)) < 0;
+}
+
+// notBefore posterior ao instante atual.
+bool aindaNaoValido(x509_st* certificado) {
+    return X509_cmp_current_time(X509_get0_notBefore(certificado)) > 0;
+}
+
+// Devolve true se a folha não tem extensão EKU. Presente e sem clientAuth, ou presente e malformada: erro.
+// A extensão que existe e não decodifica nunca conta como ausente (revisão 1, A6).
+std::expected<bool, ErroCredencial> verificarEku(x509_st* folha) {
+    if (X509_get_ext_by_NID(folha, NID_ext_key_usage, -1) < 0) {
+        return true;
+    }
+    auto* usos = static_cast<EXTENDED_KEY_USAGE*>(X509_get_ext_d2i(folha, NID_ext_key_usage, nullptr, nullptr));
+    if (usos == nullptr) {
+        ERR_clear_error();
+        return std::unexpected(ErroCredencial::SemAutenticacaoCliente);
+    }
+    bool clientAuth = false;
+    const int quantidade = sk_ASN1_OBJECT_num(usos);
+    for (int i = 0; i < quantidade; ++i) {
+        if (OBJ_obj2nid(sk_ASN1_OBJECT_value(usos, i)) == NID_client_auth) {
+            clientAuth = true;
+        }
+    }
+    EXTENDED_KEY_USAGE_free(usos);
+    if (!clientAuth) {
+        return std::unexpected(ErroCredencial::SemAutenticacaoCliente);
+    }
+    return false;
+}
+
+} // namespace
+
 CarregadorPkcs12::CarregadorPkcs12(nl::foundation::log::Log& registro) noexcept
     : registro_(registro) {}
 
-std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteArrayView, SenhaSegura&,
-                                                                         const Ancoras&) {
-    return std::unexpected(ErroCredencial::FalhaInterna);
+std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteArrayView pfx, SenhaSegura& senha,
+                                                                         const Ancoras& ancoras) {
+    auto partes = decifrarPfx(pfx, senha);
+    // A senha sai de uso logo após o parse, com sucesso ou falha. O chamador vê o próprio objeto zerado.
+    senha.zerar();
+    if (!partes) {
+        return std::unexpected(partes.error());
+    }
+
+    x509_st* folha = partes->certificado.get();
+    if (vencido(folha)) {
+        return std::unexpected(ErroCredencial::Vencido);
+    }
+    if (aindaNaoValido(folha)) {
+        return std::unexpected(ErroCredencial::AindaNaoValido);
+    }
+
+    if (auto cadeia = verificarCadeia(folha, partes->intermediarios, ancoras); !cadeia) {
+        return std::unexpected(cadeia.error());
+    }
+
+    auto ekuAusente = verificarEku(folha);
+    if (!ekuAusente) {
+        return std::unexpected(ekuAusente.error());
+    }
+
+    auto inscricao = extrairInscricao(folha);
+    if (!inscricao) {
+        return std::unexpected(ErroCredencial::SemInscricao);
+    }
+
+    if (*ekuAusente) {
+        auto gravado = registro_.registrar(nl::foundation::log::Nivel::Aviso, kEventoEkuAusente, {});
+        if (!gravado) {
+            // Sem o registro exigido, a credencial sem EKU não é aceita (falha fechada).
+            return std::unexpected(ErroCredencial::FalhaInterna);
+        }
+    }
+
+    return CredencialX509(std::move(partes->certificado), std::move(partes->chave), std::move(*inscricao),
+                          *ekuAusente);
 }
 
 } // namespace nl::foundation::pkcs12
