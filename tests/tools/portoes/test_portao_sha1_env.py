@@ -29,6 +29,14 @@ class TestePortaoSha1(unittest.TestCase):
                 f.write(texto)
         return raiz
 
+    def _repo(self, arquivos, rastreados=()):
+        """Árvore que é repositório git. Só os caminhos em rastreados entram no índice (o git os rastreia)."""
+        raiz = self._arvore(arquivos)
+        subprocess.run(["git", "-C", raiz, "init", "-q"], check=True)
+        for rel in rastreados:
+            subprocess.run(["git", "-C", raiz, "add", "--", rel], check=True)
+        return raiz
+
     def _rodar(self, raiz):
         r = subprocess.run([sys.executable, "-I", str(PORTAO), raiz], capture_output=True, text=True)
         return r.returncode, r.stdout + r.stderr
@@ -87,6 +95,119 @@ class TestePortaoSha1(unittest.TestCase):
         rc, saida = self._rodar(raiz)
         self.assertEqual(rc, 1, saida)
         self.assertIn("encontrados=0", saida)
+
+    def test_portaoSha1PycDerivadoNaoReprova(self):
+        # Bytecode de um .py permitido (o oráculo compilado no __pycache__) não é violação: o fonte já é varrido.
+        # Sem essa regra, o CI reprovou o build (run 40804430962): o .pyc de oraculo.py tinha a string.
+        raiz = self._arvore({
+            "tools/servidor_falso/oraculo.py": f'ENV_SHA1 = "{VARIAVEL}"\n',
+            "tools/servidor_falso/__pycache__/oraculo.cpython-314.pyc": f"lixo {VARIAVEL} lixo",
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 0, saida)
+        self.assertIn("violacoes=0", saida)
+
+    def test_portaoSha1PycSemOrigemReprova(self):
+        # Pyc órfão (sem .py de origem na árvore) com a string é violação: a regra acima não pode cegar o portão.
+        raiz = self._arvore({
+            "src/limpo.cpp": "int a = 1;\n",
+            "src/out/__pycache__/fantasma.cpython-314.pyc": f"lixo {VARIAVEL} lixo",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("violacoes=1", saida)
+
+    def test_portaoSha1VazamentoEmThirdPartyReprova(self):
+        # Escopo do portão é a árvore inteira (L-36): third_party/ entra na varredura (rodada 4, S16).
+        raiz = self._arvore({
+            "third_party/vendor/vazamento.cpp": f'const char *v = "{VARIAVEL}=1";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("third_party/vendor/vazamento.cpp", saida)
+
+    def test_portaoSha1PastaNovaNaRaizReprova(self):
+        # Pasta nova na raiz também entra: a lista de raízes deixou de existir (rodada 4, S17).
+        raiz = self._arvore({
+            "novo_modulo/vazamento.cpp": f'const char *v = "{VARIAVEL}=1";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("novo_modulo/vazamento.cpp", saida)
+
+    def test_portaoSha1PycComSufixoFalsoNaoDerivadoReprova(self):
+        # oraculo.evil.cpython-314.pyc não é bytecode de oraculo.py: o stem não pode conter ponto (rodada 4, S03).
+        raiz = self._arvore({
+            "tools/servidor_falso/oraculo.py": f'ENV_SHA1 = "{VARIAVEL}"\n',
+            "tools/servidor_falso/__pycache__/oraculo.evil.cpython-314.pyc": f"lixo {VARIAVEL} lixo",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("violacoes=1", saida)
+        self.assertIn("oraculo.evil.cpython-314.pyc", saida)
+
+    def test_portaoSha1PycSemVariavelNaFonteReprova(self):
+        # Bytecode com a variável não herda permissão de uma fonte que não a contém (rodada 4, S04).
+        raiz = self._arvore({
+            "tools/servidor_falso/oraculo.py": "ENV_SHA1 = 'sem a variavel'\n",
+            "tools/servidor_falso/__pycache__/oraculo.cpython-314.pyc": f"lixo {VARIAVEL} lixo",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("violacoes=1", saida)
+
+    def test_portaoSha1MarkdownDocumentalPassa(self):
+        # Exceção escrita no script: .md é documentação, nunca compilada nem executada (ADR e plano citam a variável).
+        raiz = self._arvore({
+            "docs/adr/documento.md": f"A variável {VARIAVEL} é citada por nome.\n",
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 0, saida)
+        self.assertIn("violacoes=0", saida)
+
+    def test_portaoSha1WorktreeNaRaizPassa(self):
+        # Exceção 4 (L-55): worktrees/ na RAIZ é cópia de trabalho NÃO rastreada: o git a ignora, o portão também.
+        raiz = self._repo({
+            "worktrees/nl-x/tools/servidor_falso/vazado.cpp": f'const char *v = "{VARIAVEL}=1";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 0, saida)
+        self.assertIn("violacoes=0", saida)
+
+    def test_portaoSha1WorktreeRastreadoNaRaizReprova(self):
+        # A poda vale só para o que o git não rastreia (rodada 6, achado 2): arquivo rastreado em worktrees/ é varrido.
+        raiz = self._repo({
+            "worktrees/nl-x/tools/servidor_falso/vazado.cpp": f'const char *v = "{VARIAVEL}=1";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        }, rastreados=["worktrees/nl-x/tools/servidor_falso/vazado.cpp", "src/limpo.cpp"])
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("worktrees/nl-x/tools/servidor_falso/vazado.cpp", saida)
+
+    def test_portaoSha1MarkdownSrcReprova(self):
+        # Exceção de .md só em docs/ e na raiz (rodada 6, achado 1): markdown dentro de src/ é varrido.
+        raiz = self._arvore({
+            "src/notas.md": f"A variável {VARIAVEL} aparece aqui.\n",
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("src/notas.md", saida)
+
+    def test_portaoSha1WorktreeAninhadoReprova(self):
+        # A exceção vale só na raiz: worktrees/ em outro nível é pasta comum e continua sendo varrida.
+        raiz = self._arvore({
+            "src/worktrees/vazado.cpp": f'const char *v = "{VARIAVEL}=1";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("src/worktrees/vazado.cpp", saida)
 
     def test_ciHigieneLigaPortaoSha1(self):
         # Job higiene do ci.yml (fronteira: o job seguinte, camadas). O portão tem de rodar sobre o workspace inteiro.
