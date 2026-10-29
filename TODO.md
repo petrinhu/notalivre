@@ -6,7 +6,7 @@
 
 ## INBOX (descobertas não priorizadas)
 
-- (sem ID): NL-2.6, recomendação do revisor na rodada 3: condicionar o --lax-key-search do oráculo ao caminho com chaves públicas (oraculo.py:99) e corrigir a docstring oraculo.py:5-6, porque a sonda no ubuntu26.04 deu rc igual com e sem lax no caminho padrão e a cadeia da DA-2.10 não foi reproduzida. O CTO decide; o plano (DA-2.10) cita o lax como FATO medido.
+- (sem ID): NL-2.6, correção curta decidida na DA-2.28 (CTO, a ratificar): o --lax-key-search do oráculo só vale com chaves_publicas (oraculo.py:99), a docstring de oraculo.py:5-6 passa a trazer só o medido, e a sonda do caminho padrão é repetida no manjaro (1.3.12); executor da NL-2.6, depois da NL-2.2 liberar o contêiner.
 - (sem ID): NL-2.6, controle 1 do ADR 0007 (assinaSha1NoSdkKdeSemVariavel no job Flatpak) pendente e atrelado à NL-2.3 (DA-2.27); ADR em PROPOSTO até lá.
 - (sem ID): Narciso revisa o que acontece com a senha guardada no chaveiro quando o usuário troca de certificado (recomendação do CTO: apagar a antiga no mesmo ato) e o limite de emissores por instalação (recomendação do CTO: sem limite fixo). Fonte: docs/superpowers/plans/2026-10-25-notalivre-plano.md, NL-4.3.
 - (sem ID): Narciso e o CTO decidem a recuperação da numeração depois de perder o banco, e o cadastro de tomadores que não volta pelo ADN. Fonte: plano, seção 9 (spec 4.4), prevista para a Onda 3.
