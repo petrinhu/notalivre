@@ -1,7 +1,7 @@
 # ADR 0007: SHA-1 no arnês de teste do fedora44 (desvio de risco com controles compensatórios)
 
-**Status:** PROPOSTO. Não aprovado: a rodada 1 do revisor independente o reprovou, e a aprovação é do revisor (rodada 2 da NL-2.6, pendente). Aceite do líder na ratificação das decisões autônomas da Onda 2.
-**Data:** 27/10/2026 (revisto em 28/10/2026, rodada 2 do revisor).
+**Status:** PROPOSTO (DA-2.27, decisão do CTO). Não aprovado: as rodadas 1 e 2 do revisor independente o reprovaram, e a aprovação é do revisor. Não vira ACEITO enquanto o controle 1 não estiver verde no job Flatpak (NL-2.3), e a NL-2.10 não começa com o ADR em PROPOSTO (DA-2.27, opção B(a)).
+**Data:** 27/10/2026 (revisto em 28/10/2026, rodadas 2 e 3 do revisor).
 **Origem:** plano, NL-2.6 (Desvio de risco, DA-2.10) e NL-2.3 (assinador). Medição: `/var/tmp/notalivre-smoke-NL-2.6/` (matriz de quatro imagens, rc medido).
 **Relacionadas:** ADR-0003 (envelope e hierarquia de chaves); DA-2.1 e DA-2.2 (assinatura com OpenSSL, rsa-sha1 como contrato de interoperabilidade).
 
@@ -33,14 +33,18 @@ os controles abaixo estiverem ativos e verificados. Sem verificação periódica
    o portão varrer `src/` e `apps/` e o job de higiene do CI rodar verde; hoje o portão roda no build por SHA (ctest) e no job higiene
    do `ci.yml` (passo `sha1_env`), que ainda não foi observado num CI verde porque nada foi empurrado.
 
-## Controles compensatórios e como cada um se verifica
+## Controles compensatórios e como cada um se verifica (L-77)
 
-| # | Controle | Onde vive | Como se verifica | Estado |
+Estado em 28/10/2026, medido no commit da rodada 3. "Verifica-se por" diz o comando ou o log que prova o controle; quem não tem prova ainda tem o estado pendente.
+
+| # | Controle | Onde vive | Estado | Como se verifica (periodicamente) |
 |---|---|---|---|---|
-| 1 | Assinatura SHA-1 no SDK KDE 6.11 **sem** a variável: teste `assinaSha1NoSdkKdeSemVariavel` dentro do build do flatpak-builder | NL-2.3 (job Flatpak), só citado aqui | O log do job Flatpak traz o teste verde e imprime que a variável está ausente. Rodaria a cada push. | **Pendente na NL-2.3.** Esta fatia não entrega o controle 1. |
-| 2 | Portão de varredura: reprova a variável em qualquer arquivo fora do arnês do fedora44 | `tools/portoes/portao_sha1_env.py`, testes em `tests/tools/portoes/`, passo `sha1_env` no job `higiene` do `ci.yml` | (a) ctest: `portoes.*` varre a árvore do build por SHA com contagem impressa; a sabotagem dentro de `src/out/` e `src/build_x/` tem de reprovar (`portaoSha1ViolacaoEm*`); só `.git` é podado; (b) `portoes.ciHigieneLigaPortaoSha1` garante o passo no CI; (c) sabotagem de estreia vista vermelha (log de vermelho da NL-2.6, rodadas 1 e 2). | **Vale depois** que o job higiene do CI rodar verde com o passo `sha1_env`. Até lá, a verificação é local (ctest e host). |
+| 1 | Assinatura SHA-1 no SDK KDE 6.11 **sem** a variável: teste `assinaSha1NoSdkKdeSemVariavel` dentro do build do flatpak-builder | NL-2.3 (job Flatpak), só citado aqui | **PENDENTE na NL-2.3.** Nenhuma prova existe hoje. | Log do job Flatpak com o teste verde e a linha de variável ausente, a cada push. Sem esse log verde, o ADR não vira ACEITO. |
+| 2 | Portão de varredura: a variável só pode aparecer no arnês do fedora44 | `tools/portoes/portao_sha1_env.py`; testes `portoes.*` no ctest; passo `sha1_env` no job `higiene` do `ci.yml` | **ATIVO no build e no host.** Visto vermelho antes da implementação (commit de vermelho `ca3523b` e rodadas 1 e 2 do revisor: `portaoSha1ViolacaoEmSrcOutReprova` e `portaoSha1ViolacaoEmSrcBuildXReprova`, mutante de poda antiga). **Ainda não observado no CI:** só valerá quando o job `higiene` rodar verde com o passo, o que exige push. | `ctest` no build por SHA (`portoes.*`); `python3 -I tools/portoes/portao_sha1_env.py <raiz>` no host e na imagem `notalivre-higiene:ci`; log do job `higiene` do CI com o passo `sha1_env` verde, citado com o SHA. |
 
-Cobertura do portão no build: `src/`, `apps/`, `flatpak/`, `tests/`, `tools/`, `.github/workflows/ci.yml` (acrescidos à `LISTA_FONTE` nesta rodada) e os CMakeLists da raiz. Os demais arquivos de `.github/` não entram no build; o job higiene do CI varre o workspace inteiro.
+Cobertura do portão no build: `src/`, `apps/`, `flatpak/`, `tests/`, `tools/`, `.github/workflows/ci.yml` (acrescidos à `LISTA_FONTE` na rodada 2) e os CMakeLists da raiz. Os demais arquivos de `.github/` não entram no build; o job higiene do CI varre o workspace inteiro.
+
+**Afirmação sobre o app.** O app não lê nem define a variável. Essa afirmação só é verdadeira na medida em que o controle 2 roda sobre `src/` e `apps/` no CI. Até o log do job higiene existir, a afirmação vale só como verificação local.
 
 ## Consequências
 

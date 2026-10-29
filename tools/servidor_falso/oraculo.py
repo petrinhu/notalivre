@@ -90,9 +90,14 @@ class Oraculo:
         return r.returncode == 0, r.stderr.decode("utf-8", errors="replace")
 
     def comando_verificar(self, caminho, chaves_publicas=()):
-        # ESQUELETO VERMELHO (rodada 3): chaves_publicas ainda não entra no comando.
+        """Comando de verificação. chaves_publicas (certificados PEM) entram no armazém de chaves do xmlsec1.
+
+        Por padrão a chamada não passa chave: só a AC de teste em --trusted-pem. Os testes de cadeia sem KeyInfo
+        passam o certificado do emissor (DA-2.27); na 1.3 a busca relaxada é obrigatória para essa cadeia.
+        """
+        chaves = [arg for pem in chaves_publicas for arg in ("--pubkey-cert-pem", pem)]
         return [self.xmlsec1, "--verify", *argumentos_lax(self.versao), *ID_ATTR,
-                "--trusted-pem", self.ca_pem, caminho]
+                "--trusted-pem", self.ca_pem, *chaves, caminho]
 
     def verificar_assinatura(self, xml, chaves_publicas=()):
         """xmlsec1 --verify com a AC de teste. Devolve (ok, saída)."""
@@ -100,15 +105,3 @@ class Oraculo:
         r = subprocess.run(self.comando_verificar(caminho, chaves_publicas), env=self._env(),
                            capture_output=True, text=True)
         return r.returncode == 0, r.stdout + r.stderr
-
-    def assinar(self, template, chave, certificado):
-        """xmlsec1 --sign com a chave e o certificado do emissor de teste. Confere a saída além do rc."""
-        entrada = self._escrever(template, "template")
-        saida = os.path.join(self.trabalho, f"assinado-{os.path.basename(entrada)}")
-        comando = [self.xmlsec1, "--sign", *argumentos_lax(self.versao), *ID_ATTR,
-                   "--privkey-pem", f"{chave},{certificado}", "--output", saida, entrada]
-        r = subprocess.run(comando, env=self._env(), capture_output=True, text=True)
-        if r.returncode != 0 or not os.path.isfile(saida) or os.path.getsize(saida) == 0:
-            raise ErroOraculo(f"xmlsec1 não assinou (rc={r.returncode}, saída={saida}): {r.stderr.strip()}")
-        with open(saida, "rb") as f:
-            return f.read()

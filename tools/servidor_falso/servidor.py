@@ -20,9 +20,9 @@ from .roteiro import Roteiro
 
 ROTA_DPS = "/dps/"
 ROTA_NFSE = "/nfse/"
-# Fora desta fatia (NL-2.6), declarado: POST /nfse/{chave}/eventos é da NL-4.1 (cancelar e substituir) e
-# GET /DFe/{NSU} é da NL-4.2 (consultar e baixar do ADN). Ambas respondem 501. GET /nfse/{chave}/eventos cai na
-# consulta de NFS-e e devolve 404 (NFSE_NAO_ENCONTRADA) até a NL-4.2 modelar os eventos do ADN.
+# Fora desta fatia por decisão do CTO, DA-2.27 (/var/tmp/notalivre-logs/decisoes_autonomas_onda2.md): POST /nfse/{chave}/eventos
+# é da NL-4.1 e GET /DFe/{NSU} é da NL-4.2, e ambas respondem 501 até lá (o plano, linha 523, já aponta para essas fatias).
+# GET /nfse/{chave}/eventos cai na consulta de NFS-e e devolve 404 (NFSE_NAO_ENCONTRADA) até a NL-4.2.
 PREFIXO_NAO_IMPLEMENTADO = ("/DFe/",)
 
 

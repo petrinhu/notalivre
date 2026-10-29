@@ -41,8 +41,3 @@ def montar_template(xml, id_dps):
     if pos < 0:
         raise ValueError("DPS sem </DPS>")
     return xml[:pos] + assinatura + xml[pos:]
-
-
-def assinar(oraculo, xml_base, chave, certificado):
-    """Devolve a DPS de referência assinada pelo xmlsec1 (oráculo de teste)."""
-    return oraculo.assinar(montar_template(xml_base, id_do_infdps(xml_base)), chave, certificado)
