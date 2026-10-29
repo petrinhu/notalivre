@@ -28,17 +28,28 @@ CPF_OK = "12345678909"
 # Layout do DOC-ICP-04 v8.0, 7.1.2.3, otherName 2.16.76.1.3.1: data (8), CPF (11), NIS (11), RG (15), órgão/UF (10).
 CONTEUDO_CPF = "01011990" + CPF_OK + "00000000000" + "000000000000000" + "SSPTESTE00"
 
-CLIENTES_COM_CLIENTAUTH = ["cnpj_ok", "cpf_ok", "outro_cnpj_raiz", "cnpj_alfanumerico", "vencido", "revogado"]
-CLIENTES = CLIENTES_COM_CLIENTAUTH + ["sem_clientauth"]
+# EKU clientAuth presente (sem_identificacao tem EKU, mas não tem otherName: SemInscricao).
+CLIENTES_COM_CLIENTAUTH = ["cnpj_ok", "cpf_ok", "outro_cnpj_raiz", "cnpj_alfanumerico", "vencido", "revogado",
+                           "sem_identificacao", "folha_futura", "cn_com_cnpj_sem_san", "outro_oid_sem_inscricao"]
+# sem_clientauth: EKU emailProtection (presente, sem clientAuth). eku_ausente: sem extensão EKU.
+CLIENTES = CLIENTES_COM_CLIENTAUTH + ["sem_clientauth", "eku_ausente", "eku_malformada"]
 PFX_MODERNOS = [c + ".pfx" for c in CLIENTES]
+# Certificados de cadeia: subordinada da AC de teste, autoassinado de outra raiz, e a folha da subordinada em dois .pfx.
+EXTRAS_PEM = ["sub_ac.pem", "cadeia_outra_raiz.pem"]
+PFX_EXTRAS = ["cadeia_outra_raiz.pfx", "cnpj_sub.pfx", "cnpj_sub_sem_intermediaria.pfx",
+              "intermediaria_vencida.pfx", "cadeia_outra_sub.pfx", "sem_mac.pfx", "chave_sem_cifra.pfx"]
+# .pfx que levam a AC de teste no bag de CA (o pfx de cadeia de outra raiz e o sem intermediária não levam).
+PFX_COM_AC = PFX_MODERNOS
 
 # Inventário fixo do diretório de saída (piso e teto de varredura, L-36 e L-11). Nenhum item extra, nenhuma pasta.
 ARQUIVOS_ESPERADOS = (
     ["ac.pem", "crl.pem", "senha_teste.txt", "servidor.pem", "servidor.key", "cnpj_ok_legado.pfx"]
+    + EXTRAS_PEM
     + [c + ".pem" for c in CLIENTES]
     + PFX_MODERNOS
+    + PFX_EXTRAS
 )
-N_ARQUIVOS_ESPERADOS = 20
+N_ARQUIVOS_ESPERADOS = 41
 
 OID_CNPJ = "2.16.76.1.3.3"
 OID_CPF = "2.16.76.1.3.1"
@@ -71,6 +82,8 @@ def carregar_gerador():
     caminho = Path(__file__).with_name("gerar_certificados.py")
     spec = importlib.util.spec_from_file_location("gerar_certificados_teste", caminho)
     modulo = importlib.util.module_from_spec(spec)
+    # Registrado antes do exec: o dataclass do gerador consulta sys.modules[__module__] (Python 3.14 exige).
+    sys.modules[spec.name] = modulo
     spec.loader.exec_module(modulo)
     return modulo
 
@@ -154,10 +167,10 @@ class TesteCertificados(unittest.TestCase):
         self.assertEqual(len(presentes), N_ARQUIVOS_ESPERADOS)
         modo = stat.S_IMODE((DIR / "senha_teste.txt").stat().st_mode)
         self.assertEqual(oct(modo), "0o600", "arquivo de senha precisa ser 0600")
-        for pem in ["ac.pem", "servidor.pem"] + [c + ".pem" for c in CLIENTES]:
+        for pem in ["ac.pem", "servidor.pem"] + EXTRAS_PEM + [c + ".pem" for c in CLIENTES]:
             r = rodar(["openssl", "x509", "-in", str(DIR / pem), "-noout"])
             self.assertEqual(r.returncode, 0, f"{pem} não lido pelo openssl: {saida_toda(r)}")
-        for pfx in PFX_MODERNOS + ["cnpj_ok_legado.pfx"]:
+        for pfx in PFX_MODERNOS + PFX_EXTRAS + ["cnpj_ok_legado.pfx"]:
             args = ["openssl", "pkcs12", "-in", str(DIR / pfx), "-noout", "-passin", f"env:{VAR_SENHA}"]
             if pfx.endswith("_legado.pfx"):
                 args.insert(2, "-legacy")
@@ -213,6 +226,7 @@ class TesteCertificados(unittest.TestCase):
         esperados = {
             "cnpj_ok": CNPJ_OK,
             "sem_clientauth": CNPJ_OK,
+            "eku_ausente": CNPJ_OK,
             "vencido": CNPJ_OK,
             "revogado": CNPJ_OK,
             "outro_cnpj_raiz": CNPJ_OUTRO_RAIZ,
@@ -238,10 +252,15 @@ class TesteCertificados(unittest.TestCase):
             r = rodar(["openssl", "x509", "-in", str(DIR / (nome + ".pem")), "-noout", "-ext", "extendedKeyUsage"])
             self.assertEqual(r.returncode, 0, f"{nome}: {saida_toda(r)}")
             self.assertIn(EKU_CLIENTE, r.stdout, nome)
+        # sem_clientauth: EKU presente, sem clientAuth (o caso que a NL-2.2 recusa como SemAutenticacaoCliente).
         r = rodar(["openssl", "x509", "-in", str(DIR / "sem_clientauth.pem"), "-noout", "-ext", "extendedKeyUsage"])
         self.assertEqual(r.returncode, 0, f"sem_clientauth: {saida_toda(r)}")
         self.assertNotIn(EKU_CLIENTE, r.stdout, "sem_clientauth tem clientAuth")
-        self.assertEqual(r.stdout.strip(), "", "sem_clientauth deveria não ter EKU")
+        self.assertIn("E-mail Protection", r.stdout, "sem_clientauth deveria ter EKU emailProtection")
+        # eku_ausente: nenhuma extensão EKU (o caso que a NL-2.2 aceita, com evento sem PII).
+        r = rodar(["openssl", "x509", "-in", str(DIR / "eku_ausente.pem"), "-noout", "-ext", "extendedKeyUsage"])
+        self.assertEqual(r.returncode, 0, f"eku_ausente: {saida_toda(r)}")
+        self.assertEqual(r.stdout.strip(), "", "eku_ausente deveria não ter EKU")
         ku = rodar(["openssl", "x509", "-in", str(DIR / "cnpj_ok.pem"), "-noout", "-ext", "keyUsage"]).stdout
         self.assertIn("Key Usage: critical", ku)
         self.assertIn("Digital Signature", ku)
@@ -273,7 +292,7 @@ class TesteCertificados(unittest.TestCase):
         # digital e CA:TRUE). Um certificado de cliente no bag, ou um bundle com a AC e o cliente, reprova.
         referencia = self.dados_x509(DIR / "ac.pem")
         self.assertIn("CA:TRUE", referencia)
-        alvos = [(pfx, []) for pfx in PFX_MODERNOS] + [("cnpj_ok_legado.pfx", ["-legacy"])]
+        alvos = [(pfx, []) for pfx in PFX_COM_AC] + [("cnpj_ok_legado.pfx", ["-legacy"])]
         for pfx, extra in alvos:
             argv = ["openssl", "pkcs12"] + extra + ["-in", str(DIR / pfx), "-cacerts", "-nokeys",
                                                     "-passin", f"env:{VAR_SENHA}"]
@@ -286,6 +305,56 @@ class TesteCertificados(unittest.TestCase):
             with os.fdopen(fd, "w", encoding="ascii") as arquivo:
                 arquivo.write(blocos[0] + "\n")
             self.assertEqual(self.dados_x509(tmp), referencia, f"{pfx}: certificado do bag de CA não é a AC de teste")
+
+    def subAcEhCaPathlenZeroAssinadaPelaAc(self):
+        r = rodar(["openssl", "x509", "-in", str(DIR / "sub_ac.pem"), "-noout", "-ext", "basicConstraints"])
+        self.assertEqual(r.returncode, 0, saida_toda(r))
+        self.assertIn("CA:TRUE, pathlen:0", r.stdout, "subordinada precisa ser CA com pathlen 0")
+        v = rodar(["openssl", "verify", "-CAfile", str(self.ac), str(DIR / "sub_ac.pem")])
+        self.assertEqual(v.returncode, 0, saida_toda(v))
+
+    def cnpjSubVemDaSubAc(self):
+        # A folha do .pfx com a subordinada confere com a subordinada; sem a subordinada, a cadeia é incompleta.
+        folha = rodar(["openssl", "pkcs12", "-in", str(DIR / "cnpj_sub.pfx"), "-clcerts", "-nokeys",
+                       "-passin", f"env:{VAR_SENHA}"], env=self.env_isolado())
+        self.assertEqual(folha.returncode, 0, saida_toda(folha))
+        blocos = re.findall(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", folha.stdout, re.S)
+        self.assertEqual(len(blocos), 1, "cnpj_sub.pfx deveria ter uma folha")
+        fd, tmp = tempfile.mkstemp(prefix="nl21-folha-", suffix=".pem", dir=os.environ.get("TMPDIR") or "/var/tmp")
+        self.addCleanup(os.unlink, tmp)
+        with os.fdopen(fd, "w", encoding="ascii") as arquivo:
+            arquivo.write(blocos[0] + "\n")
+        completa = rodar(["openssl", "verify", "-CAfile", str(self.ac), "-untrusted", str(DIR / "sub_ac.pem"), tmp])
+        self.assertEqual(completa.returncode, 0, saida_toda(completa))
+        incompleta = rodar(["openssl", "verify", "-CAfile", str(self.ac), tmp])
+        self.assertNotEqual(incompleta.returncode, 0)
+        self.assertIn("unable to get local issuer certificate", saida_toda(incompleta))
+
+    def cnpjSubSemIntermediariaSemCa(self):
+        r = rodar(["openssl", "pkcs12", "-in", str(DIR / "cnpj_sub_sem_intermediaria.pfx"), "-cacerts", "-nokeys",
+                   "-passin", f"env:{VAR_SENHA}"], env=self.env_isolado())
+        self.assertEqual(r.returncode, 0, saida_toda(r))
+        self.assertNotIn("BEGIN CERTIFICATE", r.stdout, "pfx sem intermediária não deveria levar CA")
+
+    def cadeiaForaDaAcEhAutoassinadaSemCa(self):
+        pem = DIR / "cadeia_outra_raiz.pem"
+        r = rodar(["openssl", "x509", "-in", str(pem), "-noout", "-issuer", "-subject"])
+        self.assertEqual(r.returncode, 0, saida_toda(r))
+        emissor, sujeito = [linha.split("=", 1)[1] for linha in r.stdout.strip().splitlines()[:2]]
+        self.assertEqual(emissor, sujeito, "cadeia_outra_raiz deveria ser autoassinado")
+        self.assertEqual(othername_valores(pem).get(OID_CNPJ), CNPJ_OUTRO_RAIZ)
+        cas = rodar(["openssl", "pkcs12", "-in", str(DIR / "cadeia_outra_raiz.pfx"), "-cacerts", "-nokeys",
+                     "-passin", f"env:{VAR_SENHA}"], env=self.env_isolado())
+        self.assertEqual(cas.returncode, 0, saida_toda(cas))
+        self.assertNotIn("BEGIN CERTIFICATE", cas.stdout, "pfx de outra raiz não deveria levar CA")
+
+    def semIdentificacaoSemOids(self):
+        # Sem otherName nenhum (nem CNPJ nem CPF): o caso que a NL-2.2 devolve como SemInscricao.
+        pem = DIR / "sem_identificacao.pem"
+        # Sem SAN nenhum: othername_valores lança sem SAN (é a regra dele), então confere-se só a extensão.
+        r = rodar(["openssl", "x509", "-in", str(pem), "-noout", "-ext", "subjectAltName"])
+        self.assertEqual(r.returncode, 0, saida_toda(r))
+        self.assertEqual(r.stdout.strip(), "", "sem_identificacao não deveria ter subjectAltName")
 
     def cnpjsDeTesteTemDvValido(self):
         # Lê o identificador de DENTRO dos certificados gerados (otherName) e confere o DV com o algoritmo

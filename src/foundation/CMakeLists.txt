@@ -9,3 +9,4 @@ target_link_libraries(nl_foundation PRIVATE nl_warnings)
 # Ganchos da NL-1.0 (costura de build): diretórios que as fatias da Onda 1 enchem.
 add_subdirectory(xml)
 add_subdirectory(log)
+add_subdirectory(pkcs12)

@@ -22,6 +22,11 @@ foreach(nome IN ITEMS
     ekuClientAuthSoNoCertificadoDeCliente
     vencidoRejeitadoPeloVerify
     revogadoRejeitadoPorLcr
+    subAcEhCaPathlenZeroAssinadaPelaAc
+    cnpjSubVemDaSubAc
+    cnpjSubSemIntermediariaSemCa
+    cadeiaForaDaAcEhAutoassinadaSemCa
+    semIdentificacaoSemOids
     cnpjsDeTesteTemDvValido
     servidorFalsoTemSanEEkuServerAuth
     pfxTemCadeiaDaAc)

@@ -8,7 +8,7 @@ set -euo pipefail
 
 dnf -y install --setopt=install_weak_deps=False \
     gcc-c++ libasan libubsan cmake ninja-build pkgconf-pkg-config python3-pip \
-    git-core openssl \
+    git-core openssl openssl-devel \
     mesa-libGL-devel mesa-libEGL-devel libxkbcommon-devel fontconfig-devel \
     freetype-devel libX11-devel dbus-libs krb5-libs \
     libxml2-devel libxml2 \
