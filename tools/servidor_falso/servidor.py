@@ -105,6 +105,8 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             return self._json(504, {"Codigo": "TIMEOUT", "Descricao": "falha roteirizada"})
         if falha == "conflito409":
             return self._json(409, {"Codigo": "DPS_DUPLICADA", "Descricao": "falha roteirizada"})
+        if falha == "corpo_truncado":
+            return self._corpo_truncado()
         if self.command == "POST" and caminho == "/nfse":
             return self._postar_dps(corpo, falha)
         if self.command in ("GET", "HEAD") and caminho.startswith(ROTA_DPS):
@@ -158,6 +160,21 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         if xml is None:
             return self._json(404, {"Codigo": "NFSE_NAO_ENCONTRADA", "Descricao": chave})
         return self._json(200, corpo_da_nota(chave, xml))
+
+    def _corpo_truncado(self):
+        # Status 200 e Content-Length do corpo inteiro, mas só metade vai antes do corte: o cliente lê corpo incompleto.
+        dados = json.dumps({"Codigo": "CORPO_TRUNCADO", "Descricao": "falha roteirizada " + "x" * 200},
+                           ensure_ascii=False).encode("utf-8")
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(dados)))
+            self.end_headers()
+            self.wfile.write(dados[: len(dados) // 2])
+            self.wfile.flush()
+        except OSError:
+            pass  # o cliente já desistiu: nada a fazer
+        self.close_connection = True  # fecha no meio do corpo
 
     def _json(self, status, corpo):
         dados = json.dumps(corpo, ensure_ascii=False).encode("utf-8")
