@@ -297,3 +297,24 @@ As versões batem com os candidatos medidos no plano (Fedora 1.2.41, Mint 1.2.39
 **Tag das imagens:** `nl-0.4` virou `nl-2.0` (`imagem_de` em `build_local.sh`). As imagens `nl-0.4` continuam no Docker e não foram apagadas.
 
 **Build por SHA (NL-2.0).** `build_local.sh` extrai o commit com `git archive` para `/var/tmp/notalivre-src-<SHA>-<fatia>`, usa build próprio da fatia, grava `SHA: <40 hex>` na linha 1 do log e o manifesto da fonte em `NL-MANIFESTO-SHA256`. `tools/conteiner/evidencia_sha.sh verificar <log>` reprova log sem SHA no topo, log cujo manifesto diverge do commit (arquivo alheio na fonte) e SHA que não é commit do repositório. O cache do ZIP do XSD agora chega ao contêiner (gêmeo da INBOX). Desvio corrigido: `build_local.sh imagem` honra `NL_LOG` (o desvio 1 da NL-1.0 foi resolvido).
+
+## NL-2.3 passo 0 (29/10/2026)
+
+Objetivo (plano, NL-2.3, DA-2.10): medir se o OpenSSL do runtime KDE 6.11, que é o alvo de entrega (Flatpak, spec 3.3), assina e verifica SHA-1 sem a variável `OPENSSL_ENABLE_SHA1_SIGNATURES`. O bloqueio medido na NL-2.6 é do fedora44 do host, não do runtime.
+
+**Comandos (sempre dentro do contêiner, nunca `flatpak run` no host, L-50).** Imagem `notalivre/flatpak-builder-fedora44:nl-0.5`, sob `flock /var/tmp/notalivre-heavy.lock` com `nice -n 5`, usuário 1000:1000, bind mounts com `:z`. Driver `/var/tmp/notalivre-nl23/driver_passo0.sh`; roteiro `/var/tmp/notalivre-nl23/roteiro_passo0.sh`; segunda medição `/var/tmp/notalivre-nl23/passo0b_policia.sh`. Dentro do contêiner: `flatpak remote-add --user flathub` e `flatpak install --user -y flathub org.kde.Sdk//6.11 org.kde.Platform//6.11`, com `FLATPAK_USER_DIR` numa pasta de trabalho. O `openssl` de cada runtime roda pelo `ld-linux-x86-64.so.2` e pelas bibliotecas do próprio runtime, com `env -i` (sem a variável) e `OPENSSL_CONF` apontando ao `etc/ssl/openssl.cnf` do runtime (caminho de configuração, não a variável de SHA-1). Teste: `openssl dgst -sha1 -sign` e `-verify`, com chave e certificado sintéticos gerados pelo mesmo openssl (`req -x509 -newkey rsa:2048`, 1 dia, CN de teste); controle com `-sha256`. Segunda medição: o mesmo teste com uma cópia do cnf do runtime sem a linha `.include = /etc/crypto-policies/...`.
+
+**FATO (medido)**
+- Flatpak 1.18.4. `org.kde.Sdk//6.11` e `org.kde.Platform//6.11` instalados dentro do contêiner (rc 0 nos dois).
+- Versão do OpenSSL: SDK 3.5.7 (9 Jun 2026); Platform 3.5.7. Ambos com OPENSSLDIR `/etc/pki/tls`, provider default ativo e nenhum outro provider ativo. Confirma o esperado 3.5.7.
+- SHA-1 sem a variável (ausente no ambiente medido): `dgst -sha1 -sign` rc 0 e `dgst -sha1 -verify` rc 0 ("Verified OK") nos dois runtimes. Controle `-sha256` rc 0 nos dois. Com o cnf sem o include absoluto, SHA-1 rc 0 nos dois.
+- `legacy.so` presente nos dois runtimes (`lib/x86_64-linux-gnu/ossl-modules/legacy.so`). O carregamento não foi testado.
+- zlib: o SDK tem `include/zlib.h` e `lib/x86_64-linux-gnu/libz.so`. O Platform não tem `zlib.h`; tem só `libz.so.1`.
+- xmlsec1: ausente no SDK e no Platform.
+- Disco (`btrfs filesystem usage /`): antes, Device unallocated 2.09 GiB e Free (estimated) min 43.88 GiB; depois, 2.09 GiB e min 39.25 GiB. Nenhum ENOSPC.
+- Logs: `/var/tmp/notalivre-logs/NL-2.3-passo0.log` (driver, rc 0) e `/var/tmp/notalivre-logs/NL-2.3-passo0b.log` (política separada).
+
+**INFERÊNCIA (não medida)**
+- A política do contêiner Fedora (`/etc/crypto-policies/back-ends/opensslcnf.config`, perfil DEFAULT) tem `rh-allow-sha1-signatures = no`, e mesmo assim o SHA-1 passou nos runtimes. Hipótese: o OpenSSL do KDE não tem o patch do Fedora que lê essa chave, então o bloqueio do fedora44 do host (NL-2.6) não se repete no runtime. Não foi provado qual cnf entrou na primeira rodada.
+- Consequência: a condição de parada da NL-2.3 ("runtime recusar SHA-1") não se cumpre. Falta medir se o `OSSL_LIB_CTX` próprio do app se comporta igual (DA-2.10) e o teste `assinaSha1NoSdkKdeSemVariavel` no job Flatpak.
+- O runtime medido fica em `/var/tmp/notalivre-nl23/trabalho` para o teste da NL-2.3; a limpeza fica para depois da revisão (L-53).
