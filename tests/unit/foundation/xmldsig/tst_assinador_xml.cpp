@@ -206,7 +206,9 @@ QString textoDoXPath(const QByteArray& xml, const char* xpath) {
     xmlXPathContextPtr ctx = xmlXPathNewContext(doc);
     xmlXPathObjectPtr obj = xmlXPathEvalExpression(reinterpret_cast<const xmlChar*>(xpath), ctx);
     QString out;
-    if (obj && obj->nodesetval && obj->nodesetval->nodeNr > 0) {
+    if (obj && obj->type == XPATH_STRING && obj->stringval != nullptr) {
+        out = QString::fromUtf8(reinterpret_cast<const char*>(obj->stringval));
+    } else if (obj && obj->nodesetval && obj->nodesetval->nodeNr > 0) {
         const xmlChar* t = xmlNodeGetContent(obj->nodesetval->nodeTab[0]);
         if (t) {
             out = QString::fromUtf8(reinterpret_cast<const char*>(t));
@@ -299,20 +301,24 @@ private slots:
         const QString dourado = QString::fromUtf8(lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") +
                                                              QStringLiteral("/digest_infdps_") + algoritmo +
                                                              QStringLiteral(".txt"))).trimmed();
-        QVERIFY2(!dourado.isEmpty(), "falta o dourado tests/fixtures/xmldsig/digest_infdps_<algoritmo>.txt");
         auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado");
-        QCOMPARE(textoDoXPath(*assinado, "string(//*[local-name()='DigestValue'])"), dourado);
+        const QString valor = textoDoXPath(*assinado, "string(//*[local-name()='DigestValue'])");
+        qInfo("DIGEST algoritmo=%s valor=%s", qPrintable(algoritmo), qPrintable(valor));
+        QVERIFY2(!dourado.isEmpty(), "falta o dourado tests/fixtures/xmldsig/digest_infdps_<algoritmo>.txt");
+        QCOMPARE(valor, dourado);
     }
 
     void digestSha256IgualAoDouradoEmTodasAsImagens() {
         // O SHA-256 é o mesmo em todas as imagens, inclusive o fedora44 (DA-2.38): o dourado é único.
         const QString dourado = QString::fromUtf8(lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") +
                                                              QStringLiteral("/digest_infdps_sha256.txt"))).trimmed();
-        QVERIFY2(!dourado.isEmpty(), "falta o dourado tests/fixtures/xmldsig/digest_infdps_sha256.txt");
         auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha256());
         QVERIFY2(assinado.has_value(), "o assinador não produziu XML assinado com SHA-256");
-        QCOMPARE(textoDoXPath(*assinado, "string(//*[local-name()='DigestValue'])"), dourado);
+        const QString valor = textoDoXPath(*assinado, "string(//*[local-name()='DigestValue'])");
+        qInfo("DIGEST algoritmo=sha256 valor=%s", qPrintable(valor));
+        QVERIFY2(!dourado.isEmpty(), "falta o dourado tests/fixtures/xmldsig/digest_infdps_sha256.txt");
+        QCOMPARE(valor, dourado);
     }
 
     void assinaturaVerificaComAChavePublicaDaFixture() {

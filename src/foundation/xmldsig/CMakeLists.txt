@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Foundation/xmldsig (NL-2.3, DA-2.1): assinador XMLDSIG enveloped sobre libxml2 (C14N) e OpenSSL 3 (digest e RSA).
 # Motor irmão do pkcs12 e não depende dele (DA-2.30): o material chega por ponteiro emprestado do chamador.
-# OpenSSL só com OSSL_LIB_CTX próprio. O app nunca lê nem define OPENSSL_ENABLE_SHA1_SIGNATURES.
+# OpenSSL só com OSSL_LIB_CTX próprio. O app nunca lê nem define a variável de SHA-1 (portão sha1_env).
 find_package(OpenSSL 3.0 REQUIRED)
 find_package(LibXml2 REQUIRED)
 
