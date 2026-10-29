@@ -4,3 +4,4 @@
 add_subdirectory(base)
 add_subdirectory(xml)
 add_subdirectory(log)
+add_subdirectory(gzip)
