@@ -270,13 +270,15 @@ PKCS12* pkcs12ComPar(const QByteArray& senha, EVP_PKEY* chave, X509* cert) {
         return nullptr;
     }
     PKCS12_add_cert(&bags, cert);
-    PKCS12_add_key(&bags, chave, 0, 2048, 0, senha.constData());
+    // Chave cifrada (pkcs8ShroudedKeyBag, 3DES do provider default). nid 0 faria a criação do bag falhar em silêncio.
+    PKCS12_add_key(&bags, chave, 0, 2048, NID_pbe_WithSHA1And3_Key_TripleDES_CBC, senha.constData());
     STACK_OF(PKCS7)* safes = sk_PKCS7_new_null();
     if (safes == nullptr) {
         sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
         return nullptr;
     }
-    PKCS12_add_safe(&safes, bags, NID_pkcs7_data, 2048, senha.constData());
+    // nid -1 = data safe sem cifra (PKCS12_pack_p7data); o certificado é público, a chave segue cifrada no bag próprio.
+    PKCS12_add_safe(&safes, bags, -1, 2048, senha.constData());
     sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
     PKCS12* p12 = PKCS12_add_safes(safes, 0);
     if (p12 != nullptr) {
@@ -309,31 +311,46 @@ bool pfxTemChaveDescasada(const QByteArray& pfx, const QByteArray& senha) {
     return descasada;
 }
 
+
 // PKCS#12 com a chave de OUTRO par, montado em memória. A chave é gerada nesta execução e nada é gravado em disco.
-// Devolve vazio se a montagem falhar ou se o resultado não tiver o par descasado (pré-condição).
-QByteArray pfxComChaveDeOutroPar(const QByteArray& senha) {
+// Devolve vazio se alguma etapa falhar; `motivo` diz em qual etapa (para o log do teste).
+QByteArray pfxComChaveDeOutroPar(const QByteArray& senha, QString& motivo) {
+    motivo = QStringLiteral("certificado cnpj_ok.pem nao lido ou nao decodificado");
     const QByteArray certPem = fixture(QStringLiteral("cnpj_ok.pem"));
     BIO* bioCert = BIO_new_mem_buf(certPem.constData(), static_cast<int>(certPem.size()));
     X509* cert = bioCert != nullptr ? PEM_read_bio_X509(bioCert, nullptr, nullptr, nullptr) : nullptr;
     BIO_free(bioCert);
+    if (cert == nullptr) {
+        return {};
+    }
+    motivo = QStringLiteral("chave RSA de outro par nao gerada (EVP_RSA_gen)");
     EVP_PKEY* chave = EVP_RSA_gen(2048);
+    if (chave == nullptr) {
+        X509_free(cert);
+        return {};
+    }
+    motivo = QStringLiteral("PKCS12 nao montado bag a bag (pkcs12ComPar)");
     QByteArray saida;
-    if (cert != nullptr && chave != nullptr) {
-        PKCS12* p12 = pkcs12ComPar(senha, chave, cert);
-        if (p12 != nullptr) {
-            BIO* bioSaida = BIO_new(BIO_s_mem());
-            if (bioSaida != nullptr && i2d_PKCS12_bio(bioSaida, p12) == 1) {
-                char* dados = nullptr;
-                const long tamanho = BIO_get_mem_data(bioSaida, &dados);
-                saida = QByteArray(dados, static_cast<qsizetype>(tamanho));
-            }
-            BIO_free(bioSaida);
-            PKCS12_free(p12);
+    PKCS12* p12 = pkcs12ComPar(senha, chave, cert);
+    if (p12 != nullptr) {
+        motivo = QStringLiteral("PKCS12 nao serializado (i2d_PKCS12_bio)");
+        BIO* bioSaida = BIO_new(BIO_s_mem());
+        if (bioSaida != nullptr && i2d_PKCS12_bio(bioSaida, p12) == 1) {
+            char* dados = nullptr;
+            const long tamanho = BIO_get_mem_data(bioSaida, &dados);
+            saida = QByteArray(dados, static_cast<qsizetype>(tamanho));
         }
+        BIO_free(bioSaida);
+        PKCS12_free(p12);
     }
     X509_free(cert);
     EVP_PKEY_free(chave);
-    return pfxTemChaveDescasada(saida, senha) ? saida : QByteArray();
+    motivo = QStringLiteral("releitura nao tem chave e certificado descasados (pfxTemChaveDescasada)");
+    if (saida.isEmpty() || !pfxTemChaveDescasada(saida, senha)) {
+        return {};
+    }
+    motivo.clear();
+    return saida;
 }
 
 // PKCS#12 íntegro e senha certa, mas a chave não pertence ao certificado: recusada.
@@ -343,8 +360,9 @@ void TesteCarregadorPkcs12::chaveNaoConfereRecusada()
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     const QByteArray senhaBruta = senhaBrutaDaFixture();
-    const QByteArray pfx = pfxComChaveDeOutroPar(senhaBruta);
-    QVERIFY2(!pfx.isEmpty(), "não foi possível montar o PKCS#12 de teste com a chave de outro par");
+    QString motivo;
+    const QByteArray pfx = pfxComChaveDeOutroPar(senhaBruta, motivo);
+    QVERIFY2(!pfx.isEmpty(), motivo.toUtf8().constData());
     auto senha = SenhaSegura::de(senhaBruta);
     auto resultado = carregador.carregar(pfx, senha, *ancoras);
     QVERIFY(!resultado.has_value());
