@@ -81,6 +81,8 @@ def carregar_gerador():
     caminho = Path(__file__).with_name("gerar_certificados.py")
     spec = importlib.util.spec_from_file_location("gerar_certificados_teste", caminho)
     modulo = importlib.util.module_from_spec(spec)
+    # Registrado antes do exec: o dataclass do gerador consulta sys.modules[__module__] (Python 3.14 exige).
+    sys.modules[spec.name] = modulo
     spec.loader.exec_module(modulo)
     return modulo
 
@@ -348,7 +350,7 @@ class TesteCertificados(unittest.TestCase):
     def semIdentificacaoSemOids(self):
         # Sem otherName nenhum (nem CNPJ nem CPF): o caso que a NL-2.2 devolve como SemInscricao.
         pem = DIR / "sem_identificacao.pem"
-        self.assertEqual(othername_valores(pem), {}, "sem_identificacao não pode trazer otherName")
+        # Sem SAN nenhum: othername_valores lança sem SAN (é a regra dele), então confere-se só a extensão.
         r = rodar(["openssl", "x509", "-in", str(pem), "-noout", "-ext", "subjectAltName"])
         self.assertEqual(r.returncode, 0, saida_toda(r))
         self.assertEqual(r.stdout.strip(), "", "sem_identificacao não deveria ter subjectAltName")
