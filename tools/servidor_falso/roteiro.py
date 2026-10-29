@@ -4,10 +4,13 @@
 
 Falhas: erro5xx (503 antes de processar), timeout (espera a liberação do teste, sem responder), conflito409
 (409 antes de processar), conexao_cortada_apos_aceite (aceita e grava a DPS, depois corta a conexão sem resposta),
-corpo_truncado (GET responde 200 com Content-Length e fecha a conexão no meio do corpo).
+corpo_truncado (GET responde 200 com Content-Length e fecha a conexão no meio do corpo), eco_accept_encoding (GET
+devolve no corpo o Accept-Encoding recebido) e content_encoding_gzip (GET responde 200 com Content-Encoding gzip).
 """
 
-FALHAS = ("erro5xx", "timeout", "conexao_cortada_apos_aceite", "conflito409", "corpo_truncado")
+FALHAS = ("erro5xx", "timeout", "conexao_cortada_apos_aceite", "conflito409", "corpo_truncado",
+          "eco_accept_encoding", "content_encoding_gzip")
+SO_GET = ("corpo_truncado", "eco_accept_encoding", "content_encoding_gzip")
 
 
 class Roteiro:
@@ -19,8 +22,8 @@ class Roteiro:
             raise ValueError(f"falha desconhecida: {falha}")
         if falha == "conexao_cortada_apos_aceite" and (metodo, caminho) != ("POST", "/nfse"):
             raise ValueError("conexao_cortada_apos_aceite só vale para POST /nfse")
-        if falha == "corpo_truncado" and metodo != "GET":
-            raise ValueError("corpo_truncado só vale para GET (corte no meio da resposta)")
+        if falha in SO_GET and metodo != "GET":
+            raise ValueError(f"{falha} só vale para GET")
         self._filas.append((metodo, caminho, falha))
 
     def consumir(self, metodo, caminho):

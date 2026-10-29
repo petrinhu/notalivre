@@ -8,6 +8,7 @@ INFERÊNCIA até a NL-2.10: códigos de erro (exceto E0714, do Anexo I), a forma
 Endpoints de evento e de DFe respondem 501: fora desta fatia, sem teste, sem comportamento inventado.
 """
 
+import gzip
 import hashlib
 import http.server
 import json
@@ -107,6 +108,10 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             return self._json(409, {"Codigo": "DPS_DUPLICADA", "Descricao": "falha roteirizada"})
         if falha == "corpo_truncado":
             return self._corpo_truncado()
+        if falha == "eco_accept_encoding":
+            return self._eco_accept_encoding()
+        if falha == "content_encoding_gzip":
+            return self._content_encoding_gzip()
         if self.command == "POST" and caminho == "/nfse":
             return self._postar_dps(corpo, falha)
         if self.command in ("GET", "HEAD") and caminho.startswith(ROTA_DPS):
@@ -160,6 +165,27 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         if xml is None:
             return self._json(404, {"Codigo": "NFSE_NAO_ENCONTRADA", "Descricao": chave})
         return self._json(200, corpo_da_nota(chave, xml))
+
+    def _eco_accept_encoding(self):
+        # Devolve, como corpo, o Accept-Encoding que chegou: a conferência do cabeçalho é do lado do servidor.
+        dados = self.headers.get("Accept-Encoding", "").encode("ascii", "replace")
+        self._corpo_bruto(200, "text/plain; charset=us-ascii", dados)
+
+    def _content_encoding_gzip(self):
+        # 200 com Content-Encoding gzip e corpo comprimido de verdade, mesmo sem o cliente ter pedido gzip.
+        dados = gzip.compress(json.dumps({"Codigo": "CONTENT_ENCODING_GZIP", "Descricao": "falha roteirizada"})
+                              .encode("utf-8"))
+        self._corpo_bruto(200, "application/json; charset=utf-8", dados, extra={"Content-Encoding": "gzip"})
+
+    def _corpo_bruto(self, status, tipo, dados, extra=None):
+        self.send_response(status)
+        self.send_header("Content-Type", tipo)
+        self.send_header("Content-Length", str(len(dados)))
+        for nome, valor in (extra or {}).items():
+            self.send_header(nome, valor)
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(dados)
 
     def _corpo_truncado(self):
         # Status 200 e Content-Length do corpo inteiro, mas só metade vai antes do corte: o cliente lê corpo incompleto.
