@@ -4,6 +4,7 @@
 # Acrescenta os arquivos ao alvo da camada com target_sources(nl_mid PRIVATE ...); não cria alvo próprio.
 target_sources(nl_mid PRIVATE
     leiaute/prodrest_20261020/codec_dps.cpp
+    leiaute/prodrest_20261020/envelope_dps.cpp
     leiaute/prodrest_20261020/codigos_leiaute.cpp
     leiaute/prodrest_20261020/grupo_ibscbs.cpp
     leiaute/prodrest_20261020/grupos_pessoa.cpp

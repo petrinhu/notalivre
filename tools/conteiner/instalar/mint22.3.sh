@@ -14,7 +14,7 @@ apt-get install -y --no-install-recommends \
     python3 python3-venv python3-pip openssl libssl-dev \
     libgl-dev libegl-dev libxkbcommon-dev libfontconfig-dev libfreetype-dev \
     libx11-dev libglib2.0-dev libdbus-1-dev libgssapi-krb5-2 libxml2-dev libxml2-utils \
-    xmlsec1
+    zlib1g-dev xmlsec1
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 
