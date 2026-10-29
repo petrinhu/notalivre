@@ -6,10 +6,13 @@
 // um QTimer nosso, não o do Qt, porque o código do reply por timeout varia entre versões (abort vira
 // OperationCanceledError). A mensagem de erro nunca leva texto do Qt nem do OpenSSL: esses textos trazem a URL da
 // requisição (chave de acesso, NSU) e o host. Sai só a descrição fixa da causa, o código numérico do Qt e o estado do
-// handshake. Classificação da recusa do servidor depois do handshake: ADR-0005, seção 3, decisão do CISO. Usa só
-// sinais estruturados (sinal encrypted, status ausente, código UnknownNetworkError), nunca o texto do alerta.
+// handshake. Recusa do servidor depois do handshake: DA-2.35 do plano (decisão do CISO, 29/10/2026), por sinais
+// estruturados (sinal encrypted, status ausente, código UnknownNetworkError), nunca pelo texto do alerta.
+// Classificação dos códigos do Qt: átomo em classificacao_erro.h. A conferência do tamanho do corpo é do parser do Qt:
+// corpo truncado chega como RemoteHostClosedError, código 2, e a faixa de resposta completa o recusa.
 
 #include <nl/foundation/transporte/transporte_https.h>
+
 #include <nl/foundation/transporte/classificacao_erro.h>
 
 #include <QByteArray>
@@ -23,9 +26,14 @@
 #include <QTimer>
 #include <QVariant>
 
+#include <optional>
+
 namespace nl::foundation::transporte {
 
 namespace {
+
+// Teto do tempo limite: 10 minutos. Acima disso a configuração é inválida, e o valor cabe no int do QTimer.
+constexpr std::chrono::milliseconds kTempoLimiteMaximo{600000};
 
 ErroTransporte erro(TipoErro tipo, CausaErro causa, QString mensagem)
 {
@@ -64,42 +72,16 @@ QString mensagemDeRede(CausaErro causa, QNetworkReply::NetworkError codigo, bool
         .arg(sslErros);
 }
 
-// Erro de rede sem status: a classificação é do átomo (classificacao_erro.h); aqui só se monta a mensagem fixa.
+// Erro de rede sem status: a classificação é do átomo; aqui só se monta a mensagem fixa.
 ErroTransporte erroDeRede(QNetworkReply::NetworkError codigo, bool handshake, int sslErros)
 {
     const Classificacao classe = classificarErroDeRede(codigo);
     return erro(classe.tipo, classe.causa, mensagemDeRede(classe.causa, codigo, handshake, sslErros));
 }
 
-// O Qt reporta respostas com status de conteúdo, protocolo e servidor (4xx e 5xx) nos códigos 201 a 499. Fora disso e
-// de NoError, o erro é de rede ou de proxy, e status recebido com erro de rede não vale como resposta completa.
-bool faixaDeRespostaCompleta(QNetworkReply::NetworkError codigo)
-{
-    const int n = static_cast<int>(codigo);
-    return codigo == QNetworkReply::NoError || (n >= 201 && n <= 499);
-}
-
-// Content-Length confere com os bytes lidos. Com Content-Encoding, o cabeçalho diz o tamanho comprimido, e a conferência
-// fica de fora.
-bool corpoConfereComContentLength(const QNetworkReply* resposta, qsizetype lidos)
-{
-    const QVariant tamanho = resposta->header(QNetworkRequest::ContentLengthHeader);
-    if (!tamanho.isValid() || resposta->hasRawHeader("Content-Encoding")) {
-        return true;
-    }
-    return tamanho.toLongLong() == static_cast<qint64>(lidos);
-}
-
-// O pedido sai com Accept-Encoding: identity. Resposta com Content-Encoding diferente de identity é protocolo
-// inesperado: o transporte não descomprime, e o chamador não recebe corpo que não pediu.
-bool contentEncodingEhIdentity(const QNetworkReply* resposta)
-{
-    const QByteArray valor = resposta->rawHeader("Content-Encoding").trimmed().toLower();
-    return valor.isEmpty() || valor == "identity";
-}
-
 // mTLS: autoridade de servidor só a da configuração (sem as do sistema), TLS 1.2 ou superior, verificação do servidor
 // obrigatória (nunca ignoreSslErrors). Certificado de cliente entra só se a credencial veio.
+// Pendência: a cópia da chave dentro da conexão ainda não foi medida (ADR-0002, linha 73), e precisa de contêiner.
 QSslConfiguration configurarSsl(const ConfiguracaoTls& tls)
 {
     QSslConfiguration cfg = QSslConfiguration::defaultConfiguration();
@@ -113,99 +95,193 @@ QSslConfiguration configurarSsl(const ConfiguracaoTls& tls)
     return cfg;
 }
 
+// Valida tudo antes de abrir qualquer conexão: configuração inválida nunca sai da máquina.
+std::optional<ErroTransporte> validarPedido(const UrlBase& base, const ConfiguracaoTls& tls,
+                                            const RequisicaoHttp& requisicao)
+{
+    if (base.tempoLimite <= std::chrono::milliseconds{0}) {
+        return configuracaoInvalida(QStringLiteral("tempo limite não positivo"));
+    }
+    if (base.tempoLimite > kTempoLimiteMaximo) {
+        return configuracaoInvalida(QStringLiteral("tempo limite acima do teto de 10 minutos"));
+    }
+    if (!base.base.isValid() || base.base.scheme() != QLatin1String("https")) {
+        return configuracaoInvalida(QStringLiteral("URL base sem https válido"));
+    }
+    if (!base.base.path().isEmpty() && base.base.path() != QLatin1String("/")) {
+        return configuracaoInvalida(QStringLiteral("URL base com caminho: o caminho vai no prefixo"));
+    }
+    if (!base.prefixo.isEmpty() && !base.prefixo.startsWith(QLatin1Char('/'))) {
+        return configuracaoInvalida(QStringLiteral("prefixo sem barra inicial"));
+    }
+    if (!requisicao.caminho.startsWith(QLatin1Char('/'))) {
+        return configuracaoInvalida(QStringLiteral("caminho sem barra inicial"));
+    }
+    if (requisicao.metodo != "GET" && requisicao.metodo != "HEAD" && requisicao.metodo != "POST") {
+        return configuracaoInvalida(QStringLiteral("método não suportado"));
+    }
+    if (requisicao.tetoCorpo <= 0) {
+        return configuracaoInvalida(QStringLiteral("teto do corpo não positivo"));
+    }
+    if (tls.autoridades.isEmpty()) {
+        return configuracaoInvalida(QStringLiteral("sem autoridade de servidor na configuração"));
+    }
+    if (tls.certificadoCliente.isNull() != tls.chaveCliente.isNull()) {
+        return configuracaoInvalida(QStringLiteral("certificado e chave de cliente vêm juntos"));
+    }
+    return std::nullopt;
+}
+
+// O pedido sai com Accept-Encoding: identity. O Qt não descomprime a resposta sozinho.
+QNetworkRequest montarPedido(const UrlBase& base, const ConfiguracaoTls& tls, const RequisicaoHttp& requisicao)
+{
+    QUrl url = base.base;
+    url.setPath(base.prefixo + requisicao.caminho);
+    QNetworkRequest pedido(url);
+    pedido.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+    pedido.setRawHeader("Accept-Encoding", "identity");
+    pedido.setSslConfiguration(configurarSsl(tls));
+    if (!requisicao.tipoConteudo.isEmpty()) {
+        pedido.setHeader(QNetworkRequest::ContentTypeHeader, requisicao.tipoConteudo);
+    }
+    return pedido;
+}
+
+// O que a espera síncrona observou. Preenchido pelos sinais do Qt durante o loop.
+struct Desfecho {
+    bool expirou = false;
+    bool excedeuTeto = false;
+    bool handshake = false;
+    int sslErros = 0;
+    QNetworkReply::NetworkError codigo = QNetworkReply::NoError;
+    int status = 0;
+    QByteArray corpo;
+    bool contentEncodingIdentidade = true;
+};
+
+// Content-Encoding diferente de identity na resposta é protocolo inesperado: o transporte não descomprime.
+bool contentEncodingEhIdentity(const QNetworkReply* resposta)
+{
+    const QByteArray valor = resposta->rawHeader("Content-Encoding").trimmed().toLower();
+    return valor.isEmpty() || valor == "identity";
+}
+
+QNetworkReply* despachar(QNetworkAccessManager& gerenciador, const QNetworkRequest& pedido,
+                         const RequisicaoHttp& requisicao)
+{
+    if (requisicao.metodo == "GET") {
+        return gerenciador.get(pedido);
+    }
+    if (requisicao.metodo == "HEAD") {
+        return gerenciador.head(pedido);
+    }
+    return gerenciador.post(pedido, requisicao.corpo);
+}
+
+// Espera síncrona. O loop para no fim da resposta; o timer aborta no disparo; o teto do corpo aborta na leitura, e
+// antes dela, se o Content-Length já anuncia mais que o teto. Todas as lambdas usam o Desfecho deste escopo.
+Desfecho executar(QNetworkAccessManager& gerenciador, const QNetworkRequest& pedido, const RequisicaoHttp& requisicao,
+                  std::chrono::milliseconds tempoLimite)
+{
+    Desfecho desfecho;
+    QNetworkReply* resposta = despachar(gerenciador, pedido, requisicao);
+    const qint64 teto = requisicao.tetoCorpo;
+
+    QTimer tempo;
+    tempo.setSingleShot(true);
+    QObject::connect(&tempo, &QTimer::timeout, resposta, [&desfecho, resposta] {
+        desfecho.expirou = true;
+        resposta->abort();
+    });
+    QObject::connect(resposta, &QNetworkReply::encrypted, resposta, [&desfecho] {
+        desfecho.handshake = true;
+    });
+    QObject::connect(resposta, &QNetworkReply::sslErrors, resposta, [&desfecho](const QList<QSslError>& erros) {
+        desfecho.sslErros += static_cast<int>(erros.size());
+    });
+    QObject::connect(resposta, &QNetworkReply::metaDataChanged, resposta, [&desfecho, resposta, teto] {
+        const QVariant tamanho = resposta->header(QNetworkRequest::ContentLengthHeader);
+        if (tamanho.isValid() && tamanho.toLongLong() > teto) {
+            desfecho.excedeuTeto = true;
+            resposta->abort();
+        }
+    });
+    QObject::connect(resposta, &QNetworkReply::readyRead, resposta, [&desfecho, resposta, teto] {
+        desfecho.corpo.append(resposta->readAll());
+        if (desfecho.corpo.size() > teto) {
+            desfecho.excedeuTeto = true;
+            resposta->abort();
+        }
+    });
+
+    QEventLoop laco;
+    QObject::connect(resposta, &QNetworkReply::finished, &laco, &QEventLoop::quit);
+    tempo.start(static_cast<int>(tempoLimite.count()));
+    laco.exec();
+    tempo.stop();
+
+    desfecho.codigo = resposta->error();
+    const QVariant statusAtributo = resposta->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+    desfecho.status = statusAtributo.isValid() ? statusAtributo.toInt() : 0;
+    desfecho.corpo.append(resposta->readAll());
+    desfecho.contentEncodingIdentidade = contentEncodingEhIdentity(resposta);
+    return desfecho;
+}
+
+// Transforma o que o Qt observou no resultado do transporte. Ordem: teto do corpo, tempo limite, status recebido,
+// e por fim erro sem status.
+std::expected<RespostaHttp, ErroTransporte> interpretar(const Desfecho& d)
+{
+    if (d.excedeuTeto) {
+        return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
+                                    mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)));
+    }
+    if (d.expirou) {
+        return std::unexpected(erro(TipoErro::Transitorio, CausaErro::Timeout,
+                                    mensagemDeRede(CausaErro::Timeout, d.codigo, d.handshake, d.sslErros)));
+    }
+    if (d.status > 0) {
+        if (ehRedirecionamento(d.status) || !d.contentEncodingIdentidade) {
+            return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
+                                        mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)));
+        }
+        if (ehCodigoDeRespostaCompleta(d.codigo)) {
+            return RespostaHttp{d.status, d.corpo};
+        }
+        // Erro de rede (1 a 99) depois do status: corpo incompleto ou conexão cortada, nunca resposta.
+        const int codigo = static_cast<int>(d.codigo);
+        if (codigo >= 1 && codigo <= 99) {
+            return std::unexpected(erro(TipoErro::Transitorio, CausaErro::Conexao,
+                                        mensagemDeRede(CausaErro::Conexao, d.codigo, d.handshake, d.sslErros)));
+        }
+        return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
+                                    mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)));
+    }
+    // Recusa do servidor depois do handshake: sinal encrypted, sem status, código UnknownNetworkError (DA-2.35).
+    if (d.handshake && d.codigo == QNetworkReply::UnknownNetworkError) {
+        return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Tls,
+                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente")));
+    }
+    return std::unexpected(erroDeRede(d.codigo, d.handshake, d.sslErros));
+}
+
 } // namespace
 
+// A credencial do A1 entra por cópia: ConfiguracaoTls guarda a chave (QSslKey) dentro do transporte, e cada envio copia
+// a chave para o QSslConfiguration da conexão, que morre no fim do envio. Por isso o TransporteHttps tem a vida da
+// credencial que o montou: o adaptador do Mid o cria a partir da CredencialX509 e o destrói junto com ela.
 TransporteHttps::TransporteHttps(UrlBase urlBase, ConfiguracaoTls tls)
     : urlBase_(std::move(urlBase)), tls_(std::move(tls)) {}
 
 std::expected<RespostaHttp, ErroTransporte> TransporteHttps::enviar(const RequisicaoHttp& requisicao)
 {
-    if (urlBase_.tempoLimite <= std::chrono::milliseconds{0}) {
-        return std::unexpected(configuracaoInvalida(QStringLiteral("tempo limite não positivo")));
+    if (auto invalido = validarPedido(urlBase_, tls_, requisicao)) {
+        return std::unexpected(*invalido);
     }
-    if (!urlBase_.base.isValid() || urlBase_.base.scheme() != QLatin1String("https")) {
-        return std::unexpected(configuracaoInvalida(QStringLiteral("URL base sem https válido")));
-    }
-    if (!urlBase_.base.path().isEmpty() && urlBase_.base.path() != QLatin1String("/")) {
-        return std::unexpected(configuracaoInvalida(QStringLiteral("URL base com caminho: o caminho vai no prefixo")));
-    }
-    if (tls_.autoridades.isEmpty()) {
-        return std::unexpected(configuracaoInvalida(QStringLiteral("sem autoridade de servidor na configuração")));
-    }
-    if (!requisicao.caminho.startsWith(QLatin1Char('/'))) {
-        return std::unexpected(configuracaoInvalida(QStringLiteral("caminho sem barra inicial")));
-    }
-
-    QUrl url = urlBase_.base;
-    url.setPath(urlBase_.prefixo + requisicao.caminho);
-    QNetworkRequest pedido(url);
-    pedido.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
-    // identity explícito: o Qt não descomprime a resposta sozinho, e a conferência do Content-Length vale sempre.
-    pedido.setRawHeader("Accept-Encoding", "identity");
-    pedido.setSslConfiguration(configurarSsl(tls_));
-    if (!requisicao.tipoConteudo.isEmpty()) {
-        pedido.setHeader(QNetworkRequest::ContentTypeHeader, requisicao.tipoConteudo);
-    }
-
     QNetworkAccessManager gerenciador;
-    QNetworkReply* resposta = nullptr;
-    if (requisicao.metodo == "GET") {
-        resposta = gerenciador.get(pedido);
-    } else if (requisicao.metodo == "HEAD") {
-        resposta = gerenciador.head(pedido);
-    } else if (requisicao.metodo == "POST") {
-        resposta = gerenciador.post(pedido, requisicao.corpo);
-    } else {
-        return std::unexpected(configuracaoInvalida(QStringLiteral("método não suportado")));
-    }
-
-    // Espera síncrona: o loop só para no fim da resposta, e o timer garante o fim (abort no disparo).
-    bool expirou = false;
-    bool handshakeConcluido = false;
-    int sslErros = 0;
-    QTimer tempo;
-    tempo.setSingleShot(true);
-    QObject::connect(&tempo, &QTimer::timeout, resposta, [&expirou, resposta] {
-        expirou = true;
-        resposta->abort();
-    });
-    QObject::connect(resposta, &QNetworkReply::encrypted, resposta, [&handshakeConcluido] {
-        handshakeConcluido = true;
-    });
-    QObject::connect(resposta, &QNetworkReply::sslErrors, resposta, [&sslErros](const QList<QSslError>& erros) {
-        sslErros += static_cast<int>(erros.size());
-    });
-    QEventLoop laco;
-    QObject::connect(resposta, &QNetworkReply::finished, &laco, &QEventLoop::quit);
-    tempo.start(static_cast<int>(urlBase_.tempoLimite.count()));
-    laco.exec();
-    tempo.stop();
-
-    if (expirou) {
-        return std::unexpected(erro(TipoErro::Transitorio, CausaErro::Timeout,
-                                    mensagemDeRede(CausaErro::Timeout, resposta->error(), handshakeConcluido, sslErros)));
-    }
-
-    const QNetworkReply::NetworkError codigo = resposta->error();
-    const QVariant statusAtributo = resposta->attribute(QNetworkRequest::HttpStatusCodeAttribute);
-    const int status = statusAtributo.isValid() ? statusAtributo.toInt() : 0;
-    if (status > 0) {
-        if (!contentEncodingEhIdentity(resposta)) {
-            return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
-                                        mensagemDeRede(CausaErro::Protocolo, codigo, handshakeConcluido, sslErros)));
-        }
-        QByteArray corpo = resposta->readAll();
-        if (faixaDeRespostaCompleta(codigo) && corpoConfereComContentLength(resposta, corpo.size())) {
-            return RespostaHttp{status, std::move(corpo)};
-        }
-        return std::unexpected(erro(TipoErro::Transitorio, CausaErro::Conexao,
-                                    mensagemDeRede(CausaErro::Conexao, codigo, handshakeConcluido, sslErros)));
-    }
-    if (handshakeConcluido && codigo == QNetworkReply::UnknownNetworkError) {
-        return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Tls,
-                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente")));
-    }
-    return std::unexpected(erroDeRede(codigo, handshakeConcluido, sslErros));
+    const Desfecho desfecho =
+        executar(gerenciador, montarPedido(urlBase_, tls_, requisicao), requisicao, urlBase_.tempoLimite);
+    return interpretar(desfecho);
 }
 
 } // namespace nl::foundation::transporte
