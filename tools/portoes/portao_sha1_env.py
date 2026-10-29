@@ -2,13 +2,19 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 """Portão da variável de SHA-1 (NL-2.6, DA-2.10; controle compensatório do ADR 0007, L-77).
 
-A variável OPENSSL_ENABLE_SHA1_SIGNATURES só pode aparecer no arnês de teste do fedora44 (tools/servidor_falso/oraculo.py).
-Qualquer outro arquivo de código que a cite reprova, porque ela desliga a política de cripto do sistema.
+A variável OPENSSL_ENABLE_SHA1_SIGNATURES só pode aparecer no arnês de teste do fedora44 (tools/servidor_falso/oraculo.py),
+e nos testes que o exercitam. Qualquer outro arquivo que a cite reprova, porque ela desliga a política de cripto do sistema.
 
-Varredura: src/, apps/, flatpak/, .github/, tools/, tests/ e CMakeLists.txt, CMakePresets.json na raiz. Só .git é podado.
-Documentos (docs/) não entram: o ADR cita a variável por nome.
+Escopo (L-36, trava nasce global): a árvore inteira da raiz, sem lista de pastas (rodada 5, achado 1).
+Exceções, todas escritas aqui e nenhuma outra:
+  1. .git: histórico do git, não é fonte.
+  2. *.md: documentação em Markdown, nunca compilada nem executada pelo build ou pelo CI. O ADR 0007 e o plano citam a
+     variável por nome, e é isso que a exceção protege. Documentação conta à parte, em "documentais=N".
+  3. bytecode de Python (pyc): um pyc é derivado de um .py, só vale se o .py de origem for permitido, estiver na árvore e
+     também contiver a variável (rodada 5, achados 2 e 3). Nome fora do formato <stem>.cpython-<NN>.pyc, dentro de
+     __pycache__ da pasta da origem, não é derivado: é arquivo comum.
 
-Saída obrigatória, mesmo com zero: "encontrados=N analisados=M violacoes=V permitidos=P".
+Saída obrigatória, mesmo com zero: "encontrados=N analisados=M violacoes=V permitidos=P derivados=D documentais=O".
 Sai com 1 se houver violação, se algum arquivo listado não puder ser lido, se a varredura achar zero arquivos
 (varredura quebrada, não código limpo) ou se a contagem de analisados diferir da de encontrados.
 
@@ -16,11 +22,10 @@ Uso: python3 -I portao_sha1_env.py RAIZ_DO_REPOSITORIO
 """
 
 import os
+import re
 import sys
 
 VARIAVEL = "OPENSSL_ENABLE_SHA1_SIGNATURES".encode("ascii")
-RAIZES = ("src", "apps", "flatpak", ".github", "tools", "tests")
-ARQUIVOS_SOLTOS = ("CMakeLists.txt", "CMakePresets.json")
 PERMITIDOS = frozenset({
     "tools/servidor_falso/oraculo.py",
     "tools/portoes/portao_sha1_env.py",
@@ -28,7 +33,8 @@ PERMITIDOS = frozenset({
     "tests/tools/portoes/test_portao_sha1_env.py",
     "tests/tools/servidor_falso/CMakeLists.txt",
 })
-PODAR = frozenset({".git"})  # só o histórico do git. Nenhum outro nome de diretório é isenção (rodada 2, item 1).
+PODAR = frozenset({".git"})  # só o histórico do git (exceção 1)
+RE_PYC = re.compile(r"^(?P<stem>[A-Za-z_][A-Za-z0-9_]*)\.cpython-\d+\.pyc$")  # stem sem ponto (rodada 5, achado 2)
 
 
 def _podar(nome):
@@ -36,67 +42,65 @@ def _podar(nome):
 
 
 def listar(raiz):
-    """Caminhos relativos (barra inclusive no Windows) dos arquivos da varredura, em ordem."""
+    """Caminhos relativos (barra sempre) de todos os arquivos da raiz, em ordem. Só .git é podado."""
     caminhos = []
-    for nome in ARQUIVOS_SOLTOS:
-        if os.path.isfile(os.path.join(raiz, nome)):
-            caminhos.append(nome)
-    for pasta in RAIZES:
-        base = os.path.join(raiz, pasta)
-        if not os.path.isdir(base):
-            continue
-        for atual, dirs, arquivos in os.walk(base):
-            dirs[:] = [d for d in dirs if not _podar(d)]
-            for arquivo in arquivos:
-                caminho = os.path.relpath(os.path.join(atual, arquivo), raiz)
-                caminhos.append(caminho.replace(os.sep, "/"))
+    for atual, dirs, arquivos in os.walk(raiz):
+        dirs[:] = [d for d in dirs if not _podar(d)]
+        for arquivo in arquivos:
+            caminho = os.path.relpath(os.path.join(atual, arquivo), raiz)
+            caminhos.append(caminho.replace(os.sep, "/"))
     return sorted(caminhos)
 
 
 def origem_do_pyc(rel):
-    """Caminho do .py de origem de um bytecode de __pycache__ (pacote.cpython-XY.pyc), ou None se não for pyc."""
+    """Caminho do .py de origem de um bytecode <stem>.cpython-<NN>.pyc dentro de __pycache__, ou None."""
     partes = rel.split("/")
-    if not rel.endswith(".pyc") or "__pycache__" not in partes:
+    if len(partes) < 2 or partes[-2] != "__pycache__":
         return None
-    idx = len(partes) - 1 - partes[::-1].index("__pycache__")
-    dono = "/".join(partes[:idx])
-    nome = partes[-1].split(".")[0] + ".py"
+    m = RE_PYC.match(partes[-1])
+    if m is None:
+        return None
+    dono = "/".join(partes[:-2])
+    nome = m.group("stem") + ".py"
     return f"{dono}/{nome}" if dono else nome
 
 
-def analisar(raiz):
-    """Devolve (encontrados, analisados, violacoes, permitidos, derivados, lista_violacoes).
+def _documental(rel):
+    return rel.endswith(".md")  # exceção 2
 
-    Um .pyc herda a permissão do .py de origem (que também é varrido), e só se a origem estiver em PERMITIDOS. Pyc órfão
-    ou de fonte fora da lista continua sendo analisado como arquivo comum (rodada 4: o CI reprovou o .pyc do oraculo).
-    """
-    encontrados = analisados = permitidos = derivados = 0
-    violacoes = []
-    for rel in listar(raiz):
-        encontrados += 1
+
+def analisar(raiz):
+    """Devolve (encontrados, analisados, violacoes, permitidos, derivados, documentais, lista_violacoes)."""
+    arquivos = listar(raiz)
+    lidos = {}
+    for rel in arquivos:
         try:
             with open(os.path.join(raiz, rel), "rb") as f:
-                dados = f.read()
+                lidos[rel] = f.read()
         except OSError:
             continue
-        analisados += 1
-        if VARIAVEL not in dados:
-            continue
-        if origem_do_pyc(rel) in PERMITIDOS:
-            derivados += 1
+    com_variavel = {rel for rel, dados in lidos.items() if VARIAVEL in dados}
+    permitidos = derivados = documentais = 0
+    violacoes = []
+    for rel in sorted(com_variavel):
+        origem = origem_do_pyc(rel)
+        if origem is not None and origem in PERMITIDOS and origem in com_variavel:
+            derivados += 1  # exceção 3: bytecode de fonte permitida que também contém a variável
         elif rel in PERMITIDOS:
             permitidos += 1
+        elif _documental(rel):
+            documentais += 1  # exceção 2
         else:
             violacoes.append(rel)
-    return encontrados, analisados, len(violacoes), permitidos, derivados, violacoes
+    return len(arquivos), len(lidos), len(violacoes), permitidos, derivados, documentais, violacoes
 
 
 def main(argv):
     if len(argv) != 2:
         print("uso: portao_sha1_env.py RAIZ", file=sys.stderr)
         return 2
-    enc, ana, viol, perm, der, lista = analisar(argv[1])
-    print(f"encontrados={enc} analisados={ana} violacoes={viol} permitidos={perm} derivados={der}")
+    enc, ana, viol, perm, der, doc, lista = analisar(argv[1])
+    print(f"encontrados={enc} analisados={ana} violacoes={viol} permitidos={perm} derivados={der} documentais={doc}")
     for rel in lista:
         print(f"VIOLACAO {rel}: a variável OPENSSL_ENABLE_SHA1_SIGNATURES só pode existir no arnês do fedora44")
     if enc == 0 or ana != enc or viol:

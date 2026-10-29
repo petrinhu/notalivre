@@ -128,6 +128,16 @@ jobs:
         id: configure
         run: cmake --preset debug
 
+      # Rodada 5 (CI da onda-2, run 40804430962): a trava de piso só conta depois de provada vermelha (L-36). O autoteste
+      # reprova o próprio checker quando ele falta ou quando um caso não bate. O piso é o número verde do nativo.
+      - name: Autoteste do piso de testes (rodada 5)
+        id: piso_autoteste
+        run: bash tools/conteiner/autoteste_piso_testes.sh
+
+      - name: Piso de testes e NL_FLATPAK_BUILD OFF (rodada 5)
+        id: piso
+        run: bash tools/conteiner/piso_testes.sh verificar "$NL_TMP_BASE/notalivre-build/debug" "$(cat tools/conteiner/piso_testes.txt)"
+
       - name: Build (preset debug)
         id: build
         run: cmake --build --preset debug
