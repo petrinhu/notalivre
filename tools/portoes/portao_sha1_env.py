@@ -38,6 +38,9 @@ PERMITIDOS = frozenset({
     "tests/tools/servidor_falso/test_servidor_falso.py",
     "tests/tools/portoes/test_portao_sha1_env.py",
     "tests/tools/servidor_falso/CMakeLists.txt",
+    # DA-2.37: o teste do assinador XMLDSIG define o nome da variável para provar que o comportamento do app não
+    # muda com ela (o assinador nunca a lê nem a define). Permitido pelo caminho exato, nunca por padrão de pasta.
+    "tests/unit/foundation/xmldsig/tst_assinador_xml.cpp",
 })
 PODAR = frozenset({".git"})  # só o histórico do git (exceção 1)
 PODAR_NA_RAIZ = frozenset({"worktrees"})  # cópias de trabalho, só na raiz e só não rastreadas (exceção 4, L-55)
