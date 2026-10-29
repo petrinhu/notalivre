@@ -4,9 +4,10 @@
 //
 // Cada chamada cria o próprio QNetworkAccessManager: nada de estado global (política do projeto). O tempo limite é
 // um QTimer nosso, não o do Qt, porque o código do reply por timeout varia entre versões (abort vira
-// OperationCanceledError). Status HTTP recebido vale como resposta, qualquer que seja o NetworkError do Qt. A
-// mensagem de erro nunca leva texto do Qt nem do OpenSSL: esses textos trazem a URL da requisição (chave de acesso,
-// NSU) e o host. Sai só a descrição fixa da causa, o código numérico do Qt e o estado do handshake.
+// OperationCanceledError). A mensagem de erro nunca leva texto do Qt nem do OpenSSL: esses textos trazem a URL da
+// requisição (chave de acesso, NSU) e o host. Sai só a descrição fixa da causa, o código numérico do Qt e o estado do
+// handshake. Classificação da recusa do servidor depois do handshake: ADR-0005, seção 3, decisão do CISO. Usa só
+// sinais estruturados (sinal encrypted, status ausente, código UnknownNetworkError), nunca o texto do alerta.
 
 #include <nl/foundation/transporte/transporte_https.h>
 
@@ -80,6 +81,25 @@ ErroTransporte classificarErroDeRede(QNetworkReply::NetworkError codigo, bool ha
         return erro(TipoErro::Definitivo, CausaErro::Protocolo,
                     mensagemDeRede(CausaErro::Protocolo, codigo, handshake, sslErros));
     }
+}
+
+// O Qt reporta respostas com status de conteúdo, protocolo e servidor (4xx e 5xx) nos códigos 201 a 499. Fora disso e
+// de NoError, o erro é de rede ou de proxy, e status recebido com erro de rede não vale como resposta completa.
+bool faixaDeRespostaCompleta(QNetworkReply::NetworkError codigo)
+{
+    const int n = static_cast<int>(codigo);
+    return codigo == QNetworkReply::NoError || (n >= 201 && n <= 499);
+}
+
+// Content-Length confere com os bytes lidos. Com Content-Encoding, o cabeçalho diz o tamanho comprimido, e a conferência
+// fica de fora.
+bool corpoConfereComContentLength(const QNetworkReply* resposta, qsizetype lidos)
+{
+    const QVariant tamanho = resposta->header(QNetworkRequest::ContentLengthHeader);
+    if (!tamanho.isValid() || resposta->hasRawHeader("Content-Encoding")) {
+        return true;
+    }
+    return tamanho.toLongLong() == static_cast<qint64>(lidos);
 }
 
 // mTLS: autoridade de servidor só a da configuração (sem as do sistema), TLS 1.2 ou superior, verificação do servidor
@@ -167,11 +187,23 @@ std::expected<RespostaHttp, ErroTransporte> TransporteHttps::enviar(const Requis
         return std::unexpected(erro(TipoErro::Transitorio, CausaErro::Timeout,
                                     mensagemDeRede(CausaErro::Timeout, resposta->error(), handshakeConcluido, sslErros)));
     }
+
+    const QNetworkReply::NetworkError codigo = resposta->error();
     const QVariant statusAtributo = resposta->attribute(QNetworkRequest::HttpStatusCodeAttribute);
-    if (statusAtributo.isValid() && statusAtributo.toInt() > 0) {
-        return RespostaHttp{statusAtributo.toInt(), resposta->readAll()};
+    const int status = statusAtributo.isValid() ? statusAtributo.toInt() : 0;
+    if (status > 0) {
+        QByteArray corpo = resposta->readAll();
+        if (faixaDeRespostaCompleta(codigo) && corpoConfereComContentLength(resposta, corpo.size())) {
+            return RespostaHttp{status, std::move(corpo)};
+        }
+        return std::unexpected(erro(TipoErro::Transitorio, CausaErro::Conexao,
+                                    mensagemDeRede(CausaErro::Conexao, codigo, handshakeConcluido, sslErros)));
     }
-    return std::unexpected(classificarErroDeRede(resposta->error(), handshakeConcluido, sslErros));
+    if (handshakeConcluido && codigo == QNetworkReply::UnknownNetworkError) {
+        return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Tls,
+                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente")));
+    }
+    return std::unexpected(classificarErroDeRede(codigo, handshakeConcluido, sslErros));
 }
 
 } // namespace nl::foundation::transporte
