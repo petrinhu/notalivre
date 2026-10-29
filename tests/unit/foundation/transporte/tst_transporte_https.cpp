@@ -166,7 +166,8 @@ private slots:
     void timeoutViraErroTransitorio();
     void baseEPrefixoVemDaConfiguracao();
     void conexaoRecusadaViraErroTransitorio();
-    void statusHttpNaoPadraoViraRespostaMesmoComErroDeRede();
+    void corpo2xxTruncadoViraTransitorio();
+    void rejeicao4xxComCorpoContinuaRespostaHttp();
     void mensagemDeErroNaoTrazURLNemHost();
 };
 
@@ -273,7 +274,7 @@ void TesteTransporteHttps::conexaoRecusadaViraErroTransitorio()
     QCOMPARE(resposta.error().causa, CausaErro::Conexao);
 }
 
-void TesteTransporteHttps::statusHttpNaoPadraoViraRespostaMesmoComErroDeRede()
+void TesteTransporteHttps::rejeicao4xxComCorpoContinuaRespostaHttp()
 {
     // POST /nfse com corpo que não é envelope: o servidor responde 400 ENVELOPE_INVALIDO. O Qt reporta 400 com um
     // NetworkError que o transporte não mapeia (ProtocolInvalidOperationError). Status recebido vale como resposta,
@@ -314,6 +315,31 @@ void TesteTransporteHttps::mensagemDeErroNaoTrazURLNemHost()
     QVERIFY2(!mensagem.contains(QStringLiteral("nao-resolve.invalid")), "a mensagem não pode trazer o host");
     QVERIFY2(!mensagem.contains(QStringLiteral("SEGREDO")), "a mensagem não pode trazer o caminho da requisição");
     QVERIFY2(!mensagem.contains(QStringLiteral("https://")), "a mensagem não pode trazer a URL");
+}
+
+void TesteTransporteHttps::corpo2xxTruncadoViraTransitorio()
+{
+    // O servidor responde 200 com Content-Length e fecha a conexão no meio do corpo (falha roteirizada corpo_truncado).
+    // Status com corpo incompleto não é resposta: o transporte devolve erro transitório de conexão, e o chamador não
+    // recebe um corpo parcial como se fosse completo.
+    ServidorDeTeste servidor({QStringLiteral("GET"), QStringLiteral("/dps/ABC"), QStringLiteral("corpo_truncado")});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = cliente.certificado;
+    tls.chaveCliente = cliente.chave;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    auto resposta = transporte.enviar(consultaDps());
+    if (resposta.has_value()) {
+        qInfo().noquote() << "resposta com status" << resposta->status << "e" << resposta->corpo.size() << "bytes";
+    } else {
+        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+    }
+    QVERIFY2(!resposta.has_value(), "corpo truncado não pode voltar como RespostaHttp");
+    QCOMPARE(resposta.error().tipo, TipoErro::Transitorio);
+    QCOMPARE(resposta.error().causa, CausaErro::Conexao);
 }
 
 QTEST_GUILESS_MAIN(TesteTransporteHttps)

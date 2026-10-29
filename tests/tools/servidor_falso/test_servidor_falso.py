@@ -321,6 +321,29 @@ class TesteServidorFalso(unittest.TestCase):
         self.assertEqual(self.enviar(srv, "GET", f"/dps/{self.id_dps}")[0], 404)
 
 
+    def test_corpoTruncadoFechaNoMeio(self):
+        # falha roteirizada: GET com status 200 e Content-Length, a conexão cai no meio do corpo, e a falha vale uma vez
+        rot = roteiro.Roteiro()
+        with self.assertRaises(ValueError):
+            rot.agendar("POST", "/nfse", "corpo_truncado")  # só GET: o corte de corpo é de resposta
+        rot.agendar("GET", "/dps/" + self.id_dps, "corpo_truncado")
+        srv = self.subir(rot)
+        conn = self.conexao(srv)
+        try:
+            conn.request("GET", "/dps/" + self.id_dps)
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 200)
+            total = int(resp.getheader("Content-Length"))
+            with self.assertRaises(http.client.IncompleteRead) as ctx:
+                resp.read()
+            self.assertGreater(len(ctx.exception.partial), 0)
+            self.assertLess(len(ctx.exception.partial), total)
+        finally:
+            conn.close()
+        self.assertEqual(rot.pendentes(), 0)
+        self.assertEqual(self.enviar(srv, "GET", "/dps/" + self.id_dps)[0], 404)  # a segunda chamada vê a rota normal
+
+
 if __name__ == "__main__":
     suite = unittest.TestSuite([TesteServidorFalso(sys.argv[1])])
     resultado = unittest.TextTestRunner(verbosity=2).run(suite)
