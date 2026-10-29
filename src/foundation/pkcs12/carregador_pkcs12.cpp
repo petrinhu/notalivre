@@ -6,6 +6,7 @@
 #include <nl/foundation/pkcs12/carregador_pkcs12.h>
 
 #include "decifrar_pfx.h"
+#include <nl/foundation/pkcs12/conferencia_chave.h>
 #include "extrator_inscricao.h"
 #include "verificador_cadeia.h"
 
@@ -69,8 +70,7 @@ std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteAr
 
     x509_st* folha = partes->certificado.get();
     // A chave tem de pertencer à folha: PKCS#12 íntegro com a chave de outro certificado não é credencial (rodada 3).
-    if (X509_check_private_key(folha, partes->chave.get()) != 1) {
-        ERR_clear_error();
+    if (!chaveConfereComCertificado(folha, partes->chave.get())) {
         return std::unexpected(ErroCredencial::PfxMalformado);
     }
     if (vencido(folha)) {
