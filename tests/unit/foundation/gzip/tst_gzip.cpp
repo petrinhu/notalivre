@@ -116,6 +116,7 @@ private slots:
     void erroDoFluxoZlibViraErro();
     void bufferSemProgressoViraErro();
     void entradaAcimaDoLimiteDaZlibRecusada();
+    void limiteDaEntradaRecusadoNaFiacao();
 };
 
 void TstGzip::gzipComCabecalhoRfc1952()
@@ -273,6 +274,21 @@ void TstGzip::entradaAcimaDoLimiteDaZlibRecusada()
     const auto limite = static_cast<std::size_t>(std::numeric_limits<unsigned int>::max());
     QVERIFY2(detalhe::entradaCabeNaZlib(limite), "o maior uInt devia caber");
     QVERIFY2(!detalhe::entradaCabeNaZlib(limite + 1), "acima de uInt devia ser recusado");
+}
+
+void TstGzip::limiteDaEntradaRecusadoNaFiacao()
+{
+    // O1 (revisão r2): a fiação da guarda tem de ser o limite real de comprimir, e não só o predicado. Com limite de
+    // 100 bytes, 200 são recusados sem saída e 100 passam. Usa o limite explícito da costura: não aloca 4 GiB.
+    const std::vector<std::byte> duzentos = cargaDeTeste(200);
+    const std::vector<std::byte> cem = cargaDeTeste(100);
+
+    const auto recusado = detalhe::comprimirComLimite(duzentos, 100);
+    QVERIFY2(!recusado.has_value(), "entrada acima do limite foi comprimida");
+    QCOMPARE(QString::fromStdString(recusado.error().codigo()), QStringLiteral("gzip.tamanho"));
+
+    const auto aceito = detalhe::comprimirComLimite(cem, 100);
+    QVERIFY2(aceito.has_value(), "entrada no limite foi recusada");
 }
 
 QTEST_GUILESS_MAIN(TstGzip)

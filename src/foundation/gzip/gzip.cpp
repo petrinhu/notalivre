@@ -66,6 +66,12 @@ bool entradaCabeNaZlib(std::size_t tamanho) noexcept
     return tamanho <= static_cast<std::size_t>(std::numeric_limits<uInt>::max());
 }
 
+// STUB VERMELHO (NL-2.4b, O1): a fiação com limite explícito ainda não existe. Os testes de tst_gzip têm de falhar aqui.
+std::expected<std::vector<std::byte>, nl::base::Erro> comprimirComLimite(std::span<const std::byte>, std::size_t)
+{
+    return std::unexpected(erroGzip("gzip.nao_implementado", "comprimirComLimite ainda não implementado"));
+}
+
 } // namespace detalhe
 
 std::expected<std::vector<std::byte>, nl::base::Erro> comprimir(std::span<const std::byte> entrada)
