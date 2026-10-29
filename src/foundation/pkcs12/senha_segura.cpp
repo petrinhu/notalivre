@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Senha em buffer dedicado (NL-2.2, ADR-S1 item 4). Ver senha_segura.h.
-// Fase vermelha (rodada 3, decisão do CISO item 1): criar() ainda não instala o gancho de liberação.
 #include <nl/foundation/pkcs12/senha_segura.h>
 
 #include <openssl/crypto.h>
@@ -20,7 +19,7 @@ SenhaSegura SenhaSegura::de(QByteArrayView bytes) {
     return criar(bytes, nullptr);
 }
 
-SenhaSegura SenhaSegura::criar(QByteArrayView bytes, GanchoLiberacao) {
+SenhaSegura SenhaSegura::criar(QByteArrayView bytes, GanchoLiberacao gancho) {
     const auto tamanho = static_cast<std::size_t>(bytes.size());
     const std::size_t capacidade = tamanho + 1; // NUL final: a API do PKCS#12 lê C-string
     char* dados = new char[capacidade]{};
@@ -31,7 +30,7 @@ SenhaSegura SenhaSegura::criar(QByteArrayView bytes, GanchoLiberacao) {
 #ifdef NL_TEM_MLOCK
     bloqueada = mlock(dados, capacidade) == 0;
 #endif
-    return SenhaSegura(dados, capacidade, tamanho, bloqueada, nullptr);
+    return SenhaSegura(dados, capacidade, tamanho, bloqueada, gancho);
 }
 
 SenhaSegura::SenhaSegura(char* dados, std::size_t capacidade, std::size_t tamanho, bool bloqueada,

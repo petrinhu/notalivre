@@ -13,7 +13,10 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pkcs12.h>
+#include <openssl/obj_mac.h>
+#include <openssl/objects.h>
 #include <openssl/pkcs12err.h>
+#include <openssl/pkcs7.h>
 #include <openssl/x509.h>
 
 #include <climits>
@@ -27,6 +30,35 @@ namespace {
 
 using interno::Falha;
 
+
+/// Chave privada fora de bag cifrado (keyBag em data safe): proibida pela ADR-0002. Lê só o authsafes, sem senha.
+/// Falha fechada: se o authsafes não desempacota, ou um data safe não desempacota, a chave conta como em claro.
+bool possuiChaveEmClaro(PKCS12* p12) {
+    STACK_OF(PKCS7)* seguros = PKCS12_unpack_authsafes(p12);
+    if (seguros == nullptr) {
+        ERR_clear_error();
+        return true;
+    }
+    bool achou = false;
+    for (int i = 0; i < sk_PKCS7_num(seguros) && !achou; ++i) {
+        PKCS7* seguro = sk_PKCS7_value(seguros, i);
+        if (OBJ_obj2nid(seguro->type) != NID_pkcs7_data) {
+            continue;
+        }
+        STACK_OF(PKCS12_SAFEBAG)* bags = PKCS12_unpack_p7data(seguro);
+        if (bags == nullptr) {
+            ERR_clear_error();
+            achou = true;
+            break;
+        }
+        for (int j = 0; j < sk_PKCS12_SAFEBAG_num(bags) && !achou; ++j) {
+            achou = PKCS12_SAFEBAG_get_nid(sk_PKCS12_SAFEBAG_value(bags, j)) == NID_keyBag;
+        }
+        sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
+    }
+    sk_PKCS7_pop_free(seguros, PKCS7_free);
+    return achou;
+}
 
 /// Partes ainda ligadas ao contexto da tentativa. Declaradas DEPOIS do ContextoOssl, então são liberadas antes dele.
 struct PartesDaTentativa {
@@ -124,6 +156,10 @@ std::expected<PartesPfx, Falha> tentar(QByteArrayView pfx, const SenhaSegura& se
         BIO_free(bio);
         if (p12 == nullptr) {
             ERR_clear_error();
+            return std::unexpected(Falha::Malformado);
+        }
+        if (possuiChaveEmClaro(p12)) {
+            PKCS12_free(p12);
             return std::unexpected(Falha::Malformado);
         }
         EVP_PKEY* chave = nullptr;

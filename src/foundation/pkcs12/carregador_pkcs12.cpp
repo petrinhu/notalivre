@@ -68,6 +68,11 @@ std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteAr
     }
 
     x509_st* folha = partes->certificado.get();
+    // A chave tem de pertencer à folha: PKCS#12 íntegro com a chave de outro certificado não é credencial (rodada 3).
+    if (X509_check_private_key(folha, partes->chave.get()) != 1) {
+        ERR_clear_error();
+        return std::unexpected(ErroCredencial::PfxMalformado);
+    }
     if (vencido(folha)) {
         return std::unexpected(ErroCredencial::Vencido);
     }
