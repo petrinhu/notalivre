@@ -10,7 +10,7 @@ pacman-key --populate archlinux manjaro
 pacman -Syu --noconfirm --needed \
     gcc cmake ninja pkgconf git python python-pip openssl \
     mesa libglvnd libxkbcommon libx11 fontconfig freetype2 dbus glib2 krb5 brotli libxml2 \
-    xmlsec
+    zlib xmlsec
 pacman -Scc --noconfirm
 
 # xmlsec (pacote do Arch/Manjaro) traz o binário xmlsec1, oráculo de linha de comando dos testes (NL-2.0, DA-2.1).

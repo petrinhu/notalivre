@@ -12,6 +12,7 @@ dnf -y install --setopt=install_weak_deps=False \
     mesa-libGL-devel mesa-libEGL-devel libxkbcommon-devel fontconfig-devel \
     freetype-devel libX11-devel dbus-libs krb5-libs \
     libxml2-devel libxml2 \
+    zlib-ng-compat-devel \
     xmlsec1 xmlsec1-openssl
 dnf clean all
 
