@@ -2,7 +2,15 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Adaptador de cofre do A1 (NL-2.2, DA-2.30). Carrega pela Foundation; se a credencial não tem EKU, registra o evento
 // e recusa a credencial quando o registro falha (a credencial é descartada, a chave sai da memória).
+// O carregador é sem estado: fica local à chamada, e o cabeçalho público não precisa conhecê-lo.
 #include <nl/mid/cofre/adaptador_credencial.h>
+
+#include <nl/foundation/log/log.h>
+#include <nl/foundation/pkcs12/ancoras.h>
+#include <nl/foundation/pkcs12/carregador_pkcs12.h>
+#include <nl/foundation/pkcs12/credencial_x509.h>
+#include <nl/foundation/pkcs12/erro_credencial.h>
+#include <nl/foundation/pkcs12/senha_segura.h>
 
 #include <utility>
 
@@ -20,7 +28,8 @@ AdaptadorCredencial::AdaptadorCredencial(nl::foundation::log::Log& registro) noe
 std::expected<nl::foundation::pkcs12::CredencialX509, nl::foundation::pkcs12::ErroCredencial>
 AdaptadorCredencial::carregar(QByteArrayView pfx, nl::foundation::pkcs12::SenhaSegura& senha,
                               const nl::foundation::pkcs12::Ancoras& ancoras) {
-    auto credencial = carregador_.carregar(pfx, senha, ancoras);
+    nl::foundation::pkcs12::CarregadorPkcs12 carregador;
+    auto credencial = carregador.carregar(pfx, senha, ancoras);
     if (!credencial) {
         return std::unexpected(credencial.error());
     }

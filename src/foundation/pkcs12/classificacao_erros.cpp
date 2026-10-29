@@ -17,8 +17,8 @@ Falha classificarCodigos(const std::vector<unsigned long>& codigos) {
         if (ERR_GET_LIB(codigo) == ERR_LIB_PKCS12 && ERR_GET_REASON(codigo) == PKCS12_R_MAC_VERIFY_FAILURE) {
             mac = true;
         }
-        // Regra antiga (vermelho): compara só o motivo. A fase verde exige também a biblioteca EVP.
-        if (ERR_GET_REASON(codigo) == motivoUnsupported) {
+        // Cifra não suportada pelo default vem da biblioteca EVP. O mesmo motivo de outra biblioteca não conta.
+        if (ERR_GET_LIB(codigo) == ERR_LIB_EVP && ERR_GET_REASON(codigo) == motivoUnsupported) {
             semSuporte = true;
         }
     }

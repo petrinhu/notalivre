@@ -2,19 +2,24 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Adaptador de cofre do A1 (NL-2.2, DA-2.30 do CTO): chama o carregador puro da Foundation e registra o evento de
 // EKU ausente pelo Log da NL-2.7. Sem registro, a credencial sem EKU é recusada (falha fechada, decisão 3 do CISO).
+// Cabeçalho público do Mid: declarações antecipadas dos tipos da Foundation (sem includes da Foundation).
 #ifndef NL_MID_COFRE_ADAPTADOR_CREDENCIAL_H
 #define NL_MID_COFRE_ADAPTADOR_CREDENCIAL_H
-
-#include <nl/foundation/log/log.h>
-#include <nl/foundation/pkcs12/ancoras.h>
-#include <nl/foundation/pkcs12/carregador_pkcs12.h>
-#include <nl/foundation/pkcs12/credencial_x509.h>
-#include <nl/foundation/pkcs12/erro_credencial.h>
-#include <nl/foundation/pkcs12/senha_segura.h>
 
 #include <QByteArrayView>
 
 #include <expected>
+
+namespace nl::foundation::log {
+class Log;
+}
+
+namespace nl::foundation::pkcs12 {
+class Ancoras;
+class CredencialX509;
+class SenhaSegura;
+enum class ErroCredencial : int;
+}
 
 namespace nl::mid::cofre {
 
@@ -28,7 +33,6 @@ public:
              const nl::foundation::pkcs12::Ancoras& ancoras);
 
 private:
-    nl::foundation::pkcs12::CarregadorPkcs12 carregador_;
     nl::foundation::log::Log& registro_;
 };
 

@@ -30,9 +30,11 @@ SenhaSegura SenhaSegura::de(QByteArrayView bytes) {
     return SenhaSegura(dados, capacidade, tamanho, bloqueada);
 }
 
-// Fase vermelha (revisão 3, M7): o seam ainda ignora o zerador injetado; a zeragem vai para o OPENSSL_cleanse padrão.
-SenhaSegura SenhaSegura::comZeradorDeTeste(QByteArrayView bytes, ZeradorDeMemoria) {
-    return de(bytes);
+// Seam de teste (revisão 3, M7): a senha fica com o zerador injetado, que zerar() passa a usar.
+SenhaSegura SenhaSegura::comZeradorDeTeste(QByteArrayView bytes, ZeradorDeMemoria zerador) {
+    SenhaSegura senha = de(bytes);
+    senha.zerador_ = std::move(zerador);
+    return senha;
 }
 
 SenhaSegura::SenhaSegura(char* dados, std::size_t capacidade, std::size_t tamanho, bool bloqueada) noexcept
@@ -40,6 +42,7 @@ SenhaSegura::SenhaSegura(char* dados, std::size_t capacidade, std::size_t tamanh
 
 SenhaSegura::SenhaSegura(SenhaSegura&& outra) noexcept
     : dados_(std::exchange(outra.dados_, nullptr)),
+      zerador_(std::move(outra.zerador_)),
       capacidade_(std::exchange(outra.capacidade_, 0)),
       tamanho_(std::exchange(outra.tamanho_, 0)),
       bloqueada_(std::exchange(outra.bloqueada_, false)) {}
@@ -48,6 +51,7 @@ SenhaSegura& SenhaSegura::operator=(SenhaSegura&& outra) noexcept {
     if (this != &outra) {
         liberar();
         dados_ = std::exchange(outra.dados_, nullptr);
+        zerador_ = std::move(outra.zerador_);
         capacidade_ = std::exchange(outra.capacidade_, 0);
         tamanho_ = std::exchange(outra.tamanho_, 0);
         bloqueada_ = std::exchange(outra.bloqueada_, false);
@@ -61,7 +65,11 @@ SenhaSegura::~SenhaSegura() {
 
 void SenhaSegura::zerar() noexcept {
     if (dados_ != nullptr) {
-        OPENSSL_cleanse(dados_, capacidade_);
+        if (zerador_) {
+            zerador_(dados_, capacidade_);
+        } else {
+            OPENSSL_cleanse(dados_, capacidade_);
+        }
     }
     tamanho_ = 0;
 }

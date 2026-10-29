@@ -17,6 +17,7 @@
 #include <openssl/x509.h>
 
 #include <climits>
+#include <cstring>
 #include <cstddef>
 #include <utility>
 
@@ -159,6 +160,11 @@ std::expected<PartesPfx, Falha> tentar(QByteArrayView pfx, const SenhaSegura& se
 } // namespace
 
 std::expected<PartesPfx, ErroCredencial> decifrarPfx(QByteArrayView pfx, const SenhaSegura& senha) {
+    // NUL dentro da senha: a API do PKCS#12 lê uma C-string e truncaria, aceitando uma senha que o usuário não
+    // digitou (A7 da revisão 2). Recusa antes do parse.
+    if (senha.tamanho() > 0 && std::memchr(senha.comoC(), '\0', senha.tamanho()) != nullptr) {
+        return std::unexpected(ErroCredencial::SenhaErrada);
+    }
     auto primeira = tentar(pfx, senha, false);
     if (primeira) {
         return std::move(*primeira);

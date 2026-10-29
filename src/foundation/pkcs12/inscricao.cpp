@@ -56,7 +56,6 @@ bool mesmaRaizCnpj(const Inscricao& primeiro, const Inscricao& segundo) {
         return false;
     }
     // Oito primeiros caracteres como texto: o CNPJ alfanumérico não é número.
-    // Oito primeiros caracteres como texto: o CNPJ alfanumérico não é número.
     return QStringView(primeiro.valor()).first(8) == QStringView(segundo.valor()).first(8);
 }
 

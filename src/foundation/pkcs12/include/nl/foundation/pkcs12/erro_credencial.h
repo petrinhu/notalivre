@@ -9,7 +9,7 @@
 namespace nl::foundation::pkcs12 {
 
 /// Motivo pelo qual uma credencial A1 não é aceita.
-enum class ErroCredencial {
+enum class ErroCredencial : int {
     SenhaErrada,              ///< MAC do PKCS#12 não confere: senha incorreta.
     CifraLegadaIndisponivel,  ///< Cifra antiga (RC2, 3DES) que o provider legacy não consegue abrir.
     Vencido,                  ///< notAfter da folha anterior ao instante atual.
