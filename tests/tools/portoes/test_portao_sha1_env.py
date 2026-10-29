@@ -161,6 +161,26 @@ class TestePortaoSha1(unittest.TestCase):
         self.assertEqual(rc, 0, saida)
         self.assertIn("violacoes=0", saida)
 
+    def test_portaoSha1WorktreeNaRaizPassa(self):
+        # Exceção 4 (L-55): worktrees/ na RAIZ é cópia de trabalho, ignorada pelo git e pelos portões por caminho.
+        raiz = self._arvore({
+            "worktrees/nl-x/tools/servidor_falso/vazado.cpp": f'const char *v = "{VARIAVEL}=1";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 0, saida)
+        self.assertIn("violacoes=0", saida)
+
+    def test_portaoSha1WorktreeAninhadoReprova(self):
+        # A exceção vale só na raiz: worktrees/ em outro nível é pasta comum e continua sendo varrida.
+        raiz = self._arvore({
+            "src/worktrees/vazado.cpp": f'const char *v = "{VARIAVEL}=1";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("src/worktrees/vazado.cpp", saida)
+
     def test_ciHigieneLigaPortaoSha1(self):
         # Job higiene do ci.yml (fronteira: o job seguinte, camadas). O portão tem de rodar sobre o workspace inteiro.
         texto = (RAIZ / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
