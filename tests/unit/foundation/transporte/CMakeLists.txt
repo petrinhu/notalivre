@@ -23,6 +23,8 @@ foreach(nome IN ITEMS
     conexaoRecusadaViraErroTransitorio
     corpo2xxTruncadoViraTransitorio
     rejeicao4xxComCorpoContinuaRespostaHttp
+    cabecalhoAcceptEncodingIdentityEnviado
+    contentEncodingNaoIdentityViraDefinitivoProtocolo
     mensagemDeErroNaoTrazURLNemHost)
   add_test(NAME transporte.${nome} COMMAND tst_transporte_https ${nome})
   set_tests_properties(transporte.${nome} PROPERTIES

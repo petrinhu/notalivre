@@ -344,6 +344,40 @@ class TesteServidorFalso(unittest.TestCase):
         self.assertEqual(self.enviar(srv, "GET", "/dps/" + self.id_dps)[0], 404)  # a segunda chamada vê a rota normal
 
 
+    def test_ecoAcceptEncodingDaFalha(self):
+        # falha roteirizada: o servidor devolve no corpo o Accept-Encoding recebido, e a falha vale uma vez
+        rot = roteiro.Roteiro()
+        with self.assertRaises(ValueError):
+            rot.agendar("POST", "/nfse", "eco_accept_encoding")  # só GET
+        rot.agendar("GET", "/dps/" + self.id_dps, "eco_accept_encoding")
+        srv = self.subir(rot)
+        conn = self.conexao(srv)
+        try:
+            conn.request("GET", "/dps/" + self.id_dps, headers={"Accept-Encoding": "identity"})
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 200)
+            self.assertEqual(resp.read(), b"identity")
+        finally:
+            conn.close()
+        self.assertEqual(rot.pendentes(), 0)
+
+    def test_contentEncodingGzipDaFalha(self):
+        # falha roteirizada: 200 com Content-Encoding gzip, corpo realmente comprimido
+        rot = roteiro.Roteiro()
+        rot.agendar("GET", "/dps/" + self.id_dps, "content_encoding_gzip")
+        srv = self.subir(rot)
+        conn = self.conexao(srv)
+        try:
+            conn.request("GET", "/dps/" + self.id_dps, headers={"Accept-Encoding": "identity"})
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 200)
+            self.assertEqual(resp.getheader("Content-Encoding"), "gzip")
+            self.assertIn(b"CONTENT_ENCODING_GZIP", gzip.decompress(resp.read()))
+        finally:
+            conn.close()
+        self.assertEqual(rot.pendentes(), 0)
+
+
 if __name__ == "__main__":
     suite = unittest.TestSuite([TesteServidorFalso(sys.argv[1])])
     resultado = unittest.TextTestRunner(verbosity=2).run(suite)

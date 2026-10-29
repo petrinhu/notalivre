@@ -168,6 +168,8 @@ private slots:
     void conexaoRecusadaViraErroTransitorio();
     void corpo2xxTruncadoViraTransitorio();
     void rejeicao4xxComCorpoContinuaRespostaHttp();
+    void cabecalhoAcceptEncodingIdentityEnviado();
+    void contentEncodingNaoIdentityViraDefinitivoProtocolo();
     void mensagemDeErroNaoTrazURLNemHost();
 };
 
@@ -340,6 +342,47 @@ void TesteTransporteHttps::corpo2xxTruncadoViraTransitorio()
     QVERIFY2(!resposta.has_value(), "corpo truncado não pode voltar como RespostaHttp");
     QCOMPARE(resposta.error().tipo, TipoErro::Transitorio);
     QCOMPARE(resposta.error().causa, CausaErro::Conexao);
+}
+
+void TesteTransporteHttps::cabecalhoAcceptEncodingIdentityEnviado()
+{
+    // Falha roteirizada eco_accept_encoding: o servidor devolve, como corpo, o Accept-Encoding que recebeu. A conferência
+    // é do lado do servidor, então o valor é o que o transporte mandou de fato na requisição.
+    ServidorDeTeste servidor({QStringLiteral("GET"), QStringLiteral("/dps/ABC"), QStringLiteral("eco_accept_encoding")});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = cliente.certificado;
+    tls.chaveCliente = cliente.chave;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    auto resposta = transporte.enviar(consultaDps());
+    QVERIFY2(resposta.has_value(), "o eco devia responder 200");
+    QCOMPARE(resposta->status, 200);
+    QCOMPARE(resposta->corpo, QByteArrayLiteral("identity"));
+}
+
+void TesteTransporteHttps::contentEncodingNaoIdentityViraDefinitivoProtocolo()
+{
+    // Falha roteirizada content_encoding_gzip: 200 com Content-Encoding gzip. O transporte pede identity, então qualquer
+    // Content-Encoding diferente de identity na resposta é protocolo inesperado: erro definitivo, sem corpo para o chamador.
+    ServidorDeTeste servidor({QStringLiteral("GET"), QStringLiteral("/dps/ABC"), QStringLiteral("content_encoding_gzip")});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = cliente.certificado;
+    tls.chaveCliente = cliente.chave;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    auto resposta = transporte.enviar(consultaDps());
+    if (resposta.has_value()) {
+        qInfo().noquote() << "resposta com status" << resposta->status << "e" << resposta->corpo.size() << "bytes";
+    }
+    QVERIFY2(!resposta.has_value(), "Content-Encoding diferente de identity não pode voltar como RespostaHttp");
+    QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+    QCOMPARE(resposta.error().causa, CausaErro::Protocolo);
 }
 
 QTEST_GUILESS_MAIN(TesteTransporteHttps)
