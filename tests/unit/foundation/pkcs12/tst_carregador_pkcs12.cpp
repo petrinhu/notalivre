@@ -19,6 +19,8 @@
 
 #include <nl/foundation/pkcs12/classificacao_erros.h>
 
+#include "acesso_teste_senha.h"
+
 #include <QByteArray>
 #include <QFile>
 #include <QIODevice>
@@ -121,6 +123,11 @@ private slots:
     void senhaComNulEhRecusada();
     void liberaZeraAntesDeLiberar();
     void senhaErradaSemProvedorNaoTentaLegado();
+    void ganchoSobreviveAoMover();
+    void pfxSemMacComSenhaErradaFalhaFechado();
+    void pfxSemMacComSenhaCertaCarrega();
+    void pfxComChaveSemCifraRecusado();
+    void chaveNaoConfereRecusada();
 };
 
 // Testes novos da revisão 3 (A7, M7, M4). Ver a descrição de cada um.
@@ -161,20 +168,104 @@ void TesteCarregadorPkcs12::senhaComNulEhRecusada()
     QCOMPARE(resultado.error(), ErroCredencial::SenhaErrada);
 }
 
+
+// Gancho de observação da liberação (M7, decisão do CISO): registra se todos os bytes estavam zerados no instante em
+// que o gancho foi chamado. Estado de teste (static), nunca de produção.
+namespace {
+int gChamadasGancho = 0;
+bool gTodosZeroNoGancho = false;
+std::size_t gCapacidadeNoGancho = 0;
+
+void observaLiberacao(const char* dados, std::size_t capacidade) noexcept {
+    ++gChamadasGancho;
+    gCapacidadeNoGancho = capacidade;
+    gTodosZeroNoGancho = true;
+    for (std::size_t i = 0; i < capacidade; ++i) {
+        if (dados[i] != '\0') {
+            gTodosZeroNoGancho = false;
+        }
+    }
+}
+
+void zeraContadoresDoGancho() {
+    gChamadasGancho = 0;
+    gTodosZeroNoGancho = false;
+    gCapacidadeNoGancho = 0;
+}
+} // namespace
+
+// M7 (seam): a liberação zera antes de chamar o gancho, e o gancho vê todos os bytes em zero. Mutantes que a quebram:
+// "liberar sem zerar" (sem a chamada a zerar em liberar) e "sem cleanse" (sem OPENSSL_cleanse em zerar).
 void TesteCarregadorPkcs12::liberaZeraAntesDeLiberar()
 {
-    // M7 (seam): a liberação tem de passar pela zeragem, com o buffer ainda com o segredo. Sem ler memória liberada.
-    int chamadas = 0;
-    std::string visto;
+    zeraContadoresDoGancho();
     {
-        auto senha = SenhaSegura::comZeradorDeTeste(QByteArrayLiteral("segredo"),
-            [&chamadas, &visto](char* dados, std::size_t) {
-                ++chamadas;
-                visto.assign(dados, 7);
-            });
+        auto senha = AcessoDeTesteSenhaSegura::comGancho(QByteArrayLiteral("segredo"), &observaLiberacao);
     }
-    QCOMPARE(chamadas, 1);
-    QCOMPARE(visto, std::string("segredo"));
+    QCOMPARE(gChamadasGancho, 1);
+    QVERIFY2(gTodosZeroNoGancho, "o gancho viu bytes não zerados: a liberação não zerou antes");
+    QVERIFY(gCapacidadeNoGancho >= 7);
+}
+
+// O gancho é transferido no movimento: a origem vazia não chama; só o destino chama, uma vez.
+void TesteCarregadorPkcs12::ganchoSobreviveAoMover()
+{
+    zeraContadoresDoGancho();
+    {
+        auto origem = AcessoDeTesteSenhaSegura::comGancho(QByteArrayLiteral("segredo"), &observaLiberacao);
+        SenhaSegura destino = std::move(origem);
+        QCOMPARE(destino.tamanho(), std::size_t{7});
+    }
+    QCOMPARE(gChamadasGancho, 1);
+    QVERIFY(gTodosZeroNoGancho);
+}
+
+// Sem MAC não há verificação de senha pelo MAC: a senha errada falha fechado, nunca carrega.
+void TesteCarregadorPkcs12::pfxSemMacComSenhaErradaFalhaFechado()
+{
+    CarregadorPkcs12 carregador;
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = SenhaSegura::de(QByteArrayLiteral("senha-errada"));
+    auto resultado = carregador.carregar(fixture(QStringLiteral("sem_mac.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QVERIFY2(resultado.error() == ErroCredencial::PfxMalformado || resultado.error() == ErroCredencial::SenhaErrada,
+             descreverErro(resultado).c_str());
+}
+
+void TesteCarregadorPkcs12::pfxSemMacComSenhaCertaCarrega()
+{
+    CarregadorPkcs12 carregador;
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("sem_mac.pfx")), senha, *ancoras);
+    QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
+    QCOMPARE(resultado->inscricao().valor(), QString::fromLatin1(CNPJ_OK));
+}
+
+// Chave privada fora de bag cifrado (ADR-0002): a senha está certa, e mesmo assim o carregador recusa.
+void TesteCarregadorPkcs12::pfxComChaveSemCifraRecusado()
+{
+    CarregadorPkcs12 carregador;
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("chave_sem_cifra.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::PfxMalformado);
+}
+
+// PKCS#12 íntegro e senha certa, mas a chave não pertence ao certificado: recusada.
+void TesteCarregadorPkcs12::chaveNaoConfereRecusada()
+{
+    CarregadorPkcs12 carregador;
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("chave_nao_confere.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::PfxMalformado);
 }
 
 // Mesmo processo com OPENSSL_MODULES vazio (entrada do CMake): senha errada no .pfx moderno é SenhaErrada.

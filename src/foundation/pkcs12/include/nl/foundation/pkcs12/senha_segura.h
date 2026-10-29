@@ -1,29 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Senha em buffer dedicado (NL-2.2, ADR-S1 item 4): mlock de melhor esforço, zeragem por OPENSSL_cleanse e
-// liberação só depois da zeragem. Não é libsodium: a dependência nova exige autorização do líder (L-51).
+// Senha em buffer dedicado (NL-2.2, ADR-S1 item 4): mlock de melhor esforço, zeragem por OPENSSL_cleanse antes da
+// liberação. Não é libsodium: a dependência nova exige autorização do líder (L-51).
 #ifndef NL_FOUNDATION_PKCS12_SENHA_SEGURA_H
 #define NL_FOUNDATION_PKCS12_SENHA_SEGURA_H
 
 #include <QByteArrayView>
 
 #include <cstddef>
-#include <functional>
 
 namespace nl::foundation::pkcs12 {
-
-/// Zerador de memória da senha. Vazio: OPENSSL_cleanse (produção).
-using ZeradorDeMemoria = std::function<void(char*, std::size_t)>;
 
 /// Move-only: uma senha tem um dono, e não existe cópia que escape da zeragem.
 class SenhaSegura {
 public:
     /// Copia os bytes para o buffer seguro. A origem é do chamador, que responde por ela.
     [[nodiscard]] static SenhaSegura de(QByteArrayView bytes);
-
-    /// Só para teste (seam do revisor, M7): igual a de(), mas a zeragem passa pelo zerador dado. Assim o teste vê
-    /// a zeragem acontecer antes da liberação, sem ler memória liberada. Produção usa de().
-    [[nodiscard]] static SenhaSegura comZeradorDeTeste(QByteArrayView bytes, ZeradorDeMemoria zerador);
 
     SenhaSegura(SenhaSegura&& outra) noexcept;
     SenhaSegura& operator=(SenhaSegura&& outra) noexcept;
@@ -43,15 +35,23 @@ public:
     /// Verdadeiro se o mlock deu certo (melhor esforço: limite de memória travada pode negar).
     [[nodiscard]] bool bloqueadaEmMemoria() const noexcept { return bloqueada_; }
 
+    // Acesso só de teste (o seam do M7): a struct mora em tests/, fora de include/ e fora do que se instala.
+    friend struct AcessoDeTesteSenhaSegura;
+
 private:
-    SenhaSegura(char* dados, std::size_t capacidade, std::size_t tamanho, bool bloqueada) noexcept;
+    using GanchoLiberacao = void (*)(const char*, std::size_t) noexcept;
+
+    /// Cria a senha com o gancho de liberação já instalado. O gancho não muda depois (só o movimento o transfere).
+    [[nodiscard]] static SenhaSegura criar(QByteArrayView bytes, GanchoLiberacao gancho);
+    SenhaSegura(char* dados, std::size_t capacidade, std::size_t tamanho, bool bloqueada,
+                GanchoLiberacao gancho) noexcept;
     void liberar() noexcept;
 
     char* dados_{nullptr};
-    ZeradorDeMemoria zerador_{};
     std::size_t capacidade_{0};
     std::size_t tamanho_{0};
     bool bloqueada_{false};
+    GanchoLiberacao gancho_{nullptr};
 };
 
 } // namespace nl::foundation::pkcs12

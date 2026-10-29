@@ -48,7 +48,12 @@ foreach(nome IN ITEMS
     classificaUnsupportedDaBibliotecaEvp
     classificaMotivoDeOutraBibliotecaComoMalformado
     senhaComNulEhRecusada
-    liberaZeraAntesDeLiberar)
+    liberaZeraAntesDeLiberar
+    ganchoSobreviveAoMover
+    pfxSemMacComSenhaErradaFalhaFechado
+    pfxSemMacComSenhaCertaCarrega
+    pfxComChaveSemCifraRecusado
+    chaveNaoConfereRecusada)
   add_test(NAME pkcs12.${nome} COMMAND tst_carregador_pkcs12 ${nome})
   set_tests_properties(pkcs12.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
