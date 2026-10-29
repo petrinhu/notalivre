@@ -20,7 +20,9 @@ foreach(nome IN ITEMS
     certificadoDeOutraAcRecusado
     timeoutViraErroTransitorio
     baseEPrefixoVemDaConfiguracao
-    conexaoRecusadaViraErroTransitorio)
+    conexaoRecusadaViraErroTransitorio
+    statusHttpNaoPadraoViraRespostaMesmoComErroDeRede
+    mensagemDeErroNaoTrazURLNemHost)
   add_test(NAME transporte.${nome} COMMAND tst_transporte_https ${nome})
   set_tests_properties(transporte.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste

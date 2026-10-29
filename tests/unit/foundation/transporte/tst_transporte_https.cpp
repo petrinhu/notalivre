@@ -166,6 +166,8 @@ private slots:
     void timeoutViraErroTransitorio();
     void baseEPrefixoVemDaConfiguracao();
     void conexaoRecusadaViraErroTransitorio();
+    void statusHttpNaoPadraoViraRespostaMesmoComErroDeRede();
+    void mensagemDeErroNaoTrazURLNemHost();
 };
 
 void TesteTransporteHttps::initTestCase()
@@ -269,6 +271,49 @@ void TesteTransporteHttps::conexaoRecusadaViraErroTransitorio()
     qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
     QCOMPARE(resposta.error().tipo, TipoErro::Transitorio);
     QCOMPARE(resposta.error().causa, CausaErro::Conexao);
+}
+
+void TesteTransporteHttps::statusHttpNaoPadraoViraRespostaMesmoComErroDeRede()
+{
+    // POST /nfse com corpo que não é envelope: o servidor responde 400 ENVELOPE_INVALIDO. O Qt reporta 400 com um
+    // NetworkError que o transporte não mapeia (ProtocolInvalidOperationError). Status recebido vale como resposta,
+    // qualquer que seja o NetworkError: quem decide o que fazer com o 400 é o chamador.
+    ServidorDeTeste servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = cliente.certificado;
+    tls.chaveCliente = cliente.chave;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    const RequisicaoHttp envioRuim{QByteArrayLiteral("POST"), QStringLiteral("/nfse"),
+                                   QByteArrayLiteral("nao-e-envelope"), QByteArrayLiteral("application/xml")};
+    auto resposta = transporte.enviar(envioRuim);
+    if (!resposta.has_value()) {
+        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+    }
+    QVERIFY2(resposta.has_value(), "400 do servidor devia voltar como RespostaHttp, não como erro");
+    QCOMPARE(resposta->status, 400);
+    QVERIFY2(resposta->corpo.contains("ENVELOPE_INVALIDO"), "o corpo do 400 devia chegar intacto");
+}
+
+void TesteTransporteHttps::mensagemDeErroNaoTrazURLNemHost()
+{
+    // Host que não resolve (domínio .invalid, RFC 6761). O Qt põe o host no errorString. A mensagem do erro vai para
+    // log e tela, e não pode levar a URL da requisição (chave de acesso, NSU), nem o host, nem o caminho.
+    ConfiguracaoTls tls;
+    tls.autoridades = autoridadeDeTeste();
+    const UrlBase base{QUrl(QStringLiteral("https://nao-resolve.invalid:443")), QString(), 3000ms};
+    TransporteHttps transporte(base, tls);
+    const RequisicaoHttp consulta{QByteArrayLiteral("GET"), QStringLiteral("/dps/SEGREDO-NSU-123"), {}, {}};
+    auto resposta = transporte.enviar(consulta);
+    QVERIFY(!resposta.has_value());
+    const QString mensagem = resposta.error().mensagem;
+    qInfo().noquote() << "mensagem:" << mensagem;
+    QVERIFY2(!mensagem.contains(QStringLiteral("nao-resolve.invalid")), "a mensagem não pode trazer o host");
+    QVERIFY2(!mensagem.contains(QStringLiteral("SEGREDO")), "a mensagem não pode trazer o caminho da requisição");
+    QVERIFY2(!mensagem.contains(QStringLiteral("https://")), "a mensagem não pode trazer a URL");
 }
 
 QTEST_GUILESS_MAIN(TesteTransporteHttps)
