@@ -15,6 +15,7 @@
 
 #include <openssl/err.h>
 #include <openssl/bio.h>
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/pkcs12.h>
@@ -24,6 +25,7 @@
 #include <openssl/provider.h>
 
 #include <nl/foundation/pkcs12/classificacao_erros.h>
+#include <nl/foundation/pkcs12/conferencia_chave.h>
 
 #include "acesso_teste_senha.h"
 
@@ -134,6 +136,7 @@ private slots:
     void pfxSemMacComSenhaCertaCarrega();
     void pfxComChaveSemCifraRecusado();
     void chaveNaoConfereRecusada();
+    void conferenciaDeChaveDistingueParesDeFixtures();
 };
 
 // Testes novos da revisão 3 (A7, M7, M4). Ver a descrição de cada um.
@@ -239,15 +242,48 @@ void TesteCarregadorPkcs12::pfxSemMacComSenhaErradaFalhaFechado()
              descreverErro(resultado).c_str());
 }
 
+
+// DIVERGÊNCIA DE PLATAFORMA (decisão do CISO, rodada 3, item 1). O PKCS12_parse do OpenSSL 3.0.x chama
+// PKCS12_verify_mac sempre que a senha não é vazia, mesmo sem MAC no arquivo, e então recusa o .pfx sem MAC com
+// SenhaErrada (fonte crypto/pkcs12/p12_kiss.c da série 3.0.13). A partir do 3.1 o MAC só é verificado quando existe
+// (o 3.5.9 no fonte). O app sai só em Flatpak, com OpenSSL 3.5.7 no runtime KDE 6.11. Por isso o teste lê a versão em
+// tempo de execução: na série 3.0.x espera recusa fechada (SenhaErrada); nas demais espera carregar.
 void TesteCarregadorPkcs12::pfxSemMacComSenhaCertaCarrega()
 {
+    const unsigned long versao = OpenSSL_version_num();
+    const bool serie30 = ((versao >> 28) & 0xF) == 3 && ((versao >> 20) & 0xFF) == 0;
     CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
     auto resultado = carregador.carregar(fixture(QStringLiteral("sem_mac.pfx")), senha, *ancoras);
+    if (serie30) {
+        QVERIFY2(!resultado.has_value(), "OpenSSL 3.0.x devia recusar o .pfx sem MAC com senha");
+        QCOMPARE(resultado.error(), ErroCredencial::SenhaErrada);
+        return;
+    }
     QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
     QCOMPARE(resultado->inscricao().valor(), QString::fromLatin1(CNPJ_OK));
+}
+
+// Conferência de par (decisão do CISO, rodada 3, item 2): função própria, testada direto com chave e certificado de
+// fixtures diferentes. A chave de cnpj_sub não confere com a folha de cnpj_ok, e vice-versa. Mutante CHAVENAOCONFERE
+// (a função devolve sempre verdadeiro) tem de morrer aqui.
+void TesteCarregadorPkcs12::conferenciaDeChaveDistingueParesDeFixtures()
+{
+    CarregadorPkcs12 carregador;
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senhaA = senhaDaFixture();
+    auto credA = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senhaA, *ancoras);
+    QVERIFY2(credA.has_value(), descreverErro(credA).c_str());
+    auto senhaB = senhaDaFixture();
+    auto credB = carregador.carregar(fixture(QStringLiteral("cnpj_sub.pfx")), senhaB, *ancoras);
+    QVERIFY2(credB.has_value(), descreverErro(credB).c_str());
+    QVERIFY(chaveConfereComCertificado(credA->certificado(), credA->chavePrivada()));
+    QVERIFY(chaveConfereComCertificado(credB->certificado(), credB->chavePrivada()));
+    QVERIFY(!chaveConfereComCertificado(credA->certificado(), credB->chavePrivada()));
+    QVERIFY(!chaveConfereComCertificado(credB->certificado(), credA->chavePrivada()));
 }
 
 // Chave privada fora de bag cifrado (ADR-0002): a senha está certa, e mesmo assim o carregador recusa.

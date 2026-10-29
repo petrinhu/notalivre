@@ -53,7 +53,8 @@ foreach(nome IN ITEMS
     pfxSemMacComSenhaErradaFalhaFechado
     pfxSemMacComSenhaCertaCarrega
     pfxComChaveSemCifraRecusado
-    chaveNaoConfereRecusada)
+    chaveNaoConfereRecusada
+    conferenciaDeChaveDistingueParesDeFixtures)
   add_test(NAME pkcs12.${nome} COMMAND tst_carregador_pkcs12 ${nome})
   set_tests_properties(pkcs12.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste

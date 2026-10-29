@@ -9,6 +9,7 @@ add_library(nl_foundation_pkcs12 STATIC
     ancoras.cpp
     classificacao_erros.cpp
     carregador_pkcs12.cpp
+    conferencia_chave.cpp
     contexto_ossl.cpp
     credencial_x509.cpp
     decifrar_pfx.cpp
