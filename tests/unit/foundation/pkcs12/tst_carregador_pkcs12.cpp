@@ -19,6 +19,7 @@
 #include <openssl/pem.h>
 #include <openssl/pkcs12.h>
 #include <openssl/pkcs12err.h>
+#include <openssl/pkcs7.h>
 #include <openssl/x509.h>
 #include <openssl/provider.h>
 
@@ -261,8 +262,52 @@ void TesteCarregadorPkcs12::pfxComChaveSemCifraRecusado()
     QCOMPARE(resultado.error(), ErroCredencial::PfxMalformado);
 }
 
-// PKCS#12 com a chave de OUTRO par, montado em memória: o openssl pkcs12 -export recusa esse par, e a API PKCS12_create
-// não confere. A chave é gerada nesta execução e nada é gravado em disco. Devolve vazio se a montagem falhar.
+// Monta o PKCS#12 bag a bag. PKCS12_create recusa chave e certificado que não conferem (fonte do 3.5.9); os bags
+// individuais não têm essa checagem. Devolve nullptr se a montagem falhar.
+PKCS12* pkcs12ComPar(const QByteArray& senha, EVP_PKEY* chave, X509* cert) {
+    STACK_OF(PKCS12_SAFEBAG)* bags = sk_PKCS12_SAFEBAG_new_null();
+    if (bags == nullptr) {
+        return nullptr;
+    }
+    PKCS12_add_cert(&bags, cert);
+    PKCS12_add_key(&bags, chave, 0, 2048, 0, senha.constData());
+    STACK_OF(PKCS7)* safes = sk_PKCS7_new_null();
+    if (safes == nullptr) {
+        sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
+        return nullptr;
+    }
+    PKCS12_add_safe(&safes, bags, NID_pkcs7_data, 2048, senha.constData());
+    sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
+    PKCS12* p12 = PKCS12_add_safes(safes, 0);
+    if (p12 != nullptr) {
+        PKCS12_set_mac(p12, senha.constData(), -1, nullptr, 0, 0, EVP_sha256());
+    }
+    return p12;
+}
+
+// Pré-condição do teste: o .pfx tem chave e certificado, e eles NÃO conferem. Sem isso o teste poderia passar
+// pela falta da chave, e não pela checagem de par.
+bool pfxTemChaveDescasada(const QByteArray& pfx, const QByteArray& senha) {
+    BIO* bio = BIO_new_mem_buf(pfx.constData(), static_cast<int>(pfx.size()));
+    PKCS12* p12 = bio != nullptr ? d2i_PKCS12_bio(bio, nullptr) : nullptr;
+    BIO_free(bio);
+    if (p12 == nullptr) {
+        return false;
+    }
+    EVP_PKEY* chave = nullptr;
+    X509* cert = nullptr;
+    STACK_OF(X509)* ca = nullptr;
+    const int ok = PKCS12_parse(p12, senha.constData(), &chave, &cert, &ca);
+    PKCS12_free(p12);
+    sk_X509_pop_free(ca, X509_free);
+    const bool descasada = ok == 1 && chave != nullptr && cert != nullptr && X509_check_private_key(cert, chave) != 1;
+    X509_free(cert);
+    EVP_PKEY_free(chave);
+    return descasada;
+}
+
+// PKCS#12 com a chave de OUTRO par, montado em memória. A chave é gerada nesta execução e nada é gravado em disco.
+// Devolve vazio se a montagem falhar ou se o resultado não tiver o par descasado (pré-condição).
 QByteArray pfxComChaveDeOutroPar(const QByteArray& senha) {
     const QByteArray certPem = fixture(QStringLiteral("cnpj_ok.pem"));
     BIO* bioCert = BIO_new_mem_buf(certPem.constData(), static_cast<int>(certPem.size()));
@@ -271,7 +316,7 @@ QByteArray pfxComChaveDeOutroPar(const QByteArray& senha) {
     EVP_PKEY* chave = EVP_RSA_gen(2048);
     QByteArray saida;
     if (cert != nullptr && chave != nullptr) {
-        PKCS12* p12 = PKCS12_create(senha.constData(), "teste", chave, cert, nullptr, 0, 0, 0, 0, 0);
+        PKCS12* p12 = pkcs12ComPar(senha, chave, cert);
         if (p12 != nullptr) {
             BIO* bioSaida = BIO_new(BIO_s_mem());
             if (bioSaida != nullptr && i2d_PKCS12_bio(bioSaida, p12) == 1) {
@@ -285,7 +330,7 @@ QByteArray pfxComChaveDeOutroPar(const QByteArray& senha) {
     }
     X509_free(cert);
     EVP_PKEY_free(chave);
-    return saida;
+    return pfxTemChaveDescasada(saida, senha) ? saida : QByteArray();
 }
 
 // PKCS#12 íntegro e senha certa, mas a chave não pertence ao certificado: recusada.
