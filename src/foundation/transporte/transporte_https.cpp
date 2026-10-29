@@ -4,9 +4,9 @@
 //
 // Cada chamada cria o próprio QNetworkAccessManager: nada de estado global (política do projeto). O tempo limite é
 // um QTimer nosso, não o do Qt, porque o código do reply por timeout varia entre versões (abort vira
-// OperationCanceledError). O erro de handshake é classificado só pelo código SSL explícito; o que o Qt devolve após
-// um handshake que o servidor recusou depois (alerta de certificado) vai no detalhe da mensagem, medido e não
-// adivinhado. A classificação dessa janela é decisão do coordenador (ver relatório da NL-2.5).
+// OperationCanceledError). Status HTTP recebido vale como resposta, qualquer que seja o NetworkError do Qt. A
+// mensagem de erro nunca leva texto do Qt nem do OpenSSL: esses textos trazem a URL da requisição (chave de acesso,
+// NSU) e o host. Sai só a descrição fixa da causa, o código numérico do Qt e o estado do handshake.
 
 #include <nl/foundation/transporte/transporte_https.h>
 
@@ -18,7 +18,6 @@
 #include <QSslConfiguration>
 #include <QSslError>
 #include <QSslSocket>
-#include <QStringList>
 #include <QTimer>
 #include <QVariant>
 
@@ -36,43 +35,50 @@ ErroTransporte configuracaoInvalida(QString motivo)
     return erro(TipoErro::Definitivo, CausaErro::Configuracao, std::move(motivo));
 }
 
-// O Qt reporta respostas HTTP com status de erro (4xx e 5xx) como NetworkError. Com status recebido, a resposta vale e
-// quem decide o que fazer com o status é o chamador. Os códigos abaixo são só os de status HTTP.
-bool ehErroDeStatusHttp(QNetworkReply::NetworkError codigo)
+// Descrição fixa por causa: nenhum texto vindo de fora entra na mensagem.
+QString descricaoDaCausa(CausaErro causa)
 {
-    switch (codigo) {
-    case QNetworkReply::ContentAccessDenied:
-    case QNetworkReply::ContentOperationNotPermittedError:
-    case QNetworkReply::ContentNotFoundError:
-    case QNetworkReply::AuthenticationRequiredError:
-    case QNetworkReply::ContentReSendError:
-    case QNetworkReply::ContentConflictError:
-    case QNetworkReply::ContentGoneError:
-    case QNetworkReply::UnknownContentError:
-    case QNetworkReply::InternalServerError:
-    case QNetworkReply::OperationNotImplementedError:
-    case QNetworkReply::ServiceUnavailableError:
-    case QNetworkReply::UnknownServerError:
-        return true;
-    default:
-        return false;
+    switch (causa) {
+    case CausaErro::Timeout:
+        return QStringLiteral("tempo limite esgotado");
+    case CausaErro::Conexao:
+        return QStringLiteral("conexão indisponível ou interrompida");
+    case CausaErro::Tls:
+        return QStringLiteral("handshake TLS recusado");
+    case CausaErro::Protocolo:
+        return QStringLiteral("resposta de rede inválida");
+    case CausaErro::Configuracao:
+        return QStringLiteral("configuração incompleta");
     }
+    return QStringLiteral("erro de transporte");
+}
+
+QString mensagemDeRede(CausaErro causa, QNetworkReply::NetworkError codigo, bool handshake, int sslErros)
+{
+    return QStringLiteral("%1 (codigo Qt %2, handshake %3, erros SSL %4)")
+        .arg(descricaoDaCausa(causa))
+        .arg(static_cast<int>(codigo))
+        .arg(handshake ? QStringLiteral("sim") : QStringLiteral("não"))
+        .arg(sslErros);
 }
 
 // Transitório: conexão recusada, nome sem resolução, conexão cortada. Definitivo: handshake recusado e o resto.
-ErroTransporte classificarErroDeRede(QNetworkReply::NetworkError codigo, QString detalhe)
+ErroTransporte classificarErroDeRede(QNetworkReply::NetworkError codigo, bool handshake, int sslErros)
 {
     switch (codigo) {
     case QNetworkReply::SslHandshakeFailedError:
-        return erro(TipoErro::Definitivo, CausaErro::Tls, std::move(detalhe));
+        return erro(TipoErro::Definitivo, CausaErro::Tls,
+                    mensagemDeRede(CausaErro::Tls, codigo, handshake, sslErros));
     case QNetworkReply::ConnectionRefusedError:
     case QNetworkReply::RemoteHostClosedError:
     case QNetworkReply::HostNotFoundError:
     case QNetworkReply::TemporaryNetworkFailureError:
     case QNetworkReply::NetworkSessionFailedError:
-        return erro(TipoErro::Transitorio, CausaErro::Conexao, std::move(detalhe));
+        return erro(TipoErro::Transitorio, CausaErro::Conexao,
+                    mensagemDeRede(CausaErro::Conexao, codigo, handshake, sslErros));
     default:
-        return erro(TipoErro::Definitivo, CausaErro::Protocolo, std::move(detalhe));
+        return erro(TipoErro::Definitivo, CausaErro::Protocolo,
+                    mensagemDeRede(CausaErro::Protocolo, codigo, handshake, sslErros));
     }
 }
 
@@ -138,7 +144,7 @@ std::expected<RespostaHttp, ErroTransporte> TransporteHttps::enviar(const Requis
     // Espera síncrona: o loop só para no fim da resposta, e o timer garante o fim (abort no disparo).
     bool expirou = false;
     bool handshakeConcluido = false;
-    QStringList errosSsl;
+    int sslErros = 0;
     QTimer tempo;
     tempo.setSingleShot(true);
     QObject::connect(&tempo, &QTimer::timeout, resposta, [&expirou, resposta] {
@@ -148,10 +154,8 @@ std::expected<RespostaHttp, ErroTransporte> TransporteHttps::enviar(const Requis
     QObject::connect(resposta, &QNetworkReply::encrypted, resposta, [&handshakeConcluido] {
         handshakeConcluido = true;
     });
-    QObject::connect(resposta, &QNetworkReply::sslErrors, resposta, [&errosSsl](const QList<QSslError>& erros) {
-        for (const QSslError& e : erros) {
-            errosSsl << e.errorString();
-        }
+    QObject::connect(resposta, &QNetworkReply::sslErrors, resposta, [&sslErros](const QList<QSslError>& erros) {
+        sslErros += static_cast<int>(erros.size());
     });
     QEventLoop laco;
     QObject::connect(resposta, &QNetworkReply::finished, &laco, &QEventLoop::quit);
@@ -159,25 +163,15 @@ std::expected<RespostaHttp, ErroTransporte> TransporteHttps::enviar(const Requis
     laco.exec();
     tempo.stop();
 
-    const QNetworkReply::NetworkError codigo = resposta->error();
-    const QVariant statusAtributo = resposta->attribute(QNetworkRequest::HttpStatusCodeAttribute);
-    const int status = statusAtributo.isValid() ? statusAtributo.toInt() : 0;
-    const QByteArray corpo = resposta->readAll();
-    const QString detalhe = QStringLiteral("codigo=%1; handshake=%2; status=%3; bytes=%4; ssl=[%5]; msg=%6")
-                                .arg(static_cast<int>(codigo))
-                                .arg(handshakeConcluido ? QStringLiteral("sim") : QStringLiteral("não"))
-                                .arg(status)
-                                .arg(corpo.size())
-                                .arg(errosSsl.join(QStringLiteral("; ")), resposta->errorString());
-
     if (expirou) {
         return std::unexpected(erro(TipoErro::Transitorio, CausaErro::Timeout,
-                                    QStringLiteral("tempo limite esgotado; ") + detalhe));
+                                    mensagemDeRede(CausaErro::Timeout, resposta->error(), handshakeConcluido, sslErros)));
     }
-    if (status > 0 && (codigo == QNetworkReply::NoError || ehErroDeStatusHttp(codigo))) {
-        return RespostaHttp{status, corpo};
+    const QVariant statusAtributo = resposta->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+    if (statusAtributo.isValid() && statusAtributo.toInt() > 0) {
+        return RespostaHttp{statusAtributo.toInt(), resposta->readAll()};
     }
-    return std::unexpected(classificarErroDeRede(codigo, detalhe));
+    return std::unexpected(classificarErroDeRede(resposta->error(), handshakeConcluido, sslErros));
 }
 
 } // namespace nl::foundation::transporte
