@@ -55,10 +55,7 @@ SenhaSegura::~SenhaSegura() {
 }
 
 void SenhaSegura::zerar() noexcept {
-    if (dados_ != nullptr) {
-        OPENSSL_cleanse(dados_, capacidade_);
-    }
-    tamanho_ = 0;
+    // NL-2.2, fase vermelha (revisão 2): zerar ainda não zera. A fase verde restaura o OPENSSL_cleanse.
 }
 
 void SenhaSegura::liberar() noexcept {

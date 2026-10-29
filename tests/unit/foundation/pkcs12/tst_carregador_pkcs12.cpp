@@ -2,8 +2,9 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Testes do carregador de A1 (NL-2.2, ADR-S1). Cada slot roda por nome no CTest (pkcs12.<slot>).
 // Fixtures sintéticas em NL_CERTIFICADOS_DIR, geradas pela NL-2.1 (AC de teste). Nenhum .pfx real é lido.
-// A senha de teste é lida do arquivo gerado; a cópia em QByteArray do teste não é zerada (é do teste, não do app).
 // Nenhum helper lança exceção: falha de leitura vira QVERIFY no teste que chamou (vermelho por asserção, L-35).
+// A senha é passada por referência: o carregador a zera, e o teste confere a zeragem pelo próprio objeto.
+// Slots com provedor ausente (OPENSSL_MODULES apontando para pasta vazia) rodam em processo próprio, pelo CMake.
 
 #include <nl/foundation/log/log.h>
 #include <nl/foundation/pkcs12/ancoras.h>
@@ -23,6 +24,7 @@
 
 #include <cstddef>
 #include <expected>
+#include <ios>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -83,20 +85,30 @@ private slots:
     void senhaErradaDaErroProprio();
     void senhaErradaNoLegadoDaErroProprio();
     void cifraLegadaCarregaComProviderLegado();
+    void cifraLegadaIndisponivelSemProvider();
+    void modernoNaoPrecisaDeLegadoSemProvider();
     void legadoNaoDesligaODefault();
     void vencidoSinalizado();
+    void folhaComValidadeFuturaReprova();
+    void validadeIntermediariaVencidaReprova();
     void semEkuClientAuthSinalizado();
+    void ekuMalformadaReprova();
     void ekuAusenteAceitaComEventoSemPii();
+    void registrarFalhaFechaCredencial();
     void cnpjExtraidoDoCertificado();
     void cnpjAlfanumericoExtraidoComoTexto();
     void cpfExtraidoDoCertificado();
     void raizComparadaComoTexto();
     void inscricaoFormatoInvalidoRecusado();
     void semInscricaoSinalizada();
+    void cnSemOidNaoViraInscricao();
+    void otherNameDeOutroOidNaoViraInscricao();
     void cadeiaDeOutraRaizReprova();
+    void cadeiaDeOutraSubordinadaReprova();
     void cadeiaIncompletaReprova();
     void cadeiaComSubordinadaCarrega();
     void pfxMalformadoReprova();
+    void carregarZeraSenha();
     void ancorasDePemLemUmCertificado();
     void ancorasSemCertificadoReprovam();
     void senhaSeguraZeraConteudo();
@@ -109,7 +121,8 @@ void TesteCarregadorPkcs12::senhaCorretaCarrega()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senha, *ancoras);
     QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
     QVERIFY(resultado->certificado() != nullptr);
     QVERIFY(resultado->chavePrivada() != nullptr);
@@ -122,8 +135,8 @@ void TesteCarregadorPkcs12::senhaErradaDaErroProprio()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")),
-                                         SenhaSegura::de(QByteArrayLiteral("senha-errada")), *ancoras);
+    auto senha = SenhaSegura::de(QByteArrayLiteral("senha-errada"));
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senha, *ancoras);
     QVERIFY(!resultado.has_value());
     QCOMPARE(resultado.error(), ErroCredencial::SenhaErrada);
 }
@@ -135,8 +148,8 @@ void TesteCarregadorPkcs12::senhaErradaNoLegadoDaErroProprio()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok_legado.pfx")),
-                                         SenhaSegura::de(QByteArrayLiteral("senha-errada")), *ancoras);
+    auto senha = SenhaSegura::de(QByteArrayLiteral("senha-errada"));
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok_legado.pfx")), senha, *ancoras);
     QVERIFY(!resultado.has_value());
     QCOMPARE(resultado.error(), ErroCredencial::SenhaErrada);
 }
@@ -147,7 +160,36 @@ void TesteCarregadorPkcs12::cifraLegadaCarregaComProviderLegado()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok_legado.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok_legado.pfx")), senha, *ancoras);
+    QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
+    QCOMPARE(resultado->inscricao().valor(), QString::fromLatin1(CNPJ_OK));
+}
+
+// Roda em processo próprio, com OPENSSL_MODULES apontando para uma pasta vazia (CMake): o provider legacy não carrega.
+// O .pfx legado tem de falhar com CifraLegadaIndisponivel, e não com um erro genérico.
+void TesteCarregadorPkcs12::cifraLegadaIndisponivelSemProvider()
+{
+    RegistroTeste registro;
+    CarregadorPkcs12 carregador(registro.log);
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok_legado.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::CifraLegadaIndisponivel);
+}
+
+// Mesmo processo sem provider legacy: o .pfx moderno tem de abrir. Se o carregador tentasse o legacy sem
+// motivo "unsupported", este teste reprovaria (retentativa indevida).
+void TesteCarregadorPkcs12::modernoNaoPrecisaDeLegadoSemProvider()
+{
+    RegistroTeste registro;
+    CarregadorPkcs12 carregador(registro.log);
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senha, *ancoras);
     QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
     QCOMPARE(resultado->inscricao().valor(), QString::fromLatin1(CNPJ_OK));
 }
@@ -160,10 +202,12 @@ void TesteCarregadorPkcs12::legadoNaoDesligaODefault()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto legado = carregador.carregar(fixture(QStringLiteral("cnpj_ok_legado.pfx")), senhaDaFixture(), *ancoras);
+    auto senhaLegado = senhaDaFixture();
+    auto legado = carregador.carregar(fixture(QStringLiteral("cnpj_ok_legado.pfx")), senhaLegado, *ancoras);
     QVERIFY2(legado.has_value(), descreverErro(legado).c_str());
     QCOMPARE(OSSL_PROVIDER_available(nullptr, "legacy"), 0);
-    auto moderno = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senhaDaFixture(), *ancoras);
+    auto senhaModerno = senhaDaFixture();
+    auto moderno = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senhaModerno, *ancoras);
     QVERIFY2(moderno.has_value(), descreverErro(moderno).c_str());
 }
 
@@ -173,9 +217,36 @@ void TesteCarregadorPkcs12::vencidoSinalizado()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("vencido.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("vencido.pfx")), senha, *ancoras);
     QVERIFY(!resultado.has_value());
     QCOMPARE(resultado.error(), ErroCredencial::Vencido);
+}
+
+void TesteCarregadorPkcs12::folhaComValidadeFuturaReprova()
+{
+    // notBefore em 2099: a folha ainda não vale. Reprova com erro próprio, não com Vencido nem CadeiaInvalida.
+    RegistroTeste registro;
+    CarregadorPkcs12 carregador(registro.log);
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("folha_futura.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::AindaNaoValido);
+}
+
+void TesteCarregadorPkcs12::validadeIntermediariaVencidaReprova()
+{
+    // Folha válida sob subordinada vencida: a cadeia reprova pela validade da intermediária (sem NO_CHECK_TIME).
+    RegistroTeste registro;
+    CarregadorPkcs12 carregador(registro.log);
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("intermediaria_vencida.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::CadeiaInvalida);
 }
 
 void TesteCarregadorPkcs12::semEkuClientAuthSinalizado()
@@ -185,7 +256,21 @@ void TesteCarregadorPkcs12::semEkuClientAuthSinalizado()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("sem_clientauth.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("sem_clientauth.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::SemAutenticacaoCliente);
+}
+
+void TesteCarregadorPkcs12::ekuMalformadaReprova()
+{
+    // A extensão EKU existe e não decodifica: não pode ser tratada como ausente (aceita) só porque o parse falhou.
+    RegistroTeste registro;
+    CarregadorPkcs12 carregador(registro.log);
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("eku_malformada.pfx")), senha, *ancoras);
     QVERIFY(!resultado.has_value());
     QCOMPARE(resultado.error(), ErroCredencial::SemAutenticacaoCliente);
 }
@@ -196,7 +281,8 @@ void TesteCarregadorPkcs12::ekuAusenteAceitaComEventoSemPii()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("eku_ausente.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("eku_ausente.pfx")), senha, *ancoras);
     QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
     QVERIFY(resultado->ekuAusente());
     const std::string evento = registro.saida.str();
@@ -205,13 +291,30 @@ void TesteCarregadorPkcs12::ekuAusenteAceitaComEventoSemPii()
     QVERIFY2(evento.find(CPF_OK) == std::string::npos, "o evento não pode trazer dígitos de identificação");
 }
 
+void TesteCarregadorPkcs12::registrarFalhaFechaCredencial()
+{
+    // Registro de auditoria que não consegue gravar (fluxo em badbit): sem o evento exigido, a credencial sem EKU
+    // não é aceita. Falha fechada, com FalhaInterna.
+    std::ostringstream saida;
+    saida.setstate(std::ios::badbit);
+    Log log(saida, "notalivre", {}, {EVENTO_EKU_AUSENTE});
+    CarregadorPkcs12 carregador(log);
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("eku_ausente.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::FalhaInterna);
+}
+
 void TesteCarregadorPkcs12::cnpjExtraidoDoCertificado()
 {
     RegistroTeste registro;
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senha, *ancoras);
     QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
     QCOMPARE(resultado->inscricao().tipo(), TipoInscricao::Cnpj);
     QCOMPARE(resultado->inscricao().valor(), QString::fromLatin1(CNPJ_OK));
@@ -224,7 +327,8 @@ void TesteCarregadorPkcs12::cnpjAlfanumericoExtraidoComoTexto()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_alfanumerico.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_alfanumerico.pfx")), senha, *ancoras);
     QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
     QCOMPARE(resultado->inscricao().tipo(), TipoInscricao::Cnpj);
     QCOMPARE(resultado->inscricao().valor(), QString::fromLatin1(CNPJ_ALFANUMERICO));
@@ -236,7 +340,8 @@ void TesteCarregadorPkcs12::cpfExtraidoDoCertificado()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("cpf_ok.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cpf_ok.pfx")), senha, *ancoras);
     QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
     QCOMPARE(resultado->inscricao().tipo(), TipoInscricao::Cpf);
     QCOMPARE(resultado->inscricao().valor(), QString::fromLatin1(CPF_OK));
@@ -273,7 +378,34 @@ void TesteCarregadorPkcs12::semInscricaoSinalizada()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("sem_identificacao.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("sem_identificacao.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::SemInscricao);
+}
+
+void TesteCarregadorPkcs12::cnSemOidNaoViraInscricao()
+{
+    // O CN traz um CNPJ válido, mas não há otherName: o CN nunca é usado como inscrição.
+    RegistroTeste registro;
+    CarregadorPkcs12 carregador(registro.log);
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cn_com_cnpj_sem_san.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::SemInscricao);
+}
+
+void TesteCarregadorPkcs12::otherNameDeOutroOidNaoViraInscricao()
+{
+    // otherName de OID 2.16.76.1.3.4 com um CNPJ válido: não é o OID de CNPJ nem o de CPF, então não vira inscrição.
+    RegistroTeste registro;
+    CarregadorPkcs12 carregador(registro.log);
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("outro_oid_sem_inscricao.pfx")), senha, *ancoras);
     QVERIFY(!resultado.has_value());
     QCOMPARE(resultado.error(), ErroCredencial::SemInscricao);
 }
@@ -285,7 +417,21 @@ void TesteCarregadorPkcs12::cadeiaDeOutraRaizReprova()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("cadeia_outra_raiz.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cadeia_outra_raiz.pfx")), senha, *ancoras);
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error(), ErroCredencial::CadeiaInvalida);
+}
+
+void TesteCarregadorPkcs12::cadeiaDeOutraSubordinadaReprova()
+{
+    // Folha de uma subordinada que pertence a outra raiz: a cadeia está completa no .pfx, mas não chega à âncora.
+    RegistroTeste registro;
+    CarregadorPkcs12 carregador(registro.log);
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cadeia_outra_sub.pfx")), senha, *ancoras);
     QVERIFY(!resultado.has_value());
     QCOMPARE(resultado.error(), ErroCredencial::CadeiaInvalida);
 }
@@ -297,8 +443,8 @@ void TesteCarregadorPkcs12::cadeiaIncompletaReprova()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_sub_sem_intermediaria.pfx")), senhaDaFixture(),
-                                         *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_sub_sem_intermediaria.pfx")), senha, *ancoras);
     QVERIFY(!resultado.has_value());
     QCOMPARE(resultado.error(), ErroCredencial::CadeiaInvalida);
 }
@@ -309,7 +455,8 @@ void TesteCarregadorPkcs12::cadeiaComSubordinadaCarrega()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_sub.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_sub.pfx")), senha, *ancoras);
     QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
     QCOMPARE(resultado->inscricao().valor(), QString::fromLatin1(CNPJ_OK));
 }
@@ -320,9 +467,24 @@ void TesteCarregadorPkcs12::pfxMalformadoReprova()
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(QByteArrayLiteral("isto nao e um pkcs12"), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(QByteArrayLiteral("isto nao e um pkcs12"), senha, *ancoras);
     QVERIFY(!resultado.has_value());
     QCOMPARE(resultado.error(), ErroCredencial::PfxMalformado);
+}
+
+void TesteCarregadorPkcs12::carregarZeraSenha()
+{
+    // A senha entra por referência e sai zerada, com sucesso ou falha: o chamador vê o próprio objeto vazio.
+    RegistroTeste registro;
+    CarregadorPkcs12 carregador(registro.log);
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    auto senha = senhaDaFixture();
+    QVERIFY(senha.tamanho() > 0);
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senha, *ancoras);
+    QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
+    QCOMPARE(senha.tamanho(), std::size_t{0});
 }
 
 void TesteCarregadorPkcs12::ancorasDePemLemUmCertificado()
@@ -356,15 +518,17 @@ void TesteCarregadorPkcs12::senhaSeguraZeraConteudo()
 
 void TesteCarregadorPkcs12::descartarLiberaChave()
 {
-    // CredencialX509 não é copiável (a chave tem um dono). EVP_PKEY_free apaga os componentes privados do RSA
-    // por BN_clear_free no OpenSSL; esta suíte não mede a zeragem (ler memória liberada seria UB), só o descarte.
+    // CredencialX509 não é copiável (a chave tem um dono). O descarte solta chave e certificado agora.
+    // A zeragem dos componentes privados do RSA é do OpenSSL (BN_clear_free); ler memória liberada seria UB,
+    // então esta suíte prova o descarte, não a zeragem.
     static_assert(!std::is_copy_constructible_v<CredencialX509>);
     static_assert(!std::is_copy_assignable_v<CredencialX509>);
     RegistroTeste registro;
     CarregadorPkcs12 carregador(registro.log);
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senhaDaFixture(), *ancoras);
+    auto senha = senhaDaFixture();
+    auto resultado = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senha, *ancoras);
     QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
     QVERIFY(!resultado->descartada());
     resultado->descartar();

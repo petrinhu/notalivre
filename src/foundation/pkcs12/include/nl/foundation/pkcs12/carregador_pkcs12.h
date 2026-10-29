@@ -23,7 +23,7 @@ public:
     explicit CarregadorPkcs12(nl::foundation::log::Log& registro) noexcept;
 
     /// A senha é zerada logo após o parse, e a cópia intermediária do PKCS#12 é liberada antes de devolver.
-    [[nodiscard]] std::expected<CredencialX509, ErroCredencial> carregar(QByteArrayView pfx, SenhaSegura senha,
+    [[nodiscard]] std::expected<CredencialX509, ErroCredencial> carregar(QByteArrayView pfx, SenhaSegura& senha,
                                                                          const Ancoras& ancoras);
 
 private:

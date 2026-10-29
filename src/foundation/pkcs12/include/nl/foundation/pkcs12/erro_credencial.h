@@ -12,7 +12,8 @@ namespace nl::foundation::pkcs12 {
 enum class ErroCredencial {
     SenhaErrada,              ///< MAC do PKCS#12 não confere: senha incorreta.
     CifraLegadaIndisponivel,  ///< Cifra antiga (RC2, 3DES) que o provider legacy não consegue abrir.
-    Vencido,                  ///< notAfter anterior ao instante atual.
+    Vencido,                  ///< notAfter da folha anterior ao instante atual.
+    AindaNaoValido,           ///< notBefore da folha posterior ao instante atual.
     CadeiaInvalida,           ///< A cadeia não chega a uma âncora fornecida pelo chamador.
     SemInscricao,             ///< Sem otherName de CNPJ (2.16.76.1.3.3) nem de CPF (2.16.76.1.3.1).
     SemAutenticacaoCliente,   ///< EKU presente e sem clientAuth.
@@ -26,6 +27,7 @@ enum class ErroCredencial {
     case ErroCredencial::SenhaErrada: return "credencial.senha_errada";
     case ErroCredencial::CifraLegadaIndisponivel: return "credencial.cifra_legada_indisponivel";
     case ErroCredencial::Vencido: return "credencial.vencido";
+    case ErroCredencial::AindaNaoValido: return "credencial.ainda_nao_valido";
     case ErroCredencial::CadeiaInvalida: return "credencial.cadeia_invalida";
     case ErroCredencial::SemInscricao: return "credencial.sem_inscricao";
     case ErroCredencial::SemAutenticacaoCliente: return "credencial.sem_autenticacao_cliente";
