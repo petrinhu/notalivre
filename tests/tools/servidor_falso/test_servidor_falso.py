@@ -235,6 +235,14 @@ class TesteServidorFalso(unittest.TestCase):
         else:
             self.assertNotIn("--lax-key-search", comando)
 
+    def test_verificacaoPadraoSemLax(self):
+        # Caminho padrão do oráculo, só a AC em --trusted-pem: a DPS com X509 no KeyInfo verifica em estrito, na 1.3
+        # também. O --lax-key-search só entra com chaves_publicas (DA-2.28, medido em 1.3.9 e 1.3.12).
+        comando = self.oraculo.comando_verificar("/tmp-inexistente.xml")
+        self.assertNotIn("--lax-key-search", comando)
+        ok, saida = self.oraculo.verificar_assinatura(self.dps)
+        self.assertTrue(ok, f"o caminho padrão recusou a DPS assinada: {saida}")
+
     def test_oraculoSemAssinarSemChamador(self):
         # Sem chamador na árvore (grep em git ls-files), oraculo.assinar e referencia.assinar saem do código.
         self.assertFalse(hasattr(oraculo.Oraculo, "assinar"))

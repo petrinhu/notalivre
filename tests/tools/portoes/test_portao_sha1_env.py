@@ -88,6 +88,28 @@ class TestePortaoSha1(unittest.TestCase):
         self.assertEqual(rc, 1, saida)
         self.assertIn("encontrados=0", saida)
 
+    def test_portaoSha1PycDerivadoNaoReprova(self):
+        # Bytecode de um .py permitido (o oráculo compilado no __pycache__) não é violação: o fonte já é varrido.
+        # Sem essa regra, o CI reprovou o build (run 40804430962): o .pyc de oraculo.py tinha a string.
+        raiz = self._arvore({
+            "tools/servidor_falso/oraculo.py": f'ENV_SHA1 = "{VARIAVEL}"\n',
+            "tools/servidor_falso/__pycache__/oraculo.cpython-314.pyc": f"lixo {VARIAVEL} lixo",
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 0, saida)
+        self.assertIn("violacoes=0", saida)
+
+    def test_portaoSha1PycSemOrigemReprova(self):
+        # Pyc órfão (sem .py de origem na árvore) com a string é violação: a regra acima não pode cegar o portão.
+        raiz = self._arvore({
+            "src/limpo.cpp": "int a = 1;\n",
+            "src/out/__pycache__/fantasma.cpython-314.pyc": f"lixo {VARIAVEL} lixo",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("violacoes=1", saida)
+
     def test_ciHigieneLigaPortaoSha1(self):
         # Job higiene do ci.yml (fronteira: o job seguinte, camadas). O portão tem de rodar sobre o workspace inteiro.
         texto = (RAIZ / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
