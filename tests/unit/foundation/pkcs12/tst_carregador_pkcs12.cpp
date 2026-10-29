@@ -6,7 +6,6 @@
 // A senha é passada por referência: o carregador a zera, e o teste confere a zeragem pelo próprio objeto.
 // Slots com provedor ausente (OPENSSL_MODULES apontando para pasta vazia) rodam em processo próprio, pelo CMake.
 
-#include <nl/foundation/log/log.h>
 #include <nl/foundation/pkcs12/ancoras.h>
 #include <nl/foundation/pkcs12/carregador_pkcs12.h>
 #include <nl/foundation/pkcs12/credencial_x509.h>
@@ -24,14 +23,11 @@
 
 #include <cstddef>
 #include <expected>
-#include <ios>
 #include <optional>
-#include <sstream>
 #include <string>
 #include <type_traits>
 #include <utility>
 
-using nl::foundation::log::Log;
 using namespace nl::foundation::pkcs12;
 
 namespace {
@@ -41,7 +37,6 @@ using Resultado = std::expected<CredencialX509, ErroCredencial>;
 const char* const CNPJ_OK = "12345678000195";
 const char* const CNPJ_ALFANUMERICO = "12ABC34501DE35";
 const char* const CPF_OK = "12345678909";
-const char* const EVENTO_EKU_AUSENTE = "credencial.eku_ausente";
 
 std::string descreverErro(const Resultado& resultado) {
     return resultado ? std::string("sucesso") : std::string(codigo(resultado.error()));
@@ -69,11 +64,6 @@ std::expected<Ancoras, ErroAncora> ancoraDeTeste() {
     return Ancoras::dePem(fixture(QStringLiteral("ac.pem")));
 }
 
-// Registro de auditoria em memória: o teste lê o texto gravado e confere o que pode (e o que não pode) aparecer.
-struct RegistroTeste {
-    std::ostringstream saida;
-    Log log{saida, "notalivre", {}, {EVENTO_EKU_AUSENTE}};
-};
 
 } // namespace
 
@@ -93,8 +83,7 @@ private slots:
     void validadeIntermediariaVencidaReprova();
     void semEkuClientAuthSinalizado();
     void ekuMalformadaReprova();
-    void ekuAusenteAceitaComEventoSemPii();
-    void registrarFalhaFechaCredencial();
+    void credencialSemEkuMarcadaNoIndicador();
     void cnpjExtraidoDoCertificado();
     void cnpjAlfanumericoExtraidoComoTexto();
     void cpfExtraidoDoCertificado();
@@ -117,8 +106,7 @@ private slots:
 
 void TesteCarregadorPkcs12::senhaCorretaCarrega()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -131,8 +119,7 @@ void TesteCarregadorPkcs12::senhaCorretaCarrega()
 
 void TesteCarregadorPkcs12::senhaErradaDaErroProprio()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = SenhaSegura::de(QByteArrayLiteral("senha-errada"));
@@ -144,8 +131,7 @@ void TesteCarregadorPkcs12::senhaErradaDaErroProprio()
 void TesteCarregadorPkcs12::senhaErradaNoLegadoDaErroProprio()
 {
     // A senha errada falha no MAC, antes de qualquer cifra: não pode virar CifraLegadaIndisponivel.
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = SenhaSegura::de(QByteArrayLiteral("senha-errada"));
@@ -156,8 +142,7 @@ void TesteCarregadorPkcs12::senhaErradaNoLegadoDaErroProprio()
 
 void TesteCarregadorPkcs12::cifraLegadaCarregaComProviderLegado()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -170,8 +155,7 @@ void TesteCarregadorPkcs12::cifraLegadaCarregaComProviderLegado()
 // O .pfx legado tem de falhar com CifraLegadaIndisponivel, e não com um erro genérico.
 void TesteCarregadorPkcs12::cifraLegadaIndisponivelSemProvider()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -184,8 +168,7 @@ void TesteCarregadorPkcs12::cifraLegadaIndisponivelSemProvider()
 // motivo "unsupported", este teste reprovaria (retentativa indevida).
 void TesteCarregadorPkcs12::modernoNaoPrecisaDeLegadoSemProvider()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -198,8 +181,7 @@ void TesteCarregadorPkcs12::legadoNaoDesligaODefault()
 {
     // Depois de abrir o legado, o processo não pode ter o provider legacy no contexto global, e o caminho
     // moderno tem de continuar funcionando na mesma execução.
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senhaLegado = senhaDaFixture();
@@ -213,8 +195,7 @@ void TesteCarregadorPkcs12::legadoNaoDesligaODefault()
 
 void TesteCarregadorPkcs12::vencidoSinalizado()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -226,8 +207,7 @@ void TesteCarregadorPkcs12::vencidoSinalizado()
 void TesteCarregadorPkcs12::folhaComValidadeFuturaReprova()
 {
     // notBefore em 2099: a folha ainda não vale. Reprova com erro próprio, não com Vencido nem CadeiaInvalida.
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -239,8 +219,7 @@ void TesteCarregadorPkcs12::folhaComValidadeFuturaReprova()
 void TesteCarregadorPkcs12::validadeIntermediariaVencidaReprova()
 {
     // Folha válida sob subordinada vencida: a cadeia reprova pela validade da intermediária (sem NO_CHECK_TIME).
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -252,8 +231,7 @@ void TesteCarregadorPkcs12::validadeIntermediariaVencidaReprova()
 void TesteCarregadorPkcs12::semEkuClientAuthSinalizado()
 {
     // EKU presente (emailProtection) e sem clientAuth: recusado. A ausência total de EKU é outro caso (aceito).
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -265,8 +243,7 @@ void TesteCarregadorPkcs12::semEkuClientAuthSinalizado()
 void TesteCarregadorPkcs12::ekuMalformadaReprova()
 {
     // A extensão EKU existe e não decodifica: não pode ser tratada como ausente (aceita) só porque o parse falhou.
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -275,42 +252,26 @@ void TesteCarregadorPkcs12::ekuMalformadaReprova()
     QCOMPARE(resultado.error(), ErroCredencial::SemAutenticacaoCliente);
 }
 
-void TesteCarregadorPkcs12::ekuAusenteAceitaComEventoSemPii()
+void TesteCarregadorPkcs12::credencialSemEkuMarcadaNoIndicador()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    // O carregador puro só marca a ausência de EKU no indicador. O evento de auditoria é do adaptador no Mid (DA-2.30).
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
     auto resultado = carregador.carregar(fixture(QStringLiteral("eku_ausente.pfx")), senha, *ancoras);
     QVERIFY2(resultado.has_value(), descreverErro(resultado).c_str());
     QVERIFY(resultado->ekuAusente());
-    const std::string evento = registro.saida.str();
-    QVERIFY2(evento.find(EVENTO_EKU_AUSENTE) != std::string::npos, "evento de EKU ausente não foi gravado");
-    QVERIFY2(evento.find(CNPJ_OK) == std::string::npos, "o evento não pode trazer o CNPJ");
-    QVERIFY2(evento.find(CPF_OK) == std::string::npos, "o evento não pode trazer dígitos de identificação");
-}
-
-void TesteCarregadorPkcs12::registrarFalhaFechaCredencial()
-{
-    // Registro de auditoria que não consegue gravar (fluxo em badbit): sem o evento exigido, a credencial sem EKU
-    // não é aceita. Falha fechada, com FalhaInterna.
-    std::ostringstream saida;
-    saida.setstate(std::ios::badbit);
-    Log log(saida, "notalivre", {}, {EVENTO_EKU_AUSENTE});
-    CarregadorPkcs12 carregador(log);
-    auto ancoras = ancoraDeTeste();
-    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
-    auto senha = senhaDaFixture();
-    auto resultado = carregador.carregar(fixture(QStringLiteral("eku_ausente.pfx")), senha, *ancoras);
-    QVERIFY(!resultado.has_value());
-    QCOMPARE(resultado.error(), ErroCredencial::FalhaInterna);
+    // Controle: uma credencial com EKU clientAuth não marca a ausência.
+    auto senhaControle = senhaDaFixture();
+    auto comEku = carregador.carregar(fixture(QStringLiteral("cnpj_ok.pfx")), senhaControle, *ancoras);
+    QVERIFY2(comEku.has_value(), descreverErro(comEku).c_str());
+    QVERIFY(!comEku->ekuAusente());
 }
 
 void TesteCarregadorPkcs12::cnpjExtraidoDoCertificado()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -323,8 +284,7 @@ void TesteCarregadorPkcs12::cnpjExtraidoDoCertificado()
 
 void TesteCarregadorPkcs12::cnpjAlfanumericoExtraidoComoTexto()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -336,8 +296,7 @@ void TesteCarregadorPkcs12::cnpjAlfanumericoExtraidoComoTexto()
 
 void TesteCarregadorPkcs12::cpfExtraidoDoCertificado()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -374,8 +333,7 @@ void TesteCarregadorPkcs12::inscricaoFormatoInvalidoRecusado()
 
 void TesteCarregadorPkcs12::semInscricaoSinalizada()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -387,8 +345,7 @@ void TesteCarregadorPkcs12::semInscricaoSinalizada()
 void TesteCarregadorPkcs12::cnSemOidNaoViraInscricao()
 {
     // O CN traz um CNPJ válido, mas não há otherName: o CN nunca é usado como inscrição.
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -400,8 +357,7 @@ void TesteCarregadorPkcs12::cnSemOidNaoViraInscricao()
 void TesteCarregadorPkcs12::otherNameDeOutroOidNaoViraInscricao()
 {
     // otherName de OID 2.16.76.1.3.4 com um CNPJ válido: não é o OID de CNPJ nem o de CPF, então não vira inscrição.
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -413,8 +369,7 @@ void TesteCarregadorPkcs12::otherNameDeOutroOidNaoViraInscricao()
 void TesteCarregadorPkcs12::cadeiaDeOutraRaizReprova()
 {
     // Autoassinado com CNPJ, EKU clientAuth e validade: só a cadeia o recusa.
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -426,8 +381,7 @@ void TesteCarregadorPkcs12::cadeiaDeOutraRaizReprova()
 void TesteCarregadorPkcs12::cadeiaDeOutraSubordinadaReprova()
 {
     // Folha de uma subordinada que pertence a outra raiz: a cadeia está completa no .pfx, mas não chega à âncora.
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -439,8 +393,7 @@ void TesteCarregadorPkcs12::cadeiaDeOutraSubordinadaReprova()
 void TesteCarregadorPkcs12::cadeiaIncompletaReprova()
 {
     // Folha da subordinada sem a subordinada no .pfx: a âncora (AC raiz) não alcança a folha.
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -451,8 +404,7 @@ void TesteCarregadorPkcs12::cadeiaIncompletaReprova()
 
 void TesteCarregadorPkcs12::cadeiaComSubordinadaCarrega()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -463,8 +415,7 @@ void TesteCarregadorPkcs12::cadeiaComSubordinadaCarrega()
 
 void TesteCarregadorPkcs12::pfxMalformadoReprova()
 {
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -476,8 +427,7 @@ void TesteCarregadorPkcs12::pfxMalformadoReprova()
 void TesteCarregadorPkcs12::carregarZeraSenha()
 {
     // A senha entra por referência e sai zerada, com sucesso ou falha: o chamador vê o próprio objeto vazio.
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();
@@ -523,8 +473,7 @@ void TesteCarregadorPkcs12::descartarLiberaChave()
     // então esta suíte prova o descarte, não a zeragem.
     static_assert(!std::is_copy_constructible_v<CredencialX509>);
     static_assert(!std::is_copy_assignable_v<CredencialX509>);
-    RegistroTeste registro;
-    CarregadorPkcs12 carregador(registro.log);
+    CarregadorPkcs12 carregador;
     auto ancoras = ancoraDeTeste();
     QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
     auto senha = senhaDaFixture();

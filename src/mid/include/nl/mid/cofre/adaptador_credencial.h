@@ -7,6 +7,7 @@
 
 #include <nl/foundation/log/log.h>
 #include <nl/foundation/pkcs12/ancoras.h>
+#include <nl/foundation/pkcs12/carregador_pkcs12.h>
 #include <nl/foundation/pkcs12/credencial_x509.h>
 #include <nl/foundation/pkcs12/erro_credencial.h>
 #include <nl/foundation/pkcs12/senha_segura.h>
@@ -27,6 +28,7 @@ public:
              const nl::foundation::pkcs12::Ancoras& ancoras);
 
 private:
+    nl::foundation::pkcs12::CarregadorPkcs12 carregador_;
     nl::foundation::log::Log& registro_;
 };
 

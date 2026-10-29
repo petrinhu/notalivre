@@ -6,7 +6,7 @@
 find_package(OpenSSL 3.0 REQUIRED)
 
 add_executable(tst_carregador_pkcs12 tst_carregador_pkcs12.cpp)
-target_link_libraries(tst_carregador_pkcs12 PRIVATE Qt6::Core Qt6::Test nl_foundation_pkcs12 nl_foundation_log
+target_link_libraries(tst_carregador_pkcs12 PRIVATE Qt6::Core Qt6::Test nl_foundation_pkcs12
                       OpenSSL::Crypto nl_warnings)
 
 set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
@@ -25,8 +25,7 @@ foreach(nome IN ITEMS
     validadeIntermediariaVencidaReprova
     semEkuClientAuthSinalizado
     ekuMalformadaReprova
-    ekuAusenteAceitaComEventoSemPii
-    registrarFalhaFechaCredencial
+    credencialSemEkuMarcadaNoIndicador
     cnpjExtraidoDoCertificado
     cnpjAlfanumericoExtraidoComoTexto
     cpfExtraidoDoCertificado

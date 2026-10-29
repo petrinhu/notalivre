@@ -20,8 +20,6 @@ namespace nl::foundation::pkcs12 {
 
 namespace {
 
-// Evento de auditoria do certificado sem EKU. Só o nome do evento: nenhum CNPJ, CPF ou nome entra no registro.
-constexpr const char* kEventoEkuAusente = "credencial.eku_ausente";
 
 // notAfter anterior ao instante atual.
 bool vencido(x509_st* certificado) {
@@ -60,9 +58,6 @@ std::expected<bool, ErroCredencial> verificarEku(x509_st* folha) {
 
 } // namespace
 
-CarregadorPkcs12::CarregadorPkcs12(nl::foundation::log::Log& registro) noexcept
-    : registro_(registro) {}
-
 std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteArrayView pfx, SenhaSegura& senha,
                                                                          const Ancoras& ancoras) {
     auto partes = decifrarPfx(pfx, senha);
@@ -94,14 +89,7 @@ std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteAr
         return std::unexpected(ErroCredencial::SemInscricao);
     }
 
-    if (*ekuAusente) {
-        auto gravado = registro_.registrar(nl::foundation::log::Nivel::Aviso, kEventoEkuAusente, {});
-        if (!gravado) {
-            // Sem o registro exigido, a credencial sem EKU não é aceita (falha fechada).
-            return std::unexpected(ErroCredencial::FalhaInterna);
-        }
-    }
-
+    // Sem evento aqui: o adaptador do Mid registra credencial.eku_ausente pelo Log (DA-2.30).
     return CredencialX509(std::move(partes->certificado), std::move(partes->chave), std::move(*inscricao),
                           *ekuAusente);
 }

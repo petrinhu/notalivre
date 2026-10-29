@@ -16,5 +16,5 @@ add_library(nl_foundation_pkcs12 STATIC
     senha_segura.cpp
     verificador_cadeia.cpp)
 target_include_directories(nl_foundation_pkcs12 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(nl_foundation_pkcs12 PUBLIC nl_foundation_base nl_foundation_log Qt6::Core)
+target_link_libraries(nl_foundation_pkcs12 PUBLIC nl_foundation_base Qt6::Core)
 target_link_libraries(nl_foundation_pkcs12 PRIVATE OpenSSL::Crypto nl_warnings)
