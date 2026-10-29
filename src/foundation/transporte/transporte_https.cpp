@@ -10,6 +10,7 @@
 // sinais estruturados (sinal encrypted, status ausente, código UnknownNetworkError), nunca o texto do alerta.
 
 #include <nl/foundation/transporte/transporte_https.h>
+#include <nl/foundation/transporte/classificacao_erro.h>
 
 #include <QByteArray>
 #include <QEventLoop>
@@ -63,24 +64,11 @@ QString mensagemDeRede(CausaErro causa, QNetworkReply::NetworkError codigo, bool
         .arg(sslErros);
 }
 
-// Transitório: conexão recusada, nome sem resolução, conexão cortada. Definitivo: handshake recusado e o resto.
-ErroTransporte classificarErroDeRede(QNetworkReply::NetworkError codigo, bool handshake, int sslErros)
+// Erro de rede sem status: a classificação é do átomo (classificacao_erro.h); aqui só se monta a mensagem fixa.
+ErroTransporte erroDeRede(QNetworkReply::NetworkError codigo, bool handshake, int sslErros)
 {
-    switch (codigo) {
-    case QNetworkReply::SslHandshakeFailedError:
-        return erro(TipoErro::Definitivo, CausaErro::Tls,
-                    mensagemDeRede(CausaErro::Tls, codigo, handshake, sslErros));
-    case QNetworkReply::ConnectionRefusedError:
-    case QNetworkReply::RemoteHostClosedError:
-    case QNetworkReply::HostNotFoundError:
-    case QNetworkReply::TemporaryNetworkFailureError:
-    case QNetworkReply::NetworkSessionFailedError:
-        return erro(TipoErro::Transitorio, CausaErro::Conexao,
-                    mensagemDeRede(CausaErro::Conexao, codigo, handshake, sslErros));
-    default:
-        return erro(TipoErro::Definitivo, CausaErro::Protocolo,
-                    mensagemDeRede(CausaErro::Protocolo, codigo, handshake, sslErros));
-    }
+    const Classificacao classe = classificarErroDeRede(codigo);
+    return erro(classe.tipo, classe.causa, mensagemDeRede(classe.causa, codigo, handshake, sslErros));
 }
 
 // O Qt reporta respostas com status de conteúdo, protocolo e servidor (4xx e 5xx) nos códigos 201 a 499. Fora disso e
@@ -217,7 +205,7 @@ std::expected<RespostaHttp, ErroTransporte> TransporteHttps::enviar(const Requis
         return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Tls,
                                     QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente")));
     }
-    return std::unexpected(classificarErroDeRede(codigo, handshakeConcluido, sslErros));
+    return std::unexpected(erroDeRede(codigo, handshakeConcluido, sslErros));
 }
 
 } // namespace nl::foundation::transporte
