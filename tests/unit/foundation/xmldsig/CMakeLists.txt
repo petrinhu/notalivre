@@ -52,7 +52,12 @@ else()
         materialVencidoNaHoraDeAssinarRecusado
         materialAindaNaoValidoRecusado
         tabelaPorDistroVemDoArquivo
-        atributoXmlDaRaizEntraNaCanonicalizacao)
+        atributoXmlDaRaizEntraNaCanonicalizacao
+        digestIgualAntesEDepoisDeAssinar
+        digestMudaComCampoAlterado
+        digestIdRepetidoDaErro
+        digestIdAusenteDaErro
+        digestDtdDaErro)
 endif()
 
 foreach(nome IN LISTS NL_SLOTS_XMLDSIG)

@@ -571,6 +571,56 @@ private slots:
         QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.referencia_nao_encontrada"));
     }
 
+    // Digest canônico do infDPS (átomo do NL-2.8, adendo da DA-2.41): o mesmo digest antes e depois de assinar.
+    void digestIgualAntesEDepoisDeAssinar() {
+        const QStringView id = QStringLiteral("DPS430510821122233300018100001000000000000001");
+        auto antes = xd::digestCanonicoDaReferencia(dpsDeReferencia(), id, parametrosSha256());
+        QVERIFY2(antes.has_value(), "a DPS de referência sem assinatura tem de dar digest");
+        QCOMPARE(antes->size(), qsizetype{32});
+        auto assinada = assinarComCredencial(dpsDeReferencia(), parametrosSha256());
+        QVERIFY2(assinada.has_value(), "a DPS de referência tem de assinar");
+        auto depois = xd::digestCanonicoDaReferencia(*assinada, id, parametrosSha256());
+        QVERIFY2(depois.has_value(), "a DPS assinada tem de dar digest, com a Signature fora");
+        QCOMPARE(*depois, *antes);
+    }
+
+    void digestMudaComCampoAlterado() {
+        const QStringView id = QStringLiteral("DPS430510821122233300018100001000000000000001");
+        QByteArray alterada = dpsDeReferencia();
+        alterada.replace("</infDPS>", "<xAlterado>1</xAlterado></infDPS>");
+        auto original = xd::digestCanonicoDaReferencia(dpsDeReferencia(), id, parametrosSha256());
+        auto mudada = xd::digestCanonicoDaReferencia(alterada, id, parametrosSha256());
+        QVERIFY2(original.has_value() && mudada.has_value(), "as duas DPS tem de dar digest");
+        QVERIFY2(*original != *mudada, "um campo alterado no infDPS muda o digest");
+    }
+
+    void digestIdRepetidoDaErro() {
+        const QStringView id = QStringLiteral("DPS430510821122233300018100001000000000000001");
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("</DPS>", "<Outro Id=\"DPS430510821122233300018100001000000000000001\"/></DPS>");
+        auto digest = xd::digestCanonicoDaReferencia(xml, id, parametrosSha256());
+        QVERIFY2(!digest.has_value(), "Id repetido não pode dar digest");
+        QCOMPARE(codigoDe(digest.error()), QStringLiteral("assinatura.referencia_ambigua"));
+    }
+
+    void digestIdAusenteDaErro() {
+        const QStringView id = QStringLiteral("DPS430510821122233300018100001000000000000001");
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("<infDPS Id=\"DPS430510821122233300018100001000000000000001\">", "<infDPS>");
+        auto digest = xd::digestCanonicoDaReferencia(xml, id, parametrosSha256());
+        QVERIFY2(!digest.has_value(), "Id ausente não pode dar digest");
+        QCOMPARE(codigoDe(digest.error()), QStringLiteral("assinatura.referencia_nao_encontrada"));
+    }
+
+    void digestDtdDaErro() {
+        const QStringView id = QStringLiteral("DPS430510821122233300018100001000000000000001");
+        QByteArray comEntidade = dpsDeReferencia();
+        comEntidade.replace("<DPS xmlns=", "<!DOCTYPE DPS [<!ENTITY e \"x\">]>\n<DPS xmlns=");
+        auto digest = xd::digestCanonicoDaReferencia(comEntidade, id, parametrosSha256());
+        QVERIFY2(!digest.has_value(), "DTD com entidade não pode dar digest");
+        QCOMPARE(codigoDe(digest.error()), QStringLiteral("assinatura.xml_com_dtd"));
+    }
+
     void xmlComDtdRecusado() {
         QByteArray comAtlist = dpsDeReferencia();
         comAtlist.replace("<DPS xmlns=", "<!DOCTYPE DPS [<!ATTLIST infDPS Id ID #IMPLIED>]>\n<DPS xmlns=");

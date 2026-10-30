@@ -392,4 +392,10 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
     return resultado;
 }
 
+// Fase vermelha: nenhum digest ainda. Os testes reprovam por asserção, com o erro FalhaInterna no lugar do esperado.
+std::expected<QByteArray, ErroAssinatura> digestCanonicoDaReferencia(QByteArrayView, QStringView,
+                                                                     const ParametrosAssinatura&) {
+    return std::unexpected(ErroAssinatura::FalhaInterna);
+}
+
 } // namespace nl::foundation::xmldsig

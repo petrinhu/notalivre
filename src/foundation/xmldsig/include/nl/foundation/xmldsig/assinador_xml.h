@@ -61,6 +61,12 @@ public:
         const MaterialAssinatura& material);
 };
 
+/// SHA-256 (ou o digest do parâmetro) do nó referenciado, canonicalizado (C14N 1.0) sem a Signature. Usa as mesmas
+/// guardas do assinador (DTD recusado, Id exato e único, no elemento esperado e filho da raiz esperada, parse sem rede),
+/// menos a de já assinado: a DPS assinada tem de dar o mesmo digest que a DPS sem assinatura.
+[[nodiscard]] std::expected<QByteArray, ErroAssinatura> digestCanonicoDaReferencia(
+    QByteArrayView xml, QStringView idReferencia, const ParametrosAssinatura& parametros);
+
 } // namespace nl::foundation::xmldsig
 
 #endif // NL_FOUNDATION_XMLDSIG_ASSINADOR_XML_H
