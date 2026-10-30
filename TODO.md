@@ -60,6 +60,11 @@
 - (sem ID): Trocar o interior da SenhaSegura (hoje OPENSSL_cleanse, NL-2.2) por libsodium (sodium_memzero e memória protegida), mantendo a interface (autorizado pelo líder). Fonte: revisão da NL-2.2.
 - (sem ID): Subir o piso de contagem de testes de 116 para o verde atual (118) quando conveniente, com o piso visto vermelho por um a menos. Fonte: revisão da NL-2.2.
 - (sem ID): Mensagem "senha errada ou arquivo danificado" na tela de importação do A1, pelo ux-writer (DA-2.32: senha errada em .pfx sem MAC aparece como arquivo danificado). Fonte: decisões do CISO na NL-2.2.
+- (sem ID): NL-2.5, TimeoutError com status recebido cai na faixa 1 a 99 e vira Transitorio/Conexao, não Timeout (transporte_https.cpp, em torno de 252-256). O tipo está certo, só a causa está errada.
+- (sem ID): NL-2.5, sem QCoreApplication, TransporteHttps::executar espera sem prazo (QTimer e QEventLoop não rodam). Proposta: guarda explícita que devolve erro Definitivo; teste em binário próprio.
+- (sem ID): limpeza das refs locais refs/sabotagem/* criadas por executores e revisores (L-53), pedindo a quem criou.
+- (sem ID): NL-2.8, E1204 sem texto no catálogo de erros da Sefin.
+- (sem ID): NL-2.8, o lançador do servidor falso separa argumentos por espaço, e por isso o teste do código E com CPF usa underscore. Avaliar o suporte a espaço.
 
 ## Backlog
 
