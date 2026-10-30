@@ -19,8 +19,9 @@ inline constexpr std::string_view kNamespaceLeiauteNfse = "http://www.sped.fazen
 
 /// Parâmetros para o digest canônico do infDPS: referência "infDPS" filha de "DPS", no namespace do leiaute.
 inline nl::foundation::xmldsig::ParametrosAssinatura parametrosDoInfDps() {
+    // Rodada 5 (revisão): a NFS-e no leiaute traz NFSe/infNFSe/DPS/infDPS, e o digest aceita essa forma pelo caminho fixo.
     return {kUriC14nLeiaute, kUriEnvelopedLeiaute, kUriSha256Leiaute, std::string_view{}, "infDPS", "DPS",
-            kNamespaceLeiauteNfse};
+            kNamespaceLeiauteNfse, "NFSe", "infNFSe"};
 }
 
 } // namespace nl::mid::sefin::prodrest_20261020

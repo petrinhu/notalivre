@@ -9,6 +9,8 @@
 #include <nl/mid/sefin/cliente/comparador_infdps.h>
 #include <nl/mid/sefin/cliente/politica_retry.h>
 
+#include <memory>
+
 namespace nl::foundation::transporte {
 class TransporteHttps;
 }
@@ -24,7 +26,7 @@ public:
     /// transporte, registro e comparador são emprestados: o chamador mantém os três vivos. Nenhum dado de titular vai
     /// ao registro. Sem comparador real, o padrão faz a reconciliação de E0014 terminar em Indeterminado.
     ClienteSefin(nl::foundation::transporte::TransporteHttps& transporte, nl::foundation::log::Log& registro,
-                 PoliticaRetry politica, const ComparadorInfDps& comparador = comparadorIndisponivel());
+                 PoliticaRetry politica, std::shared_ptr<const ComparadorInfDps> comparador = nullptr);
 
     [[nodiscard]] std::expected<nl::back::NotaSefin, nl::back::FalhaSefin> emitir(
         const nl::back::DpsAssinada& dps) override;
@@ -37,7 +39,7 @@ private:
     nl::foundation::transporte::TransporteHttps& transporte_;
     nl::foundation::log::Log& registro_;
     PoliticaRetry politica_;
-    const ComparadorInfDps& comparador_;
+    std::shared_ptr<const ComparadorInfDps> comparador_;  // dono: o cliente segura o comparador enquanto existir
 };
 
 } // namespace nl::mid::sefin::cliente

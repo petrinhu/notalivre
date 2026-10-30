@@ -37,12 +37,6 @@ public:
     }
 };
 
-/// Comparador padrão do cliente: a instância é `static const` e sem estado, e vale para toda chamada.
-inline const ComparadorInfDps& comparadorIndisponivel()
-{
-    static const ComparadorIndisponivel instancia;
-    return instancia;
-}
 
 } // namespace nl::mid::sefin::cliente
 

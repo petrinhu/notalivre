@@ -234,6 +234,21 @@ xmlNodePtr filhoPorNome(xmlNodePtr pai, std::string_view nome) {
     return nullptr;
 }
 
+// Forma NFSe/infNFSe/DPS/infDPS do XSD (rodada 5, revisão): o infDPS é filho da DPS, a DPS é filha de infNFSe, e infNFSe
+// é filho da raiz. O caminho é fixo, com os nomes que a pasta do leiaute declara. Nada de busca livre no documento.
+bool formaNfseDoXsd(xmlNodePtr referencia, xmlNodePtr raiz, const ParametrosAssinatura& p) {
+    if (p.nomeRaizComDps.empty() || p.nomeContainerDps.empty()) {
+        return false;
+    }
+    const xmlNodePtr dps = referencia->parent;
+    if (!ehElemento(dps, p.nomePaiReferencia, p.namespaceLeiaute)) {
+        return false;
+    }
+    const xmlNodePtr infNfse = dps->parent;
+    return ehElemento(infNfse, p.nomeContainerDps, p.namespaceLeiaute) && infNfse->parent == raiz &&
+           ehElemento(raiz, p.nomeRaizComDps, p.namespaceLeiaute);
+}
+
 // Guardas comuns do assinador e do digest (DA-2.40): DTD recusado antes de qualquer uso; o Id exato e único, no elemento
 // esperado, filho da raiz esperada. Os dois chamam esta função, então a regra existe em um lugar só.
 // recusarJaAssinado: o assinador recusa XML já assinado (item 3); o digest não, porque a DPS assinada tem de dar o mesmo
@@ -246,7 +261,7 @@ struct ReferenciaLocalizada {
 
 std::expected<ReferenciaLocalizada, ErroAssinatura> localizarReferencia(QByteArrayView xml, const std::string& id,
                                                                          const ParametrosAssinatura& parametros,
-                                                                         bool recusarJaAssinado) {
+                                                                         bool recusarJaAssinado, bool aceitaFormaNfse) {
     Doc doc(xmlReadMemory(xml.data(), static_cast<int>(xml.size()), "dps.xml", nullptr, XML_PARSE_NONET));
     if (!doc) {
         return std::unexpected(ErroAssinatura::XmlMalformado);
@@ -270,9 +285,10 @@ std::expected<ReferenciaLocalizada, ErroAssinatura> localizarReferencia(QByteArr
         return std::unexpected(ErroAssinatura::ReferenciaNaoEncontrada);
     }
     xmlNodePtr referencia = achados.front();
-    if (!ehElemento(referencia, parametros.nomeReferencia, parametros.namespaceLeiaute) || referencia->parent != raiz ||
-        !ehElemento(raiz, parametros.nomePaiReferencia, parametros.namespaceLeiaute)) {
-        return std::unexpected(ErroAssinatura::ReferenciaNaoEncontrada);  // Id fora do infDPS filho da raiz DPS (item 2)
+    const bool formaDps = referencia->parent == raiz && ehElemento(raiz, parametros.nomePaiReferencia, parametros.namespaceLeiaute);
+    const bool formaNfse = aceitaFormaNfse && formaNfseDoXsd(referencia, raiz, parametros);
+    if (!ehElemento(referencia, parametros.nomeReferencia, parametros.namespaceLeiaute) || !(formaDps || formaNfse)) {
+        return std::unexpected(ErroAssinatura::ReferenciaNaoEncontrada);  // Id fora do caminho fixo do leiaute (item 2)
     }
     return ReferenciaLocalizada{std::move(doc), raiz, referencia};
 }
@@ -335,7 +351,7 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
     }
 
     const std::string id = idReferencia.toUtf8().toStdString();
-    auto localizada = localizarReferencia(xml, id, parametros, /*recusarJaAssinado=*/true);
+    auto localizada = localizarReferencia(xml, id, parametros, /*recusarJaAssinado=*/true, /*aceitaFormaNfse=*/false);
     if (!localizada) {
         return std::unexpected(localizada.error());
     }
@@ -425,7 +441,7 @@ std::expected<QByteArray, ErroAssinatura> digestCanonicoDaReferencia(QByteArrayV
         return std::unexpected(ErroAssinatura::AlgoritmoBloqueado);
     }
     const std::string id = idReferencia.toUtf8().toStdString();
-    auto localizada = localizarReferencia(xml, id, parametros, /*recusarJaAssinado=*/false);
+    auto localizada = localizarReferencia(xml, id, parametros, /*recusarJaAssinado=*/false, /*aceitaFormaNfse=*/true);
     if (!localizada) {
         return std::unexpected(localizada.error());
     }

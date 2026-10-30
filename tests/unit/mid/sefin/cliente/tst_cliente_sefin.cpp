@@ -293,7 +293,7 @@ struct Montagem {
 };
 
 std::unique_ptr<Montagem> montar(int porta, const fp::CredencialX509& cred,
-                                 const mc::ComparadorInfDps& comparador = mc::comparadorIndisponivel())
+                                 std::shared_ptr<const mc::ComparadorInfDps> comparador = nullptr)
 {
     auto m = std::make_unique<Montagem>();
     m->log = std::make_unique<fl::Log>(
@@ -620,7 +620,7 @@ private slots:
         QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
         ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
         QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
-        ComparadorFalso igual(mc::ResultadoComparacaoInfDps::Igual);
+        auto igual = std::make_shared<ComparadorFalso>(mc::ResultadoComparacaoInfDps::Igual);
         auto m = montar(srv.porta(), *cred, igual);
         auto nota = m->cliente->emitir(*dps);
         QVERIFY2(nota.has_value(), "E0014 na primeira tentativa reconcilia com a nota, sem rejeitar");
@@ -637,15 +637,15 @@ private slots:
         QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
         ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
         QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
-        ComparadorFalso igual(mc::ResultadoComparacaoInfDps::Igual);
+        auto igual = std::make_shared<ComparadorFalso>(mc::ResultadoComparacaoInfDps::Igual);
         auto m = montar(srv.porta(), *cred, igual);
         auto nota = m->cliente->emitir(*dps);
         QVERIFY2(nota.has_value(), "mesmo infDPS é sucesso com a nota recuperada");
         QVERIFY2(!nota->xmlPendente, "a nota recuperada traz o XML, não fica pendente");
         QVERIFY2(nota->xmlNfse == dps->xml, "a nota recuperada é a DPS enviada");
-        QVERIFY2(igual.chamadas_ == 1, "a reconciliação compara uma vez");
-        QVERIFY2(igual.dpsRecebido_ == dps->xml, "o comparador recebe a DPS enviada");
-        QVERIFY2(!igual.nfseRecebido_.isEmpty(), "o comparador recebe o XML devolvido pela NFS-e");
+        QVERIFY2(igual->chamadas_ == 1, "a reconciliação compara uma vez");
+        QVERIFY2(igual->dpsRecebido_ == dps->xml, "o comparador recebe a DPS enviada");
+        QVERIFY2(!igual->nfseRecebido_.isEmpty(), "o comparador recebe o XML devolvido pela NFS-e");
     }
 
     // Adendo: com infDPS diferente (colisão de numeração), é DpsDuplicada para o usuário: nunca renumera, nunca reenvia.
@@ -657,7 +657,7 @@ private slots:
         QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
         ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
         QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
-        ComparadorFalso diferente(mc::ResultadoComparacaoInfDps::Diferente);
+        auto diferente = std::make_shared<ComparadorFalso>(mc::ResultadoComparacaoInfDps::Diferente);
         auto m = montar(srv.porta(), *cred, diferente);
         auto resultado = m->cliente->emitir(*dps);
         QVERIFY2(!resultado.has_value(), "infDPS diferente não pode virar nota");
@@ -721,7 +721,7 @@ private slots:
         ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
         QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
         mc::ComparadorInfDpsC14n real;
-        auto m = montar(srv.porta(), *cred, real);
+        auto m = montar(srv.porta(), *cred, std::make_shared<mc::ComparadorInfDpsC14n>());
         auto nota = m->cliente->emitir(*dps);
         QVERIFY2(nota.has_value(), "com o comparador real, E0014 da mesma DPS recupera a nota");
         QVERIFY2(nota->xmlNfse == dps->xml, "a nota recuperada é a DPS enviada");
@@ -866,7 +866,7 @@ private slots:
         QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
         ServidorDeTeste srv({QStringLiteral("POST /nfse erro5xx"), QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
         QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
-        ComparadorFalso igual(mc::ResultadoComparacaoInfDps::Igual);
+        auto igual = std::make_shared<ComparadorFalso>(mc::ResultadoComparacaoInfDps::Igual);
         auto m = montar(srv.porta(), *cred, igual);
         auto nota = m->cliente->emitir(*dps);
         QVERIFY2(nota.has_value(), "E0014 num reenvio consulta GET /dps e devolve a chave, nunca rejeição");

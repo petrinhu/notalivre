@@ -106,6 +106,11 @@ std::optional<QByteArray> base64Estrito(const QString& texto)
     if (bytes.size() % 4 != 0) {
         return std::nullopt;
     }
+    // '=' só no fim, com um ou dois caracteres de preenchimento. Em outro lugar, o texto não é Base64 (rodada 5, revisão).
+    const qsizetype primeiroIgual = bytes.indexOf('=');
+    if (primeiroIgual >= 0 && (bytes.size() - primeiroIgual > 2 || bytes.mid(primeiroIgual).count('=') != bytes.size() - primeiroIgual)) {
+        return std::nullopt;
+    }
     for (const char c : bytes) {
         const bool alfabeto = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+'
                               || c == '/' || c == '=';
@@ -302,14 +307,17 @@ Desfecho resolverDuplicada(ft::TransporteHttps& transporte, fl::Log& registro, c
     if (consulta) {
         return notaDaChave(transporte, registro, politica, *consulta);
     }
-    return std::unexpected(falha(bk::MotivoFalhaSefin::DpsDuplicada));
+    // Rodada 5 (DA-2.41, revisão A): DpsDuplicada só vale para conteúdo diferente. Sem consulta resolvida, não há como
+    // comparar: é Indeterminado.
+    return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
 }
 
 } // namespace
 
 ClienteSefin::ClienteSefin(ft::TransporteHttps& transporte, fl::Log& registro, PoliticaRetry politica,
-                           const ComparadorInfDps& comparador)
-    : transporte_(transporte), registro_(registro), politica_(politica), comparador_(comparador)
+                           std::shared_ptr<const ComparadorInfDps> comparador)
+    : transporte_(transporte), registro_(registro), politica_(politica),
+      comparador_(comparador ? std::move(comparador) : std::make_shared<ComparadorIndisponivel>())
 {
 }
 
@@ -369,7 +377,7 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
             const std::string codigo = codigoSeValido(bruto);
             if (codigo == "E0014") {
                 // Adendo da DA-2.41: E0014 reconcilia em qualquer tentativa, inclusive a primeira.
-                return reconciliarE0014(transporte_, registro_, politica_, comparador_, dps);
+                return reconciliarE0014(transporte_, registro_, politica_, *comparador_, dps);
             }
             if (!codigo.empty()) {
                 return std::unexpected(falha(bk::MotivoFalhaSefin::Rejeitada, codigo));
