@@ -8,3 +8,5 @@ fedora 44 algoritmo_bloqueado
 ubuntu 26.04 sha1
 manjaro rolling sha1
 linuxmint 22.3 sha1
+# A imagem linuxmintd/mint22.3 declara ubuntu 24.04 no /etc/os-release (medido no build verde 65e51f8).
+ubuntu 24.04 sha1
