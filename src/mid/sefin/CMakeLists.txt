@@ -12,4 +12,5 @@ target_sources(nl_mid PRIVATE
     cliente/politica_retry.cpp
     cliente/catalogo_erros_sefin.cpp
     cliente/leitor_erro_sefin.cpp
-    cliente/cliente_sefin.cpp)
+    cliente/cliente_sefin.cpp
+    cliente/comparador_infdps_c14n.cpp)

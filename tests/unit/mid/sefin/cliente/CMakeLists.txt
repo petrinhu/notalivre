@@ -42,7 +42,10 @@ foreach(nome IN ITEMS
     codigoEComCpfNaoChegaAoLog
     codigoEForaDoFormatoFicaVazio
     base64ComCaractereInvalidoETamanhoValidoRecusado
-    membroExtraDoGzipViraXmlPendente)
+    membroExtraDoGzipViraXmlPendente
+    comparadorRealIgualParaMesmaDps
+    comparadorRealDiferenteParaDpsAlterada
+    e0014ComComparadorRealRecuperaANota)
   add_test(NAME mid.sefin.cliente.${nome} COMMAND tst_cliente_sefin ${nome})
   set_tests_properties(mid.sefin.cliente.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste

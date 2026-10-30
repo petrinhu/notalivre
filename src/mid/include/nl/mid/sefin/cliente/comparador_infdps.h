@@ -7,6 +7,8 @@
 #ifndef NL_MID_SEFIN_CLIENTE_COMPARADOR_INFDPS_H
 #define NL_MID_SEFIN_CLIENTE_COMPARADOR_INFDPS_H
 
+#include <nl/back/dps/id_dps.h>
+
 #include <QByteArray>
 
 namespace nl::mid::sefin::cliente {
@@ -22,14 +24,14 @@ public:
     virtual ~ComparadorInfDps() = default;
 
     /// Compara o infDPS da DPS enviada (dpsXml) com o infDPS da NFS-e devolvida (nfseXml).
-    [[nodiscard]] virtual ResultadoComparacaoInfDps comparar(const QByteArray& dpsXml,
+    [[nodiscard]] virtual ResultadoComparacaoInfDps comparar(const nl::back::IdDps& id, const QByteArray& dpsXml,
                                                              const QByteArray& nfseXml) const = 0;
 };
 
 /// Sem comparador real: nunca diz igual nem diferente. Não tem estado, então uma única instância basta.
 class ComparadorIndisponivel final : public ComparadorInfDps {
 public:
-    [[nodiscard]] ResultadoComparacaoInfDps comparar(const QByteArray&, const QByteArray&) const override
+    [[nodiscard]] ResultadoComparacaoInfDps comparar(const nl::back::IdDps&, const QByteArray&, const QByteArray&) const override
     {
         return ResultadoComparacaoInfDps::Indisponivel;
     }

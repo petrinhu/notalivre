@@ -274,7 +274,7 @@ Desfecho reconciliarE0014(ft::TransporteHttps& transporte, fl::Log& registro, co
     if (!nota || nota->xmlPendente) {
         return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
     }
-    switch (comparador.comparar(dps.xml, nota->xmlNfse)) {
+    switch (comparador.comparar(dps.id, dps.xml, nota->xmlNfse)) {
     case ResultadoComparacaoInfDps::Igual:
         return *nota;
     case ResultadoComparacaoInfDps::Diferente:

@@ -21,6 +21,7 @@
 #include <nl/foundation/transporte/transporte_https.h>
 
 #include <nl/mid/sefin/cliente/catalogo_erros_sefin.h>
+#include <nl/mid/sefin/cliente/comparador_infdps_c14n.h>
 #include <nl/mid/sefin/cliente/cliente_sefin.h>
 #include <nl/mid/sefin/cliente/leitor_erro_sefin.h>
 #include <nl/mid/sefin/cliente/politica_retry.h>
@@ -263,7 +264,8 @@ std::vector<std::string> sequencia(const std::string& saida)
 class ComparadorFalso final : public mc::ComparadorInfDps {
 public:
     explicit ComparadorFalso(mc::ResultadoComparacaoInfDps resultado) : resultado_(resultado) {}
-    mc::ResultadoComparacaoInfDps comparar(const QByteArray& dpsXml, const QByteArray& nfseXml) const override
+    mc::ResultadoComparacaoInfDps comparar(const bk::IdDps&, const QByteArray& dpsXml,
+                                           const QByteArray& nfseXml) const override
     {
         chamadas_++;
         dpsRecebido_ = dpsXml;
@@ -594,6 +596,48 @@ private slots:
                  "sem conseguir comparar, o estado é Indeterminado");
         const std::vector<std::string> esperado{"POST:400", "GET:200", "GET:200"};
         QVERIFY2(sequencia(m->destino.str()) == esperado, "a reconciliação buscou a nota antes de desistir");
+    }
+
+    // Comparador real (motor xmldsig, digest canônico do infDPS): a mesma DPS dá Igual.
+    void comparadorRealIgualParaMesmaDps()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        mc::ComparadorInfDpsC14n real;
+        QVERIFY2(real.comparar(dps->id, dps->xml, dps->xml) == mc::ResultadoComparacaoInfDps::Igual,
+                 "a mesma DPS dá Igual pelo digest canônico do infDPS");
+    }
+
+    // Comparador real: um campo alterado no infDPS dá Diferente, nunca Igual.
+    void comparadorRealDiferenteParaDpsAlterada()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        QByteArray alterada = dps->xml;
+        alterada.replace("</infDPS>", "<xAlterado>1</xAlterado></infDPS>");
+        mc::ComparadorInfDpsC14n real;
+        QVERIFY2(real.comparar(dps->id, dps->xml, alterada) == mc::ResultadoComparacaoInfDps::Diferente,
+                 "um campo alterado no infDPS dá Diferente, não Igual");
+    }
+
+    // Ponta a ponta: E0014 com a nota já gerada e o comparador real recupera a nota (Igual pelo digest do motor).
+    void e0014ComComparadorRealRecuperaANota()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        mc::ComparadorInfDpsC14n real;
+        auto m = montar(srv.porta(), *cred, real);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "com o comparador real, E0014 da mesma DPS recupera a nota");
+        QVERIFY2(nota->xmlNfse == dps->xml, "a nota recuperada é a DPS enviada");
     }
 
     void backoffNaoEstouraComExpoenteAlto()
