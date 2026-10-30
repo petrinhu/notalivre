@@ -64,8 +64,8 @@ def corpo_nfse_defeituosa(chave, falha):
         return {"chaveAcesso": chave, "nfseXmlGZipB64": envelope.gzip_b64(b"<NFSe/>") + "@@@@"}
     if falha == "nfse_base64_igual_no_meio":
         # "=" no meio do Base64 (rodada 5, revisão). O gzip é escolhido com tamanho múltiplo de 3, para o Base64 não ter
-        # preenchimento. Depois vem "=AAA": um decodificador que para no primeiro "=" devolve um gzip válido, e só a regra
-        # de "=" só no fim recusa. Sem isso, o caso não discrimina a regra (mutante da revisão).
+        # preenchimento. Depois vêm "====": qualquer decodificador que ignore ou pare nos "=" devolve o mesmo gzip válido,
+        # e só a regra de "=" só no fim (que exige um ou dois, no fim) recusa. Discrimina o mutante da revisão.
         dados = None
         for k in range(64):
             candidato = gzip.compress(b"<NFSe/>" + b" " * k)
@@ -73,7 +73,7 @@ def corpo_nfse_defeituosa(chave, falha):
                 dados = candidato
                 break
         b64 = base64.b64encode(dados).decode("ascii")
-        return {"chaveAcesso": chave, "nfseXmlGZipB64": b64 + "=AAA"}
+        return {"chaveAcesso": chave, "nfseXmlGZipB64": b64 + "===="}
     if falha == "nfse_gzip_dois_membros":
         dois = gzip.compress(b"<NFSe/>") + gzip.compress(b"<NFSe2/>")
         return {"chaveAcesso": chave, "nfseXmlGZipB64": base64.b64encode(dois).decode("ascii")}
