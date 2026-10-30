@@ -34,3 +34,14 @@ foreach(nome IN ITEMS materialDaCredencialViva credencialDescartadaNaoEntregaMat
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
+
+# Âncoras de produção do A1 (NL-2.13, DA-2.48): o conjunto de produção lido pelo adaptador do cofre, do repositório conferido.
+add_executable(tst_raizes_producao tst_raizes_producao.cpp)
+target_link_libraries(tst_raizes_producao PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_pkcs12
+                      OpenSSL::Crypto nl_warnings)
+
+add_test(NAME mid.cofre.ancorasPadraoDeProducaoSaoAsRaizesIcp COMMAND tst_raizes_producao ancorasPadraoDeProducaoSaoAsRaizesIcp)
+set_tests_properties(mid.cofre.ancorasPadraoDeProducaoSaoAsRaizesIcp PROPERTIES
+                     ENVIRONMENT "NL_ICP_RAIZES_DIR=${NL_ICP_RAIZES_DIR};NL_ICP_RAIZES_MANIFESTO=${NL_ICP_RAIZES_MANIFESTO}"
+                     PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                     FAIL_REGULAR_EXPRESSION "FAIL!")
