@@ -195,6 +195,9 @@ private slots:
     void idNfseEChaveAcessoSoAceitamMascara();
     void proibidoIgnoraCaixaEVariacoes();
     void radicaisCobremTodosOsNomesProibidos();
+    void campoComSeparadoresNoNomeContinuaProibido();
+    void campoSoMascaraComSeparadoresContinuaSoMascara();
+    void nomeSoDeSeparadoresContinuaProibido();
 };
 
 void TstLog::initTestCase()
@@ -565,6 +568,52 @@ void TstLog::radicaisCobremTodosOsNomesProibidos()
         });
         QVERIFY2(coberto, qPrintable(QStringLiteral("nome proibido sem radical: %1")
                                           .arg(QString::fromUtf8(nome.data(), static_cast<qsizetype>(nome.size())))));
+    }
+}
+
+void TstLog::campoComSeparadoresNoNomeContinuaProibido()
+{
+    // NL-2.12 (A2-07, DA-2.43): "c_p_f", "c.p.f", "C-P-F" e "c p f" são o campo proibido cpf. Declarados Cru, o CPF não pode
+    // sair no log. A normalização do nome (só letras e dígitos, minúsculas) acontece antes da lista e dos radicais.
+    const std::string cpf = referencia(QStringLiteral("cpf"));
+    QVERIFY(!cpf.empty());
+    for (const std::string& nome : {std::string("c_p_f"), std::string("c.p.f"), std::string("C-P-F"), std::string("c p f")}) {
+        Sessao cru{{DeclaracaoCampo{nome, Regra::Cru}}};
+        QVERIFY(cru.log.registrar(Nivel::Info, "teste.proibido", umCampo(nome, cpf)).has_value());
+        QVERIFY2(cru.destino.str().find(cpf) == std::string::npos,
+                 qPrintable(QStringLiteral("CPF saiu pelo campo '%1' com separador, declarado Cru").arg(QString::fromStdString(nome))));
+        QCOMPARE(cru.log.descartados(), std::size_t{1});
+    }
+}
+
+void TstLog::campoSoMascaraComSeparadoresContinuaSoMascara()
+{
+    // NL-2.12 (resíduo da revisão, decisão do CISO 11:46): id_dps, ID-DPS, chave.acesso e id_nfse são só-máscara (DA-2.23)
+    // também com separadores. Declarados Cru, a inscrição do Id não pode sair no log.
+    const std::string cpf = referencia(QStringLiteral("cpf"));
+    QVERIFY(!cpf.empty());
+    const std::string id = idDps('1', "000" + cpf);
+    for (const std::string& nome : {std::string("id_dps"), std::string("ID-DPS"), std::string("chave.acesso"), std::string("id_nfse")}) {
+        Sessao cru{{DeclaracaoCampo{nome, Regra::Cru}}};
+        QVERIFY(cru.log.registrar(Nivel::Info, "teste.proibido", umCampo(nome, id)).has_value());
+        QVERIFY2(cru.destino.str().find(cpf) == std::string::npos,
+                 qPrintable(QStringLiteral("inscrição saiu pelo campo só-máscara '%1' declarado Cru").arg(QString::fromStdString(nome))));
+        QCOMPARE(cru.log.descartados(), std::size_t{1});
+    }
+}
+
+void TstLog::nomeSoDeSeparadoresContinuaProibido()
+{
+    // NL-2.12 (revisão, log NL-2.12-rev1-revisao.log): nome que é só separador vira vazio depois da normalização. Vazio é
+    // proibido (falha fechada): declarado Cru, o CPF não pode sair no log. Sem esse teste, o bloco que trata o vazio podia sair.
+    const std::string cpf = referencia(QStringLiteral("cpf"));
+    QVERIFY(!cpf.empty());
+    for (const std::string& nome : {std::string("..."), std::string("_"), std::string("-"), std::string(" ")}) {
+        Sessao cru{{DeclaracaoCampo{nome, Regra::Cru}}};
+        QVERIFY(cru.log.registrar(Nivel::Info, "teste.proibido", umCampo(nome, cpf)).has_value());
+        QVERIFY2(cru.destino.str().find(cpf) == std::string::npos,
+                 qPrintable(QStringLiteral("CPF saiu pelo campo só de separadores '%1' declarado Cru").arg(QString::fromStdString(nome))));
+        QCOMPARE(cru.log.descartados(), std::size_t{1});
     }
 }
 
