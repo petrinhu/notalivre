@@ -15,6 +15,7 @@
 #include "fabrica_raiz_teste.h"
 
 #include <QByteArray>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QString>
@@ -96,6 +97,7 @@ private slots:
     void raizForaDoPropositoNaoEntraComoAncora();
     void arquivoForaDoManifestoNaoEntra();
     void manifestoVazioRecusado();
+    void metaComChaveRepetidaRecusada();
 };
 
 void TesteCargaRaizesIcp::raizesIcpCarregadasDoArquivoConferido()
@@ -221,6 +223,30 @@ void TesteCargaRaizesIcp::manifestoVazioRecusado()
     Carga carga = carregarRaizesIcp(dirRaizes(), manifesto.fileName(), "geral", agoraDeTeste());
     QVERIFY2(!carga.has_value(), "manifesto vazio aceito");
     QVERIFY2(carga.error().motivo == ErroRaizIcp::ManifestoVazio, std::string(codigo(carga.error().motivo)).c_str());
+}
+
+void TesteCargaRaizesIcp::metaComChaveRepetidaRecusada()
+{
+    // Um "# meta" com a mesma chave duas vezes (proposito=geral e proposito=ssl) é ambíguo: o manifesto é recusado,
+    // em vez de a última chave ganhar em silêncio (CISO, 30/10/2026, item 3).
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const QByteArray der = teste::raizSinteticaDer("Raiz com meta repetida", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    QVERIFY(!der.isEmpty());
+    QFile arquivo(tmp.filePath(QStringLiteral("raiz.der")));
+    QVERIFY(arquivo.open(QIODevice::WriteOnly));
+    QVERIFY(arquivo.write(der) == der.size());
+    arquivo.close();
+    const QString hash = QString::fromLatin1(QCryptographicHash::hash(der, QCryptographicHash::Sha256).toHex());
+    QFile manifesto(tmp.filePath(QStringLiteral("SHA256SUMS")));
+    QVERIFY(manifesto.open(QIODevice::WriteOnly));
+    manifesto.write(QStringLiteral("# meta raiz.der proposito=geral proposito=ssl fonte=teste\n%1  raiz.der\n")
+                        .arg(hash).toUtf8());
+    manifesto.close();
+
+    Carga carga = carregarRaizesIcp(tmp.path(), manifesto.fileName(), "geral", agoraDeTeste());
+    QVERIFY2(!carga.has_value(), "meta com chave repetida aceita");
+    QVERIFY2(carga.error().motivo == ErroRaizIcp::ManifestoMalformado, std::string(codigo(carga.error().motivo)).c_str());
 }
 
 QTEST_APPLESS_MAIN(TesteCargaRaizesIcp)

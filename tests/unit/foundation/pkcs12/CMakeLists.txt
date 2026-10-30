@@ -85,7 +85,8 @@ foreach(nome IN ITEMS
     raizVencidaNaoEntraComoAncora
     raizForaDoPropositoNaoEntraComoAncora
     arquivoForaDoManifestoNaoEntra
-    manifestoVazioRecusado)
+    manifestoVazioRecusado
+    metaComChaveRepetidaRecusada)
   add_test(NAME pkcs12.raizes.${nome} COMMAND tst_carga_raizes_icp ${nome})
   set_tests_properties(pkcs12.raizes.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
