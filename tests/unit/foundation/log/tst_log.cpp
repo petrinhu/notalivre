@@ -196,6 +196,7 @@ private slots:
     void proibidoIgnoraCaixaEVariacoes();
     void radicaisCobremTodosOsNomesProibidos();
     void campoComSeparadoresNoNomeContinuaProibido();
+    void campoSoMascaraComSeparadoresContinuaSoMascara();
 };
 
 void TstLog::initTestCase()
@@ -580,6 +581,22 @@ void TstLog::campoComSeparadoresNoNomeContinuaProibido()
         QVERIFY(cru.log.registrar(Nivel::Info, "teste.proibido", umCampo(nome, cpf)).has_value());
         QVERIFY2(cru.destino.str().find(cpf) == std::string::npos,
                  qPrintable(QStringLiteral("CPF saiu pelo campo '%1' com separador, declarado Cru").arg(QString::fromStdString(nome))));
+        QCOMPARE(cru.log.descartados(), std::size_t{1});
+    }
+}
+
+void TstLog::campoSoMascaraComSeparadoresContinuaSoMascara()
+{
+    // NL-2.12 (resíduo da revisão, decisão do CISO 11:46): id_dps, ID-DPS, chave.acesso e id_nfse são só-máscara (DA-2.23)
+    // também com separadores. Declarados Cru, a inscrição do Id não pode sair no log.
+    const std::string cpf = referencia(QStringLiteral("cpf"));
+    QVERIFY(!cpf.empty());
+    const std::string id = idDps('1', "000" + cpf);
+    for (const std::string& nome : {std::string("id_dps"), std::string("ID-DPS"), std::string("chave.acesso"), std::string("id_nfse")}) {
+        Sessao cru{{DeclaracaoCampo{nome, Regra::Cru}}};
+        QVERIFY(cru.log.registrar(Nivel::Info, "teste.proibido", umCampo(nome, id)).has_value());
+        QVERIFY2(cru.destino.str().find(cpf) == std::string::npos,
+                 qPrintable(QStringLiteral("inscrição saiu pelo campo só-máscara '%1' declarado Cru").arg(QString::fromStdString(nome))));
         QCOMPARE(cru.log.descartados(), std::size_t{1});
     }
 }
