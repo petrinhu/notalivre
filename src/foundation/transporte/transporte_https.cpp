@@ -267,7 +267,7 @@ std::expected<RespostaHttp, ErroTransporte> classificarDesfecho(const Desfecho& 
     // Recusa do servidor depois do handshake: sinal encrypted, sem status, código UnknownNetworkError (DA-2.35).
     if (d.handshake && d.codigo == QNetworkReply::UnknownNetworkError) {
         return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Tls,
-                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente"));
+                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente")));
     }
     return std::unexpected(erroDeRede(d.codigo, d.handshake, d.sslErros));
 }
