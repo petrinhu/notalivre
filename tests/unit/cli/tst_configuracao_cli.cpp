@@ -56,7 +56,7 @@ void TstConfiguracaoCli::arquivoCompletoLido()
     QTemporaryDir pasta;
     QVERIFY(pasta.isValid());
     const auto lida = nl::cli::lerConfiguracao(escrever(pasta, kCompleta));
-    QVERIFY2(lida.has_value(), qPrintable(lida.error()));
+    QVERIFY2(lida.has_value(), "a configuração completa tem de ser lida");
     QCOMPARE(lida->urlSefin, QStringLiteral("https://127.0.0.1:9443"));
     QCOMPARE(lida->ancoras, QStringLiteral("/tmp/ancoras.pem"));
     QCOMPARE(lida->xsdDiretorio, QStringLiteral("/tmp/xsd"));
@@ -81,7 +81,7 @@ void TstConfiguracaoCli::producaoNasceFalsaSemSecao()
     QVERIFY(pasta.isValid());
     const QString semEmissao = kCompleta.left(kCompleta.indexOf(QStringLiteral("[emissao]")));
     const auto lida = nl::cli::lerConfiguracao(escrever(pasta, semEmissao));
-    QVERIFY2(lida.has_value(), qPrintable(lida.error()));
+    QVERIFY2(lida.has_value(), "a configuração sem a seção de emissão tem de ser lida");
     QVERIFY2(!lida->producaoLiberada, "sem a seção de emissão, Produção tem de nascer bloqueada");
 }
 
