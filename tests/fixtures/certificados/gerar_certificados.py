@@ -206,6 +206,9 @@ def gerar_clientes(saida, estado, cnf, env):
         cn = c.cn if c.cn else f"TESTE {c.nome}"
         emitir(cnf, estado, c.nome, estado / (c.nome + ".key"), f"/O=TESTE NOTALIVRE/CN={cn}",
                f"ext_{c.nome}", saida / (c.nome + ".pem"), env, datas_do(c))
+    # NL-2.3 (DA-2.40, adendo): a chave PEM da folha cnpj_ok sai para a pasta de saída, para o teste de contexto próprio
+    # ler o material sem o PKCS#12. A chave de teste é sintética e nunca vai para o repositório (gerada no build).
+    shutil.copyfile(estado / "cnpj_ok.key", saida / "cnpj_ok.key.pem")
     revogado = next(c for c in CLIENTES if c.situacao == "revogado")
     rodar(["openssl", "ca", "-batch", "-config", str(cnf), "-revoke", str(saida / (revogado.nome + ".pem"))], env)
     rodar(["openssl", "ca", "-batch", "-config", str(cnf), "-gencrl", "-out", str(saida / "crl.pem")], env)

@@ -25,11 +25,16 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <openssl/bio.h>
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/provider.h>
 #include <openssl/x509.h>
 
 #include <cstdlib>
 #include <expected>
+#include <memory>
 #include <string_view>
 
 namespace xd = nl::foundation::xmldsig;
@@ -586,6 +591,65 @@ private slots:
         auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), QStringLiteral("DPS430510821122233300018100001000000000000001"), parametrosDaDistro(), material);
         QVERIFY2(!assinado.has_value(), "certificado ainda não válido na hora de assinar tem de ser recusado");
         QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.material_invalido"));
+    }
+
+    // DA-2.40 (adendo do CISO): vermelhos antes do código.
+    void atributoXmlDaRaizEntraNaCanonicalizacao() {
+        // xml:lang na raiz é herdado pelo infDPS na C14N inclusiva (W3C 4.4.1). A cópia atual não o leva; o xmlsec1 reprova.
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("<DPS xmlns=", "<DPS xml:lang=\"pt-BR\" xmlns=");
+        auto assinado = assinarComCredencial(xml, parametrosDaDistro());
+        QVERIFY2(assinado.has_value(), "a DPS com xml:lang na raiz tem de assinar");
+        QVERIFY2(verificarComXmlsec1(*assinado), "o xmlsec1 tem de verificar: o xml:lang da raiz entra no digest");
+    }
+
+    void tabelaPorDistroVemDoArquivo() {
+        // DA-2.40 (adendo): a expectativa de SHA-1 da distro vem da tabela versionada, não de código. Este slot amarra as duas.
+        const QByteArray tabela = lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/tabela_sha1_por_distro.txt"));
+        QVERIFY2(!tabela.isEmpty(), "a tabela de expectativa por distro tem de existir");
+        const QString id = campoDoOsRelease(QStringLiteral("ID"));
+        const QString versao = campoDoOsRelease(QStringLiteral("VERSION_ID"));
+        QString esperado;
+        for (const QString& linha : QString::fromUtf8(tabela).split(QLatin1Char('\n'))) {
+            if (linha.startsWith(QLatin1Char('#')) || linha.trimmed().isEmpty()) {
+                continue;
+            }
+            const QStringList colunas = linha.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+            if (colunas.size() == 3 && colunas[0] == id && colunas[1] == versao) {
+                esperado = colunas[2];
+            }
+        }
+        QVERIFY2(!esperado.isEmpty(), "a distro atual tem de ter linha na tabela de expectativa");
+        QCOMPARE(distroRecusaSha1(), esperado == QStringLiteral("algoritmo_bloqueado"));
+    }
+
+    void contextoProprioIgnoraConfiguracaoGlobal() {
+        // DA-2.40 (adendo): roda em processo próprio do CTest, com OPENSSL_CONF do arquivo de teste (que tira SHA-256 do
+        // contexto global). O material vem de PEM, por contexto OpenSSL só do teste, nunca pelo PKCS#12.
+        using MdPtr = std::unique_ptr<EVP_MD, decltype(&EVP_MD_free)>;
+        MdPtr mdGlobal(EVP_MD_fetch(nullptr, "SHA256", nullptr), &EVP_MD_free);
+        QVERIFY2(!mdGlobal, "a configuração de teste tem de deixar o contexto global sem SHA-256");
+
+        std::unique_ptr<OSSL_LIB_CTX, decltype(&OSSL_LIB_CTX_free)> ctxTeste(OSSL_LIB_CTX_new(), &OSSL_LIB_CTX_free);
+        QVERIFY2(ctxTeste != nullptr, "o contexto do teste tem de abrir");
+        std::unique_ptr<OSSL_PROVIDER, decltype(&OSSL_PROVIDER_unload)> provedor(
+            OSSL_PROVIDER_load(ctxTeste.get(), "default"), &OSSL_PROVIDER_unload);
+        QVERIFY2(provedor != nullptr, "o provider default tem de carregar no contexto do teste");
+
+        const QByteArray chavePem = lerArquivo(caminhoFixture("cnpj_ok.key.pem"));
+        const QByteArray certPem = lerArquivo(caminhoFixture("cnpj_ok.pem"));
+        QVERIFY2(!chavePem.isEmpty() && !certPem.isEmpty(), "as fixtures PEM da folha cnpj_ok têm de existir");
+        std::unique_ptr<BIO, decltype(&BIO_free)> bioChave(BIO_new_mem_buf(chavePem.constData(), chavePem.size()), &BIO_free);
+        std::unique_ptr<BIO, decltype(&BIO_free)> bioCert(BIO_new_mem_buf(certPem.constData(), certPem.size()), &BIO_free);
+        std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> chave(
+            PEM_read_bio_PrivateKey_ex(bioChave.get(), nullptr, nullptr, nullptr, ctxTeste.get(), nullptr), &EVP_PKEY_free);
+        std::unique_ptr<X509, decltype(&X509_free)> cert(PEM_read_bio_X509_AUX(bioCert.get(), nullptr, nullptr, nullptr), &X509_free);
+        QVERIFY2(chave != nullptr && cert != nullptr, "o PEM da folha tem de ler no contexto do teste");
+
+        xd::MaterialAssinatura material{cert.get(), chave.get()};
+        auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(),
+            QStringLiteral("DPS430510821122233300018100001000000000000001"), parametrosSha256(), material);
+        QVERIFY2(assinado.has_value(), "o contexto próprio do assinador tem de assinar mesmo com o global restrito");
     }
 
     void assinaSha1NoSdkKdeSemVariavel() {

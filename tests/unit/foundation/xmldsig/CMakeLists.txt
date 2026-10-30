@@ -50,7 +50,9 @@ else()
         xmlComDtdRecusado
         variavelDoFedoraValeNoContextoProprio
         materialVencidoNaHoraDeAssinarRecusado
-        materialAindaNaoValidoRecusado)
+        materialAindaNaoValidoRecusado
+        tabelaPorDistroVemDoArquivo
+        atributoXmlDaRaizEntraNaCanonicalizacao)
 endif()
 
 foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
@@ -61,3 +63,14 @@ foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
                          PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
+
+# DA-2.40 (adendo): o contexto próprio ignora a configuração global. Processo próprio do CTest, com OPENSSL_CONF do arquivo
+# de teste. Só no build nativo: o Flatpak não tem o material de teste nem o xmlsec1 (NL_FLATPAK_BUILD, DA-2.28).
+if(NOT NL_FLATPAK_BUILD)
+    add_test(NAME xmldsig.contextoProprioIgnoraConfiguracaoGlobal COMMAND tst_assinador_xml contextoProprioIgnoraConfiguracaoGlobal)
+    set_tests_properties(xmldsig.contextoProprioIgnoraConfiguracaoGlobal PROPERTIES
+                         FIXTURES_REQUIRED certificados_teste
+                         ENVIRONMENT "${NL_AMBIENTE_XMLDSIG};OPENSSL_CONF=${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/openssl_global_restrito.cnf"
+                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                         FAIL_REGULAR_EXPRESSION "FAIL!")
+endif()
