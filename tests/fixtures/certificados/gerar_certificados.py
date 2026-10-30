@@ -5,7 +5,7 @@
 
 Uso: python3 -I gerar_certificados.py DIR_SAIDA
 
-Cria em DIR_SAIDA os 41 arquivos do inventário fixo (ver test_certificados.py): uma AC de teste (raiz, pathlen 1),
+Cria em DIR_SAIDA os 42 arquivos do inventário fixo (ver test_certificados.py): uma AC de teste (raiz, pathlen 1),
 uma AC subordinada de teste (pathlen 0, assinada pela AC), certificados de cliente (CNPJ no otherName 2.16.76.1.3.3,
 CPF no 2.16.76.1.3.1, EKU clientAuth, EKU sem clientAuth, sem EKU, EKU malformada, sem otherName com CN de CNPJ,
 otherName de outro OID, vencido, revogado com LCR, notBefore futuro, outro CNPJ raiz, CNPJ alfanumérico), .pfx
@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 VAR_SENHA = "NL_SENHA_TESTE"
-N_ARQUIVOS = 41
+N_ARQUIVOS = 42  # 41 do inventário mais cnpj_ok.key.pem (NL-2.3, DA-2.40 adendo)
 ESTADO = "estado_ac"
 SUBJ_AC = "/O=NotaLivre teste/CN=AC TESTE NOTALIVRE NAO USAR"
 SUBJ_SUBAC = "/O=NotaLivre teste/CN=AC TESTE SUBORDINADA NAO USAR"

@@ -46,10 +46,11 @@ ARQUIVOS_ESPERADOS = (
     ["ac.pem", "crl.pem", "senha_teste.txt", "servidor.pem", "servidor.key", "cnpj_ok_legado.pfx"]
     + EXTRAS_PEM
     + [c + ".pem" for c in CLIENTES]
+    + ["cnpj_ok.key.pem"]  # NL-2.3 (DA-2.40, adendo): chave PEM da folha cnpj_ok, para o teste do contexto próprio
     + PFX_MODERNOS
     + PFX_EXTRAS
 )
-N_ARQUIVOS_ESPERADOS = 41
+N_ARQUIVOS_ESPERADOS = 42
 
 OID_CNPJ = "2.16.76.1.3.3"
 OID_CPF = "2.16.76.1.3.1"
