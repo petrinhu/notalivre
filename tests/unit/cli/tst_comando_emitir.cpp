@@ -21,7 +21,7 @@ public:
     {
         QDir().mkpath(pasta_.filePath(QStringLiteral("notalivre")));
         QFile arquivo(pasta_.filePath(QStringLiteral("notalivre/config.ini")));
-        arquivo.open(QIODevice::WriteOnly | QIODevice::Text);
+        static_cast<void>(arquivo.open(QIODevice::WriteOnly | QIODevice::Text));
         arquivo.write("[sefin]\nurl = https://127.0.0.1:9443\nancoras = /tmp/ac.pem\n"
                       "[xsd]\ndiretorio = /tmp/xsd\nmanifesto = /tmp/xsd/MANIFESTO.sha256\n"
                       "[emissao]\nproducao_liberada = false\n");
