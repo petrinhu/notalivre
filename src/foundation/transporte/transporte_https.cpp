@@ -35,14 +35,15 @@ namespace {
 // Teto do tempo limite: 10 minutos. Acima disso a configuração é inválida, e o valor cabe no int do QTimer.
 constexpr std::chrono::milliseconds kTempoLimiteMaximo{600000};
 
-ErroTransporte erro(TipoErro tipo, CausaErro causa, QString mensagem)
+// antes: a falha ocorreu antes de qualquer byte HTTP chegar ao servidor (DA-2.41). Com false, os bytes podem ter chegado.
+ErroTransporte erro(TipoErro tipo, CausaErro causa, QString mensagem, bool antes = false)
 {
-    return ErroTransporte{tipo, causa, std::move(mensagem)};
+    return ErroTransporte{tipo, causa, std::move(mensagem), antes};
 }
 
 ErroTransporte configuracaoInvalida(QString motivo)
 {
-    return erro(TipoErro::Definitivo, CausaErro::Configuracao, std::move(motivo));
+    return erro(TipoErro::Definitivo, CausaErro::Configuracao, std::move(motivo), true);
 }
 
 // Descrição fixa por causa: nenhum texto vindo de fora entra na mensagem.
@@ -76,7 +77,8 @@ QString mensagemDeRede(CausaErro causa, QNetworkReply::NetworkError codigo, bool
 ErroTransporte erroDeRede(QNetworkReply::NetworkError codigo, bool handshake, int sslErros)
 {
     const Classificacao classe = classificarErroDeRede(codigo);
-    return erro(classe.tipo, classe.causa, mensagemDeRede(classe.causa, codigo, handshake, sslErros));
+    return erro(classe.tipo, classe.causa, mensagemDeRede(classe.causa, codigo, handshake, sslErros),
+                classe.antesDoEnvio);
 }
 
 // mTLS: autoridade de servidor só a da configuração (sem as do sistema), TLS 1.2 ou superior, verificação do servidor
@@ -260,7 +262,8 @@ std::expected<RespostaHttp, ErroTransporte> interpretar(const Desfecho& d)
     // Recusa do servidor depois do handshake: sinal encrypted, sem status, código UnknownNetworkError (DA-2.35).
     if (d.handshake && d.codigo == QNetworkReply::UnknownNetworkError) {
         return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Tls,
-                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente")));
+                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente"),
+                                    true));  // a recusa do certificado é da camada TLS: nenhum byte HTTP chegou à aplicação
     }
     return std::unexpected(erroDeRede(d.codigo, d.handshake, d.sslErros));
 }

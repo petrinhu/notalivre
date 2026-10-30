@@ -9,17 +9,19 @@ Classificacao classificarErroDeRede(QNetworkReply::NetworkError codigo)
 {
     switch (codigo) {
     case QNetworkReply::TimeoutError:
-        return Classificacao{TipoErro::Transitorio, CausaErro::Timeout};
+        return Classificacao{TipoErro::Transitorio, CausaErro::Timeout, false};
     case QNetworkReply::SslHandshakeFailedError:
-        return Classificacao{TipoErro::Definitivo, CausaErro::Tls};
+        return Classificacao{TipoErro::Definitivo, CausaErro::Tls, true};
     case QNetworkReply::ConnectionRefusedError:
-    case QNetworkReply::RemoteHostClosedError:
     case QNetworkReply::HostNotFoundError:
     case QNetworkReply::TemporaryNetworkFailureError:
     case QNetworkReply::NetworkSessionFailedError:
-        return Classificacao{TipoErro::Transitorio, CausaErro::Conexao};
+        return Classificacao{TipoErro::Transitorio, CausaErro::Conexao, true};
+    case QNetworkReply::RemoteHostClosedError:
+        // A conexão abriu e caiu: os bytes do POST podem ter chegado (DA-2.41).
+        return Classificacao{TipoErro::Transitorio, CausaErro::Conexao, false};
     default:
-        return Classificacao{TipoErro::Definitivo, CausaErro::Protocolo};
+        return Classificacao{TipoErro::Definitivo, CausaErro::Protocolo, false};
     }
 }
 
