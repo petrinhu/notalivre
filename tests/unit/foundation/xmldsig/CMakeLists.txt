@@ -47,6 +47,7 @@ else()
         idPorPrefixoNaoCasa
         idNaRaizRecusado
         idEmOutroElementoRecusado
+        idComAspasNaoInjetaAtributo
         xmlComDtdRecusado
         variavelDoFedoraValeNoContextoProprio
         materialVencidoNaHoraDeAssinarRecusado

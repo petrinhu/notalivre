@@ -185,7 +185,8 @@ std::expected<pk::CredencialX509, pk::ErroCredencial> credencialDeTeste(pk::Senh
 }
 
 std::expected<QByteArray, xd::ErroAssinatura> assinarComCredencial(const QByteArray& xml,
-                                                                   const xd::ParametrosAssinatura& parametros) {
+                                                                   const xd::ParametrosAssinatura& parametros,
+                                                                   const QString& id = QStringLiteral("DPS430510821122233300018100001000000000000001")) {
     pk::SenhaSegura senha = pk::SenhaSegura::de(QByteArray());
     QFile senhaArquivo(qEnvironmentVariable("NL_CERTIFICADOS_DIR") + QStringLiteral("/senha_teste.txt"));
     if (senhaArquivo.open(QIODevice::ReadOnly)) {
@@ -196,8 +197,7 @@ std::expected<QByteArray, xd::ErroAssinatura> assinarComCredencial(const QByteAr
         return std::unexpected(xd::ErroAssinatura::MaterialInvalido);
     }
     xd::MaterialAssinatura material{credencial->certificado(), credencial->chavePrivada()};
-    return xd::AssinadorXml::assinarEnveloped(xml, QStringLiteral("DPS430510821122233300018100001000000000000001"),
-                                              parametros, material);
+    return xd::AssinadorXml::assinarEnveloped(xml, id, parametros, material);
 }
 
 // Versão do xmlsec1 de linha de comando: a busca estrita da 1.3 precisa de --lax-key-search (DA-2.28).
@@ -606,6 +606,19 @@ private slots:
         auto assinado = assinarComCredencial(xml, parametrosDaDistro());
         QVERIFY2(!assinado.has_value(), "o Id num elemento que não é o infDPS não serve de referência");
         QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.referencia_nao_encontrada"));
+    }
+
+    // NL-2.9, condição (c): o Id entra no modelo da Signature pela API de árvore da libxml2, nunca por concatenação.
+    // Um Id com aspa dupla e um "atributo" dentro do valor não pode abrir atributo novo no Reference.
+    void idComAspasNaoInjetaAtributo() {
+        const QString idComAspas = QStringLiteral("DPS430510821122233300018100001000000000000001\" Evil=\"x");
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("<infDPS Id=\"DPS430510821122233300018100001000000000000001\">",
+                    "<infDPS Id='DPS430510821122233300018100001000000000000001\" Evil=\"x'>");
+        auto assinado = assinarComCredencial(xml, parametrosDaDistro(), idComAspas);
+        QVERIFY2(assinado.has_value(), "o Id com aspas é valor XML válido e tem de achar o infDPS");
+        QCOMPARE(contarNos(*assinado, "//*[local-name()='Reference'][@Evil]"), 0);
+        QCOMPARE(contarNos(*assinado, "//*[local-name()='Reference'][@URI='#DPS430510821122233300018100001000000000000001\" Evil=\"x']"), 1);
     }
 
     // Rodada 5 (revisão): a NFS-e no formato do XSD dá o mesmo digest que a DPS, e um campo alterado dentro dela difere.
