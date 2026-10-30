@@ -234,6 +234,65 @@ xmlNodePtr filhoPorNome(xmlNodePtr pai, std::string_view nome) {
     return nullptr;
 }
 
+// Forma NFSe/infNFSe/DPS/infDPS do XSD (rodada 5, revisão): o infDPS é filho da DPS, a DPS é filha de infNFSe, e infNFSe
+// é filho da raiz. O caminho é fixo, com os nomes que a pasta do leiaute declara. Nada de busca livre no documento.
+bool formaNfseDoXsd(xmlNodePtr referencia, xmlNodePtr raiz, const ParametrosAssinatura& p) {
+    if (p.nomeRaizComDps.empty() || p.nomeContainerDps.empty()) {
+        return false;
+    }
+    const xmlNodePtr dps = referencia->parent;
+    if (!ehElemento(dps, p.nomePaiReferencia, p.namespaceLeiaute)) {
+        return false;
+    }
+    const xmlNodePtr infNfse = dps->parent;
+    return ehElemento(infNfse, p.nomeContainerDps, p.namespaceLeiaute) && infNfse->parent == raiz &&
+           ehElemento(raiz, p.nomeRaizComDps, p.namespaceLeiaute);
+}
+
+// Guardas comuns do assinador e do digest (DA-2.40): DTD recusado antes de qualquer uso; o Id exato e único, no elemento
+// esperado, filho da raiz esperada. Os dois chamam esta função, então a regra existe em um lugar só.
+// recusarJaAssinado: o assinador recusa XML já assinado (item 3); o digest não, porque a DPS assinada tem de dar o mesmo
+// digest que a DPS sem assinatura.
+struct ReferenciaLocalizada {
+    Doc doc;
+    xmlNodePtr raiz;
+    xmlNodePtr referencia;
+};
+
+std::expected<ReferenciaLocalizada, ErroAssinatura> localizarReferencia(QByteArrayView xml, const std::string& id,
+                                                                         const ParametrosAssinatura& parametros,
+                                                                         bool recusarJaAssinado, bool aceitaFormaNfse) {
+    Doc doc(xmlReadMemory(xml.data(), static_cast<int>(xml.size()), "dps.xml", nullptr, XML_PARSE_NONET));
+    if (!doc) {
+        return std::unexpected(ErroAssinatura::XmlMalformado);
+    }
+    if (doc->intSubset != nullptr || doc->extSubset != nullptr) {
+        return std::unexpected(ErroAssinatura::XmlComDtd);  // DTD e entidade recusados antes de qualquer uso (item 1)
+    }
+    xmlNodePtr raiz = xmlDocGetRootElement(doc.get());
+    if (raiz == nullptr) {
+        return std::unexpected(ErroAssinatura::XmlMalformado);
+    }
+    if (recusarJaAssinado && contemSignature(raiz)) {
+        return std::unexpected(ErroAssinatura::JaAssinado);  // reassinar exige o XML sem assinatura (item 3)
+    }
+    std::vector<xmlNodePtr> achados;
+    coletarPorId(raiz, id, achados);
+    if (achados.size() > 1) {
+        return std::unexpected(ErroAssinatura::ReferenciaAmbigua);
+    }
+    if (achados.empty()) {
+        return std::unexpected(ErroAssinatura::ReferenciaNaoEncontrada);
+    }
+    xmlNodePtr referencia = achados.front();
+    const bool formaDps = referencia->parent == raiz && ehElemento(raiz, parametros.nomePaiReferencia, parametros.namespaceLeiaute);
+    const bool formaNfse = aceitaFormaNfse && formaNfseDoXsd(referencia, raiz, parametros);
+    if (!ehElemento(referencia, parametros.nomeReferencia, parametros.namespaceLeiaute) || !(formaDps || formaNfse)) {
+        return std::unexpected(ErroAssinatura::ReferenciaNaoEncontrada);  // Id fora do caminho fixo do leiaute (item 2)
+    }
+    return ReferenciaLocalizada{std::move(doc), raiz, referencia};
+}
+
 // Modelo da Signature na posição final (DA-2.40, item 4): DigestValue e SignatureValue vazios, KeyInfo já preenchido.
 std::string modeloSignature(const ParametrosAssinatura& parametros, const std::string& id,
                             const std::string& certificadoB64) {
@@ -292,34 +351,12 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
     }
 
     const std::string id = idReferencia.toUtf8().toStdString();
-    Doc doc(xmlReadMemory(xml.data(), static_cast<int>(xml.size()), "dps.xml", nullptr, XML_PARSE_NONET));
-    if (!doc) {
-        return std::unexpected(ErroAssinatura::XmlMalformado);
+    auto localizada = localizarReferencia(xml, id, parametros, /*recusarJaAssinado=*/true, /*aceitaFormaNfse=*/false);
+    if (!localizada) {
+        return std::unexpected(localizada.error());
     }
-    if (doc->intSubset != nullptr || doc->extSubset != nullptr) {
-        return std::unexpected(ErroAssinatura::XmlComDtd);  // DTD e entidade recusados antes de qualquer uso (item 1)
-    }
-    xmlNodePtr raiz = xmlDocGetRootElement(doc.get());
-    if (raiz == nullptr) {
-        return std::unexpected(ErroAssinatura::XmlMalformado);
-    }
-    if (contemSignature(raiz)) {
-        return std::unexpected(ErroAssinatura::JaAssinado);  // reassinar exige o XML sem assinatura (item 3)
-    }
-
-    std::vector<xmlNodePtr> achados;
-    coletarPorId(raiz, id, achados);
-    if (achados.size() > 1) {
-        return std::unexpected(ErroAssinatura::ReferenciaAmbigua);
-    }
-    if (achados.empty()) {
-        return std::unexpected(ErroAssinatura::ReferenciaNaoEncontrada);
-    }
-    xmlNodePtr referencia = achados.front();
-    if (!ehElemento(referencia, parametros.nomeReferencia, parametros.namespaceLeiaute) || referencia->parent != raiz ||
-        !ehElemento(raiz, parametros.nomePaiReferencia, parametros.namespaceLeiaute)) {
-        return std::unexpected(ErroAssinatura::ReferenciaNaoEncontrada);  // Id fora do infDPS filho da raiz DPS (item 2)
-    }
+    Doc doc = std::move(localizada->doc);
+    xmlNodePtr referencia = localizada->referencia;
 
     LibCtx ctx(OSSL_LIB_CTX_new());
     if (!ctx) {
@@ -390,6 +427,41 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
     QByteArray resultado(reinterpret_cast<const char*>(saida), tamanho);
     xmlFree(saida);
     return resultado;
+}
+
+// SHA-256 (o digest do parâmetro) do nó referenciado, canonicalizado sem a Signature. Mesmas guardas do assinador,
+// via localizarReferencia; a canonicalização é a de canonicalizar(), a mesma que o assinador usa para a referência.
+std::expected<QByteArray, ErroAssinatura> digestCanonicoDaReferencia(QByteArrayView xml, QStringView idReferencia,
+                                                                     const ParametrosAssinatura& parametros) {
+    if (parametros.uriC14n != kC14n || parametros.uriEnveloped != kEnveloped) {
+        return std::unexpected(ErroAssinatura::FalhaInterna);  // só C14N 1.0 e enveloped (DA-2.2)
+    }
+    const auto nomeDigest = nomeDoDigest(parametros.uriDigest);
+    if (!nomeDigest) {
+        return std::unexpected(ErroAssinatura::AlgoritmoBloqueado);
+    }
+    const std::string id = idReferencia.toUtf8().toStdString();
+    auto localizada = localizarReferencia(xml, id, parametros, /*recusarJaAssinado=*/false, /*aceitaFormaNfse=*/true);
+    if (!localizada) {
+        return std::unexpected(localizada.error());
+    }
+    const auto canonico = canonicalizar(localizada->referencia, /*excluirSignature=*/true);
+    if (!canonico) {
+        return std::unexpected(ErroAssinatura::FalhaInterna);
+    }
+    LibCtx ctx(OSSL_LIB_CTX_new());
+    if (!ctx) {
+        return std::unexpected(ErroAssinatura::FalhaInterna);
+    }
+    Provedor provedor(OSSL_PROVIDER_load(ctx.get(), "default"));  // provider default explícito (DA-2.10)
+    if (!provedor) {
+        return std::unexpected(ErroAssinatura::FalhaInterna);
+    }
+    const auto dig = digest(ctx.get(), *nomeDigest, *canonico);
+    if (!dig) {
+        return std::unexpected(dig.error());
+    }
+    return QByteArray(reinterpret_cast<const char*>(dig->data()), static_cast<qsizetype>(dig->size()));
 }
 
 } // namespace nl::foundation::xmldsig

@@ -157,6 +157,8 @@ struct Desfecho {
     int status = 0;
     QByteArray corpo;
     bool contentEncodingIdentidade = true;
+    // Bytes do corpo que o Qt escreveu no socket (sinal uploadProgress). Zero: nada do POST saiu da máquina (DA-2.41).
+    qint64 bytesEscritos = 0;
 };
 
 // Content-Encoding diferente de identity na resposta é protocolo inesperado: o transporte não descomprime.
@@ -214,6 +216,11 @@ Desfecho executar(QNetworkAccessManager& gerenciador, const QNetworkRequest& ped
         }
     });
 
+    QObject::connect(resposta, &QNetworkReply::uploadProgress, resposta, [&desfecho](qint64 enviados, qint64) {
+        if (enviados > desfecho.bytesEscritos) {
+            desfecho.bytesEscritos = enviados;
+        }
+    });
     QEventLoop laco;
     QObject::connect(resposta, &QNetworkReply::finished, &laco, &QEventLoop::quit);
     tempo.start(static_cast<int>(tempoLimite.count()));
@@ -230,7 +237,7 @@ Desfecho executar(QNetworkAccessManager& gerenciador, const QNetworkRequest& ped
 
 // Transforma o que o Qt observou no resultado do transporte. Ordem: teto do corpo, tempo limite, status recebido,
 // e por fim erro sem status.
-std::expected<RespostaHttp, ErroTransporte> interpretar(const Desfecho& d)
+std::expected<RespostaHttp, ErroTransporte> classificarDesfecho(const Desfecho& d)
 {
     if (d.excedeuTeto) {
         return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
@@ -263,6 +270,16 @@ std::expected<RespostaHttp, ErroTransporte> interpretar(const Desfecho& d)
                                     QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente")));
     }
     return std::unexpected(erroDeRede(d.codigo, d.handshake, d.sslErros));
+}
+
+// Resultado do pedido, com os bytes escritos do corpo no erro: é o sinal que o cliente usa para decidir se consulta (DA-2.41).
+std::expected<RespostaHttp, ErroTransporte> interpretar(const Desfecho& d)
+{
+    auto resultado = classificarDesfecho(d);
+    if (!resultado) {
+        resultado.error().bytesEscritos = d.bytesEscritos;
+    }
+    return resultado;
 }
 
 } // namespace

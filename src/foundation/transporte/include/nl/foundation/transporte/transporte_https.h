@@ -37,6 +37,9 @@ struct ErroTransporte {
     TipoErro tipo;
     CausaErro causa;
     QString mensagem;
+    /// Bytes do corpo que o Qt escreveu no socket antes do erro (sinal uploadProgress). Zero: nada do pedido saiu da
+    /// máquina, a falha é antes do envio. Maior que zero: o POST pode ter chegado ao servidor (DA-2.41, adendo de 30/10/2026).
+    qint64 bytesEscritos = 0;
 };
 
 /// Endereço e política de tempo do ambiente (DA-2.5). O prefixo vazio significa sem prefixo.

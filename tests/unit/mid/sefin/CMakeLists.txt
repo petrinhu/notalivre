@@ -31,3 +31,6 @@ find_program(NL_XMLLINT_DPS xmllint REQUIRED)
 add_test(NAME oraculo_xmllint_dps
     COMMAND bash "${CMAKE_SOURCE_DIR}/tests/unit/foundation/xml/oraculo_xmllint.sh"
         "${NL_XMLLINT_DPS}" "${NL_XSD_PRODREST_DIR}" "${CMAKE_SOURCE_DIR}/tests/fixtures/dps")
+
+# Cliente Sefin e política de retry (NL-2.8): subpasta própria.
+add_subdirectory(cliente)

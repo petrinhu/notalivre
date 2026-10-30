@@ -80,8 +80,8 @@ class TesteServidorFalso(unittest.TestCase):
 
     # --- auxiliares de teste ---------------------------------------------------------------------
 
-    def subir(self, roteiro_=None):
-        srv = servidor.ServidorFalso(self.certs, self.oraculo, roteiro_)
+    def subir(self, roteiro_=None, tls_maximo=None):
+        srv = servidor.ServidorFalso(self.certs, self.oraculo, roteiro_, tls_maximo=tls_maximo)
         srv.iniciar()
         self.addCleanup(srv.encerrar)
         return srv
@@ -208,6 +208,17 @@ class TesteServidorFalso(unittest.TestCase):
             # a consulta do cliente vê que a DPS foi aceita: HEAD e GET /dps/{id}
             self.assertEqual(self.enviar(srv, "HEAD", f"/dps/{self.id_dps}")[0], 200)
             self.assertIn("chaveAcesso", self.enviar(srv, "GET", f"/dps/{self.id_dps}")[1])
+
+    def test_rejeicaoRoteirizadaDevolveCodigoE(self):
+        # NL-2.8: a falha "rejeicao:<E>" responde 400 com o código E e um texto livre que traz um CPF (ADR-0005 c).
+        rot = roteiro.Roteiro()
+        rot.agendar("POST", "/nfse", "rejeicao:E1207")
+        srv = self.subir(rot)
+        status, corpo = self.postar_dps(srv)
+        self.assertEqual(status, 400, corpo)
+        self.assertEqual(corpo["Codigo"], "E1207")
+        self.assertIn("12345678909", corpo["Descricao"])
+        self.assertEqual(rot.pendentes(), 0)
 
     def test_variavelSha1SoNoFedora44(self):
         self.assertEqual(oraculo.ambiente_do_arnes({"ID": "fedora", "VERSION_ID": "44"}),
@@ -413,6 +424,72 @@ class TesteServidorFalso(unittest.TestCase):
         finally:
             conn.close()
         self.assertEqual(rot.pendentes(), 0)
+
+    def test_nfseDefeituosaNoSucessoDoPostChegaComChaveEFormaErrada(self):
+        # DA-2.39: o sucesso do POST /nfse traz a chave e um XML que o cliente não consegue ler. Cada roteiro produz um
+        # defeito diferente, e o servidor responde 201 como num sucesso real.
+        alfabeto = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
+        for falha in ("nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto"):
+            with self.subTest(falha=falha):
+                rot = roteiro.Roteiro()
+                rot.agendar("POST", "/nfse", falha)
+                srv = self.subir(rot)
+                status, corpo = self.postar_dps(srv)
+                self.assertEqual(status, 201, corpo)
+                self.assertEqual(len(corpo["chaveAcesso"]), 50)
+                campo = corpo["nfseXmlGZipB64"]
+                if falha == "nfse_base64_invalido":
+                    self.assertTrue(set(campo) - alfabeto, "tem de haver caractere fora do Base64")
+                    with self.assertRaises(ValueError):
+                        base64.b64decode(campo, validate=True)
+                else:
+                    bruto = base64.b64decode(campo, validate=True)
+                    if falha == "nfse_gzip_invalido":
+                        with self.assertRaises(OSError):
+                            gzip.decompress(bruto)
+                    else:
+                        self.assertEqual(len(gzip.decompress(bruto)), servidor.TETO_XML_NFSE + 1)
+                self.assertEqual(rot.pendentes(), 0)
+
+    def test_nfseDefeituosaSoValeParaPostNfse(self):
+        rot = roteiro.Roteiro()
+        for metodo, caminho in (("GET", "/dps/" + self.id_dps), ("POST", "/dps/" + self.id_dps)):
+            with self.subTest(metodo=metodo, caminho=caminho), self.assertRaises(ValueError):
+                rot.agendar(metodo, caminho, "nfse_gzip_invalido")
+        self.assertEqual(rot.pendentes(), 0)
+
+
+    def test_postRegistraIdENumeroDeCadaEnvio(self):
+        # dupla emissão: o registro guarda o Id e o nDPS de cada POST /nfse que chegou, inclusive o recusado pela falha
+        rot = roteiro.Roteiro()
+        rot.agendar("POST", "/nfse", "erro5xx")
+        srv = self.subir(rot)
+        self.assertEqual(self.postar_dps(srv)[0], 503)
+        self.assertEqual(self.postar_dps(srv)[0], 201)
+        status, registro = self.enviar(srv, "GET", "/_teste/posts")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(registro), 2)
+        self.assertEqual(registro[0], registro[1], "o reenvio tem de ser a mesma DPS: mesmo Id e mesmo nDPS")
+        self.assertEqual(registro[0]["id"], self.id_dps)
+        self.assertEqual(registro[0]["nDPS"], "1")
+
+
+    def test_tlsMaximoTls12LimitaVersao(self):
+        # cenário com TLS 1.2 no máximo: um cliente que só fala TLS 1.3 é recusado; um cliente de TLS 1.2 passa
+        srv = self.subir(tls_maximo="1.2")
+        self.assertEqual(srv.contexto.maximum_version, ssl.TLSVersion.TLSv1_2)
+        ctx = ssl.create_default_context(cafile=self.certs.ca)
+        ctx.load_cert_chain(self.certs.cliente_cert, self.certs.cliente_key)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+        recusado = False
+        try:
+            conn = http.client.HTTPSConnection("127.0.0.1", srv.porta, timeout=10, context=ctx)
+            conn.request("GET", "/dps/" + self.id_dps)
+            conn.getresponse()
+        except (ssl.SSLError, OSError, http.client.HTTPException):
+            recusado = True
+        self.assertTrue(recusado, "cliente que só fala TLS 1.3 tinha que ser recusado")
+        self.assertEqual(self.enviar(srv, "GET", "/dps/" + self.id_dps)[0], 404)
 
 
 if __name__ == "__main__":

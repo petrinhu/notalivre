@@ -8,16 +8,18 @@ INFERÊNCIA até a NL-2.10: códigos de erro (exceto E0714, do Anexo I), a forma
 Endpoints de evento e de DFe respondem 501: fora desta fatia, sem teste, sem comportamento inventado.
 """
 
+import base64
 import gzip
 import hashlib
 import http.server
 import json
+import re
 import ssl
 import threading
 
 from . import envelope
 from .referencia import id_do_infdps
-from .roteiro import Roteiro
+from .roteiro import SO_POST_NFSE, Roteiro
 
 ROTA_DPS = "/dps/"
 ROTA_NFSE = "/nfse/"
@@ -33,18 +35,68 @@ def chave_de_teste(id_dps):
     return str(int(digest, 16) % 10**50).zfill(50)
 
 
+def registro_do_post(corpo):
+    """Id e nDPS do que chegou num POST /nfse, para a conferência de dupla emissão (nunca o texto da DPS)."""
+    try:
+        xml = envelope.decodificar(corpo)
+    except envelope.ErroEnvelope:
+        return {"id": None, "nDPS": None}
+    try:
+        id_dps = id_do_infdps(xml)
+    except ValueError:
+        id_dps = None
+    numero = re.search(rb"<nDPS>([^<]*)</nDPS>", xml)
+    return {"id": id_dps, "nDPS": numero.group(1).decode("ascii", "replace") if numero else None}
+
+
 def corpo_da_nota(chave, xml):
     # INFERÊNCIA: o campo leva a DPS assinada no lugar do XML da NFS-e (sem schema de NFS-e aqui).
     return {"chaveAcesso": chave, "nfseXmlGZipB64": envelope.gzip_b64(xml)}
 
 
+# Teto do XML descompactado no cliente (limites_leiaute.h, DA-2.39). INFERÊNCIA do CTO, a medir na NL-2.10.
+TETO_XML_NFSE = 5 * 1024 * 1024
+
+
+def corpo_nfse_defeituosa(chave, falha):
+    if falha == "nfse_base64_caractere_invalido":
+        # "@@@@" fora do alfabeto, com tamanho múltiplo de 4: só a checagem de alfabeto recusa (DA-2.41, m7)
+        return {"chaveAcesso": chave, "nfseXmlGZipB64": envelope.gzip_b64(b"<NFSe/>") + "@@@@"}
+    if falha == "nfse_base64_igual_no_meio":
+        # "=" no meio do Base64 (rodada 5, revisão). O gzip é escolhido com tamanho múltiplo de 3, para o Base64 não ter
+        # preenchimento. Depois vêm "====": qualquer decodificador que ignore ou pare nos "=" devolve o mesmo gzip válido,
+        # e só a regra de "=" só no fim (que exige um ou dois, no fim) recusa. Discrimina o mutante da revisão.
+        dados = None
+        for k in range(64):
+            candidato = gzip.compress(b"<NFSe/>" + b" " * k)
+            if len(candidato) % 3 == 0:
+                dados = candidato
+                break
+        b64 = base64.b64encode(dados).decode("ascii")
+        return {"chaveAcesso": chave, "nfseXmlGZipB64": b64 + "===="}
+    if falha == "nfse_gzip_dois_membros":
+        dois = gzip.compress(b"<NFSe/>") + gzip.compress(b"<NFSe2/>")
+        return {"chaveAcesso": chave, "nfseXmlGZipB64": base64.b64encode(dois).decode("ascii")}
+    if falha == "nfse_base64_invalido":
+        return {"chaveAcesso": chave, "nfseXmlGZipB64": envelope.gzip_b64(b"<NFSe/>") + "@"}  # "@" fora do Base64
+    if falha == "nfse_gzip_invalido":
+        return {"chaveAcesso": chave, "nfseXmlGZipB64": base64.b64encode(b"isto nao e gzip").decode("ascii")}
+    return {"chaveAcesso": chave, "nfseXmlGZipB64": envelope.gzip_b64(b"\0" * (TETO_XML_NFSE + 1))}
+
+
 class ServidorFalso(http.server.HTTPServer):
     allow_reuse_address = True
 
-    def __init__(self, certs, oraculo, roteiro=None):
+    def __init__(self, certs, oraculo, roteiro=None, tls_maximo=None):
         self.contexto = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self.contexto.load_cert_chain(certs.servidor_cert, certs.servidor_key)
         self.contexto.minimum_version = ssl.TLSVersion.TLSv1_2  # explícito: nada abaixo de TLS 1.2 (rodada 2, item 4)
+        # Cenário com versão máxima limitada (rodada 4, DA-2.41): "1.2" faz o servidor negociar só TLS 1.2, em que ele
+        # valida o certificado do cliente antes do Finished. Nenhum outro valor é aceito.
+        if tls_maximo is not None:
+            if tls_maximo != "1.2":
+                raise ValueError(f"tls_maximo desconhecido: {tls_maximo}")
+            self.contexto.maximum_version = ssl.TLSVersion.TLSv1_2
         self.contexto.verify_mode = ssl.CERT_REQUIRED
         self.contexto.load_verify_locations(certs.ca)
         self.oraculo = oraculo
@@ -52,6 +104,8 @@ class ServidorFalso(http.server.HTTPServer):
         self.dps_aceitas = {}
         self.notas = {}
         self.requisicoes = 0
+        # Dupla emissão (DA-2.41): o Id e o nDPS de cada POST /nfse que chega, antes de qualquer falha roteirizada.
+        self.posts_recebidos = []
         self.liberar = threading.Event()
         super().__init__(("127.0.0.1", 0), ManipuladorApi)
 
@@ -98,6 +152,10 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         srv.requisicoes += 1
         caminho = self.path.split("?", 1)[0]
         corpo = self._ler_corpo()
+        if self.command == "POST" and caminho == "/nfse":
+            srv.posts_recebidos.append(registro_do_post(corpo))  # antes de qualquer falha: o que a Sefin recebeu
+        if self.command == "GET" and caminho == "/_teste/posts":
+            return self._json(200, srv.posts_recebidos)  # registro para o teste, fora da API da Sefin
         falha = srv.roteiro.consumir(self.command, caminho)
         if falha == "erro5xx":
             return self._json(503, {"Codigo": "INDISPONIVEL", "Descricao": "falha roteirizada"})
@@ -106,6 +164,14 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             return self._json(504, {"Codigo": "TIMEOUT", "Descricao": "falha roteirizada"})
         if falha == "conflito409":
             return self._json(409, {"Codigo": "DPS_DUPLICADA", "Descricao": "falha roteirizada"})
+        if falha is not None and falha.startswith("rejeicao:"):
+            # NL-2.8: código E da recusa, e um texto livre que traz um CPF, para provar que o cliente não o leva ao log.
+            codigo = falha.split(":", 1)[1]
+            return self._json(400, {"Codigo": codigo,
+                                    "Descricao": "texto livre devolvido pela API com CPF 12345678909"})
+        if falha == "consulta_404_outro":
+            # DA-2.41: a consulta respondeu 404 com um código que não é E2404 (o cliente tem de tratar como Indeterminado)
+            return self._json(404, {"Codigo": "E2999", "Descricao": "fora do catálogo"})
         if falha == "corpo_truncado":
             return self._corpo_truncado()
         if falha == "eco_accept_encoding":
@@ -132,6 +198,12 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
 
     def _postar_dps(self, corpo, falha):
         srv = self.server
+        if falha == "redireciona_post":
+            return self._redireciona()  # 302 sem processar: a DPS não foi gravada
+        if falha is not None and falha.startswith("rejeicao_bruta:"):
+            # Codigo com formato fora do que o cliente aceita, e um CPF no texto livre (DA-2.41, código E validado)
+            return self._json(400, {"Codigo": falha.split(":", 1)[1],
+                                    "Descricao": "texto livre devolvido pela API com CPF 12345678909"})
         try:
             xml = envelope.decodificar(corpo)
         except envelope.ErroEnvelope as erro:
@@ -154,6 +226,22 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         if falha == "conexao_cortada_apos_aceite":
             self.close_connection = True  # aceita e grava, mas corta a conexão sem resposta
             return None
+        if falha in SO_POST_NFSE:
+            return self._json(201, corpo_nfse_defeituosa(chave, falha))
+        if falha == "conflito409_gravado":
+            # 409 DPS_DUPLICADA que já gravou a DPS: a consulta GET /dps devolve a chave (rodada 5d, revisão do 409 com chave)
+            return self._json(409, {"Codigo": "DPS_DUPLICADA", "Descricao": "falha roteirizada"})
+        if falha == "post_sem_chave":
+            return self._json(201, {"Codigo": "OK", "Descricao": "201 sem chaveAcesso"})
+        if falha == "status202":
+            return self._json(202, corpo_da_nota(chave, xml))
+        if falha == "post_ce_gzip":
+            # 201 com Content-Encoding gzip: o transporte recusa (protocolo) depois do envio, a DPS já está gravada
+            dados = gzip.compress(json.dumps(corpo_da_nota(chave, xml)).encode("utf-8"))
+            return self._corpo_bruto(201, "application/json; charset=utf-8", dados, extra={"Content-Encoding": "gzip"})
+        if falha is not None and falha.startswith("rejeicao_gerada:"):
+            # a DPS já está gravada e a recusa traz o código E (E0014: conjunto já gerado), DA-2.41
+            return self._json(400, {"Codigo": falha.split(":", 1)[1], "Descricao": "DPS já gerada"})
         return self._json(201, corpo_da_nota(chave, xml))
 
     def _consultar_dps(self, id_dps):

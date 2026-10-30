@@ -8,4 +8,9 @@ target_sources(nl_mid PRIVATE
     leiaute/prodrest_20261020/codigos_leiaute.cpp
     leiaute/prodrest_20261020/grupo_ibscbs.cpp
     leiaute/prodrest_20261020/grupos_pessoa.cpp
-    leiaute/prodrest_20261020/grupos_tributos.cpp)
+    leiaute/prodrest_20261020/grupos_tributos.cpp
+    cliente/politica_retry.cpp
+    cliente/catalogo_erros_sefin.cpp
+    cliente/leitor_erro_sefin.cpp
+    cliente/cliente_sefin.cpp
+    cliente/comparador_infdps_c14n.cpp)

@@ -117,6 +117,9 @@ private slots:
     void bufferSemProgressoViraErro();
     void entradaAcimaDoLimiteDaZlibRecusada();
     void limiteDaEntradaRecusadoNaFiacao();
+    void gzipIdaEVoltaPeloMotor();
+    void descompactadoAcimaDoTetoRecusado();
+    void membroExtraAposFimDoGzipRecusado();
 };
 
 void TstGzip::gzipComCabecalhoRfc1952()
@@ -289,6 +292,43 @@ void TstGzip::limiteDaEntradaRecusadoNaFiacao()
 
     const auto aceito = detalhe::comprimirComLimite(cem, 100);
     QVERIFY2(aceito.has_value(), "entrada no limite foi recusada");
+}
+
+void TstGzip::gzipIdaEVoltaPeloMotor()
+{
+    const std::vector<std::byte> original = cargaDeTeste(100000);
+    const auto compactado = gz::comprimir(original);
+    QVERIFY2(compactado.has_value(), "a compactação do próprio motor tem de funcionar");
+    const auto descompactado = gz::descomprimir(*compactado, original.size());
+    QVERIFY2(descompactado.has_value(), "o motor tem de descompactar o gzip que ele mesmo gerou");
+    QVERIFY2(*descompactado == original, "ida e volta pelo motor devolve a entrada byte a byte");
+}
+
+void TstGzip::descompactadoAcimaDoTetoRecusado()
+{
+    const std::vector<std::byte> original = cargaDeTeste(1000);
+    const auto compactado = gz::comprimir(original);
+    QVERIFY2(compactado.has_value(), "a compactação de teste tem de funcionar");
+    const auto abaixo = gz::descomprimir(*compactado, original.size() - 1);
+    QVERIFY2(!abaixo.has_value(), "um byte acima do teto tem de ser recusado (bomba de compressão)");
+    QCOMPARE(QString::fromStdString(abaixo.error().codigo()), QStringLiteral("gzip.limite"));
+    const auto no = gz::descomprimir(*compactado, original.size());
+    QVERIFY2(no.has_value(), "no teto exato a descompressão tem de passar");
+}
+
+void TstGzip::membroExtraAposFimDoGzipRecusado()
+{
+    // Dois membros gzip seguidos. O segundo não pode ser descartado em silêncio: sai erro explícito (DA-2.41, d).
+    const std::vector<std::byte> a = cargaDeTeste(100);
+    const std::vector<std::byte> b = cargaDeTeste(50);
+    const auto ca = gz::comprimir(a);
+    const auto cb = gz::comprimir(b);
+    QVERIFY2(ca.has_value() && cb.has_value(), "a compactação de teste tem de funcionar");
+    std::vector<std::byte> dois = *ca;
+    dois.insert(dois.end(), cb->begin(), cb->end());
+    const auto resultado = gz::descomprimir(dois, a.size() + b.size());
+    QVERIFY2(!resultado.has_value(), "um segundo membro gzip depois do fim tem de ser recusado");
+    QCOMPARE(QString::fromStdString(resultado.error().codigo()), QStringLiteral("gzip.membro_extra"));
 }
 
 QTEST_GUILESS_MAIN(TstGzip)

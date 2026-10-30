@@ -45,6 +45,10 @@ struct ParametrosAssinatura {
     std::string_view nomeReferencia;
     std::string_view nomePaiReferencia;
     std::string_view namespaceLeiaute;
+    // Forma da NFS-e no leiaute (NL-2.8, rodada 5): NFSe/infNFSe/DPS/infDPS. Vazio desliga essa forma. Só o digest
+    // aceita esta forma; o assinador continua aceitando só o DPS como raiz.
+    std::string_view nomeRaizComDps{};
+    std::string_view nomeContainerDps{};
 };
 
 /// Material emprestado: quem chama mantém o certificado e a chave vivos durante a chamada.
@@ -60,6 +64,12 @@ public:
         QByteArrayView xml, QStringView idReferencia, const ParametrosAssinatura& parametros,
         const MaterialAssinatura& material);
 };
+
+/// SHA-256 (ou o digest do parâmetro) do nó referenciado, canonicalizado (C14N 1.0) sem a Signature. Usa as mesmas
+/// guardas do assinador (DTD recusado, Id exato e único, no elemento esperado e filho da raiz esperada, parse sem rede),
+/// menos a de já assinado: a DPS assinada tem de dar o mesmo digest que a DPS sem assinatura.
+[[nodiscard]] std::expected<QByteArray, ErroAssinatura> digestCanonicoDaReferencia(
+    QByteArrayView xml, QStringView idReferencia, const ParametrosAssinatura& parametros);
 
 } // namespace nl::foundation::xmldsig
 
