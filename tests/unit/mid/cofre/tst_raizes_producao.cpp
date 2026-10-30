@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Teste do conjunto de produção das âncoras do A1 (NL-2.13, DA-2.44, DA-2.48). Um slot no CTest: mid.cofre.<nome>.
-// Lê o repositório real de NL_ICP_RAIZES_DIR e NL_ICP_RAIZES_MANIFESTO pelo adaptador do cofre, não pela Foundation direta.
+// Teste do conjunto de produção das âncoras do A1 (NL-2.13, DA-2.44, DA-2.48, CISO 20:20:03 item 1). Um slot no CTest:
+// mid.cofre.<nome>. O conjunto é fixado no binário: o SHA-256 do SHA256SUMS embutido pelo CMake (NL_ICP_RAIZES_MANIFESTO_SHA256)
+// é a prova de que o diretório lido é o conjunto de produção, e não só "o que o ambiente apontou".
 
 #include <nl/foundation/pkcs12/ancoras.h>
 #include <nl/foundation/pkcs12/carga_raizes_icp.h>
+#include <nl/foundation/pkcs12/erro_raiz_icp.h>
 #include <nl/mid/cofre/raizes_producao.h>
 
 #include <openssl/asn1.h>
 #include <openssl/crypto.h>
 #include <openssl/x509.h>
 
+#include <QByteArray>
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFile>
 #include <QString>
+#include <QTemporaryDir>
 #include <QtTest>
 
 #include <chrono>
@@ -34,8 +41,13 @@ QString dirRaizes() {
     return qEnvironmentVariable("NL_ICP_RAIZES_DIR");
 }
 
-QString manifestoRaizes() {
-    return qEnvironmentVariable("NL_ICP_RAIZES_MANIFESTO");
+// SHA-256 do arquivo, em hexadecimal minúsculo (o mesmo formato do embutido pelo CMake).
+QString sha256DoArquivo(const QString& caminho) {
+    QFile arquivo(caminho);
+    if (!arquivo.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return QString::fromLatin1(QCryptographicHash::hash(arquivo.readAll(), QCryptographicHash::Sha256).toHex());
 }
 
 // Nome comum (CN) do certificado, para comparar com os nomes das raízes de produção.
@@ -66,13 +78,19 @@ private slots:
     void cleanupTestCase() {}
 
     void ancorasPadraoDeProducaoSaoAsRaizesIcp();
+    void manifestoComHashDiferenteDoEmbutidoRecusado();
 };
 
 void TesteRaizesProducao::ancorasPadraoDeProducaoSaoAsRaizesIcp()
 {
-    // Produção = seis raízes (v4, v5, v6, v7, v12 e v13). Sem v10 (SSL) nem v11 (assinatura de código), e sem nada
-    // além do manifesto. O nome comum confere com o que o ITI publica em cada certificado.
-    auto carga = carregarRaizesDeProducao(dirRaizes(), manifestoRaizes(), agoraDeTeste());
+    // Prova do conjunto fixado: o SHA256SUMS lido do diretório tem o mesmo SHA-256 que o embutido no binário.
+    // Sem isso, o teste provaria só o caminho do ambiente.
+    const QString dir = dirRaizes();
+    QVERIFY2(sha256DoArquivo(dir + QStringLiteral("/SHA256SUMS")) == QString::fromLatin1(NL_ICP_RAIZES_MANIFESTO_SHA256),
+             "SHA256SUMS do diretório não é o embutido no build");
+
+    // Produção = seis raízes (v4, v5, v6, v7, v12 e v13). Sem v10 (SSL) nem v11 (assinatura de código).
+    auto carga = carregarRaizesDeProducao(dir, agoraDeTeste());
     QVERIFY2(carga.has_value(), "carga de produção recusada");
     QCOMPARE(carga->ancoras.quantidade(), std::size_t{6});
 
@@ -88,6 +106,31 @@ void TesteRaizesProducao::ancorasPadraoDeProducaoSaoAsRaizesIcp()
     }
     QVERIFY2(nomes.count("Autoridade Certificadora Raiz Brasileira v10") == 0, "v10 (SSL) não pode ser âncora de produção");
     QVERIFY2(nomes.count("Autoridade Certificadora Raiz Brasileira v11") == 0, "v11 (assinatura de código) não pode ser âncora");
+}
+
+void TesteRaizesProducao::manifestoComHashDiferenteDoEmbutidoRecusado()
+{
+    // Uma cópia do conjunto com um comentário a mais no SHA256SUMS: as raízes são as mesmas, o manifesto não é o fixado.
+    // A carga recusa antes de ler qualquer raiz (ManifestoNaoFixado).
+    QTemporaryDir copia;
+    QVERIFY(copia.isValid());
+    QDir origem(dirRaizes());
+    for (const QString& nome : origem.entryList({QStringLiteral("*.der"), QStringLiteral("SHA256SUMS")}, QDir::Files)) {
+        QVERIFY(QFile::copy(origem.filePath(nome), copia.filePath(nome)));
+    }
+    QFile manifesto(copia.filePath(QStringLiteral("SHA256SUMS")));
+    QVERIFY(manifesto.open(QIODevice::Append | QIODevice::WriteOnly));
+    manifesto.write("# alterado\n");
+    manifesto.close();
+
+    auto carga = carregarRaizesDeProducao(copia.path(), agoraDeTeste());
+    QVERIFY2(!carga.has_value(), "manifesto com hash diferente do embutido foi aceito");
+    QVERIFY2(carga.error().motivo == ErroRaizIcp::ManifestoNaoFixado, std::string(codigo(carga.error().motivo)).c_str());
+
+    // O diretório de teste da AC apontado para a produção: não há SHA256SUMS ali, então a carga falha fechada.
+    auto outra = carregarRaizesDeProducao(qEnvironmentVariable("NL_CERTIFICADOS_DIR"), agoraDeTeste());
+    QVERIFY2(!outra.has_value(), "diretório da AC de teste aceito como produção");
+    QVERIFY2(outra.error().motivo == ErroRaizIcp::ManifestoAusente, std::string(codigo(outra.error().motivo)).c_str());
 }
 
 QTEST_APPLESS_MAIN(TesteRaizesProducao)

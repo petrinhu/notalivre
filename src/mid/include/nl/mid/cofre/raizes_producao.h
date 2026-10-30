@@ -17,10 +17,11 @@ struct ErroCarga;
 
 namespace nl::mid::cofre {
 
-/// Conjunto de produção: as raízes do manifesto com finalidade geral, conferidas por hash e filtradas pela validade no
-/// instante dado. Diretório e manifesto vêm da configuração do app (DA-2.44), ligados pela composição.
+/// Conjunto de produção, fixado no binário (CISO, 30/10/2026, DA-2.48 revista): o SHA256SUMS de `diretorio` tem de ter o
+/// SHA-256 embutido no build; divergindo, recusa com ManifestoNaoFixado antes de ler qualquer raiz. Sem a configuração
+/// trocar o conjunto: a chave da DA-2.44 não vale para as âncoras do A1 em produção.
 [[nodiscard]] std::expected<nl::foundation::pkcs12::CargaRaizesIcp, nl::foundation::pkcs12::ErroCarga>
-carregarRaizesDeProducao(const QString& diretorio, const QString& manifesto, std::chrono::system_clock::time_point agora);
+carregarRaizesDeProducao(const QString& diretorio, std::chrono::system_clock::time_point agora);
 
 } // namespace nl::mid::cofre
 

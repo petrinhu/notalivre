@@ -19,8 +19,8 @@ constexpr std::string_view kProposito = "geral";
 } // namespace
 
 std::expected<nl::foundation::pkcs12::CargaRaizesIcp, nl::foundation::pkcs12::ErroCarga>
-carregarRaizesDeProducao(const QString& diretorio, const QString& manifesto, std::chrono::system_clock::time_point agora) {
-    return nl::foundation::pkcs12::carregarRaizesIcp(diretorio, manifesto, kProposito, agora);
+carregarRaizesDeProducao(const QString& diretorio, std::chrono::system_clock::time_point agora) {
+    return nl::foundation::pkcs12::carregarRaizesIcp(diretorio, diretorio + QStringLiteral("/SHA256SUMS"), kProposito, agora);
 }
 
 } // namespace nl::mid::cofre

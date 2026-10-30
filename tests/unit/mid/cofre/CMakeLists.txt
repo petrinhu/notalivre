@@ -35,13 +35,21 @@ foreach(nome IN ITEMS materialDaCredencialViva credencialDescartadaNaoEntregaMat
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
-# Âncoras de produção do A1 (NL-2.13, DA-2.48): o conjunto de produção lido pelo adaptador do cofre, do repositório conferido.
+# Âncoras de produção do A1 (NL-2.13, DA-2.48, CISO 20:20:03 item 1): o conjunto de produção, fixado no binário.
+# O SHA-256 do SHA256SUMS embutido vem do CMake de third_party (NL_ICP_RAIZES_MANIFESTO_SHA256), o mesmo que o nl_mid usa.
 add_executable(tst_raizes_producao tst_raizes_producao.cpp)
 target_link_libraries(tst_raizes_producao PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_pkcs12
                       OpenSSL::Crypto nl_warnings)
+target_compile_definitions(tst_raizes_producao PRIVATE
+                           "NL_ICP_RAIZES_MANIFESTO_SHA256=\"${NL_ICP_RAIZES_MANIFESTO_SHA256}\"")
 
-add_test(NAME mid.cofre.ancorasPadraoDeProducaoSaoAsRaizesIcp COMMAND tst_raizes_producao ancorasPadraoDeProducaoSaoAsRaizesIcp)
-set_tests_properties(mid.cofre.ancorasPadraoDeProducaoSaoAsRaizesIcp PROPERTIES
-                     ENVIRONMENT "NL_ICP_RAIZES_DIR=${NL_ICP_RAIZES_DIR};NL_ICP_RAIZES_MANIFESTO=${NL_ICP_RAIZES_MANIFESTO}"
-                     PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
-                     FAIL_REGULAR_EXPRESSION "FAIL!")
+foreach(nome IN ITEMS
+    ancorasPadraoDeProducaoSaoAsRaizesIcp
+    manifestoComHashDiferenteDoEmbutidoRecusado)
+  add_test(NAME mid.cofre.${nome} COMMAND tst_raizes_producao ${nome})
+  set_tests_properties(mid.cofre.${nome} PROPERTIES
+                       FIXTURES_REQUIRED certificados_teste
+                       ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_ICP_RAIZES_DIR=${NL_ICP_RAIZES_DIR}"
+                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()

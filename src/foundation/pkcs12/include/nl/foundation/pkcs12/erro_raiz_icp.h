@@ -14,6 +14,7 @@ enum class ErroRaizIcp {
     ManifestoAusente,     ///< O SHA256SUMS não existe ou não abre.
     ManifestoVazio,       ///< Nenhuma linha de hash no manifesto (piso não-vazio, L-36).
     ManifestoMalformado,  ///< Linha de hash sem metadado, metadado repetido ou sem par, ou nome de arquivo repetido.
+    ManifestoNaoFixado,   ///< SHA-256 do SHA256SUMS diferente do embutido no build (conjunto de produção, CISO item 1).
     ArquivoAusente,       ///< Arquivo listado no manifesto não existe no diretório.
     ArquivoNaoDeclarado,  ///< Há um .der no diretório que o manifesto não declara (CISO, item 4).
     HashDivergente,       ///< SHA-256 do DER diferente do manifesto. Não usar este arquivo.
@@ -28,6 +29,7 @@ enum class ErroRaizIcp {
     case ErroRaizIcp::ManifestoAusente: return "raiz_icp.manifesto_ausente";
     case ErroRaizIcp::ManifestoVazio: return "raiz_icp.manifesto_vazio";
     case ErroRaizIcp::ManifestoMalformado: return "raiz_icp.manifesto_malformado";
+    case ErroRaizIcp::ManifestoNaoFixado: return "raiz_icp.manifesto_nao_fixado";
     case ErroRaizIcp::ArquivoAusente: return "raiz_icp.arquivo_ausente";
     case ErroRaizIcp::ArquivoNaoDeclarado: return "raiz_icp.arquivo_nao_declarado";
     case ErroRaizIcp::HashDivergente: return "raiz_icp.hash_divergente";
