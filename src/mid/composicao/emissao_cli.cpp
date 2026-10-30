@@ -126,7 +126,7 @@ FalhaEmissao falhaDoEnvio(const nl::back::FalhaSefin& falhaSefin)
 
 } // namespace
 
-std::expected<bk::NotaSefin, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, const QByteArray& senha)
+std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, const QByteArray& senha)
 {
     // 1. DPS de entrada: JSON validado no XSD. Reprovação vem com o primeiro código do validador.
     auto xml = DpsValidar::executar(pedido.dpsJson, pedido.esquema);
@@ -167,7 +167,7 @@ std::expected<bk::NotaSefin, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao&
     if (!nota) {
         return std::unexpected(falhaDoEnvio(nota.error()));
     }
-    return *nota;
+    return nota->chave.texto();
 }
 
 } // namespace nl::mid::composicao

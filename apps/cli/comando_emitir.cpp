@@ -70,14 +70,14 @@ int executarEmitir(const QStringList& argumentos)
         config->ancoras,
     };
                                       {"sefin.requisicao", "sefin.erro"}};
-    const auto nota = nl::mid::composicao::emitirDpsPelaCli(pedido, *senhaTerminal);
-    if (!nota) {
+    const auto chave = nl::mid::composicao::emitirDpsPelaCli(pedido, *senhaTerminal);
+    if (!chave) {
         erro << QStringLiteral("emissão recusada (%1): %2")
-                    .arg(QString::fromStdString(nota.error().codigo()), QString::fromStdString(nota.error().mensagem()))
+                    .arg(QString::fromStdString(chave.error().codigo()), QString::fromStdString(chave.error().mensagem()))
              << Qt::endl;
         return 1;
     }
-    saida << QStringLiteral("emitida: chave ") << nota->chave.texto() << Qt::endl;
+    saida << QStringLiteral("emitida: chave ") << *chave << Qt::endl;
     return 0;
 }
 

@@ -5,7 +5,6 @@
 #ifndef NL_MID_COMPOSICAO_EMISSAO_CLI_H
 #define NL_MID_COMPOSICAO_EMISSAO_CLI_H
 
-#include <nl/back/ports/gateway_sefin.h>
 #include <nl/mid/composicao/dps_validar.h>
 
 #include <QByteArray>
@@ -40,8 +39,8 @@ struct FalhaEmissao
     std::string mensagem;
 };
 
-/// Emite a DPS. Erro de entrada, de credencial ou de envio volta com código estável e sem dado de titular.
-std::expected<nl::back::NotaSefin, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, const QByteArray& senha);
+/// Emite a DPS e devolve a chave da NFS-e. Erro de entrada, de credencial ou de envio volta com código estável e sem dado de titular.
+std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, const QByteArray& senha);
 
 } // namespace nl::mid::composicao
 
