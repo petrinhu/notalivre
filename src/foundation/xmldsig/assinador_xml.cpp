@@ -240,7 +240,8 @@ std::string modeloSignature(const ParametrosAssinatura& parametros, const std::s
     const std::string dsig(kDsig);
     const std::string c14n(kC14n);
     const std::string env(kEnveloped);
-    return "<Signature xmlns=\"" + dsig + "\"><SignedInfo><CanonicalizationMethod Algorithm=\"" + c14n +
+    // SignedInfo declara o próprio xmlns, como no desenho original: o trecho sai auto-contido e o oráculo standalone bate.
+    return "<Signature xmlns=\"" + dsig + "\"><SignedInfo xmlns=\"" + dsig + "\"><CanonicalizationMethod Algorithm=\"" + c14n +
            "\"/><SignatureMethod Algorithm=\"" + std::string(parametros.uriAssinatura) + "\"/><Reference URI=\"#" + id +
            "\"><Transforms><Transform Algorithm=\"" + env + "\"/><Transform Algorithm=\"" + c14n +
            "\"/></Transforms><DigestMethod Algorithm=\"" + std::string(parametros.uriDigest) +
