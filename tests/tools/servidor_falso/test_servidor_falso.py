@@ -425,6 +425,39 @@ class TesteServidorFalso(unittest.TestCase):
             conn.close()
         self.assertEqual(rot.pendentes(), 0)
 
+    def test_nfseDefeituosaNoSucessoDoPostChegaComChaveEFormaErrada(self):
+        # DA-2.39: o sucesso do POST /nfse traz a chave e um XML que o cliente não consegue ler. Cada roteiro produz um
+        # defeito diferente, e o servidor responde 201 como num sucesso real.
+        alfabeto = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
+        for falha in ("nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto"):
+            with self.subTest(falha=falha):
+                rot = roteiro.Roteiro()
+                rot.agendar("POST", "/nfse", falha)
+                srv = self.subir(rot)
+                status, corpo = self.postar_dps(srv)
+                self.assertEqual(status, 201, corpo)
+                self.assertEqual(len(corpo["chaveAcesso"]), 50)
+                campo = corpo["nfseXmlGZipB64"]
+                if falha == "nfse_base64_invalido":
+                    self.assertTrue(set(campo) - alfabeto, "tem de haver caractere fora do Base64")
+                    with self.assertRaises(ValueError):
+                        base64.b64decode(campo, validate=True)
+                else:
+                    bruto = base64.b64decode(campo, validate=True)
+                    if falha == "nfse_gzip_invalido":
+                        with self.assertRaises(OSError):
+                            gzip.decompress(bruto)
+                    else:
+                        self.assertEqual(len(gzip.decompress(bruto)), servidor.TETO_XML_NFSE + 1)
+                self.assertEqual(rot.pendentes(), 0)
+
+    def test_nfseDefeituosaSoValeParaPostNfse(self):
+        rot = roteiro.Roteiro()
+        for metodo, caminho in (("GET", "/dps/" + self.id_dps), ("POST", "/dps/" + self.id_dps)):
+            with self.subTest(metodo=metodo, caminho=caminho), self.assertRaises(ValueError):
+                rot.agendar(metodo, caminho, "nfse_gzip_invalido")
+        self.assertEqual(rot.pendentes(), 0)
+
 
 if __name__ == "__main__":
     suite = unittest.TestSuite([TesteServidorFalso(sys.argv[1])])
