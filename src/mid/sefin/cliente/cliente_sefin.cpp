@@ -19,6 +19,7 @@
 #include <QString>
 
 #include <cstddef>
+#include <optional>
 #include <span>
 #include <string>
 #include <thread>
@@ -50,20 +51,78 @@ void registrarErro(fl::Log& registro, const std::string& codigoE)
     (void)registro.registrar(fl::Nivel::Erro, "sefin.erro", {fl::Campo{"codigoE", codigoE}});
 }
 
-// Chave e XML da NFS-e a partir do corpo de sucesso ({"chaveAcesso", "nfseXmlGZipB64"}; INFERÊNCIA, pesquisa g).
+// Chave da NFS-e do objeto de sucesso (INFERÊNCIA, pesquisa g).
+std::expected<bk::ChaveAcesso, bk::FalhaSefin> chaveDoObjeto(const QJsonObject& obj)
+{
+    auto chave = bk::ChaveAcesso::de(obj.value(QStringLiteral("chaveAcesso")).toString());
+    if (!chave) {
+        return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva));
+    }
+    return *chave;
+}
+
+// Base64 estrito (DA-2.39): caractere fora do alfabeto ou tamanho que não fecha blocos de 4 é recusado, sem decodificar
+// lixo em silêncio.
+std::optional<QByteArray> base64Estrito(const QString& texto)
+{
+    const QByteArray bytes = texto.toLatin1();
+    if (bytes.size() % 4 != 0) {
+        return std::nullopt;
+    }
+    for (const char c : bytes) {
+        const bool alfabeto = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+'
+                              || c == '/' || c == '=';
+        if (!alfabeto) {
+            return std::nullopt;
+        }
+    }
+    return QByteArray::fromBase64(bytes);
+}
+
+// XML da NFS-e: Base64 estrito, depois GZip com o teto do leiaute. Qualquer falha devolve vazio, nunca um falso XML.
+std::optional<QByteArray> xmlDoCampo(const QString& campo)
+{
+    auto gzip = base64Estrito(campo);
+    if (!gzip) {
+        return std::nullopt;
+    }
+    auto xml = nl::foundation::gzip::descomprimir(
+        std::span<const std::byte>(reinterpret_cast<const std::byte*>(gzip->constData()),
+                                   static_cast<std::size_t>(gzip->size())),
+        lx::kLimiteXmlNfse);
+    if (!xml) {
+        return std::nullopt;
+    }
+    return QByteArray(reinterpret_cast<const char*>(xml->data()), static_cast<qsizetype>(xml->size()));
+}
+
+// Nota do corpo de sucesso. Se o XML não lê (Base64 ou GZip ruins, ou acima do teto), a chave vale e o XML fica
+// pendente: o reenvio continua bloqueado e o XML vem depois por GET /nfse/{chave} (DA-2.39).
 std::expected<bk::NotaSefin, bk::FalhaSefin> notaDoCorpo(const QByteArray& corpo)
 {
     const QJsonDocument doc = QJsonDocument::fromJson(corpo);
     if (!doc.isObject()) {
         return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva));
     }
-    const QJsonObject obj = doc.object();
-    auto chave = bk::ChaveAcesso::de(obj.value(QStringLiteral("chaveAcesso")).toString());
+    auto chave = chaveDoObjeto(doc.object());
     if (!chave) {
+        return std::unexpected(chave.error());
+    }
+    auto xml = xmlDoCampo(doc.object().value(QStringLiteral("nfseXmlGZipB64")).toString());
+    if (!xml) {
+        return bk::NotaSefin{*chave, {}, true};
+    }
+    return bk::NotaSefin{*chave, *xml, false};
+}
+
+// Chave do corpo de GET /dps/{id}: não toca no XML, então um XML ruim nunca libera nem bloqueia a consulta.
+std::expected<bk::ChaveAcesso, bk::FalhaSefin> chaveDoCorpo(const QByteArray& corpo)
+{
+    const QJsonDocument doc = QJsonDocument::fromJson(corpo);
+    if (!doc.isObject()) {
         return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva));
     }
-    const QByteArray gzip = QByteArray::fromBase64(obj.value(QStringLiteral("nfseXmlGZipB64")).toString().toLatin1());
-    return bk::NotaSefin{*chave, gzip};
+    return chaveDoObjeto(doc.object());
 }
 
 // GET com repetição em erro transitório e em 5xx, com a espera da política. Devolve a resposta de sucesso ou a falha.
@@ -107,11 +166,7 @@ std::expected<bk::ChaveAcesso, bk::FalhaSefin> consultarDpsCom(ft::TransporteHtt
         return std::unexpected(resposta.error());
     }
     if (resposta->status == 200) {
-        auto nota = notaDoCorpo(resposta->corpo);
-        if (!nota) {
-            return std::unexpected(nota.error());
-        }
-        return nota->chave;
+        return chaveDoCorpo(resposta->corpo);
     }
     const auto codigo = codigoDoErro(resposta->corpo).value_or(std::string{});
     registrarErro(registro, codigo);

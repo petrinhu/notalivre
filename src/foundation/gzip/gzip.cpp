@@ -71,6 +71,38 @@ private:
     bool iniciado_ = false;
 };
 
+/// Dona do z_stream de descompactação: inflateEnd roda no destrutor, também quando a saída lança.
+class FluxoInflate
+{
+public:
+    FluxoInflate() = default;
+    FluxoInflate(const FluxoInflate&) = delete;
+    FluxoInflate& operator=(const FluxoInflate&) = delete;
+
+    ~FluxoInflate()
+    {
+        if (iniciado_) {
+            inflateEnd(&fluxo_);
+        }
+    }
+
+    /// Inicia a descompactação só de gzip (janela 15 mais 16, sem aceitar zlib cru nem gzip sem cabeçalho).
+    [[nodiscard]] bool iniciar()
+    {
+        iniciado_ = inflateInit2(&fluxo_, kJanelaGzip) == Z_OK;
+        return iniciado_;
+    }
+
+    [[nodiscard]] z_stream& fluxo() noexcept
+    {
+        return fluxo_;
+    }
+
+private:
+    z_stream fluxo_{};
+    bool iniciado_ = false;
+};
+
 } // namespace
 
 namespace detalhe {
@@ -135,12 +167,41 @@ std::expected<std::vector<std::byte>, nl::base::Erro> comprimir(std::span<const 
     return detalhe::comprimirComLimite(entrada, static_cast<std::size_t>(std::numeric_limits<uInt>::max()));
 }
 
-// VERMELHO da NL-2.8 (DA-2.39): stub que recusa sempre. A implementação entra no verde.
 std::expected<std::vector<std::byte>, nl::base::Erro> descomprimir(std::span<const std::byte> entrada, std::size_t limite)
 {
-    (void)entrada;
-    (void)limite;
-    return std::unexpected(erroGzip("gzip.nao_implementado", "descompressão ainda não implementada"));
+    if (!detalhe::entradaCabeNaZlib(entrada.size())) {
+        return std::unexpected(erroGzip("gzip.tamanho", "entrada acima do limite da zlib (uInt); não foi truncada"));
+    }
+
+    FluxoInflate descompressor;
+    if (!descompressor.iniciar()) {
+        return std::unexpected(erroGzip("gzip.init", "a zlib não iniciou a descompactação gzip"));
+    }
+    z_stream& fluxo = descompressor.fluxo();
+    fluxo.next_in = const_cast<Bytef*>(reinterpret_cast<const Bytef*>(entrada.data()));
+    fluxo.avail_in = static_cast<uInt>(entrada.size());
+
+    std::vector<std::byte> saida;
+    std::vector<std::byte> bloco(kTamanhoBloco);
+    for (;;) {
+        fluxo.next_out = reinterpret_cast<Bytef*>(bloco.data());
+        fluxo.avail_out = static_cast<uInt>(bloco.size());
+        const int codigo = inflate(&fluxo, Z_NO_FLUSH);
+        const std::size_t produzido = bloco.size() - fluxo.avail_out;
+        // O teto vale antes de entregar: a saída nunca passa de `limite` bytes (bomba de compressão, DA-2.39).
+        if (produzido > limite - saida.size()) {
+            return std::unexpected(erroGzip("gzip.limite", "descompactado acima do teto; não foi entregue"));
+        }
+        saida.insert(saida.end(), bloco.begin(), bloco.begin() + static_cast<std::ptrdiff_t>(produzido));
+        if (codigo == Z_STREAM_END) {
+            return saida;
+        }
+        if (codigo == Z_OK || (codigo == Z_BUF_ERROR && produzido > 0)) {
+            continue;
+        }
+        // Z_DATA_ERROR, Z_NEED_DICT ou Z_BUF_ERROR sem progresso (entrada truncada): nunca devolve saída parcial.
+        return std::unexpected(erroGzip("gzip.descompactacao", "gzip inválido ou truncado"));
+    }
 }
 
 } // namespace nl::foundation::gzip
