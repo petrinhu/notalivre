@@ -39,6 +39,18 @@ else()
         materialNuloDevolveErroProprio
         materialEmprestadoNaoLiberaNemCopia
         algoritmoDaTabelaPorDistro
+        signedInfoCanonicalizadoNoContextoDoDocumento
+        namespacePrefixadoDaRaizEntraNoDigest
+        transformadaEnvelopedExcluiASignatureDoDigest
+        xmlJaAssinadoRecusado
+        idRepetidoRecusado
+        idPorPrefixoNaoCasa
+        idNaRaizRecusado
+        idEmOutroElementoRecusado
+        xmlComDtdRecusado
+        variavelDoFedoraValeNoContextoProprio
+        materialVencidoNaHoraDeAssinarRecusado
+        materialAindaNaoValidoRecusado
         medirOsslLibCtxProprio)
 endif()
 

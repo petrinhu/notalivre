@@ -178,8 +178,14 @@ std::string_view codigo(ErroAssinatura erro) noexcept {
     switch (erro) {
     case ErroAssinatura::XmlMalformado:
         return "assinatura.xml_malformado";
+    case ErroAssinatura::XmlComDtd:
+        return "assinatura.xml_com_dtd";
     case ErroAssinatura::ReferenciaNaoEncontrada:
         return "assinatura.referencia_nao_encontrada";
+    case ErroAssinatura::ReferenciaAmbigua:
+        return "assinatura.referencia_ambigua";
+    case ErroAssinatura::JaAssinado:
+        return "assinatura.ja_assinado";
     case ErroAssinatura::AlgoritmoBloqueado:
         return "assinatura.algoritmo_bloqueado";
     case ErroAssinatura::MaterialInvalido:

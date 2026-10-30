@@ -28,6 +28,7 @@
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 
+#include <cstdlib>
 #include <expected>
 #include <string_view>
 
@@ -68,12 +69,27 @@ const char kSha256[] = "http://www.w3.org/2001/04/xmlenc#sha256";
 const char kRsaSha256[] = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256";
 
 // Parâmetros de teste: os URIs chegam por aqui, como viriam da pasta do leiaute (DA-2.2).
+const char kNsLeiaute[] = "http://www.sped.fazenda.gov.br/nfse";
+
 xd::ParametrosAssinatura parametrosSha1() {
-    return {kC14n, kEnveloped, kSha1, kRsaSha1};
+    return {kC14n, kEnveloped, kSha1, kRsaSha1, "infDPS", "DPS", kNsLeiaute};
 }
 
 xd::ParametrosAssinatura parametrosSha256() {
-    return {kC14n, kEnveloped, kSha256, kRsaSha256};
+    return {kC14n, kEnveloped, kSha256, kRsaSha256, "infDPS", "DPS", kNsLeiaute};
+}
+
+// Código estável de um erro do assinador, como QString, para comparar nas asserções.
+QString codigoDe(xd::ErroAssinatura erro) {
+    const auto codigo = xd::codigo(erro);
+    return QString::fromUtf8(codigo.data(), static_cast<int>(codigo.size()));
+}
+
+// DPS de referência com o xmlns:xsi declarado na raiz (DA-2.40, item 4: o SignedInfo herda esse namespace).
+QByteArray dpsComXsiNaRaiz() {
+    QByteArray xml = dpsDeReferencia();
+    xml.replace("<DPS xmlns=", "<DPS xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns=");
+    return xml;
 }
 
 // DA-2.38: no fedora44 o OSSL_LIB_CTX próprio recusa rsa-sha1 (medido). O resto da suíte roda com rsa-sha256 ali.
@@ -446,6 +462,130 @@ private slots:
             QVERIFY2(!assinado.has_value(), "esta distro recusa SHA-1: não pode assinar");
             QVERIFY2(assinado.error() == xd::ErroAssinatura::AlgoritmoBloqueado, "o erro tem de ser algoritmo bloqueado");
         }
+    }
+
+    // DA-2.40 (d). Vermelhos antes do código (L-35): cada um falha por asserção da regra.
+    void signedInfoCanonicalizadoNoContextoDoDocumento() {
+        auto assinado = assinarComCredencial(dpsComXsiNaRaiz(), parametrosDaDistro());
+        QVERIFY2(assinado.has_value(), "a DPS com xmlns:xsi na raiz tem de assinar");
+        QVERIFY2(verificarComXmlsec1(*assinado), "o xmlsec1 tem de verificar: o SignedInfo herda o xmlns:xsi da raiz");
+    }
+
+    void namespacePrefixadoDaRaizEntraNoDigest() {
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("<DPS xmlns=", "<DPS xmlns:nfse=\"http://www.sped.fazenda.gov.br/nfse\" xmlns=");
+        auto assinado = assinarComCredencial(xml, parametrosDaDistro());
+        QVERIFY2(assinado.has_value(), "a DPS com prefixo na raiz tem de assinar");
+        QVERIFY2(verificarComXmlsec1(*assinado), "o digest tem de incluir o namespace prefixado herdado da raiz");
+    }
+
+    void transformadaEnvelopedExcluiASignatureDoDigest() {
+        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
+        QVERIFY2(assinado.has_value(), "a DPS de referência tem de assinar");
+        QCOMPARE(assinado->count("<Signature"), qsizetype{1});  // uma só Signature no documento, fora do digest
+        QVERIFY2(verificarComXmlsec1(*assinado), "a transformada enveloped tem de deixar o digest igual ao do verificador");
+    }
+
+    void xmlJaAssinadoRecusado() {
+        auto primeira = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
+        QVERIFY2(primeira.has_value(), "a DPS de referência tem de assinar");
+        auto segunda = assinarComCredencial(*primeira, parametrosDaDistro());
+        QVERIFY2(!segunda.has_value(), "XML já assinado nunca recebe outra Signature");
+        QCOMPARE(codigoDe(segunda.error()), QStringLiteral("assinatura.ja_assinado"));
+        QByteArray dentro = dpsDeReferencia();
+        dentro.replace("</infDPS>", "<Signature xmlns=\"http://www.w3.org/2000/09/xmldsig#\"/></infDPS>");
+        auto dentroDoInfDps = assinarComCredencial(dentro, parametrosDaDistro());
+        QVERIFY2(!dentroDoInfDps.has_value(), "Signature dentro do infDPS também conta como já assinado");
+        QCOMPARE(codigoDe(dentroDoInfDps.error()), QStringLiteral("assinatura.ja_assinado"));
+    }
+
+    void idRepetidoRecusado() {
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("</DPS>", "<Outro Id=\"DPS430510821122233300018100001000000000000001\"/></DPS>");
+        auto assinado = assinarComCredencial(xml, parametrosDaDistro());
+        QVERIFY2(!assinado.has_value(), "dois elementos com o mesmo Id tem de ser recusados");
+        QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.referencia_ambigua"));
+    }
+
+    void idPorPrefixoNaoCasa() {
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("<infDPS Id=", "<infDPS xmlns:p=\"urn:teste\" p:Id=");
+        auto assinado = assinarComCredencial(xml, parametrosDaDistro());
+        QVERIFY2(!assinado.has_value(), "Id com prefixo não é o Id do infDPS");
+        QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.referencia_nao_encontrada"));
+    }
+
+    void idNaRaizRecusado() {
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("<infDPS Id=\"DPS430510821122233300018100001000000000000001\">", "<infDPS>");
+        xml.replace("<DPS xmlns=", "<DPS Id=\"DPS430510821122233300018100001000000000000001\" xmlns=");
+        auto assinado = assinarComCredencial(xml, parametrosDaDistro());
+        QVERIFY2(!assinado.has_value(), "o Id na raiz DPS não é o elemento de referência");
+        QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.referencia_nao_encontrada"));
+    }
+
+    void idEmOutroElementoRecusado() {
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("<infDPS Id=\"DPS430510821122233300018100001000000000000001\">", "<infDPS>");
+        xml.replace("</infDPS>", "<Outro Id=\"DPS430510821122233300018100001000000000000001\"/></infDPS>");
+        auto assinado = assinarComCredencial(xml, parametrosDaDistro());
+        QVERIFY2(!assinado.has_value(), "o Id num elemento que não é o infDPS não serve de referência");
+        QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.referencia_nao_encontrada"));
+    }
+
+    void xmlComDtdRecusado() {
+        QByteArray comAtlist = dpsDeReferencia();
+        comAtlist.replace("<DPS xmlns=", "<!DOCTYPE DPS [<!ATTLIST infDPS Id ID #IMPLIED>]>\n<DPS xmlns=");
+        auto semDtd = assinarComCredencial(comAtlist, parametrosDaDistro());
+        QVERIFY2(!semDtd.has_value(), "DTD com ATTLIST de tipo ID tem de ser recusado");
+        QCOMPARE(codigoDe(semDtd.error()), QStringLiteral("assinatura.xml_com_dtd"));
+        QByteArray comEntidade = dpsDeReferencia();
+        comEntidade.replace("<DPS xmlns=", "<!DOCTYPE DPS [<!ENTITY e \"x\">]>\n<DPS xmlns=");
+        auto comEnt = assinarComCredencial(comEntidade, parametrosDaDistro());
+        QVERIFY2(!comEnt.has_value(), "DTD com entidade tem de ser recusado");
+        QCOMPARE(codigoDe(comEnt.error()), QStringLiteral("assinatura.xml_com_dtd"));
+    }
+
+    void variavelDoFedoraValeNoContextoProprio() {
+        // DA-2.40 (c): o patch do fedora lê a variável em tempo de chamada. Sem ela, fedora44 recusa SHA-1; com ela, assina.
+        ::unsetenv("OPENSSL_ENABLE_SHA1_SIGNATURES");
+        auto sem = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        ::setenv("OPENSSL_ENABLE_SHA1_SIGNATURES", "1", 1);
+        auto com = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
+        ::unsetenv("OPENSSL_ENABLE_SHA1_SIGNATURES");
+        QVERIFY2(com.has_value(), "com a variável, o contexto próprio assina SHA-1");
+        if (distroRecusaSha1()) {
+            QVERIFY2(!sem.has_value(), "no fedora44, sem a variável, SHA-1 é recusado");
+            QCOMPARE(codigoDe(sem.error()), QStringLiteral("assinatura.algoritmo_bloqueado"));
+        } else {
+            QVERIFY2(sem.has_value(), "fora do fedora44, SHA-1 assina sem a variável");
+        }
+    }
+
+    void materialVencidoNaHoraDeAssinarRecusado() {
+        pk::SenhaSegura senha = senhaDeTeste();
+        auto ancoras = pk::Ancoras::dePem(lerFixture("ac.pem"));
+        QVERIFY2(ancoras.has_value(), "a âncora da fixture tem de carregar");
+        pk::CarregadorPkcs12 carregador;
+        auto credencial = carregador.carregar(lerFixture("vencido.pfx"), senha, *ancoras);
+        QVERIFY2(credencial.has_value(), "a fixture vencida tem de carregar para o teste do assinador");
+        xd::MaterialAssinatura material{credencial->certificado(), credencial->chavePrivada()};
+        auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), QStringLiteral("DPS430510821122233300018100001000000000000001"), parametrosDaDistro(), material);
+        QVERIFY2(!assinado.has_value(), "certificado vencido na hora de assinar tem de ser recusado");
+        QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.material_invalido"));
+    }
+
+    void materialAindaNaoValidoRecusado() {
+        pk::SenhaSegura senha = senhaDeTeste();
+        auto ancoras = pk::Ancoras::dePem(lerFixture("ac.pem"));
+        QVERIFY2(ancoras.has_value(), "a âncora da fixture tem de carregar");
+        pk::CarregadorPkcs12 carregador;
+        auto credencial = carregador.carregar(lerFixture("folha_futura.pfx"), senha, *ancoras);
+        QVERIFY2(credencial.has_value(), "a fixture com notBefore futuro tem de carregar para o teste do assinador");
+        xd::MaterialAssinatura material{credencial->certificado(), credencial->chavePrivada()};
+        auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), QStringLiteral("DPS430510821122233300018100001000000000000001"), parametrosDaDistro(), material);
+        QVERIFY2(!assinado.has_value(), "certificado ainda não válido na hora de assinar tem de ser recusado");
+        QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.material_invalido"));
     }
 
     void medirOsslLibCtxProprio() {

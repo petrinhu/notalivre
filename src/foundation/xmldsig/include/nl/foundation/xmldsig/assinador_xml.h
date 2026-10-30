@@ -21,7 +21,10 @@ namespace nl::foundation::xmldsig {
 
 enum class ErroAssinatura {
     XmlMalformado,
+    XmlComDtd,            // DTD ou entidade: recusado antes de qualquer processamento (DA-2.40, item 1)
     ReferenciaNaoEncontrada,
+    ReferenciaAmbigua,    // mais de um elemento com o Id (DA-2.40, item 2)
+    JaAssinado,           // já há ds:Signature no documento (DA-2.40, item 3)
     AlgoritmoBloqueado,
     MaterialInvalido,
     FalhaInterna,
@@ -37,6 +40,11 @@ struct ParametrosAssinatura {
     std::string_view uriEnveloped;
     std::string_view uriDigest;
     std::string_view uriAssinatura;
+    // Forma do elemento assinado, declarada pela pasta do leiaute (DA-2.40, item 2): o Id só vale no elemento
+    // nomeReferencia, filho de nomePaiReferencia, no namespace namespaceLeiaute.
+    std::string_view nomeReferencia;
+    std::string_view nomePaiReferencia;
+    std::string_view namespaceLeiaute;
 };
 
 /// Material emprestado: quem chama mantém o certificado e a chave vivos durante a chamada.
