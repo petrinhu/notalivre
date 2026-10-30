@@ -33,7 +33,7 @@
 # Regras aplicadas (L-11, L-36, L-45, L-49, L-53):
 #   - um trabalho pesado por vez: cópia da fonte E docker run ficam DENTRO da mesma trava flock $TRAVA;
 #   - cada fatia tem a própria fonte (notalivre-src-<SHA>-<fatia>) e o próprio build; nada compartilhado;
-#   - 13 threads e 20 GiB de RAM no contêiner (teto brando de 20G por workload, L-11);
+#   - cota de CPU e RAM do contêiner: NL_THREADS (padrão 7) e NL_MEMORIA (padrão 12g), por ordem do líder de 30/10/2026;
 #   - build e temporários em /var/tmp (TMPDIR exportado abaixo), nunca em /tmp (tmpfs);
 #   - o status é o do contêiner: o log é gravado por redirecionamento, nunca por pipe em tail;
 #   - o contêiner roda com --user 1000:1000 e sem --privileged.
@@ -56,7 +56,9 @@ QT_PREFIXO="/opt/qt/6.12.0/gcc_64"
 # Não se relabela a árvore sincronizada do líder.
 LOG_DIR="$NL_TMP_BASE/notalivre-logs"
 TRAVA="$NL_TMP_BASE/notalivre-heavy.lock"
-THREADS=13
+# Cota dividida com outra sessão desta máquina (ordem do líder de 30/10/2026): 1 núcleo e 4 GiB livres para o sistema.
+THREADS="${NL_THREADS:-7}"
+NL_MEMORIA="${NL_MEMORIA:-12g}"
 
 # Distros aceitas: cada uma tem <distro>-build.Dockerfile e instalar/<distro>.sh (ver ci.yml).
 checar_distro()
@@ -246,7 +248,7 @@ executar()
     fi
     # Etapa 2, como 1000:1000: configure, build e ctest. Arquivos do build ficam com o dono do host.
     # NL_XSD_ZIP_CACHE (gêmeo da INBOX): o ZIP do XSD vem do cache do host, como no CI, e não do gov.br.
-    docker run --rm --cpus "$THREADS" --memory 20g --memory-swap 20g \
+    docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" \
         --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
         -e CMAKE_PREFIX_PATH="$QT_PREFIXO" -e CMAKE_BUILD_PARALLEL_LEVEL="$THREADS" \
         -e NL_XSD_ZIP_CACHE=/xsd-cache \

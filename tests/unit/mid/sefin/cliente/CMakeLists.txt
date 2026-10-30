@@ -10,49 +10,61 @@ target_link_libraries(tst_cliente_sefin PRIVATE Qt6::Core Qt6::Network Qt6::Test
                       nl_foundation_transporte nl_foundation_log OpenSSL::Crypto nl_warnings)
 
 set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
-find_program(NL_XMLLINT_CLIENTE xmllint REQUIRED)
-find_program(NL_XMLSEC1_CLIENTE xmlsec1 REQUIRED)
+if(NL_FLATPAK_BUILD)
+    # DA-2.28: o SDK KDE 6.11 não traz xmlsec1. Os slots que assinam a DPS de referência pelo xmlsec1 (dpsAssinada)
+    # ou sobem o servidor com oráculo ficam desligados aqui. A troca pelo AssinadorXml::assinarEnveloped fica na INBOX.
+    message(STATUS "cliente Sefin: slots com xmlsec1 ou com o servidor de oráculo desligados no build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28)")
+    set(NL_SLOTS_CLIENTE
+        leitorAceitaErroEErrosECodigoECodigo
+        catalogoDaMensagemDoCodigoE
+        backoffDobraAteAPrimeiraRepeticao
+        backoffNaoEstouraComExpoenteAlto)
+else()
+    find_program(NL_XMLLINT_CLIENTE xmllint REQUIRED)
+    find_program(NL_XMLSEC1_CLIENTE xmlsec1 REQUIRED)
+    set(NL_SLOTS_CLIENTE
+        sucessoExtraiChaveDe50Posicoes
+        postTransitorioConsultaDpsAntesDeReenviar
+        dps404E2404LiberaReenvio
+        conflito409ConsultaENaoReenvia
+        rejeicaoE0014NaoRepete
+        certificadoRevogadoMapeadoPelaRejeicaoDaSefin
+        textoLivreDaApiComCpfSoLogaCodigoE
+        getTransitorioRepeteComBackoff
+        leitorAceitaErroEErrosECodigoECodigo
+        catalogoDaMensagemDoCodigoE
+        backoffDobraAteAPrimeiraRepeticao
+        xmlNfseGuardaXmlDescomprimido
+        base64InvalidoRecusado
+        xmlIlegivelNumSucessoNaoLiberaReenvio
+        backoffNaoEstouraComExpoenteAlto
+        posPost2xxSemChaveConsultaDps
+        posPost2xxForaDe200e201ConsultaDps
+        post3xxConsultaDpsAntesDeReenviar
+        erroDefinitivoDepoisDoEnvioViraIndeterminado
+        consultaComCodigoQueNaoE2404ViraIndeterminado
+        naoGeradaReenviaMesmoIdNuncaNumeroNovo
+        e0014NoReenvioConsultaEDevolveAChave
+        conexaoFechadaAntesDoTlsSemBytesEhTransitoria
+        recusaNoHandshakeTls12NaoEscreveCorpoESemConsulta
+        corpoEscritoEConexaoFechadaConsultaAntesDeResponder
+        recusaDoCertificadoNoTls13NuncaReenviaAsCegas
+        conflito409ComConsultaSemResolverViraIndeterminado
+        base64ComIgualNoMeioRecusado
+        conflito409ComMesmoInfDpsRecuperaANota
+        conflito409ComInfDpsDiferenteViraDpsDuplicada
+        codigoEComCpfNaoChegaAoLog
+        codigoEForaDoFormatoFicaVazio
+        base64ComCaractereInvalidoETamanhoValidoRecusado
+        membroExtraDoGzipViraXmlPendente
+        comparadorRealIgualParaMesmaDps
+        comparadorRealDiferenteParaDpsAlterada
+        e0014ComComparadorRealRecuperaANota)
+endif()
 set(NL_AMBIENTE_CLIENTE
     "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_FIXTURES_DPS=${CMAKE_SOURCE_DIR}/tests/fixtures/dps;NL_LANCADOR=${CMAKE_SOURCE_DIR}/tools/servidor_falso/lancador.py;NL_PYTHON3=${Python3_EXECUTABLE};NL_XMLLINT=${NL_XMLLINT_CLIENTE};NL_XMLSEC1=${NL_XMLSEC1_CLIENTE};NL_XSD_PRODREST_DIR=${NL_XSD_PRODREST_DIR}")
 
-foreach(nome IN ITEMS
-    sucessoExtraiChaveDe50Posicoes
-    postTransitorioConsultaDpsAntesDeReenviar
-    dps404E2404LiberaReenvio
-    conflito409ConsultaENaoReenvia
-    rejeicaoE0014NaoRepete
-    certificadoRevogadoMapeadoPelaRejeicaoDaSefin
-    textoLivreDaApiComCpfSoLogaCodigoE
-    getTransitorioRepeteComBackoff
-    leitorAceitaErroEErrosECodigoECodigo
-    catalogoDaMensagemDoCodigoE
-    backoffDobraAteAPrimeiraRepeticao
-    xmlNfseGuardaXmlDescomprimido
-    base64InvalidoRecusado
-    xmlIlegivelNumSucessoNaoLiberaReenvio
-    backoffNaoEstouraComExpoenteAlto
-    posPost2xxSemChaveConsultaDps
-    posPost2xxForaDe200e201ConsultaDps
-    post3xxConsultaDpsAntesDeReenviar
-    erroDefinitivoDepoisDoEnvioViraIndeterminado
-    consultaComCodigoQueNaoE2404ViraIndeterminado
-    naoGeradaReenviaMesmoIdNuncaNumeroNovo
-    e0014NoReenvioConsultaEDevolveAChave
-    conexaoFechadaAntesDoTlsSemBytesEhTransitoria
-    recusaNoHandshakeTls12NaoEscreveCorpoESemConsulta
-    corpoEscritoEConexaoFechadaConsultaAntesDeResponder
-    recusaDoCertificadoNoTls13NuncaReenviaAsCegas
-    conflito409ComConsultaSemResolverViraIndeterminado
-    base64ComIgualNoMeioRecusado
-    conflito409ComMesmoInfDpsRecuperaANota
-    conflito409ComInfDpsDiferenteViraDpsDuplicada
-    codigoEComCpfNaoChegaAoLog
-    codigoEForaDoFormatoFicaVazio
-    base64ComCaractereInvalidoETamanhoValidoRecusado
-    membroExtraDoGzipViraXmlPendente
-    comparadorRealIgualParaMesmaDps
-    comparadorRealDiferenteParaDpsAlterada
-    e0014ComComparadorRealRecuperaANota)
+foreach(nome IN LISTS NL_SLOTS_CLIENTE)
   add_test(NAME mid.sefin.cliente.${nome} COMMAND tst_cliente_sefin ${nome})
   set_tests_properties(mid.sefin.cliente.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
