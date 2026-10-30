@@ -9,6 +9,7 @@
 #include <libxml/SAX2.h>
 #include <libxml/c14n.h>
 #include <libxml/parser.h>
+#include <libxml/parserInternals.h>
 #include <libxml/tree.h>
 #include <libxml/xmlIO.h>
 
