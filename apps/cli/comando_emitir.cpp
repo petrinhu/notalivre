@@ -69,7 +69,6 @@ int executarEmitir(const QStringList& argumentos)
         config->urlSefin,
         config->ancoras,
     };
-                                      {"sefin.requisicao", "sefin.erro"}};
     const auto chave = nl::mid::composicao::emitirDpsPelaCli(pedido, *senhaTerminal);
     if (!chave) {
         erro << QStringLiteral("emissão recusada (%1): %2")
