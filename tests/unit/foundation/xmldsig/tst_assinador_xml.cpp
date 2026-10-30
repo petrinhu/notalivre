@@ -25,6 +25,8 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <optional>
+
 #include <openssl/bio.h>
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
@@ -108,6 +110,14 @@ QByteArray dpsComXsiNaRaiz() {
     QByteArray xml = dpsDeReferencia();
     xml.replace("<DPS xmlns=", "<DPS xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns=");
     return xml;
+}
+
+// Expectativa de SHA-1 de uma distro, lida da tabela versionada (NL-2.9, condição (a) da re-revisão da NL-2.3).
+// Fase vermelha: o stub ainda não lê a tabela, e devolve "sem linha" para toda distro.
+std::optional<bool> recusaSha1SegundoTabela(const QString& id, const QString& versao) {
+    Q_UNUSED(id)
+    Q_UNUSED(versao)
+    return std::nullopt;
 }
 
 // DA-2.38: no fedora44 o OSSL_LIB_CTX próprio recusa rsa-sha1 (medido). O resto da suíte roda com rsa-sha256 ali.
@@ -726,6 +736,42 @@ private slots:
         auto assinado = assinarComCredencial(xml, parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "a DPS com xml:lang na raiz tem de assinar");
         QVERIFY2(verificarComXmlsec1(*assinado), "o xmlsec1 tem de verificar: o xml:lang da raiz entra no digest");
+    }
+
+    // NL-2.9, condição (a): a expectativa sai da tabela. Trocar a linha da distro na tabela muda o resultado, e a distro
+    // sem linha não tem expectativa. Usa uma tabela temporária, e restaura a variável no fim.
+    void distroRecusaSha1VemDaTabelaNaoDoCodigo() {
+        const QString id = campoDoOsRelease(QStringLiteral("ID"));
+        const QString versao = campoDoOsRelease(QStringLiteral("VERSION_ID"));
+        QVERIFY2(!id.isEmpty(), "/etc/os-release sem ID");
+        QTemporaryDir pasta;
+        QVERIFY2(pasta.isValid(), "a pasta temporária da tabela tem de existir");
+        const QByteArray antiga = qgetenv("NL_FIXTURES_XMLDSIG");
+        auto gravar = [&](const QString& valor) {
+            QFile arquivo(pasta.filePath(QStringLiteral("tabela_sha1_por_distro.txt")));
+            if (arquivo.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                arquivo.write(QStringLiteral("%1 %2 %3\n").arg(id, versao, valor).toUtf8());
+            }
+        };
+        qputenv("NL_FIXTURES_XMLDSIG", pasta.path().toUtf8());
+        gravar(QStringLiteral("sha1"));
+        const auto comSha1 = recusaSha1SegundoTabela(id, versao);
+        gravar(QStringLiteral("algoritmo_bloqueado"));
+        const auto comBloqueio = recusaSha1SegundoTabela(id, versao);
+        qputenv("NL_FIXTURES_XMLDSIG", antiga);
+        QVERIFY2(comSha1.has_value() && comBloqueio.has_value(), "a distro atual tem de ter linha na tabela temporária");
+        QVERIFY2(!*comSha1, "linha sha1 na tabela: a suíte assina SHA-1");
+        QVERIFY2(*comBloqueio, "linha algoritmo_bloqueado na tabela: a suíte usa SHA-256");
+        QVERIFY2(!recusaSha1SegundoTabela(QStringLiteral("distro-inexistente"), QStringLiteral("0")).has_value(),
+                 "distro fora da tabela não tem expectativa");
+    }
+
+    // NL-2.9, condição (a): a suíte reprova se a distro atual não tem linha na tabela versionada.
+    void distroAtualTemLinhaNaTabela() {
+        const QString id = campoDoOsRelease(QStringLiteral("ID"));
+        const QString versao = campoDoOsRelease(QStringLiteral("VERSION_ID"));
+        QVERIFY2(recusaSha1SegundoTabela(id, versao).has_value(),
+                 "distro fora de tests/fixtures/xmldsig/tabela_sha1_por_distro.txt: a suíte reprova");
     }
 
     void tabelaPorDistroVemDoArquivo() {

@@ -61,7 +61,9 @@ else()
         digestDaNfseNoFormatoDoXsdIgualAoDaDps
         digestDaNfseAlteradaDifere
         digestNfseIdRepetidoDaErro
-        digestInfDpsForaDoCaminhoFixoRecusado)
+        digestInfDpsForaDoCaminhoFixoRecusado
+        distroRecusaSha1VemDaTabelaNaoDoCodigo
+        distroAtualTemLinhaNaTabela)
 endif()
 
 foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
