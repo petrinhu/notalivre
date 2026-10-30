@@ -11,6 +11,13 @@ target_link_libraries(tst_assinatura_dps PRIVATE Qt6::Core Qt6::Test nl_mid nl_b
 set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
 add_test(NAME mid.sefin.assinatura.parametrosDaAssinaturaVemDaPastaDoLeiaute
          COMMAND tst_assinatura_dps parametrosDaAssinaturaVemDaPastaDoLeiaute)
+add_test(NAME mid.sefin.assinatura.emissaoLigaAdaptadorRealPelaRaiz
+         COMMAND tst_assinatura_dps emissaoLigaAdaptadorRealPelaRaiz)
+set_tests_properties(mid.sefin.assinatura.emissaoLigaAdaptadorRealPelaRaiz PROPERTIES
+                    FIXTURES_REQUIRED certificados_teste
+                    ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_FIXTURES_DPS=${CMAKE_SOURCE_DIR}/tests/fixtures/dps"
+                    PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                    FAIL_REGULAR_EXPRESSION "FAIL!")
 set_tests_properties(mid.sefin.assinatura.parametrosDaAssinaturaVemDaPastaDoLeiaute PROPERTIES
                     FIXTURES_REQUIRED certificados_teste
                     ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_FIXTURES_DPS=${CMAKE_SOURCE_DIR}/tests/fixtures/dps"

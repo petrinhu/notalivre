@@ -5,6 +5,7 @@
 target_sources(nl_mid PRIVATE
     campos_json.cpp
     dps_validar.cpp
+    emissao_nota.cpp
     ler_dados_dps.cpp
     ler_endereco.cpp
     ler_identificacao.cpp

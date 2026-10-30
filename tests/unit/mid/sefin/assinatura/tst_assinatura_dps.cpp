@@ -6,6 +6,7 @@
 #include <nl/foundation/pkcs12/carregador_pkcs12.h>
 #include <nl/foundation/pkcs12/credencial_x509.h>
 #include <nl/foundation/pkcs12/senha_segura.h>
+#include <nl/mid/composicao/emissao_nota.h>
 #include <nl/mid/sefin/assinatura/assinador_dps_sefin.h>
 #include <nl/mid/sefin/leiaute/prodrest_20261020/parametros_infdps.h>
 
@@ -92,6 +93,8 @@ class TesteAssinaturaDps : public QObject
 private slots:
     // A Signature sai com as URIs e o namespace do leiaute, e a referência aponta para o infDPS do leiaute.
     void parametrosDaAssinaturaVemDaPastaDoLeiaute();
+    // NL-2.9 (passo a): a raiz de composição liga EmitirNota ao adaptador real; a DPS sai com a Signature do leiaute.
+    void emissaoLigaAdaptadorRealPelaRaiz();
 };
 
 void TesteAssinaturaDps::parametrosDaAssinaturaVemDaPastaDoLeiaute()
@@ -122,6 +125,21 @@ void TesteAssinaturaDps::parametrosDaAssinaturaVemDaPastaDoLeiaute()
     QVERIFY(parametros.uriC14n == std::string_view(kC14n));
     QVERIFY(parametros.uriEnveloped == std::string_view(kEnveloped));
     QVERIFY(parametros.namespaceLeiaute == std::string_view(kNamespaceNfse));
+}
+
+void TesteAssinaturaDps::emissaoLigaAdaptadorRealPelaRaiz()
+{
+    const QByteArray dps = lerFixtureDps();
+    QVERIFY2(!dps.isEmpty(), "a fixture da DPS tem de existir (NL_FIXTURES_DPS)");
+    auto credencial = credencialDeTeste();
+    QVERIFY2(credencial.has_value(), "a credencial de teste tem de carregar (NL_CERTIFICADOS_DIR)");
+
+    nl::mid::composicao::EmissaoNota raiz(*credencial);
+    auto assinado = raiz.emitirNota().executar(dps, QStringLiteral("DPS430510821122233300018100001000000000000001"));
+    QVERIFY2(assinado.has_value(), "a raiz de composição tem de ligar EmitirNota ao adaptador real de assinatura");
+    const QByteArray xml = *assinado;
+    QCOMPARE(contarNos(xml, "//*[local-name()='SignatureMethod'][@Algorithm='http://www.w3.org/2001/04/xmldsig-more#rsa-sha256']"), 1);
+    QCOMPARE(contarNos(xml, "//*[local-name()='Reference'][@URI='#DPS430510821122233300018100001000000000000001']"), 1);
 }
 
 QTEST_APPLESS_MAIN(TesteAssinaturaDps)
