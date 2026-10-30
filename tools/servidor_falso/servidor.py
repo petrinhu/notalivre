@@ -106,6 +106,11 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             return self._json(504, {"Codigo": "TIMEOUT", "Descricao": "falha roteirizada"})
         if falha == "conflito409":
             return self._json(409, {"Codigo": "DPS_DUPLICADA", "Descricao": "falha roteirizada"})
+        if falha is not None and falha.startswith("rejeicao:"):
+            # NL-2.8: código E da recusa, e um texto livre que traz um CPF, para provar que o cliente não o leva ao log.
+            codigo = falha.split(":", 1)[1]
+            return self._json(400, {"Codigo": codigo,
+                                    "Descricao": "texto livre devolvido pela API com CPF 12345678909"})
         if falha == "corpo_truncado":
             return self._corpo_truncado()
         if falha == "eco_accept_encoding":

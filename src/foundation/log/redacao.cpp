@@ -23,14 +23,51 @@ constexpr std::string_view kPrefixoIdDps = "DPS";
 
 /// Troca as 14 posições da inscrição por '#'. Valor de outro tamanho ou sem o prefixo DPS não é mascarado: nullopt,
 /// e o chamador descarta (falha fechada: nunca grava um Id que pode conter a inscrição sem máscara).
+// Chave de acesso de 50 posições (NL-2.8, DA-2.21, ADR-0005 b): 9 dígitos, 14 caracteres [0-9A-Z] (a inscrição, posições
+// 10 a 23) e 27 dígitos. O Id da NFS-e de 53 é "NFS" mais a chave: a inscrição fica nas posições 13 a 26. INFERÊNCIA do
+// leiaute pela ADR-0005. Chave fora desse leiaute não é mascarada: nullopt, e o chamador descarta.
+constexpr std::size_t kTamanhoChaveAcesso = 50;
+constexpr std::size_t kPosicaoInscricaoChave = 9;      // índice 0 da posição 10 (1-based)
+constexpr std::size_t kTamanhoIdNfse = 53;
+constexpr std::size_t kPosicaoInscricaoIdNfse = 12;    // índice 0 da posição 13 (1-based)
+constexpr std::string_view kPrefixoIdNfse = "NFS";
+
+bool chaveNoLeiaute(std::string_view chave)
+{
+    if (chave.size() != kTamanhoChaveAcesso) {
+        return false;
+    }
+    for (std::size_t i = 0; i < kTamanhoChaveAcesso; ++i) {
+        const char c = chave[i];
+        const bool digito = c >= '0' && c <= '9';
+        const bool alfanumerico = digito || (c >= 'A' && c <= 'Z');
+        const bool inscricao = i >= kPosicaoInscricaoChave && i < kPosicaoInscricaoChave + kTamanhoInscricao;
+        if (inscricao ? !alfanumerico : !digito) {
+            return false;
+        }
+    }
+    return true;
+}
+
 std::optional<std::string> mascararInscricao(std::string_view valor)
 {
-    if (valor.size() != kTamanhoIdDps || !valor.starts_with(kPrefixoIdDps)) {
-        return std::nullopt;
+    if (valor.size() == kTamanhoIdDps && valor.starts_with(kPrefixoIdDps)) {
+        std::string mascarado{valor};
+        mascarado.replace(kPosicaoInscricao, kTamanhoInscricao, kTamanhoInscricao, '#');
+        return mascarado;
     }
-    std::string mascarado{valor};
-    mascarado.replace(kPosicaoInscricao, kTamanhoInscricao, kTamanhoInscricao, '#');
-    return mascarado;
+    if (valor.size() == kTamanhoChaveAcesso && chaveNoLeiaute(valor)) {
+        std::string mascarado{valor};
+        mascarado.replace(kPosicaoInscricaoChave, kTamanhoInscricao, kTamanhoInscricao, '#');
+        return mascarado;
+    }
+    if (valor.size() == kTamanhoIdNfse && valor.starts_with(kPrefixoIdNfse) &&
+        chaveNoLeiaute(valor.substr(kPrefixoIdNfse.size()))) {
+        std::string mascarado{valor};
+        mascarado.replace(kPosicaoInscricaoIdNfse, kTamanhoInscricao, kTamanhoInscricao, '#');
+        return mascarado;
+    }
+    return std::nullopt;
 }
 
 // Lista da ADR-0005 §1 (30 nomes da NL-2.7) mais os 14 da DA-2.23 (decisão do CISO, 28/10/2026). Comparação sem caixa.
