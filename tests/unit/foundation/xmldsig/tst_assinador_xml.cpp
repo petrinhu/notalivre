@@ -34,10 +34,17 @@
 #include <openssl/provider.h>
 #include <openssl/x509.h>
 
+#include <netinet/in.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+#include <atomic>
 #include <cstdlib>
 #include <expected>
 #include <memory>
 #include <string_view>
+#include <thread>
 
 namespace xd = nl::foundation::xmldsig;
 namespace pk = nl::foundation::pkcs12;
@@ -96,6 +103,64 @@ xd::ParametrosAssinatura parametrosSha1() {
 xd::ParametrosAssinatura parametrosSha256() {
     return {kC14n, kEnveloped, kSha256, kRsaSha256, "infDPS", "DPS", kNsLeiaute};
 }
+
+// Ouvinte TCP em 127.0.0.1 (NL-2.9, condição do CISO sobre DTD remoto): conta cada conexão aceita e a fecha. Thread
+// própria, porque o parse é síncrono e o servidor precisa existir fora da thread do teste. Porta efêmera.
+class OuvinteTcp {
+public:
+    OuvinteTcp() {
+        fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+        sockaddr_in endereco{};
+        endereco.sin_family = AF_INET;
+        endereco.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        socklen_t tamanho = sizeof(endereco);
+        if (fd_ < 0 || ::bind(fd_, reinterpret_cast<sockaddr*>(&endereco), sizeof(endereco)) != 0 ||
+            ::listen(fd_, 16) != 0 || ::getsockname(fd_, reinterpret_cast<sockaddr*>(&endereco), &tamanho) != 0) {
+            return;
+        }
+        porta_ = ntohs(endereco.sin_port);
+        ativo_ = true;
+        thread_ = std::thread([this] { laco(); });
+    }
+    ~OuvinteTcp() { parar(); }
+    OuvinteTcp(const OuvinteTcp&) = delete;
+    OuvinteTcp& operator=(const OuvinteTcp&) = delete;
+
+    int porta() const { return porta_; }
+    int conexoes() const { return conexoes_.load(); }
+
+    // Para o laço e espera a thread. Depois de parar, conexoes() é o total final.
+    void parar() {
+        ativo_ = false;
+        if (thread_.joinable()) {
+            thread_.join();
+        }
+        if (fd_ >= 0) {
+            ::close(fd_);
+            fd_ = -1;
+        }
+    }
+
+private:
+    void laco() {
+        while (ativo_) {
+            pollfd espera{fd_, POLLIN, 0};
+            if (::poll(&espera, 1, 20) > 0) {
+                const int conexao = ::accept(fd_, nullptr, nullptr);
+                if (conexao >= 0) {
+                    conexoes_++;
+                    ::close(conexao);
+                }
+            }
+        }
+    }
+
+    int fd_ = -1;
+    int porta_ = 0;
+    std::atomic<bool> ativo_{false};
+    std::atomic<int> conexoes_{0};
+    std::thread thread_;
+};
 
 // Código estável de um erro do assinador, como QString, para comparar nas asserções.
 QString codigoDe(xd::ErroAssinatura erro) {
@@ -731,6 +796,27 @@ private slots:
         auto assinado = assinarComCredencial(xml, parametrosDaDistro());
         QVERIFY2(!assinado.has_value(), "DTD com subconjunto malformado tem de ser recusado");
         QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.xml_com_dtd"));
+    }
+
+    // NL-2.9, reforço sobre o DTD: um DOCTYPE SYSTEM ou uma entidade externa apontando para a rede não pode abrir conexão.
+    // O ouvinte em 127.0.0.1 conta as conexões aceitas; a espera é zero em ambas as variantes.
+    void xmlComDoctypeSystemRemotoNaoAcessaARede() {
+        OuvinteTcp ouvinte;
+        QVERIFY2(ouvinte.porta() != 0, "o ouvinte TCP local tem de subir");
+        const QByteArray url = "http://127.0.0.1:" + QByteArray::number(ouvinte.porta()) + "/dtd.dtd";
+        QByteArray comSystem = dpsDeReferencia();
+        comSystem.replace("<DPS xmlns=", "<!DOCTYPE DPS SYSTEM \"" + url + "\">\n<DPS xmlns=");
+        const auto semDtd = assinarComCredencial(comSystem, parametrosDaDistro());
+        QByteArray comEntidade = dpsDeReferencia();
+        comEntidade.replace("<DPS xmlns=", "<!DOCTYPE DPS [<!ENTITY e SYSTEM \"" + url + "\">]>\n<DPS xmlns=");
+        comEntidade.replace("</DPS>", "&e;</DPS>");
+        const auto comEnt = assinarComCredencial(comEntidade, parametrosDaDistro());
+        ouvinte.parar();
+        QVERIFY2(!semDtd.has_value(), "DOCTYPE SYSTEM tem de ser recusado");
+        QCOMPARE(codigoDe(semDtd.error()), QStringLiteral("assinatura.xml_com_dtd"));
+        QVERIFY2(!comEnt.has_value(), "entidade externa tem de ser recusada");
+        QCOMPARE(codigoDe(comEnt.error()), QStringLiteral("assinatura.xml_com_dtd"));
+        QCOMPARE(ouvinte.conexoes(), 0);
     }
 
     void variavelDoFedoraValeNoContextoProprio() {

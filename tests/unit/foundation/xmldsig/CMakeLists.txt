@@ -50,6 +50,7 @@ else()
         idComAspasNaoInjetaAtributo
         xmlComDtdRecusado
         dtdComSubconjuntoMalformadoRecusadoAntesDoParse
+        xmlComDoctypeSystemRemotoNaoAcessaARede
         variavelDoFedoraValeNoContextoProprio
         materialVencidoNaHoraDeAssinarRecusado
         materialAindaNaoValidoRecusado
