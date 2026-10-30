@@ -9,6 +9,7 @@
 #include <libxml/c14n.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
+#include <libxml/xmlIO.h>
 
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
@@ -107,50 +108,57 @@ bool contemSignature(xmlNodePtr no) {
     return false;
 }
 
-// Transformada enveloped no digest: tira da cópia todo ds:Signature (W3C XMLDSig 6.6.4).
-void removerSignatures(xmlNodePtr no) {
-    xmlNodePtr atual = no->children;
-    while (atual != nullptr) {
-        xmlNodePtr proximo = atual->next;
-        if (ehElemento(atual, "Signature", kDsig)) {
-            xmlUnlinkNode(atual);
-            xmlFreeNode(atual);
-        } else if (atual->type == XML_ELEMENT_NODE) {
-            removerSignatures(atual);
+// Conjunto de nós da C14N (DA-2.40 adendo, W3C 4.4.1): a subárvore do apice, sem as Signature quando o digest
+// pede a transformada enveloped (W3C 6.6.4). Namespace e atributo são visíveis pelo elemento onde estão em escopo
+// (o parent que a libxml2 passa), então o xmlns:xsi e o xml:lang da raiz entram quando o apice os herda.
+struct ConjuntoDeNos {
+    xmlNodePtr apice;
+    bool excluirSignature;
+};
+
+bool dentroDeSignature(xmlNodePtr no) {
+    for (xmlNodePtr atual = no; atual != nullptr; atual = atual->parent) {
+        if (atual->type == XML_ELEMENT_NODE && ehElemento(atual, "Signature", kDsig)) {
+            return true;
         }
-        atual = proximo;
     }
+    return false;
 }
 
-// C14N 1.0 inclusiva da subárvore, com os xmlns herdados dos ancestrais do documento de origem (DA-2.2, DA-2.40 item 5/6).
-// A cópia é só o suporte da serialização: o namespace que vale é o do documento onde o nó está.
-std::optional<std::string> canonicalizar(xmlNodePtr no) {
-    Doc copia(xmlNewDoc(reinterpret_cast<const xmlChar*>("1.0")));
-    if (!copia) {
-        return std::nullopt;
-    }
-    xmlNodePtr raiz = xmlDocCopyNode(no, copia.get(), 1);
-    if (raiz == nullptr) {
-        return std::nullopt;
-    }
-    xmlDocSetRootElement(copia.get(), raiz);
-    removerSignatures(raiz);
-    for (xmlNodePtr ancestral = no->parent; ancestral != nullptr && ancestral->type == XML_ELEMENT_NODE;
-         ancestral = ancestral->parent) {
-        for (xmlNsPtr ns = ancestral->nsDef; ns != nullptr; ns = ns->next) {
-            if (xmlSearchNs(copia.get(), raiz, ns->prefix) == nullptr) {
-                xmlNewNs(raiz, ns->href, ns->prefix);
-            }
+bool dentroDoApice(xmlNodePtr no, xmlNodePtr apice) {
+    for (xmlNodePtr atual = no; atual != nullptr; atual = atual->parent) {
+        if (atual == apice) {
+            return true;
         }
     }
-    xmlChar* bytes = nullptr;
-    const int tamanho = xmlC14NDocDumpMemory(copia.get(), nullptr, XML_C14N_1_0, nullptr, 0, &bytes);
-    if (tamanho < 0 || bytes == nullptr) {
+    return false;
+}
+
+int noEhVisivel(void* dados, xmlNodePtr no, xmlNodePtr pai) {
+    const auto* conjunto = static_cast<const ConjuntoDeNos*>(dados);
+    const bool porPai = no->type == XML_NAMESPACE_DECL || no->type == XML_ATTRIBUTE_NODE;
+    xmlNodePtr base = porPai ? pai : no;
+    if (base == nullptr || !dentroDoApice(base, conjunto->apice)) {
+        return 0;
+    }
+    return conjunto->excluirSignature && dentroDeSignature(base) ? 0 : 1;
+}
+
+// C14N 1.0 inclusiva pelo próprio documento do nó, com função de visibilidade (DA-2.40 adendo). Sem cópia do nó.
+std::optional<std::string> canonicalizar(xmlNodePtr apice, bool excluirSignature) {
+    ConjuntoDeNos conjunto{apice, excluirSignature};
+    xmlOutputBufferPtr saida = xmlAllocOutputBuffer(nullptr);
+    if (saida == nullptr) {
         return std::nullopt;
     }
-    std::string saida(reinterpret_cast<const char*>(bytes), static_cast<std::size_t>(tamanho));
-    xmlFree(bytes);
-    return saida;
+    const int rc = xmlC14NExecute(apice->doc, noEhVisivel, &conjunto, XML_C14N_1_0, nullptr, 0, saida);
+    std::optional<std::string> resultado;
+    if (rc >= 0 && xmlOutputBufferGetContent(saida) != nullptr) {
+        resultado = std::string(reinterpret_cast<const char*>(xmlOutputBufferGetContent(saida)),
+                                static_cast<std::size_t>(xmlOutputBufferGetSize(saida)));
+    }
+    xmlOutputBufferClose(saida);
+    return resultado;
 }
 
 std::string base64(const unsigned char* dados, std::size_t tamanho) {
@@ -339,7 +347,7 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
     xmlAddNextSibling(referencia, assinatura);
 
     // Digest da referência: subárvore do infDPS, sem a Signature (enveloped), no contexto do documento (item 5).
-    const auto canonicoReferencia = canonicalizar(referencia);
+    const auto canonicoReferencia = canonicalizar(referencia, /*excluirSignature=*/true);
     if (!canonicoReferencia) {
         return std::unexpected(ErroAssinatura::FalhaInterna);
     }
@@ -357,7 +365,7 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
     xmlNodeSetContent(digestNo, reinterpret_cast<const xmlChar*>(digestB64.c_str()));
 
     // SignedInfo canonicalizado dentro do documento, com o xmlns:xsi da raiz herdado (item 6, achado mH).
-    const auto canonicoSignedInfo = canonicalizar(signedInfo);
+    const auto canonicoSignedInfo = canonicalizar(signedInfo, /*excluirSignature=*/false);
     if (!canonicoSignedInfo) {
         return std::unexpected(ErroAssinatura::FalhaInterna);
     }
