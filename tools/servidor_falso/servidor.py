@@ -13,6 +13,7 @@ import gzip
 import hashlib
 import http.server
 import json
+import re
 import ssl
 import threading
 
@@ -32,6 +33,20 @@ def chave_de_teste(id_dps):
     """INFERÊNCIA: 50 dígitos derivados do Id da DPS. Não é o layout oficial da chave de acesso."""
     digest = hashlib.sha256(id_dps.encode("ascii")).hexdigest()
     return str(int(digest, 16) % 10**50).zfill(50)
+
+
+def registro_do_post(corpo):
+    """Id e nDPS do que chegou num POST /nfse, para a conferência de dupla emissão (nunca o texto da DPS)."""
+    try:
+        xml = envelope.decodificar(corpo)
+    except envelope.ErroEnvelope:
+        return {"id": None, "nDPS": None}
+    try:
+        id_dps = id_do_infdps(xml)
+    except ValueError:
+        id_dps = None
+    numero = re.search(rb"<nDPS>([^<]*)</nDPS>", xml)
+    return {"id": id_dps, "nDPS": numero.group(1).decode("ascii", "replace") if numero else None}
 
 
 def corpo_da_nota(chave, xml):
@@ -71,6 +86,8 @@ class ServidorFalso(http.server.HTTPServer):
         self.dps_aceitas = {}
         self.notas = {}
         self.requisicoes = 0
+        # Dupla emissão (DA-2.41): o Id e o nDPS de cada POST /nfse que chega, antes de qualquer falha roteirizada.
+        self.posts_recebidos = []
         self.liberar = threading.Event()
         super().__init__(("127.0.0.1", 0), ManipuladorApi)
 
@@ -117,6 +134,10 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         srv.requisicoes += 1
         caminho = self.path.split("?", 1)[0]
         corpo = self._ler_corpo()
+        if self.command == "POST" and caminho == "/nfse":
+            srv.posts_recebidos.append(registro_do_post(corpo))  # antes de qualquer falha: o que a Sefin recebeu
+        if self.command == "GET" and caminho == "/_teste/posts":
+            return self._json(200, srv.posts_recebidos)  # registro para o teste, fora da API da Sefin
         falha = srv.roteiro.consumir(self.command, caminho)
         if falha == "erro5xx":
             return self._json(503, {"Codigo": "INDISPONIVEL", "Descricao": "falha roteirizada"})

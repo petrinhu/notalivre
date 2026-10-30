@@ -31,6 +31,9 @@
 
 #include <QByteArray>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QIODevice>
 #include <QProcess>
 #include <QSslCertificate>
@@ -607,6 +610,20 @@ private slots:
         QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
         auto m = montar(srv.porta(), *cred);
         auto nota = m->cliente->emitir(*dps);
+        // Dupla emissão (o pior defeito fiscal): o servidor registra o Id e o nDPS de cada POST que chegou. Os dois
+        // envios têm de ser a mesma DPS. Este teste fica vermelho se o cliente remontar o envelope com outro número.
+        auto registro = m->transporte->enviar(
+            ft::RequisicaoHttp{QByteArrayLiteral("GET"), QStringLiteral("/_teste/posts"), {}, {}});
+        QVERIFY2(registro.has_value(), "o registro de POSTs do servidor falso tem de responder");
+        const QJsonArray envios = QJsonDocument::fromJson(registro->corpo).array();
+        QCOMPARE(envios.size(), qsizetype{2});
+        const QJsonObject primeiro = envios.at(0).toObject();
+        const QJsonObject segundo = envios.at(1).toObject();
+        QVERIFY2(!primeiro.value(QStringLiteral("nDPS")).toString().isEmpty(), "o primeiro POST tem de trazer o nDPS");
+        QVERIFY2(primeiro.value(QStringLiteral("id")).toString() == segundo.value(QStringLiteral("id")).toString(),
+                 "o reenvio tem de ter o mesmo Id da DPS");
+        QVERIFY2(primeiro.value(QStringLiteral("nDPS")).toString() == segundo.value(QStringLiteral("nDPS")).toString(),
+                 "o reenvio tem de ter o mesmo número (nDPS): remontar com outro número é dupla emissão");
         QVERIFY2(nota.has_value(), "E2404 na consulta libera o reenvio da mesma DPS");
         // O reenvio reaproveita o envelope e o Id da DPS montada uma vez: a sequência tem um POST a mais, e nenhum GET de nota.
         const std::vector<std::string> esperado{"POST:503", "GET:404", "POST:201"};

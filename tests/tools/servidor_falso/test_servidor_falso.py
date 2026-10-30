@@ -459,6 +459,21 @@ class TesteServidorFalso(unittest.TestCase):
         self.assertEqual(rot.pendentes(), 0)
 
 
+    def test_postRegistraIdENumeroDeCadaEnvio(self):
+        # dupla emissão: o registro guarda o Id e o nDPS de cada POST /nfse que chegou, inclusive o recusado pela falha
+        rot = roteiro.Roteiro()
+        rot.agendar("POST", "/nfse", "erro5xx")
+        srv = self.subir(rot)
+        self.assertEqual(self.postar_dps(srv)[0], 503)
+        self.assertEqual(self.postar_dps(srv)[0], 201)
+        status, registro = self.enviar(srv, "GET", "/_teste/posts")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(registro), 2)
+        self.assertEqual(registro[0], registro[1], "o reenvio tem de ser a mesma DPS: mesmo Id e mesmo nDPS")
+        self.assertEqual(registro[0]["id"], self.id_dps)
+        self.assertEqual(registro[0]["nDPS"], "1")
+
+
 if __name__ == "__main__":
     suite = unittest.TestSuite([TesteServidorFalso(sys.argv[1])])
     resultado = unittest.TextTestRunner(verbosity=2).run(suite)
