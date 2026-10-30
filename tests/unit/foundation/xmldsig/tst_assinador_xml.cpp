@@ -246,6 +246,36 @@ QString textoDoXPath(const QByteArray& xml, const char* xpath) {
 
 } // namespace
 
+// Material de PEM lido por contexto OpenSSL só do teste (DA-2.40 adendo). Não passa pelo PKCS#12, que valida a janela
+// do certificado e recusaria a fixture vencida antes do assinador. Ordem dos membros = ordem de destruição inversa.
+struct MaterialPem {
+    std::unique_ptr<OSSL_LIB_CTX, decltype(&OSSL_LIB_CTX_free)> ctx{nullptr, &OSSL_LIB_CTX_free};
+    std::unique_ptr<OSSL_PROVIDER, decltype(&OSSL_PROVIDER_unload)> provedor{nullptr, &OSSL_PROVIDER_unload};
+    std::unique_ptr<X509, decltype(&X509_free)> cert{nullptr, &X509_free};
+    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> chave{nullptr, &EVP_PKEY_free};
+};
+
+bool lerMaterialPem(const char* certNome, const char* chaveNome, MaterialPem& material) {
+    material.ctx.reset(OSSL_LIB_CTX_new());
+    if (!material.ctx) {
+        return false;
+    }
+    material.provedor.reset(OSSL_PROVIDER_load(material.ctx.get(), "default"));
+    if (!material.provedor) {
+        return false;
+    }
+    const QByteArray certPem = lerArquivo(caminhoFixture(certNome));
+    const QByteArray chavePem = lerArquivo(caminhoFixture(chaveNome));
+    if (certPem.isEmpty() || chavePem.isEmpty()) {
+        return false;
+    }
+    std::unique_ptr<BIO, decltype(&BIO_free)> bioCert(BIO_new_mem_buf(certPem.constData(), certPem.size()), &BIO_free);
+    std::unique_ptr<BIO, decltype(&BIO_free)> bioChave(BIO_new_mem_buf(chavePem.constData(), chavePem.size()), &BIO_free);
+    material.cert.reset(PEM_read_bio_X509_AUX(bioCert.get(), nullptr, nullptr, nullptr));
+    material.chave.reset(PEM_read_bio_PrivateKey_ex(bioChave.get(), nullptr, nullptr, nullptr, material.ctx.get(), nullptr));
+    return material.cert != nullptr && material.chave != nullptr;
+}
+
 class TesteAssinadorXml : public QObject {
     Q_OBJECT
 
@@ -490,7 +520,7 @@ private slots:
     void transformadaEnvelopedExcluiASignatureDoDigest() {
         auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "a DPS de referência tem de assinar");
-        QCOMPARE(assinado->count("<Signature"), qsizetype{1});  // uma só Signature no documento, fora do digest
+        QCOMPARE(assinado->count("<Signature "), qsizetype{1});  // uma só Signature no documento (o espaço exclui SignatureValue)
         QVERIFY2(verificarComXmlsec1(*assinado), "a transformada enveloped tem de deixar o digest igual ao do verificador");
     }
 
@@ -571,26 +601,18 @@ private slots:
     }
 
     void materialVencidoNaHoraDeAssinarRecusado() {
-        pk::SenhaSegura senha = senhaDeTeste();
-        auto ancoras = pk::Ancoras::dePem(lerFixture("ac.pem"));
-        QVERIFY2(ancoras.has_value(), "a âncora da fixture tem de carregar");
-        pk::CarregadorPkcs12 carregador;
-        auto credencial = carregador.carregar(lerFixture("vencido.pfx"), senha, *ancoras);
-        QVERIFY2(credencial.has_value(), "a fixture vencida tem de carregar para o teste do assinador");
-        xd::MaterialAssinatura material{credencial->certificado(), credencial->chavePrivada()};
+        MaterialPem pem;
+        QVERIFY2(lerMaterialPem("vencido.pem", "vencido.key.pem", pem), "a folha vencida tem de ler por PEM no contexto do teste");
+        xd::MaterialAssinatura material{pem.cert.get(), pem.chave.get()};
         auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), QStringLiteral("DPS430510821122233300018100001000000000000001"), parametrosDaDistro(), material);
         QVERIFY2(!assinado.has_value(), "certificado vencido na hora de assinar tem de ser recusado");
         QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.material_invalido"));
     }
 
     void materialAindaNaoValidoRecusado() {
-        pk::SenhaSegura senha = senhaDeTeste();
-        auto ancoras = pk::Ancoras::dePem(lerFixture("ac.pem"));
-        QVERIFY2(ancoras.has_value(), "a âncora da fixture tem de carregar");
-        pk::CarregadorPkcs12 carregador;
-        auto credencial = carregador.carregar(lerFixture("folha_futura.pfx"), senha, *ancoras);
-        QVERIFY2(credencial.has_value(), "a fixture com notBefore futuro tem de carregar para o teste do assinador");
-        xd::MaterialAssinatura material{credencial->certificado(), credencial->chavePrivada()};
+        MaterialPem pem;
+        QVERIFY2(lerMaterialPem("folha_futura.pem", "folha_futura.key.pem", pem), "a folha com notBefore futuro tem de ler por PEM");
+        xd::MaterialAssinatura material{pem.cert.get(), pem.chave.get()};
         auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), QStringLiteral("DPS430510821122233300018100001000000000000001"), parametrosDaDistro(), material);
         QVERIFY2(!assinado.has_value(), "certificado ainda não válido na hora de assinar tem de ser recusado");
         QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.material_invalido"));
