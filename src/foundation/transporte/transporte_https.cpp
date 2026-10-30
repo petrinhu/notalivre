@@ -35,15 +35,14 @@ namespace {
 // Teto do tempo limite: 10 minutos. Acima disso a configuração é inválida, e o valor cabe no int do QTimer.
 constexpr std::chrono::milliseconds kTempoLimiteMaximo{600000};
 
-// antes: a falha ocorreu antes de qualquer byte HTTP chegar ao servidor (DA-2.41). Com false, os bytes podem ter chegado.
-ErroTransporte erro(TipoErro tipo, CausaErro causa, QString mensagem, bool antes = false)
+ErroTransporte erro(TipoErro tipo, CausaErro causa, QString mensagem)
 {
-    return ErroTransporte{tipo, causa, std::move(mensagem), antes};
+    return ErroTransporte{tipo, causa, std::move(mensagem)};
 }
 
 ErroTransporte configuracaoInvalida(QString motivo)
 {
-    return erro(TipoErro::Definitivo, CausaErro::Configuracao, std::move(motivo), true);
+    return erro(TipoErro::Definitivo, CausaErro::Configuracao, std::move(motivo));
 }
 
 // Descrição fixa por causa: nenhum texto vindo de fora entra na mensagem.
@@ -77,8 +76,7 @@ QString mensagemDeRede(CausaErro causa, QNetworkReply::NetworkError codigo, bool
 ErroTransporte erroDeRede(QNetworkReply::NetworkError codigo, bool handshake, int sslErros)
 {
     const Classificacao classe = classificarErroDeRede(codigo);
-    return erro(classe.tipo, classe.causa, mensagemDeRede(classe.causa, codigo, handshake, sslErros),
-                classe.antesDoEnvio);
+    return erro(classe.tipo, classe.causa, mensagemDeRede(classe.causa, codigo, handshake, sslErros));
 }
 
 // mTLS: autoridade de servidor só a da configuração (sem as do sistema), TLS 1.2 ou superior, verificação do servidor
@@ -159,6 +157,8 @@ struct Desfecho {
     int status = 0;
     QByteArray corpo;
     bool contentEncodingIdentidade = true;
+    // Bytes do corpo que o Qt escreveu no socket (sinal uploadProgress). Zero: nada do POST saiu da máquina (DA-2.41).
+    qint64 bytesEscritos = 0;
 };
 
 // Content-Encoding diferente de identity na resposta é protocolo inesperado: o transporte não descomprime.
@@ -216,6 +216,11 @@ Desfecho executar(QNetworkAccessManager& gerenciador, const QNetworkRequest& ped
         }
     });
 
+    QObject::connect(resposta, &QNetworkReply::uploadProgress, resposta, [&desfecho](qint64 enviados, qint64) {
+        if (enviados > desfecho.bytesEscritos) {
+            desfecho.bytesEscritos = enviados;
+        }
+    });
     QEventLoop laco;
     QObject::connect(resposta, &QNetworkReply::finished, &laco, &QEventLoop::quit);
     tempo.start(static_cast<int>(tempoLimite.count()));
@@ -232,7 +237,7 @@ Desfecho executar(QNetworkAccessManager& gerenciador, const QNetworkRequest& ped
 
 // Transforma o que o Qt observou no resultado do transporte. Ordem: teto do corpo, tempo limite, status recebido,
 // e por fim erro sem status.
-std::expected<RespostaHttp, ErroTransporte> interpretar(const Desfecho& d)
+std::expected<RespostaHttp, ErroTransporte> classificarDesfecho(const Desfecho& d)
 {
     if (d.excedeuTeto) {
         return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
@@ -262,10 +267,19 @@ std::expected<RespostaHttp, ErroTransporte> interpretar(const Desfecho& d)
     // Recusa do servidor depois do handshake: sinal encrypted, sem status, código UnknownNetworkError (DA-2.35).
     if (d.handshake && d.codigo == QNetworkReply::UnknownNetworkError) {
         return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Tls,
-                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente"),
-                                    true));  // a recusa do certificado é da camada TLS: nenhum byte HTTP chegou à aplicação
+                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente"));
     }
     return std::unexpected(erroDeRede(d.codigo, d.handshake, d.sslErros));
+}
+
+// Resultado do pedido, com os bytes escritos do corpo no erro: é o sinal que o cliente usa para decidir se consulta (DA-2.41).
+std::expected<RespostaHttp, ErroTransporte> interpretar(const Desfecho& d)
+{
+    auto resultado = classificarDesfecho(d);
+    if (!resultado) {
+        resultado.error().bytesEscritos = d.bytesEscritos;
+    }
+    return resultado;
 }
 
 } // namespace

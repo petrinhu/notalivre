@@ -179,9 +179,13 @@ std::expected<ft::RespostaHttp, bk::FalhaSefin> getComRetry(ft::TransporteHttps&
             if (resposta.error().tipo == ft::TipoErro::Transitorio && !ultima) {
                 continue;
             }
-            return std::unexpected(falha(resposta.error().tipo == ft::TipoErro::Transitorio
-                                             ? bk::MotivoFalhaSefin::Transitoria
-                                             : bk::MotivoFalhaSefin::Definitiva));
+            bk::FalhaSefin falhaDeRede = falha(resposta.error().tipo == ft::TipoErro::Transitorio
+                                                   ? bk::MotivoFalhaSefin::Transitoria
+                                                   : bk::MotivoFalhaSefin::Definitiva);
+            if (resposta.error().causa == ft::CausaErro::Tls) {
+                falhaDeRede.mensagem = "certificado recusado";  // marca para a reconciliação dizer "na consulta"
+            }
+            return std::unexpected(falhaDeRede);
         }
         registrarRequisicao(registro, "GET", resposta->status);
         if (resposta->status >= 500 && !ultima) {
@@ -256,7 +260,12 @@ std::optional<Desfecho> resolverPosEnvio(ft::TransporteHttps& transporte, fl::Lo
         return Desfecho{std::unexpected(falha(bk::MotivoFalhaSefin::Transitoria))};  // sem tentativa restante
     }
     // Qualquer outro resultado da consulta (código que não é E2404, 5xx, falha de rede): o estado é desconhecido.
-    return Desfecho{std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado))};
+    // Se a própria consulta foi recusada pelo certificado, a mensagem diz isso para o usuário (DA-2.41, adendo de 30/10).
+    bk::FalhaSefin indeterminado = falha(bk::MotivoFalhaSefin::Indeterminado);
+    if (consulta.error().mensagem == "certificado recusado") {
+        indeterminado.mensagem = "certificado recusado na consulta";
+    }
+    return Desfecho{std::unexpected(indeterminado)};
 }
 
 // E0014 (adendo da DA-2.41, 29/10/2026): a nota pode ter nascido numa execução anterior, e E0014 também pode ser outra
@@ -329,7 +338,9 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
         auto resposta = transporte_.enviar(requisicao);
 
         if (!resposta) {
-            if (resposta.error().antesDoEnvio) {
+            // Critério por bytes escritos (DA-2.41, adendo de 30/10/2026): zero bytes é falha antes do envio; com bytes, o
+            // POST pode ter chegado, e a consulta decide. O código do Qt não entra na decisão.
+            if (resposta.error().bytesEscritos == 0) {
                 // Nada chegou à Sefin: sem consulta. Configuração inválida é definitiva; o resto vale tentar de novo.
                 return std::unexpected(falha(resposta.error().causa == ft::CausaErro::Configuracao
                                                  ? bk::MotivoFalhaSefin::Definitiva

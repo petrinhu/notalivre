@@ -75,10 +75,16 @@ def corpo_nfse_defeituosa(chave, falha):
 class ServidorFalso(http.server.HTTPServer):
     allow_reuse_address = True
 
-    def __init__(self, certs, oraculo, roteiro=None):
+    def __init__(self, certs, oraculo, roteiro=None, tls_maximo=None):
         self.contexto = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self.contexto.load_cert_chain(certs.servidor_cert, certs.servidor_key)
         self.contexto.minimum_version = ssl.TLSVersion.TLSv1_2  # explícito: nada abaixo de TLS 1.2 (rodada 2, item 4)
+        # Cenário com versão máxima limitada (rodada 4, DA-2.41): "1.2" faz o servidor negociar só TLS 1.2, em que ele
+        # valida o certificado do cliente antes do Finished. Nenhum outro valor é aceito.
+        if tls_maximo is not None:
+            if tls_maximo != "1.2":
+                raise ValueError(f"tls_maximo desconhecido: {tls_maximo}")
+            self.contexto.maximum_version = ssl.TLSVersion.TLSv1_2
         self.contexto.verify_mode = ssl.CERT_REQUIRED
         self.contexto.load_verify_locations(certs.ca)
         self.oraculo = oraculo
