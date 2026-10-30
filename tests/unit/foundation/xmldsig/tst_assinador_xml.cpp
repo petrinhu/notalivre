@@ -588,25 +588,12 @@ private slots:
         QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.material_invalido"));
     }
 
-    void medirOsslLibCtxProprio() {
-        // Medição do passo 1 (DA-2.38): o OSSL_LIB_CTX próprio assina rsa-sha1 nesta distro, sem a variável de ambiente?
-        // Informativo: grava o resultado no log do teste e passa. A decisão fica na tabela tabela_sha1_por_distro.txt.
-        const bool variavelPresente = qEnvironmentVariableIsSet("OPENSSL_ENABLE_SHA1_SIGNATURES");
-        auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
-        const QString resultado = assinado.has_value()
-            ? QStringLiteral("sha1")
-            : QString::fromUtf8(xd::codigo(assinado.error()).data(), int(xd::codigo(assinado.error()).size()));
-        qInfo("MEDICAO id=%s versao=%s variavel_presente=%d osslctx_proprio=%s",
-              qPrintable(campoDoOsRelease(QStringLiteral("ID"))),
-              qPrintable(campoDoOsRelease(QStringLiteral("VERSION_ID"))), int(variavelPresente),
-              qPrintable(resultado));
-        QVERIFY(true);
-    }
-
     void assinaSha1NoSdkKdeSemVariavel() {
         // Roda só no build Flatpak (SDK KDE 6.11, runtime medido na NL-2.3, passo 0). A variável tem de estar ausente.
-        QVERIFY2(!qEnvironmentVariableIsSet("OPENSSL_ENABLE_SHA1_SIGNATURES"),
-                 "a variável de SHA-1 não pode existir no processo do app");
+        // DA-2.40 (b): imprime o estado da variável, para o log do job mostrar que ela não existe no SDK.
+        const bool variavelPresente = qEnvironmentVariableIsSet("OPENSSL_ENABLE_SHA1_SIGNATURES");
+        qInfo("VARIAVEL_SHA1_PRESENTE=%d", int(variavelPresente));
+        QVERIFY2(!variavelPresente, "a variável de SHA-1 não pode existir no processo do app");
         auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
         QVERIFY2(assinado.has_value(), "o SDK KDE 6.11 sem a variável tem de assinar SHA-1");
     }

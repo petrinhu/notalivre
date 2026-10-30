@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Assinador XMLDSIG enveloped (NL-2.3, DA-2.1, DA-2.2, DA-2.10, DA-2.36). Fluxo: parse, localizar o Id, C14N 1.0 da
-// subárvore (com os xmlns herdados declarados numa cópia), digest, SignedInfo canonicalizado, RSA com OSSL_LIB_CTX próprio
-// (provider default carregado explicitamente), Signature irmã do elemento, KeyInfo com o X509Certificate em DER.
-// Nada aqui lê ou define a variável de SHA-1 (portão sha1_env).
+// Assinador XMLDSIG enveloped (NL-2.3, DA-2.1, DA-2.2, DA-2.10, DA-2.36, DA-2.40). Fluxo da rodada 2: recusa DTD e XML já
+// assinado; achado único do Id, comparado por inteiro, no infDPS filho da raiz; validade do certificado na hora de assinar;
+// Signature inserida já na posição final, com digest e SignatureValue vazios; digest e SignedInfo canonicalizados com os
+// xmlns herdados do documento (DA-2.40, itens 4 a 6). Nada aqui lê ou define a variável de SHA-1 (portão sha1_env).
 #include <nl/foundation/xmldsig/assinador_xml.h>
 
 #include <libxml/c14n.h>
@@ -65,27 +65,65 @@ std::optional<std::string> nomeDaAssinatura(std::string_view uri) {
     return std::nullopt;
 }
 
-xmlNodePtr encontrarPorId(xmlNodePtr no, const std::string& id) {
+// Elemento com o nome e o namespace dados. O namespace vazio significa elemento sem namespace.
+bool ehElemento(xmlNodePtr no, std::string_view nome, std::string_view ns) {
+    if (no == nullptr || no->type != XML_ELEMENT_NODE || std::string_view(reinterpret_cast<const char*>(no->name)) != nome) {
+        return false;
+    }
+    if (no->ns == nullptr) {
+        return ns.empty();
+    }
+    return std::string_view(reinterpret_cast<const char*>(no->ns->href)) == ns;
+}
+
+// Todos os elementos cujo atributo Id SEM namespace é exatamente o id (DA-2.40, item 2). Id com prefixo não conta
+// (xmlGetNoNsProp, não xmlGetProp, que casaria só pelo nome local).
+void coletarPorId(xmlNodePtr no, const std::string& id, std::vector<xmlNodePtr>& achados) {
     for (xmlNodePtr atual = no; atual != nullptr; atual = atual->next) {
         if (atual->type != XML_ELEMENT_NODE) {
             continue;
         }
-        xmlChar* valor = xmlGetProp(atual, reinterpret_cast<const xmlChar*>("Id"));
-        const bool achou = valor != nullptr && id == reinterpret_cast<const char*>(valor);
+        xmlChar* valor = xmlGetNoNsProp(atual, reinterpret_cast<const xmlChar*>("Id"));
         if (valor != nullptr) {
+            if (id == reinterpret_cast<const char*>(valor)) {
+                achados.push_back(atual);
+            }
             xmlFree(valor);
         }
-        if (achou) {
-            return atual;
-        }
-        if (xmlNodePtr filho = encontrarPorId(atual->children, id)) {
-            return filho;
-        }
+        coletarPorId(atual->children, id, achados);
     }
-    return nullptr;
 }
 
-// C14N 1.0 inclusiva da subárvore. A cópia leva os xmlns herdados dos ancestrais, como exige o subconjunto (DA-2.2).
+// Há algum ds:Signature no no ou abaixo dele? (DA-2.40, item 3.)
+bool contemSignature(xmlNodePtr no) {
+    for (xmlNodePtr atual = no; atual != nullptr; atual = atual->next) {
+        if (atual->type != XML_ELEMENT_NODE) {
+            continue;
+        }
+        if (ehElemento(atual, "Signature", kDsig) || contemSignature(atual->children)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Transformada enveloped no digest: tira da cópia todo ds:Signature (W3C XMLDSig 6.6.4).
+void removerSignatures(xmlNodePtr no) {
+    xmlNodePtr atual = no->children;
+    while (atual != nullptr) {
+        xmlNodePtr proximo = atual->next;
+        if (ehElemento(atual, "Signature", kDsig)) {
+            xmlUnlinkNode(atual);
+            xmlFreeNode(atual);
+        } else if (atual->type == XML_ELEMENT_NODE) {
+            removerSignatures(atual);
+        }
+        atual = proximo;
+    }
+}
+
+// C14N 1.0 inclusiva da subárvore, com os xmlns herdados dos ancestrais do documento de origem (DA-2.2, DA-2.40 item 5/6).
+// A cópia é só o suporte da serialização: o namespace que vale é o do documento onde o nó está.
 std::optional<std::string> canonicalizar(xmlNodePtr no) {
     Doc copia(xmlNewDoc(reinterpret_cast<const xmlChar*>("1.0")));
     if (!copia) {
@@ -96,6 +134,7 @@ std::optional<std::string> canonicalizar(xmlNodePtr no) {
         return std::nullopt;
     }
     xmlDocSetRootElement(copia.get(), raiz);
+    removerSignatures(raiz);
     for (xmlNodePtr ancestral = no->parent; ancestral != nullptr && ancestral->type == XML_ELEMENT_NODE;
          ancestral = ancestral->parent) {
         for (xmlNsPtr ns = ancestral->nsDef; ns != nullptr; ns = ns->next) {
@@ -172,6 +211,35 @@ std::expected<std::string, ErroAssinatura> certificadoEmDer(const x509_st* certi
     return saida;
 }
 
+// Validade na hora de assinar (DA-2.40, item 8): notBefore já passou e notAfter ainda não.
+bool validadeDoMaterial(const x509_st* certificado) {
+    return X509_cmp_current_time(X509_get0_notBefore(certificado)) <= 0 &&
+           X509_cmp_current_time(X509_get0_notAfter(certificado)) > 0;
+}
+
+xmlNodePtr filhoPorNome(xmlNodePtr pai, std::string_view nome) {
+    for (xmlNodePtr atual = pai->children; atual != nullptr; atual = atual->next) {
+        if (ehElemento(atual, nome, kDsig)) {
+            return atual;
+        }
+    }
+    return nullptr;
+}
+
+// Modelo da Signature na posição final (DA-2.40, item 4): DigestValue e SignatureValue vazios, KeyInfo já preenchido.
+std::string modeloSignature(const ParametrosAssinatura& parametros, const std::string& id,
+                            const std::string& certificadoB64) {
+    const std::string dsig(kDsig);
+    const std::string c14n(kC14n);
+    const std::string env(kEnveloped);
+    return "<Signature xmlns=\"" + dsig + "\"><SignedInfo><CanonicalizationMethod Algorithm=\"" + c14n +
+           "\"/><SignatureMethod Algorithm=\"" + std::string(parametros.uriAssinatura) + "\"/><Reference URI=\"#" + id +
+           "\"><Transforms><Transform Algorithm=\"" + env + "\"/><Transform Algorithm=\"" + c14n +
+           "\"/></Transforms><DigestMethod Algorithm=\"" + std::string(parametros.uriDigest) +
+           "\"/><DigestValue></DigestValue></Reference></SignedInfo><SignatureValue></SignatureValue><KeyInfo>"
+           "<X509Data><X509Certificate>" + certificadoB64 + "</X509Certificate></X509Data></KeyInfo></Signature>";
+}
+
 } // namespace
 
 std::string_view codigo(ErroAssinatura erro) noexcept {
@@ -210,16 +278,38 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
     if (!nomeDigest || !nomeSig) {
         return std::unexpected(ErroAssinatura::AlgoritmoBloqueado);
     }
+    if (!validadeDoMaterial(material.certificado)) {
+        return std::unexpected(ErroAssinatura::MaterialInvalido);
+    }
 
     const std::string id = idReferencia.toUtf8().toStdString();
-    Doc doc(xmlReadMemory(xml.data(), static_cast<int>(xml.size()), "dps.xml", nullptr,
-                          XML_PARSE_NONET));
+    Doc doc(xmlReadMemory(xml.data(), static_cast<int>(xml.size()), "dps.xml", nullptr, XML_PARSE_NONET));
     if (!doc) {
         return std::unexpected(ErroAssinatura::XmlMalformado);
     }
-    xmlNodePtr referencia = encontrarPorId(xmlDocGetRootElement(doc.get()), id);
-    if (referencia == nullptr) {
+    if (doc->intSubset != nullptr || doc->extSubset != nullptr) {
+        return std::unexpected(ErroAssinatura::XmlComDtd);  // DTD e entidade recusados antes de qualquer uso (item 1)
+    }
+    xmlNodePtr raiz = xmlDocGetRootElement(doc.get());
+    if (raiz == nullptr) {
+        return std::unexpected(ErroAssinatura::XmlMalformado);
+    }
+    if (contemSignature(raiz)) {
+        return std::unexpected(ErroAssinatura::JaAssinado);  // reassinar exige o XML sem assinatura (item 3)
+    }
+
+    std::vector<xmlNodePtr> achados;
+    coletarPorId(raiz, id, achados);
+    if (achados.size() > 1) {
+        return std::unexpected(ErroAssinatura::ReferenciaAmbigua);
+    }
+    if (achados.empty()) {
         return std::unexpected(ErroAssinatura::ReferenciaNaoEncontrada);
+    }
+    xmlNodePtr referencia = achados.front();
+    if (!ehElemento(referencia, parametros.nomeReferencia, parametros.namespaceLeiaute) || referencia->parent != raiz ||
+        !ehElemento(raiz, parametros.nomePaiReferencia, parametros.namespaceLeiaute)) {
+        return std::unexpected(ErroAssinatura::ReferenciaNaoEncontrada);  // Id fora do infDPS filho da raiz DPS (item 2)
     }
 
     LibCtx ctx(OSSL_LIB_CTX_new());
@@ -231,6 +321,24 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
         return std::unexpected(ErroAssinatura::FalhaInterna);
     }
 
+    const auto certificado = certificadoEmDer(material.certificado);
+    if (!certificado) {
+        return std::unexpected(certificado.error());
+    }
+    // Modelo da Signature já na posição final, irmã do infDPS (item 4). Digest e SignatureValue são preenchidos depois.
+    Doc modelo(xmlReadMemory(modeloSignature(parametros, id, *certificado).c_str(),
+                             static_cast<int>(modeloSignature(parametros, id, *certificado).size()), "signature.xml",
+                             nullptr, XML_PARSE_NONET));
+    if (!modelo) {
+        return std::unexpected(ErroAssinatura::FalhaInterna);
+    }
+    xmlNodePtr assinatura = xmlDocCopyNode(xmlDocGetRootElement(modelo.get()), doc.get(), 1);
+    if (assinatura == nullptr) {
+        return std::unexpected(ErroAssinatura::FalhaInterna);
+    }
+    xmlAddNextSibling(referencia, assinatura);
+
+    // Digest da referência: subárvore do infDPS, sem a Signature (enveloped), no contexto do documento (item 5).
     const auto canonicoReferencia = canonicalizar(referencia);
     if (!canonicoReferencia) {
         return std::unexpected(ErroAssinatura::FalhaInterna);
@@ -240,46 +348,29 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
         return std::unexpected(digestReferencia.error());
     }
     const std::string digestB64 = base64(digestReferencia->data(), digestReferencia->size());
-
-    const std::string signedInfo =
-        "<SignedInfo xmlns=\"" + std::string(kDsig) + "\"><CanonicalizationMethod Algorithm=\"" + std::string(kC14n) +
-        "\"/><SignatureMethod Algorithm=\"" + std::string(parametros.uriAssinatura) +
-        "\"/><Reference URI=\"#" + id + "\"><Transforms><Transform Algorithm=\"" + std::string(kEnveloped) +
-        "\"/><Transform Algorithm=\"" + std::string(kC14n) + "\"/></Transforms><DigestMethod Algorithm=\"" +
-        std::string(parametros.uriDigest) + "\"/><DigestValue>" + digestB64 +
-        "</DigestValue></Reference></SignedInfo>";
-    Doc si(xmlReadMemory(signedInfo.data(), static_cast<int>(signedInfo.size()), "signedinfo.xml", nullptr,
-                         XML_PARSE_NONET));
-    if (!si) {
+    xmlNodePtr signedInfo = filhoPorNome(assinatura, "SignedInfo");
+    xmlNodePtr reference = signedInfo != nullptr ? filhoPorNome(signedInfo, "Reference") : nullptr;
+    xmlNodePtr digestNo = reference != nullptr ? filhoPorNome(reference, "DigestValue") : nullptr;
+    if (digestNo == nullptr) {
         return std::unexpected(ErroAssinatura::FalhaInterna);
     }
-    const auto canonicoSignedInfo = canonicalizar(xmlDocGetRootElement(si.get()));
+    xmlNodeSetContent(digestNo, reinterpret_cast<const xmlChar*>(digestB64.c_str()));
+
+    // SignedInfo canonicalizado dentro do documento, com o xmlns:xsi da raiz herdado (item 6, achado mH).
+    const auto canonicoSignedInfo = canonicalizar(signedInfo);
     if (!canonicoSignedInfo) {
         return std::unexpected(ErroAssinatura::FalhaInterna);
     }
-    const auto assinatura = assinarRsa(ctx.get(), *nomeSig, const_cast<evp_pkey_st*>(material.chave), *canonicoSignedInfo);
-    if (!assinatura) {
-        return std::unexpected(assinatura.error());
+    const auto assinado = assinarRsa(ctx.get(), *nomeSig, const_cast<evp_pkey_st*>(material.chave), *canonicoSignedInfo);
+    if (!assinado) {
+        return std::unexpected(assinado.error());
     }
-    const auto certificado = certificadoEmDer(material.certificado);
-    if (!certificado) {
-        return std::unexpected(certificado.error());
-    }
-
-    const std::string fragmento =
-        "<Signature xmlns=\"" + std::string(kDsig) + "\">" + signedInfo + "<SignatureValue>" +
-        base64(assinatura->data(), assinatura->size()) + "</SignatureValue><KeyInfo><X509Data><X509Certificate>" +
-        *certificado + "</X509Certificate></X509Data></KeyInfo></Signature>";
-    Doc frag(xmlReadMemory(fragmento.data(), static_cast<int>(fragmento.size()), "signature.xml", nullptr,
-                           XML_PARSE_NONET));
-    if (!frag) {
+    xmlNodePtr valor = filhoPorNome(assinatura, "SignatureValue");
+    if (valor == nullptr) {
         return std::unexpected(ErroAssinatura::FalhaInterna);
     }
-    xmlNodePtr copia = xmlDocCopyNode(xmlDocGetRootElement(frag.get()), doc.get(), 1);
-    if (copia == nullptr) {
-        return std::unexpected(ErroAssinatura::FalhaInterna);
-    }
-    xmlAddNextSibling(referencia, copia);  // Signature irmã do elemento assinado, dentro do elemento raiz (DA-2.3)
+    const std::string assinaturaB64 = base64(assinado->data(), assinado->size());
+    xmlNodeSetContent(valor, reinterpret_cast<const xmlChar*>(assinaturaB64.c_str()));
 
     xmlChar* saida = nullptr;
     int tamanho = 0;

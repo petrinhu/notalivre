@@ -50,8 +50,7 @@ else()
         xmlComDtdRecusado
         variavelDoFedoraValeNoContextoProprio
         materialVencidoNaHoraDeAssinarRecusado
-        materialAindaNaoValidoRecusado
-        medirOsslLibCtxProprio)
+        materialAindaNaoValidoRecusado)
 endif()
 
 foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
