@@ -437,6 +437,57 @@ private slots:
         QVERIFY2(!mc::CatalogoErrosSefin::conhece("E9999"), "código fora do catálogo não é conhecido");
     }
 
+    void xmlNfseGuardaXmlDescomprimido()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "a Sefin de teste tem de aceitar a DPS assinada");
+        QVERIFY2(!nota->xmlPendente, "o XML de um sucesso legível não fica pendente");
+        QVERIFY2(nota->xmlNfse == dps->xml, "xmlNfse guarda o XML descompactado, não o GZip nem o Base64");
+    }
+
+    void base64InvalidoRecusado()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse nfse_base64_invalido")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "sucesso com caractere fora do Base64 devolve a chave, sem falha");
+        QVERIFY2(nota->xmlPendente, "caractere fora do Base64 marca o XML como pendente");
+        QVERIFY2(nota->xmlNfse.isEmpty(), "XML pendente não traz bytes");
+        QCOMPARE(nota->chave.texto().size(), qsizetype{50});
+    }
+
+    void xmlIlegivelNumSucessoNaoLiberaReenvio()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        const QStringList roteiros{QStringLiteral("POST /nfse nfse_gzip_invalido"),
+                                   QStringLiteral("POST /nfse nfse_acima_do_teto")};
+        for (const QString& roteiro : roteiros) {
+            ServidorDeTeste srv({roteiro});
+            QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+            auto m = montar(srv.porta(), *cred);
+            auto nota = m->cliente->emitir(*dps);
+            QVERIFY2(nota.has_value(), "sucesso com XML ilegível devolve a chave, sem falha");
+            QVERIFY2(nota->xmlPendente, "XML que não descompacta fica pendente");
+            QVERIFY2(sequencia(m->destino.str()) == std::vector<std::string>{"POST:201"},
+                     "XML ilegível num sucesso nunca libera reenvio: um POST e nenhuma consulta");
+        }
+    }
+
     void backoffDobraAteAPrimeiraRepeticao()
     {
         mc::PoliticaRetry politica;

@@ -20,6 +20,11 @@ namespace nl::foundation::gzip {
 /// little-endian. Entrada vazia é um gzip válido de zero bytes; quem chama decide se aceita isso.
 [[nodiscard]] std::expected<std::vector<std::byte>, nl::base::Erro> comprimir(std::span<const std::byte> entrada);
 
+/// Descompacta um gzip (RFC 1952). Recusa com gzip.descompactacao o que não for gzip válido e truncado, e com
+/// gzip.limite o que passar de `limite` bytes descompactados (teto contra bomba de compressão, DA-2.39).
+[[nodiscard]] std::expected<std::vector<std::byte>, nl::base::Erro> descomprimir(std::span<const std::byte> entrada,
+                                                                                  std::size_t limite);
+
 } // namespace nl::foundation::gzip
 
 #endif // NL_FOUNDATION_GZIP_GZIP_H

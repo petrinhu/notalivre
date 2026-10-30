@@ -26,7 +26,10 @@ foreach(nome IN ITEMS
     getTransitorioRepeteComBackoff
     leitorAceitaErroEErrosECodigoECodigo
     catalogoDaMensagemDoCodigoE
-    backoffDobraAteAPrimeiraRepeticao)
+    backoffDobraAteAPrimeiraRepeticao
+    xmlNfseGuardaXmlDescomprimido
+    base64InvalidoRecusado
+    xmlIlegivelNumSucessoNaoLiberaReenvio)
   add_test(NAME mid.sefin.cliente.${nome} COMMAND tst_cliente_sefin ${nome})
   set_tests_properties(mid.sefin.cliente.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste

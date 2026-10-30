@@ -5,6 +5,7 @@
 #ifndef NL_MID_SEFIN_LEIAUTE_PRODREST_20261020_LIMITES_LEIAUTE_H
 #define NL_MID_SEFIN_LEIAUTE_PRODREST_20261020_LIMITES_LEIAUTE_H
 
+#include <cstddef>
 #include <string_view>
 
 namespace nl::mid::sefin::prodrest_20261020 {
@@ -14,6 +15,10 @@ inline constexpr std::string_view kVersaoLeiaute = "1.01";
 
 /// Tamanho máximo de xDescServ (TSDesc2000, tiposSimples_v1.01.xsd:1439-1445), em pontos de código Unicode.
 inline constexpr int kLimiteXDescServ = 2000;
+
+/// Teto do XML da NFS-e descompactado no retorno da Sefin (DA-2.39). INFERÊNCIA do CTO: 5 MiB cobre uma NFS-e com
+/// folga; a medir na NL-2.10.
+inline constexpr std::size_t kLimiteXmlNfse = 5 * 1024 * 1024;
 
 } // namespace nl::mid::sefin::prodrest_20261020
 

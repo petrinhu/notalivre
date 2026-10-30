@@ -135,4 +135,12 @@ std::expected<std::vector<std::byte>, nl::base::Erro> comprimir(std::span<const 
     return detalhe::comprimirComLimite(entrada, static_cast<std::size_t>(std::numeric_limits<uInt>::max()));
 }
 
+// VERMELHO da NL-2.8 (DA-2.39): stub que recusa sempre. A implementação entra no verde.
+std::expected<std::vector<std::byte>, nl::base::Erro> descomprimir(std::span<const std::byte> entrada, std::size_t limite)
+{
+    (void)entrada;
+    (void)limite;
+    return std::unexpected(erroGzip("gzip.nao_implementado", "descompressão ainda não implementada"));
+}
+
 } // namespace nl::foundation::gzip

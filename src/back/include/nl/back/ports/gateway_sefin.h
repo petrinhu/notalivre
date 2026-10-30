@@ -33,7 +33,8 @@ struct FalhaSefin {
 
 struct NotaSefin {
     ChaveAcesso chave;
-    QByteArray xmlNfse;
+    QByteArray xmlNfse;               ///< XML da NFS-e já descompactado (DA-2.39). Vazio quando xmlPendente.
+    bool xmlPendente = false;         ///< Sucesso sem XML legível: a chave vale, o reenvio fica bloqueado e o XML vem por GET /nfse/{chave}.
 };
 
 class GatewaySefin {

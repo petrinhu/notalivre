@@ -8,6 +8,7 @@ INFERÊNCIA até a NL-2.10: códigos de erro (exceto E0714, do Anexo I), a forma
 Endpoints de evento e de DFe respondem 501: fora desta fatia, sem teste, sem comportamento inventado.
 """
 
+import base64
 import gzip
 import hashlib
 import http.server
@@ -17,7 +18,7 @@ import threading
 
 from . import envelope
 from .referencia import id_do_infdps
-from .roteiro import Roteiro
+from .roteiro import SO_POST_NFSE, Roteiro
 
 ROTA_DPS = "/dps/"
 ROTA_NFSE = "/nfse/"
@@ -36,6 +37,18 @@ def chave_de_teste(id_dps):
 def corpo_da_nota(chave, xml):
     # INFERÊNCIA: o campo leva a DPS assinada no lugar do XML da NFS-e (sem schema de NFS-e aqui).
     return {"chaveAcesso": chave, "nfseXmlGZipB64": envelope.gzip_b64(xml)}
+
+
+# Teto do XML descompactado no cliente (limites_leiaute.h, DA-2.39). INFERÊNCIA do CTO, a medir na NL-2.10.
+TETO_XML_NFSE = 5 * 1024 * 1024
+
+
+def corpo_nfse_defeituosa(chave, falha):
+    if falha == "nfse_base64_invalido":
+        return {"chaveAcesso": chave, "nfseXmlGZipB64": envelope.gzip_b64(b"<NFSe/>") + "@"}  # "@" fora do Base64
+    if falha == "nfse_gzip_invalido":
+        return {"chaveAcesso": chave, "nfseXmlGZipB64": base64.b64encode(b"isto nao e gzip").decode("ascii")}
+    return {"chaveAcesso": chave, "nfseXmlGZipB64": envelope.gzip_b64(b"\0" * (TETO_XML_NFSE + 1))}
 
 
 class ServidorFalso(http.server.HTTPServer):
@@ -159,6 +172,8 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         if falha == "conexao_cortada_apos_aceite":
             self.close_connection = True  # aceita e grava, mas corta a conexão sem resposta
             return None
+        if falha in SO_POST_NFSE:
+            return self._json(201, corpo_nfse_defeituosa(chave, falha))
         return self._json(201, corpo_da_nota(chave, xml))
 
     def _consultar_dps(self, id_dps):
