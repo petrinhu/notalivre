@@ -209,6 +209,26 @@ class TestePortaoSha1(unittest.TestCase):
         self.assertEqual(rc, 1, saida)
         self.assertIn("src/worktrees/vazado.cpp", saida)
 
+    def test_portaoSha1TesteXmldsigPermitidoPeloCaminhoExato(self):
+        # DA-2.37: o teste do assinador cita a variável para provar que o app não muda com ela. Entra por caminho exato.
+        raiz = self._arvore({
+            "tests/unit/foundation/xmldsig/tst_assinador_xml.cpp": f'const char *v = "{VARIAVEL}";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 0, saida)
+        self.assertIn("violacoes=0", saida)
+
+    def test_portaoSha1OutroTesteDoXmldsigReprova(self):
+        # DA-2.37: a permissão é do arquivo exato. Outro arquivo na mesma pasta de testes continua reprovando.
+        raiz = self._arvore({
+            "tests/unit/foundation/xmldsig/outro_teste.cpp": f'const char *v = "{VARIAVEL}";\n',
+            "src/limpo.cpp": "int a = 1;\n",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("tests/unit/foundation/xmldsig/outro_teste.cpp", saida)
+
     def test_ciHigieneLigaPortaoSha1(self):
         # Job higiene do ci.yml (fronteira: o job seguinte, camadas). O portão tem de rodar sobre o workspace inteiro.
         texto = (RAIZ / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")

@@ -23,6 +23,8 @@ foreach(nome IN ITEMS
     portaoSha1WorktreeAninhadoReprova
     portaoSha1WorktreeRastreadoNaRaizReprova
     portaoSha1MarkdownSrcReprova
+    portaoSha1TesteXmldsigPermitidoPeloCaminhoExato
+    portaoSha1OutroTesteDoXmldsigReprova
     ciHigieneLigaPortaoSha1)
   add_test(NAME portoes.${nome}
            COMMAND Python3::Interpreter -I "${NL_TESTE_PORTAO_SHA1}" "test_${nome}")
