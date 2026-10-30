@@ -41,9 +41,7 @@ struct FalhaEmissao
 };
 
 /// Emite a DPS. Erro de entrada, de credencial ou de envio volta com código estável e sem dado de titular.
-std::expected<nl::back::NotaSefin, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido,
-                                                                 nl::foundation::pkcs12::SenhaSegura& senha,
-                                                                 nl::foundation::log::Log& registro);
+std::expected<nl::back::NotaSefin, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, const QByteArray& senha);
 
 } // namespace nl::mid::composicao
 

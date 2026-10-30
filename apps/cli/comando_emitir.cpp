@@ -7,8 +7,6 @@
 #include "configuracao_cli.h"
 #include "senha_terminal.h"
 
-#include <nl/foundation/log/log.h>
-#include <nl/foundation/pkcs12/senha_segura.h>
 #include <nl/mid/composicao/emissao_cli.h>
 #include <nl/mid/composicao/politica_emissao.h>
 
@@ -16,7 +14,6 @@
 #include <QIODevice>
 #include <QTextStream>
 
-#include <iostream>
 
 namespace nl::cli {
 
@@ -64,7 +61,6 @@ int executarEmitir(const QStringList& argumentos)
         erro << QStringLiteral("senha ausente: sem terminal de controle, a CLI não lê a senha") << Qt::endl;
         return 2;
     }
-    nl::foundation::pkcs12::SenhaSegura senha = nl::foundation::pkcs12::SenhaSegura::de(*senhaTerminal);
 
     nl::mid::composicao::PedidoEmissao pedido{
         arquivoDps.readAll(),
@@ -73,10 +69,8 @@ int executarEmitir(const QStringList& argumentos)
         config->urlSefin,
         config->ancoras,
     };
-    // Registro da emissão: nenhum campo declarado, então nada de dado de titular sai daqui (ADR-0005 e).
-    nl::foundation::log::Log registro{std::cerr, "notalivre-cli", {},
                                       {"sefin.requisicao", "sefin.erro"}};
-    const auto nota = nl::mid::composicao::emitirDpsPelaCli(pedido, senha, registro);
+    const auto nota = nl::mid::composicao::emitirDpsPelaCli(pedido, *senhaTerminal);
     if (!nota) {
         erro << QStringLiteral("emissão recusada (%1): %2")
                     .arg(QString::fromStdString(nota.error().codigo()), QString::fromStdString(nota.error().mensagem()))

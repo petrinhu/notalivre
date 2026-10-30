@@ -34,6 +34,7 @@
 #include <openssl/x509.h>
 
 #include <chrono>
+#include <iostream>
 #include <optional>
 
 namespace nl::mid::composicao {
@@ -125,8 +126,7 @@ FalhaEmissao falhaDoEnvio(const nl::back::FalhaSefin& falhaSefin)
 
 } // namespace
 
-std::expected<bk::NotaSefin, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, fp::SenhaSegura& senha,
-                                                           nl::foundation::log::Log& registro)
+std::expected<bk::NotaSefin, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, const QByteArray& senha)
 {
     // 1. DPS de entrada: JSON validado no XSD. Reprovação vem com o primeiro código do validador.
     auto xml = DpsValidar::executar(pedido.dpsJson, pedido.esquema);
@@ -147,7 +147,8 @@ std::expected<bk::NotaSefin, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao&
     }
     const QByteArray pfx = lerArquivo(pedido.caminhoCertificado);
     fp::CarregadorPkcs12 carregador;
-    auto credencial = carregador.carregar(pfx, senha, *ancoras);
+    fp::SenhaSegura senhaSegura = fp::SenhaSegura::de(senha);
+    auto credencial = carregador.carregar(pfx, senhaSegura, *ancoras);
     if (!credencial) {
         return std::unexpected(falha("credencial.nao_carregou", "o certificado não carregou com a senha informada"));
     }
@@ -159,6 +160,7 @@ std::expected<bk::NotaSefin, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao&
     }
     // 5. Envio mTLS pelo cliente Sefin.
     const ft::UrlBase base{QUrl(pedido.urlSefin), QString(), std::chrono::milliseconds{30000}};
+    nl::foundation::log::Log registro{std::cerr, "notalivre-cli", {}, {"sefin.requisicao", "sefin.erro"}};
     ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasPem));
     nl::mid::sefin::cliente::ClienteSefin cliente(transporte, registro, nl::mid::sefin::cliente::PoliticaRetry{});
     auto nota = cliente.emitir(bk::DpsAssinada{*idDps, *assinado});
