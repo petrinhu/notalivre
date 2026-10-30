@@ -15,6 +15,7 @@ enum class ErroRaizIcp {
     ManifestoVazio,       ///< Nenhuma linha de hash no manifesto (piso não-vazio, L-36).
     ManifestoMalformado,  ///< Linha de hash sem metadado, metadado repetido ou sem par, ou nome de arquivo repetido.
     ArquivoAusente,       ///< Arquivo listado no manifesto não existe no diretório.
+    ArquivoNaoDeclarado,  ///< Há um .der no diretório que o manifesto não declara (CISO, item 4).
     HashDivergente,       ///< SHA-256 do DER diferente do manifesto. Não usar este arquivo.
     CertificadoIlegivel,  ///< O DER não decodifica como certificado X.509.
     NenhumaRaizAceita,    ///< Todas as raízes foram descartadas: sem âncora, a carga falha.
@@ -28,6 +29,7 @@ enum class ErroRaizIcp {
     case ErroRaizIcp::ManifestoVazio: return "raiz_icp.manifesto_vazio";
     case ErroRaizIcp::ManifestoMalformado: return "raiz_icp.manifesto_malformado";
     case ErroRaizIcp::ArquivoAusente: return "raiz_icp.arquivo_ausente";
+    case ErroRaizIcp::ArquivoNaoDeclarado: return "raiz_icp.arquivo_nao_declarado";
     case ErroRaizIcp::HashDivergente: return "raiz_icp.hash_divergente";
     case ErroRaizIcp::CertificadoIlegivel: return "raiz_icp.certificado_ilegivel";
     case ErroRaizIcp::NenhumaRaizAceita: return "raiz_icp.nenhuma_raiz_aceita";

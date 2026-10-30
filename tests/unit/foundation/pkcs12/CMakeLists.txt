@@ -84,7 +84,7 @@ foreach(nome IN ITEMS
     cadeiaDeTesteNaoValidaContraAsRaizesIcp
     raizVencidaNaoEntraComoAncora
     raizForaDoPropositoNaoEntraComoAncora
-    arquivoForaDoManifestoNaoEntra
+    arquivoNaoDeclaradoNoDiretorioRecusado
     manifestoVazioRecusado
     metaComChaveRepetidaRecusada
     arquivoAusenteRecusa

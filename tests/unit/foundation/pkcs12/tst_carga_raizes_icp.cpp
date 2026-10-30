@@ -95,7 +95,7 @@ private slots:
     void cadeiaDeTesteNaoValidaContraAsRaizesIcp();
     void raizVencidaNaoEntraComoAncora();
     void raizForaDoPropositoNaoEntraComoAncora();
-    void arquivoForaDoManifestoNaoEntra();
+    void arquivoNaoDeclaradoNoDiretorioRecusado();
     void manifestoVazioRecusado();
     void metaComChaveRepetidaRecusada();
 
@@ -196,9 +196,10 @@ void TesteCargaRaizesIcp::raizForaDoPropositoNaoEntraComoAncora()
     QVERIFY(carga->descartes.front().motivo == MotivoDescarte::PropositoDiferente);
 }
 
-void TesteCargaRaizesIcp::arquivoForaDoManifestoNaoEntra()
+void TesteCargaRaizesIcp::arquivoNaoDeclaradoNoDiretorioRecusado()
 {
-    // Um .der no diretório que não está no SHA256SUMS não vira âncora, mesmo sendo um certificado válido.
+    // Um .der no diretório que o manifesto não declara faz a carga recusar com ArquivoNaoDeclarado (CISO, item 4):
+    // em produção o conteúdo do diretório é conhecido por inteiro, então um arquivo a mais é sinal de adulteração.
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     const QByteArray geral = teste::raizSinteticaDer("Raiz listada de teste", epoca(2020, 1, 1), epoca(2040, 1, 1));
@@ -213,9 +214,9 @@ void TesteCargaRaizesIcp::arquivoForaDoManifestoNaoEntra()
     extra.close();
 
     Carga carga = carregarRaizesIcp(tmp.path(), manifesto, "geral", agoraDeTeste());
-    QVERIFY2(carga.has_value(), descreverCarga(carga).c_str());
-    QCOMPARE(carga->ancoras.quantidade(), std::size_t{1});
-    QVERIFY(carga->descartes.empty());
+    QVERIFY2(!carga.has_value(), "carga aceita com .der não declarado no diretório");
+    QVERIFY2(carga.error().motivo == ErroRaizIcp::ArquivoNaoDeclarado, std::string(codigo(carga.error().motivo)).c_str());
+    QCOMPARE(QString::fromStdString(carga.error().arquivo), QStringLiteral("raiz_fora.der"));
 }
 
 void TesteCargaRaizesIcp::manifestoVazioRecusado()
