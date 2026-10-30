@@ -234,27 +234,35 @@ void TesteCargaRaizesIcp::manifestoVazioRecusado()
     QVERIFY2(carga.error().motivo == ErroRaizIcp::ManifestoVazio, std::string(codigo(carga.error().motivo)).c_str());
 }
 
+
 void TesteCargaRaizesIcp::metaComChaveRepetidaRecusada()
 {
-    // Um "# meta" com a mesma chave duas vezes (proposito=geral e proposito=ssl) é ambíguo: o manifesto é recusado,
-    // em vez de a última chave ganhar em silêncio (CISO, 30/10/2026, item 3).
+    // Um "# meta" com a mesma chave duas vezes (proposito=geral e proposito=ssl) é ambíguo. Ao lado, uma linha boa: o
+    // manifesto inteiro é recusado, e a linha boa não entra sozinha (CISO, 30/10/2026, item 3).
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
-    const QByteArray der = teste::raizSinteticaDer("Raiz com meta repetida", epoca(2020, 1, 1), epoca(2040, 1, 1));
-    QVERIFY(!der.isEmpty());
-    QFile arquivo(tmp.filePath(QStringLiteral("raiz.der")));
-    QVERIFY(arquivo.open(QIODevice::WriteOnly));
-    QVERIFY(arquivo.write(der) == der.size());
-    arquivo.close();
-    const QString hash = QString::fromLatin1(QCryptographicHash::hash(der, QCryptographicHash::Sha256).toHex());
+    const QByteArray repetida = teste::raizSinteticaDer("Raiz com meta repetida", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    const QByteArray boa = teste::raizSinteticaDer("Raiz boa ao lado", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    QVERIFY(!repetida.isEmpty() && !boa.isEmpty());
+    QFile arquivoRepetida(tmp.filePath(QStringLiteral("raiz.der")));
+    QVERIFY(arquivoRepetida.open(QIODevice::WriteOnly));
+    QVERIFY(arquivoRepetida.write(repetida) == repetida.size());
+    arquivoRepetida.close();
+    QFile arquivoBoa(tmp.filePath(QStringLiteral("boa.der")));
+    QVERIFY(arquivoBoa.open(QIODevice::WriteOnly));
+    QVERIFY(arquivoBoa.write(boa) == boa.size());
+    arquivoBoa.close();
+    const QString hashRepetida = QString::fromLatin1(QCryptographicHash::hash(repetida, QCryptographicHash::Sha256).toHex());
+    const QString hashBoa = QString::fromLatin1(QCryptographicHash::hash(boa, QCryptographicHash::Sha256).toHex());
     QFile manifesto(tmp.filePath(QStringLiteral("SHA256SUMS")));
     QVERIFY(manifesto.open(QIODevice::WriteOnly));
-    manifesto.write(QStringLiteral("# meta raiz.der proposito=geral proposito=ssl fonte=teste\n%1  raiz.der\n")
-                        .arg(hash).toUtf8());
+    manifesto.write(QStringLiteral("# meta boa.der proposito=geral fonte=teste\n%1  boa.der\n"
+                                   "# meta raiz.der proposito=geral proposito=ssl fonte=teste\n%2  raiz.der\n")
+                        .arg(hashBoa, hashRepetida).toUtf8());
     manifesto.close();
 
     Carga carga = carregarRaizesIcp(tmp.path(), manifesto.fileName(), "geral", agoraDeTeste());
-    QVERIFY2(!carga.has_value(), "meta com chave repetida aceita");
+    QVERIFY2(!carga.has_value(), "meta com chave repetida aceita com a raiz boa ao lado");
     QVERIFY2(carga.error().motivo == ErroRaizIcp::ManifestoMalformado, std::string(codigo(carga.error().motivo)).c_str());
 }
 
@@ -275,50 +283,74 @@ void TesteCargaRaizesIcp::arquivoAusenteRecusa()
     QCOMPARE(QString::fromStdString(carga.error().arquivo), QStringLiteral("ICP-Brasilv13.der"));
 }
 
+
 void TesteCargaRaizesIcp::certificadoIlegivelRecusa()
 {
-    // O hash confere com o manifesto, mas o conteúdo não é DER de certificado: falha fechada, com o nome do arquivo.
+    // Uma raiz válida e um conteúdo que não é DER de certificado, ambos com hash conferido. A carga inteira tem de ser
+    // recusada: a raiz válida não entra sozinha, e o erro nomeia o arquivo ruim (não basta o código de erro).
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
+    const QByteArray boa = teste::raizSinteticaDer("Raiz boa ao lado do lixo", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    QVERIFY(!boa.isEmpty());
     const QByteArray lixo("isto nao e um certificado X.509");
-    const QString manifesto = teste::escreverRepositorioTeste(tmp.path(), {{QStringLiteral("ruim.der"), lixo, QStringLiteral("geral")}});
+    const QString manifesto = teste::escreverRepositorioTeste(
+        tmp.path(), {{QStringLiteral("ruim.der"), lixo, QStringLiteral("geral")},
+                     {QStringLiteral("boa.der"), boa, QStringLiteral("geral")}});
     QVERIFY(!manifesto.isEmpty());
 
     Carga carga = carregarRaizesIcp(tmp.path(), manifesto, "geral", agoraDeTeste());
-    QVERIFY2(!carga.has_value(), "conteúdo não-X.509 aceito como raiz");
+    QVERIFY2(!carga.has_value(), "carga aceita com a raiz válida ao lado de um conteúdo não-X.509");
     QVERIFY2(carga.error().motivo == ErroRaizIcp::CertificadoIlegivel, std::string(codigo(carga.error().motivo)).c_str());
     QCOMPARE(QString::fromStdString(carga.error().arquivo), QStringLiteral("ruim.der"));
 }
 
+
 void TesteCargaRaizesIcp::manifestoAusenteRecusa()
 {
-    // Sem SHA256SUMS não há o que conferir: a carga recusa, em vez de tratar a ausência como conjunto vazio.
+    // Uma raiz válida no diretório e nenhum SHA256SUMS: sem manifesto não há o que conferir, então a carga é recusada
+    // (ManifestoAusente) e não vira um conjunto vazio nem usa o .der sem conferência.
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
-    Carga carga = carregarRaizesIcp(dirRaizes(), tmp.filePath(QStringLiteral("SHA256SUMS")), "geral", agoraDeTeste());
-    QVERIFY2(!carga.has_value(), "carga aceita sem manifesto");
+    const QByteArray boa = teste::raizSinteticaDer("Raiz valida sem manifesto", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    QVERIFY(!boa.isEmpty());
+    QFile arquivo(tmp.filePath(QStringLiteral("boa.der")));
+    QVERIFY(arquivo.open(QIODevice::WriteOnly));
+    QVERIFY(arquivo.write(boa) == boa.size());
+    arquivo.close();
+
+    Carga carga = carregarRaizesIcp(tmp.path(), tmp.filePath(QStringLiteral("SHA256SUMS")), "geral", agoraDeTeste());
+    QVERIFY2(!carga.has_value(), "carga aceita sem manifesto, com a raiz válida no diretório");
     QVERIFY2(carga.error().motivo == ErroRaizIcp::ManifestoAusente, std::string(codigo(carga.error().motivo)).c_str());
 }
 
+
 void TesteCargaRaizesIcp::manifestoMalformadoRecusa()
 {
-    // Uma linha de hash sem o "# meta" correspondente: o manifesto é recusado por inteiro.
+    // Uma linha de hash válida, com metadado, e outra linha de hash sem o "# meta" correspondente: o manifesto inteiro
+    // é recusado. A linha boa não é aproveitada sozinha.
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
-    const QByteArray der = teste::raizSinteticaDer("Raiz sem metadado", epoca(2020, 1, 1), epoca(2040, 1, 1));
-    QVERIFY(!der.isEmpty());
-    QFile arquivo(tmp.filePath(QStringLiteral("raiz.der")));
-    QVERIFY(arquivo.open(QIODevice::WriteOnly));
-    QVERIFY(arquivo.write(der) == der.size());
-    arquivo.close();
-    const QString hash = QString::fromLatin1(QCryptographicHash::hash(der, QCryptographicHash::Sha256).toHex());
+    const QByteArray boa = teste::raizSinteticaDer("Raiz boa", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    const QByteArray semMeta = teste::raizSinteticaDer("Raiz sem metadado", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    QVERIFY(!boa.isEmpty() && !semMeta.isEmpty());
+    QFile arquivoBoa(tmp.filePath(QStringLiteral("boa.der")));
+    QVERIFY(arquivoBoa.open(QIODevice::WriteOnly));
+    QVERIFY(arquivoBoa.write(boa) == boa.size());
+    arquivoBoa.close();
+    QFile arquivoSemMeta(tmp.filePath(QStringLiteral("raiz.der")));
+    QVERIFY(arquivoSemMeta.open(QIODevice::WriteOnly));
+    QVERIFY(arquivoSemMeta.write(semMeta) == semMeta.size());
+    arquivoSemMeta.close();
+    const QString hashBoa = QString::fromLatin1(QCryptographicHash::hash(boa, QCryptographicHash::Sha256).toHex());
+    const QString hashSemMeta = QString::fromLatin1(QCryptographicHash::hash(semMeta, QCryptographicHash::Sha256).toHex());
     QFile manifesto(tmp.filePath(QStringLiteral("SHA256SUMS")));
     QVERIFY(manifesto.open(QIODevice::WriteOnly));
-    manifesto.write(QStringLiteral("%1  raiz.der\n").arg(hash).toUtf8());
+    manifesto.write(QStringLiteral("# meta boa.der proposito=geral fonte=teste\n%1  boa.der\n%2  raiz.der\n")
+                        .arg(hashBoa, hashSemMeta).toUtf8());
     manifesto.close();
 
     Carga carga = carregarRaizesIcp(tmp.path(), manifesto.fileName(), "geral", agoraDeTeste());
-    QVERIFY2(!carga.has_value(), "linha de hash sem metadado aceita");
+    QVERIFY2(!carga.has_value(), "manifesto com linha de hash sem metadado aceito com a raiz boa ao lado");
     QVERIFY2(carga.error().motivo == ErroRaizIcp::ManifestoMalformado, std::string(codigo(carga.error().motivo)).c_str());
 }
 
