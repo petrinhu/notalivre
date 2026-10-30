@@ -18,7 +18,7 @@ set(NL_AMBIENTE_XMLDSIG
 
 if(NL_FLATPAK_BUILD)
     message(STATUS "xmldsig: slots com xmlsec1 desligados no build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28)")
-    set(NL_SLOTS_XMLDSIG assinaSha1NoSdkKdeSemVariavelRenomeado)
+    set(NL_SLOTS_XMLDSIG assinaSha1NoSdkKdeSemVariavel)
 else()
     find_program(NL_XMLLINT_XMLDSIG xmllint REQUIRED)
     find_program(NL_XMLSEC1_XMLDSIG xmlsec1 REQUIRED)
