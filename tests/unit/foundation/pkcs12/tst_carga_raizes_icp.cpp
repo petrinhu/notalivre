@@ -98,6 +98,14 @@ private slots:
     void arquivoForaDoManifestoNaoEntra();
     void manifestoVazioRecusado();
     void metaComChaveRepetidaRecusada();
+
+    // Caminhos de falha fechada (CISO, 30/10/2026, item 2): cada um com a sua prova.
+    void arquivoAusenteRecusa();
+    void certificadoIlegivelRecusa();
+    void manifestoAusenteRecusa();
+    void manifestoMalformadoRecusa();
+    void nenhumaRaizAceitaRecusa();
+    void raizAindaNaoValidaNaoEntraComoAncora();
 };
 
 void TesteCargaRaizesIcp::raizesIcpCarregadasDoArquivoConferido()
@@ -247,6 +255,99 @@ void TesteCargaRaizesIcp::metaComChaveRepetidaRecusada()
     Carga carga = carregarRaizesIcp(tmp.path(), manifesto.fileName(), "geral", agoraDeTeste());
     QVERIFY2(!carga.has_value(), "meta com chave repetida aceita");
     QVERIFY2(carga.error().motivo == ErroRaizIcp::ManifestoMalformado, std::string(codigo(carga.error().motivo)).c_str());
+}
+
+void TesteCargaRaizesIcp::arquivoAusenteRecusa()
+{
+    // Um .der que o manifesto declara e que não está no diretório: a carga inteira falha, nomeando o arquivo.
+    QTemporaryDir copia;
+    QVERIFY(copia.isValid());
+    QDir origem(dirRaizes());
+    for (const QString& nome : origem.entryList({QStringLiteral("*.der")}, QDir::Files)) {
+        QVERIFY(QFile::copy(origem.filePath(nome), copia.filePath(nome)));
+    }
+    QVERIFY(QFile::remove(copia.filePath(QStringLiteral("ICP-Brasilv13.der"))));
+
+    Carga carga = carregarRaizesIcp(copia.path(), manifestoRaizes(), "geral", agoraDeTeste());
+    QVERIFY2(!carga.has_value(), "carga aceita com arquivo declarado ausente");
+    QVERIFY2(carga.error().motivo == ErroRaizIcp::ArquivoAusente, std::string(codigo(carga.error().motivo)).c_str());
+    QCOMPARE(QString::fromStdString(carga.error().arquivo), QStringLiteral("ICP-Brasilv13.der"));
+}
+
+void TesteCargaRaizesIcp::certificadoIlegivelRecusa()
+{
+    // O hash confere com o manifesto, mas o conteúdo não é DER de certificado: falha fechada, com o nome do arquivo.
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const QByteArray lixo("isto nao e um certificado X.509");
+    const QString manifesto = teste::escreverRepositorioTeste(tmp.path(), {{QStringLiteral("ruim.der"), lixo, QStringLiteral("geral")}});
+    QVERIFY(!manifesto.isEmpty());
+
+    Carga carga = carregarRaizesIcp(tmp.path(), manifesto, "geral", agoraDeTeste());
+    QVERIFY2(!carga.has_value(), "conteúdo não-X.509 aceito como raiz");
+    QVERIFY2(carga.error().motivo == ErroRaizIcp::CertificadoIlegivel, std::string(codigo(carga.error().motivo)).c_str());
+    QCOMPARE(QString::fromStdString(carga.error().arquivo), QStringLiteral("ruim.der"));
+}
+
+void TesteCargaRaizesIcp::manifestoAusenteRecusa()
+{
+    // Sem SHA256SUMS não há o que conferir: a carga recusa, em vez de tratar a ausência como conjunto vazio.
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    Carga carga = carregarRaizesIcp(dirRaizes(), tmp.filePath(QStringLiteral("SHA256SUMS")), "geral", agoraDeTeste());
+    QVERIFY2(!carga.has_value(), "carga aceita sem manifesto");
+    QVERIFY2(carga.error().motivo == ErroRaizIcp::ManifestoAusente, std::string(codigo(carga.error().motivo)).c_str());
+}
+
+void TesteCargaRaizesIcp::manifestoMalformadoRecusa()
+{
+    // Uma linha de hash sem o "# meta" correspondente: o manifesto é recusado por inteiro.
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const QByteArray der = teste::raizSinteticaDer("Raiz sem metadado", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    QVERIFY(!der.isEmpty());
+    QFile arquivo(tmp.filePath(QStringLiteral("raiz.der")));
+    QVERIFY(arquivo.open(QIODevice::WriteOnly));
+    QVERIFY(arquivo.write(der) == der.size());
+    arquivo.close();
+    const QString hash = QString::fromLatin1(QCryptographicHash::hash(der, QCryptographicHash::Sha256).toHex());
+    QFile manifesto(tmp.filePath(QStringLiteral("SHA256SUMS")));
+    QVERIFY(manifesto.open(QIODevice::WriteOnly));
+    manifesto.write(QStringLiteral("%1  raiz.der\n").arg(hash).toUtf8());
+    manifesto.close();
+
+    Carga carga = carregarRaizesIcp(tmp.path(), manifesto.fileName(), "geral", agoraDeTeste());
+    QVERIFY2(!carga.has_value(), "linha de hash sem metadado aceita");
+    QVERIFY2(carga.error().motivo == ErroRaizIcp::ManifestoMalformado, std::string(codigo(carga.error().motivo)).c_str());
+}
+
+void TesteCargaRaizesIcp::nenhumaRaizAceitaRecusa()
+{
+    // Em 2046-01-01 todas as seis raízes de produção estão vencidas: sem âncora, a carga falha (fail-closed).
+    Carga carga = carregarRaizesIcp(dirRaizes(), manifestoRaizes(), "geral", instante(2046, 1, 1));
+    QVERIFY2(!carga.has_value(), "carga sem nenhuma raiz vigente foi aceita");
+    QVERIFY2(carga.error().motivo == ErroRaizIcp::NenhumaRaizAceita, std::string(codigo(carga.error().motivo)).c_str());
+}
+
+void TesteCargaRaizesIcp::raizAindaNaoValidaNaoEntraComoAncora()
+{
+    // Uma raiz cujo início de validade é 2027 (depois de 2026-10-30) fica de fora com o motivo AindaNaoValida; a outra entra.
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const QByteArray vigente = teste::raizSinteticaDer("Raiz vigente de teste", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    const QByteArray futura = teste::raizSinteticaDer("Raiz futura de teste", epoca(2027, 1, 1), epoca(2040, 1, 1));
+    QVERIFY(!vigente.isEmpty() && !futura.isEmpty());
+    const QString manifesto = teste::escreverRepositorioTeste(
+        tmp.path(), {{QStringLiteral("raiz_vigente.der"), vigente, QStringLiteral("geral")},
+                     {QStringLiteral("raiz_futura.der"), futura, QStringLiteral("geral")}});
+    QVERIFY(!manifesto.isEmpty());
+
+    Carga carga = carregarRaizesIcp(tmp.path(), manifesto, "geral", agoraDeTeste());
+    QVERIFY2(carga.has_value(), descreverCarga(carga).c_str());
+    QCOMPARE(carga->ancoras.quantidade(), std::size_t{1});
+    QCOMPARE(carga->descartes.size(), std::size_t{1});
+    QCOMPARE(QString::fromStdString(carga->descartes.front().arquivo), QStringLiteral("raiz_futura.der"));
+    QVERIFY(carga->descartes.front().motivo == MotivoDescarte::AindaNaoValida);
 }
 
 QTEST_APPLESS_MAIN(TesteCargaRaizesIcp)
