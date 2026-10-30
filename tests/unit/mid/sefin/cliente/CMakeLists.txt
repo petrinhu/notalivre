@@ -38,7 +38,10 @@ foreach(nome IN ITEMS
     consultaComCodigoQueNaoE2404ViraIndeterminado
     naoGeradaReenviaMesmoIdNuncaNumeroNovo
     e0014NoReenvioConsultaEDevolveAChave
-    falhaAntesDoEnvioETransitoriaSemConsulta
+    conexaoFechadaAntesDoTlsSemBytesEhTransitoria
+    recusaNoHandshakeTls12NaoEscreveCorpoESemConsulta
+    corpoEscritoEConexaoFechadaConsultaAntesDeResponder
+    recusaDoCertificadoNoTls13NuncaReenviaAsCegas
     codigoEComCpfNaoChegaAoLog
     codigoEForaDoFormatoFicaVazio
     base64ComCaractereInvalidoETamanhoValidoRecusado

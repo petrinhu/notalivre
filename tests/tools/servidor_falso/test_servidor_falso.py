@@ -80,8 +80,8 @@ class TesteServidorFalso(unittest.TestCase):
 
     # --- auxiliares de teste ---------------------------------------------------------------------
 
-    def subir(self, roteiro_=None):
-        srv = servidor.ServidorFalso(self.certs, self.oraculo, roteiro_)
+    def subir(self, roteiro_=None, tls_maximo=None):
+        srv = servidor.ServidorFalso(self.certs, self.oraculo, roteiro_, tls_maximo=tls_maximo)
         srv.iniciar()
         self.addCleanup(srv.encerrar)
         return srv
@@ -472,6 +472,24 @@ class TesteServidorFalso(unittest.TestCase):
         self.assertEqual(registro[0], registro[1], "o reenvio tem de ser a mesma DPS: mesmo Id e mesmo nDPS")
         self.assertEqual(registro[0]["id"], self.id_dps)
         self.assertEqual(registro[0]["nDPS"], "1")
+
+
+    def test_tlsMaximoTls12LimitaVersao(self):
+        # cenário com TLS 1.2 no máximo: um cliente que só fala TLS 1.3 é recusado; um cliente de TLS 1.2 passa
+        srv = self.subir(tls_maximo="1.2")
+        self.assertEqual(srv.contexto.maximum_version, ssl.TLSVersion.TLSv1_2)
+        ctx = ssl.create_default_context(cafile=self.certs.ca)
+        ctx.load_cert_chain(self.certs.cliente_cert, self.certs.cliente_key)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+        recusado = False
+        try:
+            conn = http.client.HTTPSConnection("127.0.0.1", srv.porta, timeout=10, context=ctx)
+            conn.request("GET", "/dps/" + self.id_dps)
+            conn.getresponse()
+        except (ssl.SSLError, OSError, http.client.HTTPException):
+            recusado = True
+        self.assertTrue(recusado, "cliente que só fala TLS 1.3 tinha que ser recusado")
+        self.assertEqual(self.enviar(srv, "GET", "/dps/" + self.id_dps)[0], 404)
 
 
 if __name__ == "__main__":

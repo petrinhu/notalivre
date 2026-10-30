@@ -42,6 +42,8 @@
 #include <QString>
 #include <QStringList>
 #include <QRegularExpression>
+#include <QTcpServer>
+#include <QHostAddress>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -205,12 +207,15 @@ std::expected<bk::DpsAssinada, std::string> dpsAssinada(const fp::CredencialX509
 // Servidor falso em processo próprio, com oráculo (--com-oraculo), e as falhas do roteiro. Fecha o stdin ao sair.
 class ServidorDeTeste {
 public:
-    explicit ServidorDeTeste(const QStringList& falhas)
+    explicit ServidorDeTeste(const QStringList& falhas, const QString& tlsMaximo = {})
     {
         QStringList argumentos{QStringLiteral("-I"), qEnvironmentVariable("NL_LANCADOR"),
                                qEnvironmentVariable("NL_CERTIFICADOS_DIR"), QStringLiteral("--com-oraculo")};
         for (const QString& falha : falhas) {
             argumentos << QStringLiteral("--falha") << falha.split(QLatin1Char(' '));
+        }
+        if (!tlsMaximo.isEmpty()) {
+            argumentos << QStringLiteral("--tls-maximo") << tlsMaximo;  // versão máxima de TLS do cenário (rodada 4)
         }
         processo_.start(qEnvironmentVariable("NL_PYTHON3"), argumentos);
         if (processo_.waitForReadyRead(20000)) {
@@ -302,6 +307,42 @@ std::unique_ptr<Montagem> montar(int porta, const fp::CredencialX509& cred,
     politica.base = 1ms;  // a espera é real mas curta: o teste mede a ordem, não o tempo
     m->cliente = std::make_unique<mc::ClienteSefin>(*m->transporte, *m->log, politica, comparador);
     return m;
+}
+
+} // namespace
+
+namespace {
+
+// Cliente sem certificado de cliente: o servidor falso exige o certificado (CERT_REQUIRED), então a recusa é da camada TLS.
+std::unique_ptr<Montagem> montarSemCertificado(int porta)
+{
+    auto m = std::make_unique<Montagem>();
+    m->log = std::make_unique<fl::Log>(
+        m->destino, "sefin",
+        std::vector<fl::DeclaracaoCampo>{{"metodo", fl::Regra::Cru}, {"status", fl::Regra::Cru},
+                                         {"codigoE", fl::Regra::Cru}, {"etapa", fl::Regra::Cru}},
+        std::vector<std::string>{"sefin.requisicao", "sefin.consulta", "sefin.emissao", "sefin.erro"});
+    ft::ConfiguracaoTls tls;
+    tls.autoridades = QSslCertificate::fromData(lerFixture(QStringLiteral("ac.pem")), QSsl::Pem);
+    const ft::UrlBase base{QUrl(QStringLiteral("https://127.0.0.1:%1").arg(porta)), QString(), 5000ms};
+    m->transporte = std::make_unique<ft::TransporteHttps>(base, tls);
+    mc::PoliticaRetry politica;
+    politica.base = 1ms;
+    m->cliente = std::make_unique<mc::ClienteSefin>(*m->transporte, *m->log, politica);
+    return m;
+}
+
+// Quantos POST /nfse o servidor recebeu, pelo registro de teste. Usa um cliente com certificado, que o servidor exige.
+int postsNoServidor(int porta, const fp::CredencialX509& cred)
+{
+    const ft::UrlBase base{QUrl(QStringLiteral("https://127.0.0.1:%1").arg(porta)), QString(), 5000ms};
+    ft::TransporteHttps transporte(base, configuracaoTls(cred));
+    auto resposta = transporte.enviar(
+        ft::RequisicaoHttp{QByteArrayLiteral("GET"), QStringLiteral("/_teste/posts"), {}, {}});
+    if (!resposta) {
+        return -1;
+    }
+    return static_cast<int>(QJsonDocument::fromJson(resposta->corpo).array().size());
 }
 
 } // namespace
@@ -787,38 +828,90 @@ private slots:
         QVERIFY2(sequencia(m->destino.str()) == esperado, "E0014 no reenvio vai para a consulta");
     }
 
-    // DA-2.41 (a): falha antes do envio é Transitoria, sem consulta. O handshake sem certificado é antes do envio.
-    void falhaAntesDoEnvioETransitoriaSemConsulta()
+
+    // Adendo de 30/10/2026: recusa no handshake TLS 1.2 (o servidor falso limita a versão). Zero bytes: Transitoria, sem GET.
+    void recusaNoHandshakeTls12NaoEscreveCorpoESemConsulta()
     {
         auto cred = credencial();
         QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
         auto dps = dpsAssinada(*cred);
         QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
-        auto recusada = montar(1, *cred);  // porta 1: ninguém escuta, a conexão é recusada antes do envio
-        auto semConexao = recusada->cliente->emitir(*dps);
-        QVERIFY2(!semConexao.has_value(), "sem conexão não há nota");
-        QVERIFY2(semConexao.error().motivo == bk::MotivoFalhaSefin::Transitoria, "conexão recusada é Transitoria");
-        QVERIFY2(sequencia(recusada->destino.str()).empty(), "conexão recusada não consulta a DPS");
+        ServidorDeTeste srv({}, QStringLiteral("1.2"));
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montarSemCertificado(srv.porta());
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "sem certificado, o TLS 1.2 recusa o handshake");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Transitoria,
+                 "recusa no handshake, com zero bytes escritos, é Transitoria sem consulta");
+        QVERIFY2(sequencia(m->destino.str()).empty(), "sem bytes escritos não há GET");
+        QVERIFY2(postsNoServidor(srv.porta(), *cred) == 0, "o servidor não recebeu POST nenhum");
+    }
 
+    // Adendo de 30/10/2026: corpo escrito e conexão fechada sem resposta. A consulta GET /dps decide, sem reenvio.
+    void corpoEscritoEConexaoFechadaConsultaAntesDeResponder()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse conexao_cortada_apos_aceite")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(resultado.has_value(), "com corpo escrito, a consulta GET /dps devolve a chave");
+        const std::vector<std::string> esperado{"GET:200", "GET:200"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "POST com bytes escritos consulta antes de responder");
+        QVERIFY2(postsNoServidor(srv.porta(), *cred) == 1, "o servidor recebeu o POST uma vez");
+    }
+
+    // Adendo de 30/10/2026: conexão fechada antes do TLS, sem nenhum byte escrito. Transitoria, sem consulta. Servidor
+    // próprio em QTcpServer: fecha a conexão assim que ela chega, antes de qualquer TLS.
+    void conexaoFechadaAntesDoTlsSemBytesEhTransitoria()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        QTcpServer fechador;
+        QVERIFY2(fechador.listen(QHostAddress::LocalHost), "o fechador de teste tem de escutar");
+        QObject::connect(&fechador, &QTcpServer::newConnection, &fechador, [&fechador] {
+            if (auto conexao = fechador.nextPendingConnection()) {
+                conexao->close();
+                conexao->deleteLater();
+            }
+        });
+        auto m = montar(fechador.serverPort(), *cred);
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "conexão fechada antes do TLS não é nota");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Transitoria,
+                 "zero bytes escritos: Transitoria, sem consulta");
+        QVERIFY2(sequencia(m->destino.str()).empty(), "zero bytes escritos não consulta a DPS");
+    }
+
+    // Adendo de 30/10/2026: TLS 1.3 sem certificado. A recusa pode chegar antes ou depois dos bytes do POST: os dois
+    // desfechos são aceitos, mas o POST nunca chega à aplicação, e nenhum POST tem resposta.
+    void recusaDoCertificadoNoTls13NuncaReenviaAsCegas()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
         ServidorDeTeste srv({});
         QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
-        fl::Log registro(recusada->destino, "sefin",
-                         std::vector<fl::DeclaracaoCampo>{{"metodo", fl::Regra::Cru}, {"status", fl::Regra::Cru},
-                                                          {"codigoE", fl::Regra::Cru}, {"etapa", fl::Regra::Cru}},
-                         std::vector<std::string>{"sefin.requisicao", "sefin.consulta", "sefin.emissao", "sefin.erro"});
-        ft::ConfiguracaoTls semCertificado = configuracaoTls(*cred);
-        semCertificado.certificadoCliente = QSslCertificate();
-        semCertificado.chaveCliente = QSslKey();
-        const ft::UrlBase base{QUrl(QStringLiteral("https://127.0.0.1:%1").arg(srv.porta())), QString(), 5000ms};
-        ft::TransporteHttps transporte(base, semCertificado);
-        mc::PoliticaRetry politica;
-        politica.base = 1ms;
-        mc::ClienteSefin cliente(transporte, registro, politica);
-        auto tls = cliente.emitir(*dps);
-        QVERIFY2(!tls.has_value(), "sem certificado de cliente, o servidor recusa o handshake");
-        QVERIFY2(tls.error().motivo == bk::MotivoFalhaSefin::Transitoria,
-                 "handshake recusado é antes do envio: Transitoria, sem consulta");
-        QVERIFY2(sequencia(recusada->destino.str()).empty(), "handshake recusado não consulta a DPS");
+        auto m = montarSemCertificado(srv.porta());
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "sem certificado não há nota");
+        const bool antes = resultado.error().motivo == bk::MotivoFalhaSefin::Transitoria;
+        const bool comConsulta = resultado.error().motivo == bk::MotivoFalhaSefin::Indeterminado;
+        QVERIFY2(antes || comConsulta, "a recusa vira Transitoria (zero bytes) ou Indeterminado (com bytes)");
+        if (comConsulta) {
+            QCOMPARE(QString::fromStdString(resultado.error().mensagem),
+                     QStringLiteral("certificado recusado na consulta"));
+        }
+        QVERIFY2(postsNoServidor(srv.porta(), *cred) == 0, "a recusa do TLS não entrega o POST à aplicação");
+        for (const std::string& item : sequencia(m->destino.str())) {
+            QVERIFY2(item.rfind("POST", 0) != 0, "nenhum POST teve resposta do servidor");
+        }
     }
 
     // DA-2.41 (b): código E fora de ^E\d{3,4}$ fica vazio, e o log recebe só o marcador codigo_invalido.
