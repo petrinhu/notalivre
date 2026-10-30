@@ -45,6 +45,10 @@ struct ParametrosAssinatura {
     std::string_view nomeReferencia;
     std::string_view nomePaiReferencia;
     std::string_view namespaceLeiaute;
+    // Forma da NFS-e no leiaute (NL-2.8, rodada 5): NFSe/infNFSe/DPS/infDPS. Vazio desliga essa forma. Só o digest
+    // aceita esta forma; o assinador continua aceitando só o DPS como raiz.
+    std::string_view nomeRaizComDps{};
+    std::string_view nomeContainerDps{};
 };
 
 /// Material emprestado: quem chama mantém o certificado e a chave vivos durante a chamada.

@@ -57,7 +57,11 @@ else()
         digestMudaComCampoAlterado
         digestIdRepetidoDaErro
         digestIdAusenteDaErro
-        digestDtdDaErro)
+        digestDtdDaErro
+        digestDaNfseNoFormatoDoXsdIgualAoDaDps
+        digestDaNfseAlteradaDifere
+        digestNfseIdRepetidoDaErro
+        digestInfDpsForaDoCaminhoFixoRecusado)
 endif()
 
 foreach(nome IN LISTS NL_SLOTS_XMLDSIG)

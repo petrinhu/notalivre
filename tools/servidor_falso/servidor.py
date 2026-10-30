@@ -62,6 +62,10 @@ def corpo_nfse_defeituosa(chave, falha):
     if falha == "nfse_base64_caractere_invalido":
         # "@@@@" fora do alfabeto, com tamanho múltiplo de 4: só a checagem de alfabeto recusa (DA-2.41, m7)
         return {"chaveAcesso": chave, "nfseXmlGZipB64": envelope.gzip_b64(b"<NFSe/>") + "@@@@"}
+    if falha == "nfse_base64_igual_no_meio":
+        # "=" no meio do Base64, com o mesmo tamanho: o cliente tem de recusar (rodada 5, revisão)
+        b64 = envelope.gzip_b64(b"<NFSe/>")
+        return {"chaveAcesso": chave, "nfseXmlGZipB64": b64[:4] + "=" + b64[5:]}
     if falha == "nfse_gzip_dois_membros":
         dois = gzip.compress(b"<NFSe/>") + gzip.compress(b"<NFSe2/>")
         return {"chaveAcesso": chave, "nfseXmlGZipB64": base64.b64encode(dois).decode("ascii")}

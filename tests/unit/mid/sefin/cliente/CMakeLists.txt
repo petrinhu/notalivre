@@ -42,6 +42,8 @@ foreach(nome IN ITEMS
     recusaNoHandshakeTls12NaoEscreveCorpoESemConsulta
     corpoEscritoEConexaoFechadaConsultaAntesDeResponder
     recusaDoCertificadoNoTls13NuncaReenviaAsCegas
+    conflito409ComConsultaSemResolverViraIndeterminado
+    base64ComIgualNoMeioRecusado
     codigoEComCpfNaoChegaAoLog
     codigoEForaDoFormatoFicaVazio
     base64ComCaractereInvalidoETamanhoValidoRecusado

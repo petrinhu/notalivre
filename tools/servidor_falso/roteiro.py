@@ -14,9 +14,9 @@ import re
 
 FALHAS = ("erro5xx", "timeout", "conexao_cortada_apos_aceite", "conflito409", "corpo_truncado",
           "eco_accept_encoding", "content_encoding_gzip", "redireciona", "corpo_sem_tamanho",
-          "nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto", "post_sem_chave", "status202", "redireciona_post", "post_ce_gzip", "consulta_404_outro", "nfse_base64_caractere_invalido", "nfse_gzip_dois_membros")
+          "nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto", "post_sem_chave", "status202", "redireciona_post", "post_ce_gzip", "consulta_404_outro", "nfse_base64_caractere_invalido", "nfse_gzip_dois_membros", "nfse_base64_igual_no_meio")
 SO_GET = ("corpo_truncado", "eco_accept_encoding", "content_encoding_gzip", "redireciona", "corpo_sem_tamanho", "consulta_404_outro")
-SO_POST_NFSE = ("nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto", "nfse_base64_caractere_invalido", "nfse_gzip_dois_membros")  # sucesso do POST com NFS-e defeituosa
+SO_POST_NFSE = ("nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto", "nfse_base64_caractere_invalido", "nfse_gzip_dois_membros", "nfse_base64_igual_no_meio")  # sucesso do POST com NFS-e defeituosa
 
 
 RE_REJEICAO = re.compile(r"^rejeicao:(E\d{4})$")  # rejeicao:<código E>, NL-2.8: 400 com o código e texto livre com CPF

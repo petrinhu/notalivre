@@ -313,6 +313,14 @@ std::unique_ptr<Montagem> montar(int porta, const fp::CredencialX509& cred,
 
 namespace {
 
+// NFS-e no formato do XSD (rodada 5): NFSe/infNFSe/DPS/infDPS, com a DPS assinada dentro de infNFSe.
+QByteArray nfseDoXsd(const QByteArray& dps)
+{
+    const QByteArray corpo = dps.mid(dps.indexOf("<DPS"));
+    return QByteArrayLiteral("<NFSe xmlns=\"http://www.sped.fazenda.gov.br/nfse\"><infNFSe Id=\"NFS00000000000000000000000000000000000000000000000000000\">") +
+           corpo + QByteArrayLiteral("</infNFSe></NFSe>");
+}
+
 // Cliente sem certificado de cliente: o servidor falso exige o certificado (CERT_REQUIRED), então a recusa é da camada TLS.
 std::unique_ptr<Montagem> montarSemCertificado(int porta)
 {
@@ -408,9 +416,31 @@ private slots:
         auto m = montar(srv.porta(), *cred);
         auto resultado = m->cliente->emitir(*dps);
         QVERIFY2(!resultado.has_value(), "409 não pode virar nota");
-        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::DpsDuplicada, "409 tem de ser DpsDuplicada");
+        // Rodada 5 (DA-2.41): DpsDuplicada só vale para conteúdo diferente. Com a consulta sem resolução, é Indeterminado.
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Indeterminado,
+                 "409 com a consulta sem resolução é Indeterminado, nunca DpsDuplicada");
         const std::vector<std::string> esperado{"POST:409", "GET:404"};
         QVERIFY2(sequencia(m->destino.str()) == esperado, "409 consulta a DPS e nunca reenvia o POST");
+    }
+
+    // Rodada 5 (revisão, A): 409 e a consulta respondendo outro código (não 404 E2404, não chave): Indeterminado, nunca
+    // DpsDuplicada. DpsDuplicada só vale para conteúdo diferente, e aqui não há como comparar.
+    void conflito409ComConsultaSemResolverViraIndeterminado()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse conflito409"),
+                             QStringLiteral("GET /dps/DPS430510821122233300018100001000000000000001 consulta_404_outro")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "409 sem consulta resolvida não é nota");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Indeterminado,
+                 "409 com a consulta sem resolução é Indeterminado, nunca DpsDuplicada");
+        QVERIFY2(sequencia(m->destino.str()) == std::vector<std::string>({"POST:409", "GET:404"}),
+                 "a consulta foi feita e o POST não repetiu");
     }
 
     void rejeicaoE0014NaoRepete()
@@ -536,6 +566,22 @@ private slots:
         QCOMPARE(nota->chave.texto().size(), qsizetype{50});
     }
 
+    // Rodada 5 (revisão, Base64): '=' só é aceito no fim (um ou dois caracteres). '=' no meio é recusado.
+    void base64ComIgualNoMeioRecusado()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse nfse_base64_igual_no_meio")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "sucesso com '=' no meio devolve a chave, sem falha");
+        QVERIFY2(nota->xmlPendente, "'=' fora do fim do Base64 marca o XML como pendente");
+        QVERIFY2(nota->xmlNfse.isEmpty(), "XML pendente não traz bytes");
+    }
+
     void xmlIlegivelNumSucessoNaoLiberaReenvio()
     {
         auto cred = credencial();
@@ -647,7 +693,7 @@ private slots:
         auto dps = dpsAssinada(*cred);
         QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
         mc::ComparadorInfDpsC14n real;
-        QVERIFY2(real.comparar(dps->id, dps->xml, dps->xml) == mc::ResultadoComparacaoInfDps::Igual,
+        QVERIFY2(real.comparar(dps->id, dps->xml, nfseDoXsd(dps->xml)) == mc::ResultadoComparacaoInfDps::Igual,
                  "a mesma DPS dá Igual pelo digest canônico do infDPS");
     }
 
@@ -661,7 +707,7 @@ private slots:
         QByteArray alterada = dps->xml;
         alterada.replace("</infDPS>", "<xAlterado>1</xAlterado></infDPS>");
         mc::ComparadorInfDpsC14n real;
-        QVERIFY2(real.comparar(dps->id, dps->xml, alterada) == mc::ResultadoComparacaoInfDps::Diferente,
+        QVERIFY2(real.comparar(dps->id, dps->xml, nfseDoXsd(alterada)) == mc::ResultadoComparacaoInfDps::Diferente,
                  "um campo alterado no infDPS dá Diferente, não Igual");
     }
 
