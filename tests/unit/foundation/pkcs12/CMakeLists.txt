@@ -71,3 +71,25 @@ foreach(nome IN ITEMS cifraLegadaIndisponivelSemProvider modernoNaoPrecisaDeLega
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
+
+# Carga das raízes da ICP-Brasil (NL-2.13, DA-2.47). Um teste no CTest por slot (pkcs12.raizes.<nome>), sem vírgula (L-45).
+# Usa o repositório conferido em third_party (NL_ICP_RAIZES_DIR) e a AC de teste da fixture (certificados_teste).
+add_executable(tst_carga_raizes_icp tst_carga_raizes_icp.cpp)
+target_link_libraries(tst_carga_raizes_icp PRIVATE Qt6::Core Qt6::Test nl_foundation_pkcs12
+                      OpenSSL::Crypto nl_warnings)
+
+foreach(nome IN ITEMS
+    raizesIcpCarregadasDoArquivoConferido
+    hashDivergenteRecusaACarga
+    cadeiaDeTesteNaoValidaContraAsRaizesIcp
+    raizVencidaNaoEntraComoAncora
+    raizForaDoPropositoNaoEntraComoAncora
+    arquivoForaDoManifestoNaoEntra
+    manifestoVazioRecusado)
+  add_test(NAME pkcs12.raizes.${nome} COMMAND tst_carga_raizes_icp ${nome})
+  set_tests_properties(pkcs12.raizes.${nome} PROPERTIES
+                       FIXTURES_REQUIRED certificados_teste
+                       ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_ICP_RAIZES_DIR=${NL_ICP_RAIZES_DIR};NL_ICP_RAIZES_MANIFESTO=${NL_ICP_RAIZES_MANIFESTO}"
+                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()
