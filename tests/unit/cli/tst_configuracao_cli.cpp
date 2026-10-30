@@ -16,7 +16,9 @@ QString escrever(const QTemporaryDir& pasta, const QString& texto)
 {
     const QString caminho = pasta.filePath(QStringLiteral("config.ini"));
     QFile arquivo(caminho);
-    arquivo.open(QIODevice::WriteOnly | QIODevice::Text);
+    if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return QString();  // sem arquivo, a leitura do teste reprova pela asserção
+    }
     arquivo.write(texto.toUtf8());
     return caminho;
 }
