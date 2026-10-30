@@ -171,7 +171,11 @@ bool ehCampoProibido(std::string_view nome)
 
 bool ehCampoSoMascara(std::string_view nome)
 {
-    return std::ranges::any_of(kCamposSoMascara, [nome](std::string_view campo) { return igualSemCaixa(campo, nome); });
+    // NL-2.12 (resíduo, CISO 11:46): o mesmo normalizarNome da lista Proibido, para que id_dps e ID-DPS também sejam só-máscara.
+    const std::string normalizado = normalizarNome(nome);
+    return std::ranges::any_of(kCamposSoMascara, [&normalizado](std::string_view campo) {
+        return igualSemCaixa(campo, normalizado);
+    });
 }
 
 std::span<const std::string_view> radicaisDeCampoProibido() noexcept
