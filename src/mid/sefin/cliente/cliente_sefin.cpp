@@ -259,6 +259,32 @@ std::optional<Desfecho> resolverPosEnvio(ft::TransporteHttps& transporte, fl::Lo
     return Desfecho{std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado))};
 }
 
+// E0014 (adendo da DA-2.41, 29/10/2026): a nota pode ter nascido numa execução anterior, e E0014 também pode ser outra
+// DPS com a mesma série e o mesmo número. Consulta a chave, busca a NFS-e e compara o infDPS. Igual: a nota recuperada.
+// Diferente: DpsDuplicada, que nunca renumera sozinho e vai ao usuário. Sem conseguir buscar ou comparar: Indeterminado.
+// Nunca Rejeitada e nunca sucesso silencioso.
+Desfecho reconciliarE0014(ft::TransporteHttps& transporte, fl::Log& registro, const PoliticaRetry& politica,
+                          const ComparadorInfDps& comparador, const bk::DpsAssinada& dps)
+{
+    auto consulta = consultarDpsCom(transporte, registro, politica, dps.id);
+    if (!consulta) {
+        return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
+    }
+    auto nota = consultarNotaCom(transporte, registro, politica, *consulta);
+    if (!nota || nota->xmlPendente) {
+        return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
+    }
+    switch (comparador.comparar(dps.xml, nota->xmlNfse)) {
+    case ResultadoComparacaoInfDps::Igual:
+        return *nota;
+    case ResultadoComparacaoInfDps::Diferente:
+        return std::unexpected(falha(bk::MotivoFalhaSefin::DpsDuplicada));
+    case ResultadoComparacaoInfDps::Indisponivel:
+        break;
+    }
+    return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
+}
+
 // 409: a DPS já existe. Consulta; com chave, devolve a nota; sem chave, é duplicada e nunca se reenvia.
 Desfecho resolverDuplicada(ft::TransporteHttps& transporte, fl::Log& registro, const PoliticaRetry& politica,
                            const bk::DpsAssinada& dps)
@@ -330,10 +356,9 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
             const std::string bruto = codigoDoErro(resposta->corpo).value_or(std::string{});
             registrarErro(registro_, bruto);
             const std::string codigo = codigoSeValido(bruto);
-            if (codigo == "E0014" && envio > 1) {
-                if (auto desfecho = resolverPosEnvio(transporte_, registro_, politica_, dps, false)) {
-                    return *desfecho;
-                }
+            if (codigo == "E0014") {
+                // Adendo da DA-2.41: E0014 reconcilia em qualquer tentativa, inclusive a primeira.
+                return reconciliarE0014(transporte_, registro_, politica_, comparador_, dps);
             }
             if (!codigo.empty()) {
                 return std::unexpected(falha(bk::MotivoFalhaSefin::Rejeitada, codigo));
