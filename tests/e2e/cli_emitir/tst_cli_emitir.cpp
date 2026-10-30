@@ -52,6 +52,10 @@ public:
                 porta_ = linha.mid(6).toInt();
             }
         }
+        if (porta_ == 0) {
+            diagnostico_ = QStringLiteral("servidor falso não subiu; stderr: ") +
+                           QString::fromUtf8(processo_.readAllStandardError());
+        }
     }
     ~ServidorFalso()
     {
@@ -59,10 +63,12 @@ public:
         processo_.waitForFinished(5000);
     }
     int porta() const { return porta_; }
+    QString diagnostico() const { return diagnostico_; }
 
 private:
     QProcess processo_;
     int porta_ = 0;
+    QString diagnostico_;
 };
 
 struct Execucao
@@ -142,7 +148,7 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
     QDir().mkpath(configDir.filePath(QStringLiteral("notalivre")));
 
     ServidorFalso servidor;
-    QVERIFY2(servidor.porta() > 0, "o servidor falso tem de subir");
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
 
     const QString config = QStringLiteral(
         "[sefin]\n"
