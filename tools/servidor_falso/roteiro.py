@@ -14,16 +14,21 @@ import re
 
 FALHAS = ("erro5xx", "timeout", "conexao_cortada_apos_aceite", "conflito409", "corpo_truncado",
           "eco_accept_encoding", "content_encoding_gzip", "redireciona", "corpo_sem_tamanho",
-          "nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto")
-SO_GET = ("corpo_truncado", "eco_accept_encoding", "content_encoding_gzip", "redireciona", "corpo_sem_tamanho")
-SO_POST_NFSE = ("nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto")  # sucesso do POST com NFS-e defeituosa
+          "nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto", "post_sem_chave", "status202", "redireciona_post", "post_ce_gzip", "consulta_404_outro", "nfse_base64_caractere_invalido", "nfse_gzip_dois_membros")
+SO_GET = ("corpo_truncado", "eco_accept_encoding", "content_encoding_gzip", "redireciona", "corpo_sem_tamanho", "consulta_404_outro")
+SO_POST_NFSE = ("nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto", "nfse_base64_caractere_invalido", "nfse_gzip_dois_membros")  # sucesso do POST com NFS-e defeituosa
 
 
 RE_REJEICAO = re.compile(r"^rejeicao:(E\d{4})$")  # rejeicao:<código E>, NL-2.8: 400 com o código e texto livre com CPF
 
 
+RE_REJEICAO_BRUTA = re.compile(r"^rejeicao_bruta:\S+$")  # Codigo da API sem validar: o cliente tem de recusar o formato
+RE_REJEICAO_GERADA = re.compile(r"^rejeicao_gerada:(E\d{4})$")  # grava a DPS e recusa com E: a nota já existe
+
+
 def eh_rejeicao(falha):
-    return RE_REJEICAO.match(falha) is not None
+    return (RE_REJEICAO.match(falha) is not None or RE_REJEICAO_BRUTA.match(falha) is not None
+            or RE_REJEICAO_GERADA.match(falha) is not None)
 
 
 class Roteiro:

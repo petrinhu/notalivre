@@ -37,6 +37,8 @@ struct ErroTransporte {
     TipoErro tipo;
     CausaErro causa;
     QString mensagem;
+    /// true quando a falha ocorreu antes de qualquer byte HTTP chegar ao servidor (ver Classificacao::antesDoEnvio).
+    bool antesDoEnvio = false;
 };
 
 /// Endereço e política de tempo do ambiente (DA-2.5). O prefixo vazio significa sem prefixo.

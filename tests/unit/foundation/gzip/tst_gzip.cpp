@@ -119,6 +119,7 @@ private slots:
     void limiteDaEntradaRecusadoNaFiacao();
     void gzipIdaEVoltaPeloMotor();
     void descompactadoAcimaDoTetoRecusado();
+    void membroExtraAposFimDoGzipRecusado();
 };
 
 void TstGzip::gzipComCabecalhoRfc1952()
@@ -313,6 +314,21 @@ void TstGzip::descompactadoAcimaDoTetoRecusado()
     QCOMPARE(QString::fromStdString(abaixo.error().codigo()), QStringLiteral("gzip.limite"));
     const auto no = gz::descomprimir(*compactado, original.size());
     QVERIFY2(no.has_value(), "no teto exato a descompressão tem de passar");
+}
+
+void TstGzip::membroExtraAposFimDoGzipRecusado()
+{
+    // Dois membros gzip seguidos. O segundo não pode ser descartado em silêncio: sai erro explícito (DA-2.41, d).
+    const std::vector<std::byte> a = cargaDeTeste(100);
+    const std::vector<std::byte> b = cargaDeTeste(50);
+    const auto ca = gz::comprimir(a);
+    const auto cb = gz::comprimir(b);
+    QVERIFY2(ca.has_value() && cb.has_value(), "a compactação de teste tem de funcionar");
+    std::vector<std::byte> dois = *ca;
+    dois.insert(dois.end(), cb->begin(), cb->end());
+    const auto resultado = gz::descomprimir(dois, a.size() + b.size());
+    QVERIFY2(!resultado.has_value(), "um segundo membro gzip depois do fim tem de ser recusado");
+    QCOMPARE(QString::fromStdString(resultado.error().codigo()), QStringLiteral("gzip.membro_extra"));
 }
 
 QTEST_GUILESS_MAIN(TstGzip)

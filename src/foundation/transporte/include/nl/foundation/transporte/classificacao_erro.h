@@ -14,6 +14,9 @@ namespace nl::foundation::transporte {
 struct Classificacao {
     TipoErro tipo;
     CausaErro causa;
+    /// true quando a falha ocorreu antes de qualquer byte HTTP chegar ao servidor (conexão recusada, nome sem
+    /// resolução, handshake TLS recusado). Com false, os bytes podem ter chegado e o chamador tem de consultar antes.
+    bool antesDoEnvio = false;
 };
 
 /// Erro de rede sem status HTTP recebido: conexão, handshake, tempo limite do Qt e protocolo.

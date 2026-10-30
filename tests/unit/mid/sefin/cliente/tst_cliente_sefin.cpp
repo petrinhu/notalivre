@@ -496,6 +496,240 @@ private slots:
         QCOMPARE(static_cast<qint64>(politica.esperaAntesDaTentativa(2).count()), qint64{500});
         QCOMPARE(static_cast<qint64>(politica.esperaAntesDaTentativa(3).count()), qint64{1000});
     }
+
+    void backoffNaoEstouraComExpoenteAlto()
+    {
+        // DA-2.41 (d): 1 << (n - 2) com n de 64 ou 1000 é comportamento indefinido. O expoente tem teto explícito.
+        mc::PoliticaRetry politica;
+        politica.base = 500ms;
+        const auto saturado = politica.esperaAntesDaTentativa(12).count();
+        QVERIFY2(saturado > 0, "a espera saturada tem de ser positiva");
+        QCOMPARE(politica.esperaAntesDaTentativa(64).count(), saturado);
+        QCOMPARE(politica.esperaAntesDaTentativa(1000).count(), saturado);
+        for (int n = 2; n < 70; ++n) {
+            QVERIFY2(politica.esperaAntesDaTentativa(n).count() <= politica.esperaAntesDaTentativa(n + 1).count(),
+                     "a espera não pode diminuir com o número da tentativa");
+        }
+    }
+
+    // DA-2.41 (a): POST com 2xx sem chave consulta GET /dps e devolve a chave da consulta, nunca Definitiva.
+    void posPost2xxSemChaveConsultaDps()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse post_sem_chave")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "201 sem chave consulta GET /dps e devolve a chave da consulta");
+        const std::vector<std::string> esperado{"POST:201", "GET:200", "GET:200"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "2xx sem chave consulta GET /dps antes de responder");
+    }
+
+    void posPost2xxForaDe200e201ConsultaDps()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse status202")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "202 consulta GET /dps e devolve a chave da consulta");
+        const std::vector<std::string> esperado{"POST:202", "GET:200", "GET:200"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "2xx fora de 200 e 201 consulta GET /dps");
+    }
+
+    // DA-2.41 (a): 3xx no POST é estado indeterminado. Consulta antes de qualquer reenvio.
+    void post3xxConsultaDpsAntesDeReenviar()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse redireciona_post")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "depois do 3xx, a consulta mostra que a DPS não gerou nota e o reenvio emite");
+        const std::vector<std::string> esperado{"GET:404", "POST:201"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "3xx no POST consulta GET /dps antes de reenviar");
+    }
+
+    // DA-2.41 (a): erro definitivo depois do envio é indeterminado, e a consulta que não diz o estado também.
+    void erroDefinitivoDepoisDoEnvioViraIndeterminado()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse post_ce_gzip"),
+                             QStringLiteral("GET /dps/DPS430510821122233300018100001000000000000001 consulta_404_outro")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "sem resposta definitiva, não há nota");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Indeterminado,
+                 "erro depois do envio, com consulta sem resposta, é Indeterminado");
+        QVERIFY2(sequencia(m->destino.str()) == std::vector<std::string>{"GET:404"}, "a consulta é feita");
+    }
+
+    // DA-2.41 (a): qualquer resultado da consulta diferente de chave ou E2404 é Indeterminado, nunca Rejeitada.
+    void consultaComCodigoQueNaoE2404ViraIndeterminado()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse erro5xx"),
+                             QStringLiteral("GET /dps/DPS430510821122233300018100001000000000000001 consulta_404_outro")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "sem chave e sem E2404, não há nota");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Indeterminado,
+                 "consulta com código diferente de E2404 é Indeterminado, nunca Rejeitada");
+        const std::vector<std::string> esperado{"POST:503", "GET:404"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "a consulta vem antes de qualquer decisão");
+    }
+
+    // DA-2.41 (a): E2404 libera o reenvio da mesma DPS (mesmo Id, mesmo número, por construção do envelope).
+    void naoGeradaReenviaMesmoIdNuncaNumeroNovo()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse erro5xx")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "E2404 na consulta libera o reenvio da mesma DPS");
+        // O reenvio reaproveita o envelope e o Id da DPS montada uma vez: a sequência tem um POST a mais, e nenhum GET de nota.
+        const std::vector<std::string> esperado{"POST:503", "GET:404", "POST:201"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "o reenvio segue a consulta, sem outra tentativa de número");
+    }
+
+    // DA-2.41 (a): E0014 num reenvio leva à consulta, e a consulta devolve a chave (a nota já existia).
+    void e0014NoReenvioConsultaEDevolveAChave()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse erro5xx"), QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "E0014 num reenvio consulta GET /dps e devolve a chave, nunca rejeição");
+        const std::vector<std::string> esperado{"POST:503", "GET:404", "POST:400", "GET:200", "GET:200"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "E0014 no reenvio vai para a consulta");
+    }
+
+    // DA-2.41 (a): falha antes do envio é Transitoria, sem consulta. O handshake sem certificado é antes do envio.
+    void falhaAntesDoEnvioETransitoriaSemConsulta()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        auto recusada = montar(1, *cred);  // porta 1: ninguém escuta, a conexão é recusada antes do envio
+        auto semConexao = recusada->cliente->emitir(*dps);
+        QVERIFY2(!semConexao.has_value(), "sem conexão não há nota");
+        QVERIFY2(semConexao.error().motivo == bk::MotivoFalhaSefin::Transitoria, "conexão recusada é Transitoria");
+        QVERIFY2(sequencia(recusada->destino.str()).empty(), "conexão recusada não consulta a DPS");
+
+        ServidorDeTeste srv({});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        fl::Log registro(recusada->destino, "sefin",
+                         std::vector<fl::DeclaracaoCampo>{{"metodo", fl::Regra::Cru}, {"status", fl::Regra::Cru},
+                                                          {"codigoE", fl::Regra::Cru}, {"etapa", fl::Regra::Cru}},
+                         std::vector<std::string>{"sefin.requisicao", "sefin.consulta", "sefin.emissao", "sefin.erro"});
+        ft::ConfiguracaoTls semCertificado = configuracaoTls(*cred);
+        semCertificado.certificadoCliente = QSslCertificate();
+        semCertificado.chaveCliente = QSslKey();
+        const ft::UrlBase base{QUrl(QStringLiteral("https://127.0.0.1:%1").arg(srv.porta())), QString(), 5000ms};
+        ft::TransporteHttps transporte(base, semCertificado);
+        mc::PoliticaRetry politica;
+        politica.base = 1ms;
+        mc::ClienteSefin cliente(transporte, registro, politica);
+        auto tls = cliente.emitir(*dps);
+        QVERIFY2(!tls.has_value(), "sem certificado de cliente, o servidor recusa o handshake");
+        QVERIFY2(tls.error().motivo == bk::MotivoFalhaSefin::Transitoria,
+                 "handshake recusado é antes do envio: Transitoria, sem consulta");
+        QVERIFY2(sequencia(recusada->destino.str()).empty(), "handshake recusado não consulta a DPS");
+    }
+
+    // DA-2.41 (b): código E fora de ^E\d{3,4}$ fica vazio, e o log recebe só o marcador codigo_invalido.
+    void codigoEComCpfNaoChegaAoLog()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao_bruta:E1203_CPF_12345678909")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY(!resultado.has_value());
+        const std::string saida = m->destino.str();
+        QVERIFY2(saida.find("sefin.requisicao") != std::string::npos, "piso: a varredura tem de ler um log não vazio");
+        QVERIFY2(saida.find("12345678909") == std::string::npos, "o CPF do campo Codigo não pode aparecer no log");
+        QVERIFY2(saida.find("codigo_invalido") != std::string::npos, "o log recebe só o marcador codigo_invalido");
+        QVERIFY2(resultado.error().codigoE.empty(), "código fora do formato fica vazio no erro");
+        QVERIFY2(resultado.error().mensagem.find("12345678909") == std::string::npos,
+                 "a mensagem do erro não pode trazer o CPF");
+    }
+
+    void codigoEForaDoFormatoFicaVazio()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao_bruta:E12345")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY(!resultado.has_value());
+        QVERIFY2(resultado.error().codigoE.empty(), "E12345 tem cinco dígitos: fora de ^E\\d{3,4}$, fica vazio");
+        QVERIFY2(m->destino.str().find("codigo_invalido") != std::string::npos, "o log marca codigo_invalido");
+    }
+
+    // DA-2.41 (c): Base64 com caractere fora do alfabeto e tamanho válido. Só a checagem de alfabeto recusa.
+    void base64ComCaractereInvalidoETamanhoValidoRecusado()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse nfse_base64_caractere_invalido")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "sucesso com caractere fora do Base64 devolve a chave");
+        QVERIFY2(nota->xmlPendente, "caractere fora do alfabeto marca o XML como pendente, mesmo com tamanho válido");
+        QVERIFY2(nota->xmlNfse.isEmpty(), "XML pendente não traz bytes");
+    }
+
+    // DA-2.41 (d): o segundo membro do gzip é erro explícito e leva ao XML pendente, sem liberar reenvio.
+    void membroExtraDoGzipViraXmlPendente()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse nfse_gzip_dois_membros")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "sucesso com segundo membro gzip devolve a chave");
+        QVERIFY2(nota->xmlPendente, "o segundo membro gzip faz o XML ficar pendente, sem XML falso");
+        QVERIFY2(sequencia(m->destino.str()) == std::vector<std::string>{"POST:201"}, "sem reenvio");
+    }
 };
 
 // QTEST_GUILESS_MAIN cria o QCoreApplication: o transporte espera pelo QEventLoop e o seu tempo limite é um QTimer, e

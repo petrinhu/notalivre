@@ -23,6 +23,8 @@ enum class MotivoFalhaSefin {
     DpsDuplicada,  ///< 409: a DPS já existe na Sefin. Consultar, nunca reenviar.
     Rejeitada,     ///< Código E de regra de negócio (ou de certificado). Nunca repete.
     Definitiva,    ///< Resposta que o cliente não consegue ler, ou configuração inválida.
+    Indeterminado, ///< Os bytes do POST podem ter chegado e a consulta GET /dps não disse o que aconteceu. Nunca vira
+                   ///< Definitiva nem Rejeitada: o chamador não sabe se a nota existe e não pode reenviar (DA-2.41).
 };
 
 struct FalhaSefin {

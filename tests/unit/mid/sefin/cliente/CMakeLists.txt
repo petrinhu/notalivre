@@ -29,7 +29,20 @@ foreach(nome IN ITEMS
     backoffDobraAteAPrimeiraRepeticao
     xmlNfseGuardaXmlDescomprimido
     base64InvalidoRecusado
-    xmlIlegivelNumSucessoNaoLiberaReenvio)
+    xmlIlegivelNumSucessoNaoLiberaReenvio
+    backoffNaoEstouraComExpoenteAlto
+    posPost2xxSemChaveConsultaDps
+    posPost2xxForaDe200e201ConsultaDps
+    post3xxConsultaDpsAntesDeReenviar
+    erroDefinitivoDepoisDoEnvioViraIndeterminado
+    consultaComCodigoQueNaoE2404ViraIndeterminado
+    naoGeradaReenviaMesmoIdNuncaNumeroNovo
+    e0014NoReenvioConsultaEDevolveAChave
+    falhaAntesDoEnvioETransitoriaSemConsulta
+    codigoEComCpfNaoChegaAoLog
+    codigoEForaDoFormatoFicaVazio
+    base64ComCaractereInvalidoETamanhoValidoRecusado
+    membroExtraDoGzipViraXmlPendente)
   add_test(NAME mid.sefin.cliente.${nome} COMMAND tst_cliente_sefin ${nome})
   set_tests_properties(mid.sefin.cliente.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste

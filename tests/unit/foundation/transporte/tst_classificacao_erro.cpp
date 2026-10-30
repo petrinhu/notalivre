@@ -17,6 +17,7 @@ private slots:
     void tabelaDeCodigosDeRede();
     void faixaDeRespostaCompleta();
     void redirecionamentoEhSo3xx();
+    void antesDoEnvioSoParaFalhaDeConexaoETls();
 };
 
 void TesteClassificacaoErro::initTestCase()
@@ -99,6 +100,31 @@ void TesteClassificacaoErro::redirecionamentoEhSo3xx()
     QVERIFY2(!ehRedirecionamento(200), "200 não é redirecionamento");
     QVERIFY2(!ehRedirecionamento(299), "299 não é redirecionamento");
     QVERIFY2(!ehRedirecionamento(400), "400 não é redirecionamento");
+}
+
+void TesteClassificacaoErro::antesDoEnvioSoParaFalhaDeConexaoETls()
+{
+    // NL-2.8, DA-2.41: "antes do envio" é conexão recusada, nome sem resolução, falha temporária de rede, sessão e
+    // handshake TLS (a recusa do certificado de cliente acontece na camada TLS). Queda de conexão e timeout podem ter
+    // deixado os bytes do POST chegar, então não são antes do envio.
+    struct Caso {
+        QNetworkReply::NetworkError codigo;
+        bool antes;
+        const char* nome;
+    };
+    const Caso casos[] = {
+        {QNetworkReply::ConnectionRefusedError, true, "conexao recusada"},
+        {QNetworkReply::HostNotFoundError, true, "host nao encontrado"},
+        {QNetworkReply::TemporaryNetworkFailureError, true, "falha temporaria"},
+        {QNetworkReply::NetworkSessionFailedError, true, "sessao falhou"},
+        {QNetworkReply::SslHandshakeFailedError, true, "handshake recusado"},
+        {QNetworkReply::RemoteHostClosedError, false, "conexao fechada depois de aberta"},
+        {QNetworkReply::TimeoutError, false, "timeout"},
+        {QNetworkReply::ProtocolFailure, false, "falha de protocolo"},
+    };
+    for (const Caso& caso : casos) {
+        QVERIFY2(classificarErroDeRede(caso.codigo).antesDoEnvio == caso.antes, caso.nome);
+    }
 }
 
 QTEST_GUILESS_MAIN(TesteClassificacaoErro)

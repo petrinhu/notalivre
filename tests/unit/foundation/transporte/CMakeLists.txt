@@ -50,7 +50,8 @@ target_link_libraries(tst_classificacao_erro PRIVATE Qt6::Core Qt6::Network Qt6:
 foreach(nome IN ITEMS
     tabelaDeCodigosDeRede
     faixaDeRespostaCompleta
-    redirecionamentoEhSo3xx)
+    redirecionamentoEhSo3xx
+    antesDoEnvioSoParaFalhaDeConexaoETls)
   add_test(NAME transporte.classificacao.${nome} COMMAND tst_classificacao_erro ${nome})
   set_tests_properties(transporte.classificacao.${nome} PROPERTIES
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
