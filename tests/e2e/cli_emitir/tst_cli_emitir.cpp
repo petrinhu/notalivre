@@ -171,7 +171,7 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
     QVERIFY2(!senha.isEmpty(), "a senha da fixture sintética tem de existir");
 
-    const QStringList argumentos{kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
                                  QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"),
                                  QStringLiteral("homologacao"), QStringLiteral("--certificado"),
                                  kCertificados + QStringLiteral("/cnpj_ok.pfx")};
