@@ -19,8 +19,10 @@
 #include <QString>
 
 #include <cstddef>
+#include <span>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace nl::mid::sefin::cliente {

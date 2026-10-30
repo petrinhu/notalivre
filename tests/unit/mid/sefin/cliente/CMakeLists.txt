@@ -7,7 +7,7 @@ find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
 
 add_executable(tst_cliente_sefin tst_cliente_sefin.cpp)
 target_link_libraries(tst_cliente_sefin PRIVATE Qt6::Core Qt6::Network Qt6::Test nl_mid nl_back nl_foundation_pkcs12
-                      nl_foundation_transporte nl_foundation_log nl_foundation_xmldsig OpenSSL::Crypto nl_warnings)
+                      nl_foundation_transporte nl_foundation_log OpenSSL::Crypto nl_warnings)
 
 set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
 find_program(NL_XMLLINT_CLIENTE xmllint REQUIRED)
