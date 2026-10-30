@@ -293,19 +293,80 @@ std::expected<ReferenciaLocalizada, ErroAssinatura> localizarReferencia(QByteArr
     return ReferenciaLocalizada{std::move(doc), raiz, referencia};
 }
 
-// Modelo da Signature na posição final (DA-2.40, item 4): DigestValue e SignatureValue vazios, KeyInfo já preenchido.
-std::string modeloSignature(const ParametrosAssinatura& parametros, const std::string& id,
-                            const std::string& certificadoB64) {
+// Texto C da libxml2 a partir de literal ou de std::string.
+const xmlChar* comoXml(const char* texto) {
+    return reinterpret_cast<const xmlChar*>(texto);
+}
+
+// Filho do pai no namespace dado, sem conteúdo (DigestValue e SignatureValue entram depois, por função).
+xmlNodePtr filhoDsig(xmlNodePtr pai, xmlNsPtr ns, const char* nome) {
+    return xmlNewChild(pai, ns, comoXml(nome), nullptr);
+}
+
+// Filho com um atributo. O valor entra pela API da libxml2, que escapa aspas e & na serialização (NL-2.9, condição (c)).
+xmlNodePtr filhoDsigComAtributo(xmlNodePtr pai, xmlNsPtr ns, const char* nome, const char* atributo, std::string_view valor) {
+    xmlNodePtr no = filhoDsig(pai, ns, nome);
+    const std::string copia(valor);
+    if (no == nullptr || xmlSetProp(no, comoXml(atributo), comoXml(copia.c_str())) == nullptr) {
+        return nullptr;
+    }
+    return no;
+}
+
+// SignedInfo com o xmlns do dsig redeclarado, como no desenho original: o trecho sai auto-contido e o oráculo standalone bate.
+bool preencherSignedInfo(xmlNodePtr sig, xmlNsPtr ns, const ParametrosAssinatura& p, const std::string& id) {
     const std::string dsig(kDsig);
-    const std::string c14n(kC14n);
-    const std::string env(kEnveloped);
-    // SignedInfo declara o próprio xmlns, como no desenho original: o trecho sai auto-contido e o oráculo standalone bate.
-    return "<Signature xmlns=\"" + dsig + "\"><SignedInfo xmlns=\"" + dsig + "\"><CanonicalizationMethod Algorithm=\"" + c14n +
-           "\"/><SignatureMethod Algorithm=\"" + std::string(parametros.uriAssinatura) + "\"/><Reference URI=\"#" + id +
-           "\"><Transforms><Transform Algorithm=\"" + env + "\"/><Transform Algorithm=\"" + c14n +
-           "\"/></Transforms><DigestMethod Algorithm=\"" + std::string(parametros.uriDigest) +
-           "\"/><DigestValue></DigestValue></Reference></SignedInfo><SignatureValue></SignatureValue><KeyInfo>"
-           "<X509Data><X509Certificate>" + certificadoB64 + "</X509Certificate></X509Data></KeyInfo></Signature>";
+    xmlNodePtr signedInfo = filhoDsig(sig, ns, "SignedInfo");
+    xmlNsPtr nsSi = signedInfo != nullptr ? xmlNewNs(signedInfo, comoXml(dsig.c_str()), nullptr) : nullptr;
+    if (nsSi == nullptr) {
+        return false;
+    }
+    xmlSetNs(signedInfo, nsSi);
+    if (filhoDsigComAtributo(signedInfo, nsSi, "CanonicalizationMethod", "Algorithm", kC14n) == nullptr ||
+        filhoDsigComAtributo(signedInfo, nsSi, "SignatureMethod", "Algorithm", p.uriAssinatura) == nullptr) {
+        return false;
+    }
+    xmlNodePtr reference = filhoDsigComAtributo(signedInfo, nsSi, "Reference", "URI", "#" + id);
+    if (reference == nullptr) {
+        return false;
+    }
+    xmlNodePtr transforms = filhoDsig(reference, nsSi, "Transforms");
+    if (transforms == nullptr || filhoDsigComAtributo(transforms, nsSi, "Transform", "Algorithm", kEnveloped) == nullptr ||
+        filhoDsigComAtributo(transforms, nsSi, "Transform", "Algorithm", kC14n) == nullptr) {
+        return false;
+    }
+    return filhoDsigComAtributo(reference, nsSi, "DigestMethod", "Algorithm", p.uriDigest) != nullptr &&
+           filhoDsig(reference, nsSi, "DigestValue") != nullptr;
+}
+
+// Signature inteira: SignedInfo, SignatureValue vazio e KeyInfo com o certificado (DA-2.40, item 4). Tudo por função.
+bool preencherSignature(xmlNodePtr sig, const ParametrosAssinatura& p, const std::string& id, const std::string& certificadoB64) {
+    const std::string dsig(kDsig);
+    xmlNsPtr ns = xmlNewNs(sig, comoXml(dsig.c_str()), nullptr);
+    if (ns == nullptr) {
+        return false;
+    }
+    xmlSetNs(sig, ns);
+    if (!preencherSignedInfo(sig, ns, p, id) || filhoDsig(sig, ns, "SignatureValue") == nullptr) {
+        return false;
+    }
+    xmlNodePtr keyInfo = filhoDsig(sig, ns, "KeyInfo");
+    xmlNodePtr x509Data = keyInfo != nullptr ? filhoDsig(keyInfo, ns, "X509Data") : nullptr;
+    return x509Data != nullptr && xmlNewTextChild(x509Data, ns, comoXml("X509Certificate"), comoXml(certificadoB64.c_str())) != nullptr;
+}
+
+// Nó Signature montado no documento, ainda sem ligação à árvore (quem chama liga na posição final, irmã do infDPS). Se a
+// libxml2 falhar no meio, o nó parcial é liberado aqui e o resultado é nullptr.
+xmlNodePtr construirSignature(xmlDocPtr doc, const ParametrosAssinatura& p, const std::string& id, const std::string& certificadoB64) {
+    xmlNodePtr sig = xmlNewDocNode(doc, nullptr, comoXml("Signature"), nullptr);
+    if (sig == nullptr) {
+        return nullptr;
+    }
+    if (!preencherSignature(sig, p, id, certificadoB64)) {
+        xmlFreeNode(sig);
+        return nullptr;
+    }
+    return sig;
 }
 
 } // namespace
@@ -371,14 +432,9 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
     if (!certificado) {
         return std::unexpected(certificado.error());
     }
-    // Modelo da Signature já na posição final, irmã do infDPS (item 4). Digest e SignatureValue são preenchidos depois.
-    Doc modelo(xmlReadMemory(modeloSignature(parametros, id, *certificado).c_str(),
-                             static_cast<int>(modeloSignature(parametros, id, *certificado).size()), "signature.xml",
-                             nullptr, XML_PARSE_NONET));
-    if (!modelo) {
-        return std::unexpected(ErroAssinatura::FalhaInterna);
-    }
-    xmlNodePtr assinatura = xmlDocCopyNode(xmlDocGetRootElement(modelo.get()), doc.get(), 1);
+    // Signature já na posição final, irmã do infDPS (item 4), montada pela árvore da libxml2 no próprio documento.
+    // Digest e SignatureValue são preenchidos depois.
+    xmlNodePtr assinatura = construirSignature(doc.get(), parametros, id, *certificado);
     if (assinatura == nullptr) {
         return std::unexpected(ErroAssinatura::FalhaInterna);
     }
