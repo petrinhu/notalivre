@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Testes da linha de comando de `notalivre emitir` e da exceção do topo (NL-2.9). Slots sem vírgula (L-45).
 # Os fontes da CLI entram direto nos testes, porque o executável notalivre-cli não é biblioteca.
-set(NL_FONTES_CLI ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/comando_emitir.cpp
+set(NL_FONTES_CLI ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/comando_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/configuracao_cli.cpp
     ${CMAKE_SOURCE_DIR}/apps/cli/senha_terminal.cpp ${CMAKE_SOURCE_DIR}/apps/cli/excecao_topo.cpp)
 
 add_executable(tst_argumentos_emitir tst_argumentos_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp)
