@@ -272,8 +272,9 @@ Desfecho resolverDuplicada(ft::TransporteHttps& transporte, fl::Log& registro, c
 
 } // namespace
 
-ClienteSefin::ClienteSefin(ft::TransporteHttps& transporte, fl::Log& registro, PoliticaRetry politica)
-    : transporte_(transporte), registro_(registro), politica_(politica)
+ClienteSefin::ClienteSefin(ft::TransporteHttps& transporte, fl::Log& registro, PoliticaRetry politica,
+                           const ComparadorInfDps& comparador)
+    : transporte_(transporte), registro_(registro), politica_(politica), comparador_(comparador)
 {
 }
 

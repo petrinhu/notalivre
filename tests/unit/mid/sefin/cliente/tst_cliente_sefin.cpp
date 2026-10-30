@@ -259,6 +259,25 @@ std::vector<std::string> sequencia(const std::string& saida)
     return itens;
 }
 
+// Comparador de teste (adendo da DA-2.41): devolve o resultado configurado e guarda o que recebeu.
+class ComparadorFalso final : public mc::ComparadorInfDps {
+public:
+    explicit ComparadorFalso(mc::ResultadoComparacaoInfDps resultado) : resultado_(resultado) {}
+    mc::ResultadoComparacaoInfDps comparar(const QByteArray& dpsXml, const QByteArray& nfseXml) const override
+    {
+        chamadas_++;
+        dpsRecebido_ = dpsXml;
+        nfseRecebido_ = nfseXml;
+        return resultado_;
+    }
+    mutable int chamadas_ = 0;
+    mutable QByteArray dpsRecebido_;
+    mutable QByteArray nfseRecebido_;
+
+private:
+    mc::ResultadoComparacaoInfDps resultado_;
+};
+
 struct Montagem {
     std::ostringstream destino;
     std::unique_ptr<fl::Log> log;
@@ -266,7 +285,8 @@ struct Montagem {
     std::unique_ptr<mc::ClienteSefin> cliente;
 };
 
-std::unique_ptr<Montagem> montar(int porta, const fp::CredencialX509& cred)
+std::unique_ptr<Montagem> montar(int porta, const fp::CredencialX509& cred,
+                                 const mc::ComparadorInfDps& comparador = mc::comparadorIndisponivel())
 {
     auto m = std::make_unique<Montagem>();
     m->log = std::make_unique<fl::Log>(
@@ -278,7 +298,7 @@ std::unique_ptr<Montagem> montar(int porta, const fp::CredencialX509& cred)
     m->transporte = std::make_unique<ft::TransporteHttps>(base, configuracaoTls(cred));
     mc::PoliticaRetry politica;
     politica.base = 1ms;  // a espera é real mas curta: o teste mede a ordem, não o tempo
-    m->cliente = std::make_unique<mc::ClienteSefin>(*m->transporte, *m->log, politica);
+    m->cliente = std::make_unique<mc::ClienteSefin>(*m->transporte, *m->log, politica, comparador);
     return m;
 }
 
@@ -360,11 +380,13 @@ private slots:
         QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
         auto m = montar(srv.porta(), *cred);
         auto resultado = m->cliente->emitir(*dps);
-        QVERIFY2(!resultado.has_value(), "rejeição não pode virar nota");
-        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Rejeitada, "código E tem de ser Rejeitada");
-        QCOMPARE(QString::fromStdString(resultado.error().codigoE), QStringLiteral("E0014"));
-        const std::vector<std::string> esperado{"POST:400"};
-        QVERIFY2(sequencia(m->destino.str()) == esperado, "rejeição com código E nunca repete");
+        // Adendo da DA-2.41: E0014 reconcilia em qualquer tentativa. Aqui a DPS não foi gerada, e a consulta diz 404: não
+        // há nota para comparar, então é Indeterminado. Nunca Rejeitada e nunca reenvio.
+        QVERIFY2(!resultado.has_value(), "E0014 nunca vira nota sem reconciliação");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Indeterminado,
+                 "E0014 sem nota para comparar é Indeterminado, nunca Rejeitada");
+        const std::vector<std::string> esperado{"POST:400", "GET:404"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "E0014 consulta e não repete o POST");
     }
 
     void certificadoRevogadoMapeadoPelaRejeicaoDaSefin()
@@ -498,6 +520,80 @@ private slots:
         QCOMPARE(static_cast<qint64>(politica.esperaAntesDaTentativa(1).count()), qint64{0});
         QCOMPARE(static_cast<qint64>(politica.esperaAntesDaTentativa(2).count()), qint64{500});
         QCOMPARE(static_cast<qint64>(politica.esperaAntesDaTentativa(3).count()), qint64{1000});
+    }
+
+    // Adendo da DA-2.41: E0014 reconcilia já na primeira tentativa (a nota pode ter nascido numa execução anterior).
+    void e0014NaPrimeiraTentativaReconcilia()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        ComparadorFalso igual(mc::ResultadoComparacaoInfDps::Igual);
+        auto m = montar(srv.porta(), *cred, igual);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "E0014 na primeira tentativa reconcilia com a nota, sem rejeitar");
+        const std::vector<std::string> esperado{"POST:400", "GET:200", "GET:200"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "E0014 na primeira tentativa vai para a consulta");
+    }
+
+    // Adendo: com o mesmo infDPS, a nota recuperada é a da DPS enviada, e o comparador recebe as duas.
+    void e0014ComMesmoInfDpsRecuperaANota()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        ComparadorFalso igual(mc::ResultadoComparacaoInfDps::Igual);
+        auto m = montar(srv.porta(), *cred, igual);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "mesmo infDPS é sucesso com a nota recuperada");
+        QVERIFY2(!nota->xmlPendente, "a nota recuperada traz o XML, não fica pendente");
+        QVERIFY2(nota->xmlNfse == dps->xml, "a nota recuperada é a DPS enviada");
+        QVERIFY2(igual.chamadas_ == 1, "a reconciliação compara uma vez");
+        QVERIFY2(igual.dpsRecebido_ == dps->xml, "o comparador recebe a DPS enviada");
+        QVERIFY2(!igual.nfseRecebido_.isEmpty(), "o comparador recebe o XML devolvido pela NFS-e");
+    }
+
+    // Adendo: com infDPS diferente (colisão de numeração), é DpsDuplicada para o usuário: nunca renumera, nunca reenvia.
+    void e0014ComInfDpsDiferenteViraDpsDuplicada()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        ComparadorFalso diferente(mc::ResultadoComparacaoInfDps::Diferente);
+        auto m = montar(srv.porta(), *cred, diferente);
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "infDPS diferente não pode virar nota");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::DpsDuplicada,
+                 "colisão de numeração é DpsDuplicada, para o usuário decidir");
+        const std::vector<std::string> esperado{"POST:400", "GET:200", "GET:200"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "a colisão não reenvia nem renumera a DPS");
+    }
+
+    // Adendo: sem conseguir comparar (comparador ausente), não há sucesso silencioso: é Indeterminado.
+    void e0014SemConseguirCompararViraIndeterminado()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);  // sem comparador real: a comparação não tem como acontecer
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "sem comparação não há sucesso silencioso");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Indeterminado,
+                 "sem conseguir comparar, o estado é Indeterminado");
+        const std::vector<std::string> esperado{"POST:400", "GET:200", "GET:200"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "a reconciliação buscou a nota antes de desistir");
     }
 
     void backoffNaoEstouraComExpoenteAlto()
@@ -639,7 +735,8 @@ private slots:
         QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
         ServidorDeTeste srv({QStringLiteral("POST /nfse erro5xx"), QStringLiteral("POST /nfse rejeicao_gerada:E0014")});
         QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
-        auto m = montar(srv.porta(), *cred);
+        ComparadorFalso igual(mc::ResultadoComparacaoInfDps::Igual);
+        auto m = montar(srv.porta(), *cred, igual);
         auto nota = m->cliente->emitir(*dps);
         QVERIFY2(nota.has_value(), "E0014 num reenvio consulta GET /dps e devolve a chave, nunca rejeição");
         const std::vector<std::string> esperado{"POST:503", "GET:404", "POST:400", "GET:200", "GET:200"};
