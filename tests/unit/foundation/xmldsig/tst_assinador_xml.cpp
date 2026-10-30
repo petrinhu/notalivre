@@ -90,6 +90,8 @@ QString codigoDe(xd::ErroAssinatura erro) {
     return QString::fromUtf8(codigo.data(), static_cast<int>(codigo.size()));
 }
 
+QByteArray dpsDeReferencia();
+
 // DPS de referência com o xmlns:xsi declarado na raiz (DA-2.40, item 4: o SignedInfo herda esse namespace).
 QByteArray dpsComXsiNaRaiz() {
     QByteArray xml = dpsDeReferencia();
@@ -398,7 +400,8 @@ private slots:
     void algoritmoBloqueadoViraErroProprio() {
         // Digest que o provider default do OSSL_LIB_CTX não entrega: vira erro próprio, nunca falha silenciosa (DA-2.10).
         const xd::ParametrosAssinatura bloqueado{kC14n, kEnveloped,
-                                                 "http://www.w3.org/2001/04/xmldsig-more#md4", kRsaSha1};
+                                                 "http://www.w3.org/2001/04/xmldsig-more#md4", kRsaSha1,
+                                                 "infDPS", "DPS", kNsLeiaute};
         auto assinado = assinarComCredencial(dpsDeReferencia(), bloqueado);
         QVERIFY2(!assinado.has_value(), "digest bloqueado não pode assinar");
         QVERIFY2(assinado.error() == xd::ErroAssinatura::AlgoritmoBloqueado, "o erro tinha de ser algoritmo bloqueado");
