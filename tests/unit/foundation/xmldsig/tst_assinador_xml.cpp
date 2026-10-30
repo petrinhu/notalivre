@@ -77,6 +77,19 @@ QString campoDoOsRelease(const QString& campo) {
     return campo == QStringLiteral("VERSION_ID") ? QStringLiteral("rolling") : QString();
 }
 
+// Piso de HTTP (CISO, 10:02): grava a situação do teste (rodou ou pulou, com o motivo) no arquivo que a variável
+// NL_PISO_HTTP_ARQ aponta, na pasta de build da imagem. Sobrescreve a cada execução. Sem a variável, não grava nada.
+void registrarPisoHttp(const QString& situacao) {
+    const QString arquivo = qEnvironmentVariable("NL_PISO_HTTP_ARQ");
+    if (arquivo.isEmpty()) {
+        return;
+    }
+    QFile piso(arquivo);
+    if (piso.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        piso.write(situacao.toUtf8() + "\n");
+    }
+}
+
 const QByteArray kIdDps = "DPS430510821122233300018100001000000000000001";
 const char kC14n[] = "http://www.w3.org/TR/2001/REC-xml-c14n-20010315";
 const char kEnveloped[] = "http://www.w3.org/2000/09/xmldsig#enveloped-signature";
@@ -834,7 +847,23 @@ private slots:
     // NL-2.9 (CISO, 05:34), camada 2 no átomo: o contexto do átomo, com a carga do DTD externo acrescentada por campo (sem
     // apagar as opções) e sem o tratador da parada, não abre conexão para um DOCTYPE SYSTEM. Mutante sem NONET no átomo: o
     // ouvinte em 127.0.0.1 conta a conexão e o teste reprova.
+    // Piso de HTTP (CISO, 10:02): o teste só tem prova onde a libxml2 tem cliente HTTP. A 2.15 removeu o cliente
+    // (NEWS 2.15.0), e então o teste pula com o motivo. Onde roda, a marca vai para o arquivo do piso, lido pelo
+    // tools/conteiner/piso_http_libxml.sh; a rodada reprova se nenhuma imagem rodar o teste.
     void contextoDoParserBloqueiaRede() {
+        if (xmlHasFeature(XML_WITH_HTTP) == 0) {
+            registrarPisoHttp(QStringLiteral("pulou libxml2 %1: sem cliente HTTP, NEWS 2.15.0 removeu o cliente HTTP embutido")
+                                  .arg(QStringLiteral(LIBXML_DOTTED_VERSION)));
+            QSKIP("libxml2 sem cliente HTTP (NEWS 2.15.0: The built-in HTTP client was removed): sem prova de rede nesta imagem");
+        }
+#if LIBXML_VERSION >= 21300
+        // Com HTTP, mas em 2.13/2.14: a API aditiva de opções não foi medida nesta suíte. Pula com o motivo, sem fingir prova.
+        registrarPisoHttp(QStringLiteral("pulou libxml2 %1: API de opções não medida nesta versão").arg(QStringLiteral(LIBXML_DOTTED_VERSION)));
+        QSKIP("libxml2 2.13/2.14 com HTTP: API de opções aditiva não medida nesta suíte");
+#else
+        registrarPisoHttp(QStringLiteral("rodou libxml2 %1 em %2 %3")
+                              .arg(QStringLiteral(LIBXML_DOTTED_VERSION), campoDoOsRelease(QStringLiteral("ID")),
+                                   campoDoOsRelease(QStringLiteral("VERSION_ID"))));
         OuvinteTcp ouvinte;
         QVERIFY2(ouvinte.porta() != 0, "o ouvinte TCP local tem de subir");
         const QByteArray url = "http://127.0.0.1:" + QByteArray::number(ouvinte.porta()) + "/dtd.dtd";
@@ -842,10 +871,12 @@ private slots:
         auto ctx = xd::privado::criarContextoDoParser(xml);
         QVERIFY2(ctx.get() != nullptr, "o contexto do átomo tem de existir");
         ctx->sax->internalSubset = xmlSAX2InternalSubset;  // tira a parada: só a camada NONET fica
-        ctx->loadsubset = XML_DETECT_IDS;                    // carga do DTD externo, como XML_PARSE_DTDLOAD
+        // Carga do DTD externo pela API aditiva: soma XML_PARSE_DTDLOAD às opções do átomo, sem apagar o NONET.
+        xmlCtxtUseOptions(ctx.get(), XML_PARSE_DTDLOAD);
         xmlParseDocument(ctx.get());
         ouvinte.parar();
         QCOMPARE(ouvinte.conexoes(), 0);
+#endif
     }
 
     void variavelDoFedoraValeNoContextoProprio() {

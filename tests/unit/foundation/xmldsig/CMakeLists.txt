@@ -80,6 +80,15 @@ foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
+# Piso de HTTP (CISO, 10:02): onde a libxml2 não tem cliente HTTP (2.15), o teste pula com QSKIP; a passagem aceita o pulo
+# (Totals com skipped), e a situação vai para o arquivo do piso na pasta de build, lido por tools/conteiner/piso_http_libxml.sh.
+if(NOT NL_FLATPAK_BUILD)
+    set_property(TEST xmldsig.contextoDoParserBloqueiaRede APPEND PROPERTY ENVIRONMENT
+                 "NL_PISO_HTTP_ARQ=${CMAKE_BINARY_DIR}/piso_http_contextoDoParser.txt")
+    set_property(TEST xmldsig.contextoDoParserBloqueiaRede PROPERTY PASS_REGULAR_EXPRESSION
+                 "Totals: [1-9][0-9]* passed, 0 failed")
+endif()
+
 # DA-2.40 (adendo): o contexto próprio ignora a configuração global. Processo próprio do CTest, com OPENSSL_CONF do arquivo
 # de teste. Só no build nativo: o Flatpak não tem o material de teste nem o xmlsec1 (NL_FLATPAK_BUILD, DA-2.28).
 if(NOT NL_FLATPAK_BUILD)
