@@ -32,8 +32,18 @@ foreach(_nl_icp_linha IN LISTS _nl_icp_entradas)
     list(APPEND _nl_icp_arquivos "${_nl_icp_arq}")
 endforeach()
 
+# Dados, não código: os .der vão para share/notalivre/icp-brasil e nunca entram em nenhum alvo compilado.
 install(FILES ${_nl_icp_arquivos} "${_nl_icp_manifesto}"
         DESTINATION share/notalivre/icp-brasil)
+
+# Aviso de origem e licença (K2 do CLO, 30/10/2026, condição 2): instalado também no diretório de licenças do app.
+set(_nl_icp_notice "${CMAKE_CURRENT_SOURCE_DIR}/NOTICE")
+if(NOT EXISTS "${_nl_icp_notice}")
+    message(FATAL_ERROR "NL-2.13: NOTICE das raízes da ICP-Brasil ausente: ${_nl_icp_notice}. O K2 exige o aviso junto dos arquivos.")
+endif()
+install(FILES "${_nl_icp_notice}"
+        DESTINATION share/licenses/io.github.petrinhu.notalivre
+        RENAME NOTICE-icp-brasil)
 
 set(NL_ICP_RAIZES_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE INTERNAL "Diretório com as raízes da ICP-Brasil (.der), conferidas")
 set(NL_ICP_RAIZES_MANIFESTO "${_nl_icp_manifesto}" CACHE INTERNAL "SHA256SUMS das raízes da ICP-Brasil")

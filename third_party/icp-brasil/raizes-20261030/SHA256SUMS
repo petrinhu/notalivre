@@ -1,24 +1,26 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Raízes da ICP-Brasil como âncoras do A1 (NL-2.13, DA-2.47). Conferência feita em 2026-10-30.
+# Raízes da ICP-Brasil como âncoras do A1 (NL-2.13, DA-2.47). Conferência feita em 2026-10-30. Licença e atribuição: NOTICE.
 # Linha de hash: "<sha256 do DER>  <arquivo>", no formato do sha256sum (sha256sum -c confere estes arquivos).
-# Linha de metadado, uma por arquivo: "# meta <arquivo> proposito=<valor> fonte=<valor> data=<AAAA-MM-DD> url=<origem> [espelho=<url>]".
-# Origem: certificado PEM publicado pelo ITI em https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/, convertido para DER
-# com "openssl x509 -outform DER". O SHA-256 é do DER.
+# Linha de metadado, uma por arquivo: "# meta <arquivo> proposito=<valor> fonte=<valor> data=<AAAA-MM-DD> url=<origem>
+# publicado=<sha256 do arquivo como publicado> [espelho=<url>]".
+# url: certificado publicado pelo ITI em https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ (em PEM, nas seis versões).
+# publicado: SHA-256 do arquivo como o ITI publica. O arquivo versionado é o DER desse mesmo certificado (openssl x509 -outform DER);
+# a linha de hash acima é o SHA-256 do DER.
 # proposito=geral: nenhuma finalidade diferente declarada. Ficam fora deste manifesto a v10 (SSL) e a v11 (assinatura de código).
-# fonte=ITI+Serpro: o mesmo DER também está em https://repositorio.serpro.gov.br/docs/ (espelho). Para a v5 o arquivo do
-# Serpro difere só no fim de linha (CRLF); o DER é idêntico. fonte=ITI: sem cópia conferida no Serpro (fonte única).
+# fonte=ITI+Serpro: o mesmo arquivo também está em https://repositorio.serpro.gov.br/docs/ (espelho), com o mesmo SHA-256 publicado.
+# Para a v5 o arquivo do Serpro difere só no fim de linha (CRLF); o DER é idêntico. fonte=ITI: sem cópia conferida no Serpro (fonte única).
 # Os intermediários da Let's Encrypt (YE1 e Root YE) servem só ao download e não entram aqui.
 # Medido com openssl x509 -inform DER: todas autoassinadas e dentro da validade em 2026-10-30.
-# meta ICP-Brasilv4.der proposito=geral fonte=ITI data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv4.crt
+# meta ICP-Brasilv4.der proposito=geral fonte=ITI data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv4.crt publicado=857ff3bf31628979e479c5bc0bdf3e706bcc7bafb7ddf0c1134fc21f1cfab141
 f0c15afd258fb674e7a96e1a50ff873149364b9ec70d4d93c7a9f1eb6060d020  ICP-Brasilv4.der
-# meta ICP-Brasilv5.der proposito=geral fonte=ITI+Serpro data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv5.crt espelho=https://repositorio.serpro.gov.br/docs/icpbrasilv5.crt
+# meta ICP-Brasilv5.der proposito=geral fonte=ITI+Serpro data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv5.crt publicado=5bd85f219695dabe6cf3d4bd713d9bd8e41b2323194022acf1acd658daef148a espelho=https://repositorio.serpro.gov.br/docs/icpbrasilv5.crt
 caa53fc6091c6951887c976e378f6ef89aa6377c55d97b6475422b71ed7e9b17  ICP-Brasilv5.der
-# meta ICP-Brasilv6.der proposito=geral fonte=ITI data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv6.crt
+# meta ICP-Brasilv6.der proposito=geral fonte=ITI data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv6.crt publicado=a91e45782e58755dffc6621cb05c2342db74398ffc6e930b0b3a23325a3bfdfd
 3bdb9b509352f1d3d71c2bf64d9a38a4e6cebda27809d77f7ac476cbde6e314a  ICP-Brasilv6.der
-# meta ICP-Brasilv7.der proposito=geral fonte=ITI data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv7.crt
+# meta ICP-Brasilv7.der proposito=geral fonte=ITI data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv7.crt publicado=4fe1d8599fc00f0b61b12391c98d97af36bcada115bd894f8755e01e212bc4be
 5657e70580eb678983f3ed7dfce091d84cae6549389a47fccda8d0e4dc2cf576  ICP-Brasilv7.der
-# meta ICP-Brasilv12.der proposito=geral fonte=ITI+Serpro data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv12.crt espelho=https://repositorio.serpro.gov.br/docs/icpbrasilv12.crt
+# meta ICP-Brasilv12.der proposito=geral fonte=ITI+Serpro data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv12.crt publicado=ce6c66c73e41b12881ea8a9b8cb7efef9a482ea012c3cd3b843667e37a7a145c espelho=https://repositorio.serpro.gov.br/docs/icpbrasilv12.crt
 d8478e37ce19c690cf657381e68fe600e4e1a042536830f06847e03e554c4b01  ICP-Brasilv12.der
-# meta ICP-Brasilv13.der proposito=geral fonte=ITI data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv13.crt
+# meta ICP-Brasilv13.der proposito=geral fonte=ITI data=2026-10-30 url=https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv13.crt publicado=da54711b5816a2487903c62de28402dca2eea21ccc4e977f1d2645486d84d30c
 2b07d0bc02c4a6e0478ed22d0d99e8f97e1827b269097696a7feb6aad30c3ac8  ICP-Brasilv13.der
