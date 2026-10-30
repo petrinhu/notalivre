@@ -47,6 +47,8 @@ std::expected<ArgumentosEmitir, QString> lerArgumentosEmitir(const QStringList& 
             lidos.numero = valor;
         } else if (opcao == QLatin1String("--ambiente")) {
             lidos.ambiente = valor;
+        } else if (opcao == QLatin1String("--certificado")) {
+            lidos.certificado = valor;
         } else if (opcao == QLatin1String("--cnpj-confirmado")) {
             lidos.cnpjConfirmado = valor;
         } else {

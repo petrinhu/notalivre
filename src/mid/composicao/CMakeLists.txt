@@ -8,6 +8,7 @@ target_sources(nl_mid PRIVATE
     emissao_nota.cpp
     manipulador_qt.cpp
     politica_emissao.cpp
+    emissao_cli.cpp
     ler_dados_dps.cpp
     ler_endereco.cpp
     ler_identificacao.cpp
