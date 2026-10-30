@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Catálogo de erros da Sefin (NL-2.8, ADR-0005 c). FATO: os códigos E1203 a E1208 e os textos de E1207 vêm do Anexo I de
-// 20/10/2026 (sharedStrings da planilha, FATO; a linha da aba RN é INFERÊNCIA). E2404 e E0714 são INFERÊNCIA (pesquisa g
+// Catálogo de erros da Sefin (NL-2.8, ADR-0005 c). FATO (DA-2.41): os códigos E1203 a E1208 vêm do Anexo I de 20/10/2026,
+// aba RN_RECEP_DPS, linhas 4 a 8 da planilha (E1207 na linha 7); os textos de E1207 vêm dos sharedStrings da planilha.
+// E1204 ainda não tem texto no catálogo: falta conferir a linha dele no Anexo I. Não se inventa um texto.
+// E2404 e E0714 são INFERÊNCIA (pesquisa g
 // e texto do servidor falso), a confirmar na NL-2.10. Código fora desta tabela não ganha texto inventado.
 #include <nl/mid/sefin/cliente/catalogo_erros_sefin.h>
 
