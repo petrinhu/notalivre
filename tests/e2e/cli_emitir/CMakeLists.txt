@@ -20,6 +20,6 @@ target_compile_definitions(tst_cli_emitir PRIVATE
 add_test(NAME e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso COMMAND tst_cli_emitir cliEmiteDpsAceitaPeloServidorFalso)
 set_tests_properties(e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso PROPERTIES
                      FIXTURES_REQUIRED certificados_teste
-                     ENVIRONMENT "NL_XMLLINT=${NL_XMLLINT_EMITIR};NL_XMLSEC1=${NL_XMLSEC1_EMITIR}"
+                     ENVIRONMENT "NL_XMLLINT=${NL_XMLLINT_EMITIR};NL_XMLSEC1=${NL_XMLSEC1_EMITIR};NL_XSD_PRODREST_DIR=${NL_XSD_PRODREST_DIR}"
                      PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                      FAIL_REGULAR_EXPRESSION "FAIL!")
