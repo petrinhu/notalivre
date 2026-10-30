@@ -13,6 +13,7 @@
 
 #include <QByteArray>
 #include <QCryptographicHash>
+#include <QDir>
 #include <QFile>
 #include <QFileDevice>
 #include <QIODevice>
@@ -27,6 +28,25 @@ namespace {
 
 ErroCarga falha(ErroRaizIcp motivo, std::string arquivo = {}) {
     return ErroCarga{motivo, std::move(arquivo)};
+}
+
+// Primeiro .der do diretório que o manifesto não declara. Só .der conta: CMakeLists, NOTICE e SHA256SUMS não são raízes.
+std::optional<std::string> primeiroNaoDeclarado(const QString& diretorio, const std::vector<EntradaRaiz>& entradas) {
+    const QDir dir(diretorio);
+    for (const QString& nome : dir.entryList({QStringLiteral("*.der")}, QDir::Files)) {
+        const std::string texto = nome.toStdString();
+        bool declarado = false;
+        for (const EntradaRaiz& entrada : entradas) {
+            if (entrada.arquivo == texto) {
+                declarado = true;
+                break;
+            }
+        }
+        if (!declarado) {
+            return texto;
+        }
+    }
+    return std::nullopt;
 }
 
 // Lê o arquivo e confere o SHA-256 do DER com o do manifesto. Ausente ou divergente: erro (fatal para a carga).
@@ -99,6 +119,13 @@ std::expected<CargaRaizesIcp, ErroCarga> carregarRaizesIcp(const QString& direto
     auto entradas = lerManifesto(*conteudo);
     if (!entradas) {
         return std::unexpected(falha(entradas.error()));
+    }
+
+    // Todo .der do diretório tem de estar no manifesto (CISO, 30/10/2026, item 4). O conteúdo de produção é conhecido
+    // por inteiro, então um arquivo a mais é recusado antes de qualquer certificado ser lido.
+    auto nomeNaoDeclarado = primeiroNaoDeclarado(diretorio, *entradas);
+    if (nomeNaoDeclarado) {
+        return std::unexpected(falha(ErroRaizIcp::ArquivoNaoDeclarado, *nomeNaoDeclarado));
     }
 
     const std::time_t instante = std::chrono::system_clock::to_time_t(agora);

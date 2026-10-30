@@ -4,7 +4,7 @@
 // manifesto, a finalidade aceita e o instante. Quem escolhe o conjunto de produção é o Mid (DA-2.44).
 // Política: todo arquivo do manifesto é conferido por hash (qualquer divergência recusa a carga inteira). Depois, cada
 // raiz é descartada, sem recusar a carga, se estiver vencida, ainda não válida ou com finalidade diferente da pedida.
-// Arquivo do diretório que não está no manifesto não entra nunca.
+// Todo .der do diretório tem de estar no manifesto: um a mais recusa a carga (ArquivoNaoDeclarado, CISO item 4).
 // Uso (K2 do CLO, 30/10/2026): as raízes servem só de âncora para a cadeia do A1 do próprio usuário. Esta carga nunca
 // grava nada no repositório de confiança do sistema ou do usuário e nunca é usada em conexão TLS.
 #ifndef NL_FOUNDATION_PKCS12_CARGA_RAIZES_ICP_H
