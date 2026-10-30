@@ -41,22 +41,26 @@ void TstExcecaoTopo::excecaoNoTopoLogaSoTipoEPosicao()
                                        nl::foundation::log::DeclaracaoCampo{"posicao", nl::foundation::log::Regra::Cru}},
                                       {"cli.excecao"}};
     nl::cli::registrarExcecaoNoTopo(registro, excecao, "apps/cli/main.cpp:despachar");
+
+    // O registro vai ao arquivo que o portão de PII varre (ADR-0005 e). Grava ANTES das asserções: se o código vazar o CPF,
+    // o arquivo já existe com o vazamento e o portão reprova por PII, não por diretório ausente.
+    const QString pasta = qEnvironmentVariable("NL_LOGS_PII_CLI_DIR");
+    QVERIFY2(!pasta.isEmpty(), "NL_LOGS_PII_CLI_DIR tem de estar definido pelo CTest");
+    QVERIFY2(QDir().mkpath(pasta), "a pasta de logs da CLI tem de existir");
+    {
+        std::ofstream arquivo(pasta.toStdString() + "/excecao_topo.log");
+        QVERIFY2(arquivo.is_open(), "o log da exceção tem de abrir na pasta de logs da CLI");
+        nl::foundation::log::Log registroArquivo{arquivo, "notalivre-cli",
+                                                 {nl::foundation::log::DeclaracaoCampo{"tipo", nl::foundation::log::Regra::Cru},
+                                                  nl::foundation::log::DeclaracaoCampo{"posicao", nl::foundation::log::Regra::Cru}},
+                                                 {"cli.excecao"}};
+        nl::cli::registrarExcecaoNoTopo(registroArquivo, excecao, "apps/cli/main.cpp:despachar");
+    }
+
     const std::string saida = destino.str();
     QVERIFY2(saida.find(kCpfFixture) == std::string::npos, "a mensagem da exceção (com CPF) não pode ir ao Log");
     QVERIFY2(saida.find("apps/cli/main.cpp:despachar") != std::string::npos, "a posição tem de ir ao Log");
     QVERIFY2(saida.find("runtime_error") != std::string::npos, "o tipo tem de ir ao Log");
-
-    // O mesmo registro vai ao arquivo que o portão de PII varre (ADR-0005 e).
-    const QString pasta = qEnvironmentVariable("NL_LOGS_PII_CLI_DIR");
-    QVERIFY2(!pasta.isEmpty(), "NL_LOGS_PII_CLI_DIR tem de estar definido pelo CTest");
-    QVERIFY2(QDir().mkpath(pasta), "a pasta de logs da CLI tem de existir");
-    std::ofstream arquivo(pasta.toStdString() + "/excecao_topo.log");
-    QVERIFY2(arquivo.is_open(), "o log da exceção tem de abrir na pasta de logs da CLI");
-    nl::foundation::log::Log registroArquivo{arquivo, "notalivre-cli",
-                                             {nl::foundation::log::DeclaracaoCampo{"tipo", nl::foundation::log::Regra::Cru},
-                                              nl::foundation::log::DeclaracaoCampo{"posicao", nl::foundation::log::Regra::Cru}},
-                                             {"cli.excecao"}};
-    nl::cli::registrarExcecaoNoTopo(registroArquivo, excecao, "apps/cli/main.cpp:despachar");
 }
 
 QTEST_APPLESS_MAIN(TstExcecaoTopo)
