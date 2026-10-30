@@ -6,10 +6,10 @@
 // xmlns herdados do documento (DA-2.40, itens 4 a 6). Nada aqui lê ou define a variável de SHA-1 (portão sha1_env).
 #include <nl/foundation/xmldsig/assinador_xml.h>
 
-#include <libxml/SAX2.h>
+#include "parse_xml_privado.h"
+
 #include <libxml/c14n.h>
 #include <libxml/parser.h>
-#include <libxml/parserInternals.h>
 #include <libxml/tree.h>
 #include <libxml/xmlIO.h>
 
@@ -251,41 +251,6 @@ bool formaNfseDoXsd(xmlNodePtr referencia, xmlNodePtr raiz, const ParametrosAssi
            ehElemento(raiz, p.nomeRaizComDps, p.namespaceLeiaute);
 }
 
-// Callback do DOCTYPE (NL-2.9, condição (d)): cria o nó DTD como o padrão e para o parser antes de ler o subconjunto
-// interno. Assim, declarações (entidades em cascata, sintaxe ruim) nunca chegam a ser processadas.
-void paradaNoDtd(void* ctx, const xmlChar* nome, const xmlChar* publicId, const xmlChar* systemId) {
-    xmlSAX2InternalSubset(ctx, nome, publicId, systemId);
-    xmlStopParser(static_cast<xmlParserCtxtPtr>(ctx));
-}
-
-struct LeituraXml {
-    Doc doc;
-    bool bemFormado;
-};
-
-// Lê o XML sem RECOVER, como o xmlReadMemory fazia: documento mal formado devolve bemFormado = false. Duas camadas
-// contra rede no DTD: a primeira é a parada no DOCTYPE (paradaNoDtd), que impede qualquer leitura do DTD externo; a
-// segunda é XML_PARSE_NONET, que bloqueia o carregamento de rede se a parada falhasse. A API de opções muda por versão:
-// xmlCtxtSetOptions a partir da 2.13 (LIBXML_VERSION 21300), xmlCtxtUseOptions antes (ex.: Mint 22.3, inferência a
-// confirmar no build). O documento fica dono do chamador; o contexto do parser é liberado aqui.
-LeituraXml lerParandoNoDtd(QByteArrayView xml) {
-    xmlParserCtxtPtr ctx = xmlCreateMemoryParserCtxt(xml.data(), static_cast<int>(xml.size()));
-    if (ctx == nullptr) {
-        return LeituraXml{Doc(), false};
-    }
-    ctx->sax->internalSubset = paradaNoDtd;
-#if LIBXML_VERSION >= 21300
-    xmlCtxtSetOptions(ctx, XML_PARSE_NONET);
-#else
-    xmlCtxtUseOptions(ctx, XML_PARSE_NONET);
-#endif
-    xmlParseDocument(ctx);
-    LeituraXml leitura{Doc(ctx->myDoc), ctx->wellFormed != 0};
-    ctx->myDoc = nullptr;
-    xmlFreeParserCtxt(ctx);
-    return leitura;
-}
-
 // Guardas comuns do assinador e do digest (DA-2.40): DTD recusado antes de qualquer uso; o Id exato e único, no elemento
 // esperado, filho da raiz esperada. Os dois chamam esta função, então a regra existe em um lugar só.
 // recusarJaAssinado: o assinador recusa XML já assinado (item 3); o digest não, porque a DPS assinada tem de dar o mesmo
@@ -299,14 +264,16 @@ struct ReferenciaLocalizada {
 std::expected<ReferenciaLocalizada, ErroAssinatura> localizarReferencia(QByteArrayView xml, const std::string& id,
                                                                          const ParametrosAssinatura& parametros,
                                                                          bool recusarJaAssinado, bool aceitaFormaNfse) {
-    LeituraXml leitura = lerParandoNoDtd(xml);
+    // DTD recusado no próprio DOCTYPE, antes de qualquer uso (item 1). Duas camadas contra rede: a parada (privado::analisarSemDtd)
+    // e XML_PARSE_NONET dentro do mesmo átomo.
+    privado::SaidaDoParse leitura = privado::analisarSemDtd(xml);
     if (leitura.doc && (leitura.doc->intSubset != nullptr || leitura.doc->extSubset != nullptr)) {
-        return std::unexpected(ErroAssinatura::XmlComDtd);  // DTD recusado no próprio DOCTYPE, antes de qualquer uso (item 1)
+        return std::unexpected(ErroAssinatura::XmlComDtd);
     }
     if (!leitura.doc || !leitura.bemFormado) {
         return std::unexpected(ErroAssinatura::XmlMalformado);
     }
-    Doc doc = std::move(leitura.doc);
+    Doc doc(leitura.doc.release());  // mesmo dono (xmlFreeDoc), outro tipo de deleter
     xmlNodePtr raiz = xmlDocGetRootElement(doc.get());
     if (raiz == nullptr) {
         return std::unexpected(ErroAssinatura::XmlMalformado);

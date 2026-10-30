@@ -6,7 +6,7 @@
 find_package(OpenSSL 3.0 REQUIRED)
 find_package(LibXml2 REQUIRED)
 
-add_library(nl_foundation_xmldsig STATIC assinador_xml.cpp)
+add_library(nl_foundation_xmldsig STATIC assinador_xml.cpp parse_xml_privado.cpp)
 target_include_directories(nl_foundation_xmldsig PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(nl_foundation_xmldsig PUBLIC nl_foundation_base Qt6::Core)
 target_include_directories(nl_foundation_xmldsig PRIVATE ${LIBXML2_INCLUDE_DIR})

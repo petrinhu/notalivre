@@ -11,9 +11,12 @@
 #include <nl/foundation/pkcs12/senha_segura.h>
 #include <nl/foundation/xmldsig/assinador_xml.h>
 
+#include <libxml/SAX2.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
+
+#include "parse_xml_privado.h"
 
 #include <QByteArray>
 #include <QFile>
@@ -819,6 +822,32 @@ private slots:
         QCOMPARE(ouvinte.conexoes(), 0);
     }
 
+    // NL-2.9 (CISO, 05:34), camada 1 no átomo: o parser para no DOCTYPE. Subconjunto interno de 1 MiB seguido do corpo: o
+    // corpo nunca começa. Mutante sem xmlStopParser: o parser segue, chega ao corpo, e o teste reprova.
+    void paradaNoDoctypeNaoLeOSubconjunto() {
+        const QByteArray comentario = "<!--" + QByteArray(1024 * 1024 - 7, 'a') + "-->";
+        const QByteArray xml = "<!DOCTYPE DPS [" + comentario + "]>\n<DPS><x/></DPS>";
+        const auto saida = xd::privado::analisarSemDtd(xml);
+        QVERIFY2(!saida.posicaoDoCorpo.has_value(), "o parser tem de parar no DOCTYPE: o corpo nunca começa");
+    }
+
+    // NL-2.9 (CISO, 05:34), camada 2 no átomo: o contexto do átomo, com a carga do DTD externo acrescentada por campo (sem
+    // apagar as opções) e sem o tratador da parada, não abre conexão para um DOCTYPE SYSTEM. Mutante sem NONET no átomo: o
+    // ouvinte em 127.0.0.1 conta a conexão e o teste reprova.
+    void contextoDoParserBloqueiaRede() {
+        OuvinteTcp ouvinte;
+        QVERIFY2(ouvinte.porta() != 0, "o ouvinte TCP local tem de subir");
+        const QByteArray url = "http://127.0.0.1:" + QByteArray::number(ouvinte.porta()) + "/dtd.dtd";
+        const QByteArray xml = "<!DOCTYPE DPS SYSTEM \"" + url + "\">\n<DPS/>";
+        auto ctx = xd::privado::criarContextoDoParser(xml);
+        QVERIFY2(ctx.get() != nullptr, "o contexto do átomo tem de existir");
+        ctx->sax->internalSubset = xmlSAX2InternalSubset;  // tira a parada: só a camada NONET fica
+        ctx->loadsubset = XML_DETECT_IDS;                    // carga do DTD externo, como XML_PARSE_DTDLOAD
+        xmlParseDocument(ctx.get());
+        ouvinte.parar();
+        QCOMPARE(ouvinte.conexoes(), 0);
+    }
+
     void variavelDoFedoraValeNoContextoProprio() {
         // DA-2.40 (c): o patch do fedora lê a variável em tempo de chamada. Sem ela, fedora44 recusa SHA-1; com ela, assina.
         ::unsetenv("OPENSSL_ENABLE_SHA1_SIGNATURES");
@@ -879,14 +908,14 @@ private slots:
             }
         };
         qputenv("NL_FIXTURES_XMLDSIG", pasta.path().toUtf8());
+        // A função que a suíte usa (distroRecusaSha1), não o leitor: uma função fixa em false reprova aqui (CISO, 05:34).
         gravar(QStringLiteral("sha1"));
-        const auto comSha1 = recusaSha1SegundoTabela(id, versao);
+        const bool comSha1 = distroRecusaSha1();
         gravar(QStringLiteral("algoritmo_bloqueado"));
-        const auto comBloqueio = recusaSha1SegundoTabela(id, versao);
+        const bool comBloqueio = distroRecusaSha1();
         qputenv("NL_FIXTURES_XMLDSIG", antiga);
-        QVERIFY2(comSha1.has_value() && comBloqueio.has_value(), "a distro atual tem de ter linha na tabela temporária");
-        QVERIFY2(!*comSha1, "linha sha1 na tabela: a suíte assina SHA-1");
-        QVERIFY2(*comBloqueio, "linha algoritmo_bloqueado na tabela: a suíte usa SHA-256");
+        QVERIFY2(!comSha1, "linha sha1 na tabela: a suíte assina SHA-1");
+        QVERIFY2(comBloqueio, "linha algoritmo_bloqueado na tabela: a suíte usa SHA-256");
         QVERIFY2(!recusaSha1SegundoTabela(QStringLiteral("distro-inexistente"), QStringLiteral("0")).has_value(),
                  "distro fora da tabela não tem expectativa");
     }
