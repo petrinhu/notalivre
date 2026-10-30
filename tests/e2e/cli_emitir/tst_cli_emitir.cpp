@@ -177,7 +177,7 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
                                  kCertificados + QStringLiteral("/cnpj_ok.pfx")};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
 
-    QCOMPARE(execucao.codigo, 0);
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída do terminal: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
 }
