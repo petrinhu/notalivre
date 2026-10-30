@@ -577,7 +577,7 @@ void TstLog::campoComSeparadoresNoNomeContinuaProibido()
     QVERIFY(!cpf.empty());
     for (const std::string& nome : {std::string("c_p_f"), std::string("c.p.f"), std::string("C-P-F"), std::string("c p f")}) {
         Sessao cru{{DeclaracaoCampo{nome, Regra::Cru}}};
-        QVERIFY(cru.log.registrar(Nivel::Info, "teste.separador", umCampo(nome, cpf)).has_value());
+        QVERIFY(cru.log.registrar(Nivel::Info, "teste.proibido", umCampo(nome, cpf)).has_value());
         QVERIFY2(cru.destino.str().find(cpf) == std::string::npos,
                  qPrintable(QStringLiteral("CPF saiu pelo campo '%1' com separador, declarado Cru").arg(QString::fromStdString(nome))));
         QCOMPARE(cru.log.descartados(), std::size_t{1});
