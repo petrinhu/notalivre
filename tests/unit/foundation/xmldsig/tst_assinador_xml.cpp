@@ -842,7 +842,12 @@ private slots:
         auto ctx = xd::privado::criarContextoDoParser(xml);
         QVERIFY2(ctx.get() != nullptr, "o contexto do átomo tem de existir");
         ctx->sax->internalSubset = xmlSAX2InternalSubset;  // tira a parada: só a camada NONET fica
-        ctx->loadsubset = XML_DETECT_IDS;                    // carga do DTD externo, como XML_PARSE_DTDLOAD
+        // Carga do DTD externo por campo, como XML_PARSE_DTDLOAD, sem apagar as opções do átomo. O campo é deprecado na
+        // libxml2 2.15 (ubuntu, manjaro), mas é o único caminho aditivo: a API de opções pode substituir NONET.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+        ctx->loadsubset = XML_DETECT_IDS;
+#pragma GCC diagnostic pop
         xmlParseDocument(ctx.get());
         ouvinte.parar();
         QCOMPARE(ouvinte.conexoes(), 0);
