@@ -112,18 +112,34 @@ QByteArray dpsComXsiNaRaiz() {
     return xml;
 }
 
-// Expectativa de SHA-1 de uma distro, lida da tabela versionada (NL-2.9, condição (a) da re-revisão da NL-2.3).
-// Fase vermelha: o stub ainda não lê a tabela, e devolve "sem linha" para toda distro.
+QByteArray lerArquivo(const QString& caminho);
+
+// Expectativa de SHA-1 de uma distro, lida da tabela versionada (NL-2.9, condição (a) da re-revisão da NL-2.3). Sem linha
+// para a distro, devolve nullopt, e a suíte reprova (distroAtualTemLinhaNaTabela).
 std::optional<bool> recusaSha1SegundoTabela(const QString& id, const QString& versao) {
-    Q_UNUSED(id)
-    Q_UNUSED(versao)
-    return std::nullopt;
+    const QByteArray tabela =
+        lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/tabela_sha1_por_distro.txt"));
+    std::optional<QString> esperado;
+    for (const QString& linha : QString::fromUtf8(tabela).split(QLatin1Char('\n'))) {
+        if (linha.startsWith(QLatin1Char('#')) || linha.trimmed().isEmpty()) {
+            continue;
+        }
+        const QStringList colunas = linha.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (colunas.size() == 3 && colunas[0] == id && colunas[1] == versao) {
+            esperado = colunas[2];
+        }
+    }
+    if (!esperado) {
+        return std::nullopt;
+    }
+    return *esperado == QStringLiteral("algoritmo_bloqueado");
 }
 
-// DA-2.38: no fedora44 o OSSL_LIB_CTX próprio recusa rsa-sha1 (medido). O resto da suíte roda com rsa-sha256 ali.
+// DA-2.38: a distro que recusa rsa-sha1 (linha algoritmo_bloqueado da tabela) usa rsa-sha256 na suíte. A tabela é a fonte;
+// sem linha, o valor é falso aqui e a suíte reprova no teste distroAtualTemLinhaNaTabela.
 bool distroRecusaSha1() {
-    return campoDoOsRelease(QStringLiteral("ID")) == QStringLiteral("fedora") &&
-           campoDoOsRelease(QStringLiteral("VERSION_ID")) == QStringLiteral("44");
+    return recusaSha1SegundoTabela(campoDoOsRelease(QStringLiteral("ID")), campoDoOsRelease(QStringLiteral("VERSION_ID")))
+        .value_or(false);
 }
 
 xd::ParametrosAssinatura parametrosDaDistro() {
