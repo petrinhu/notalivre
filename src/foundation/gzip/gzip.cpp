@@ -194,6 +194,11 @@ std::expected<std::vector<std::byte>, nl::base::Erro> descomprimir(std::span<con
         }
         saida.insert(saida.end(), bloco.begin(), bloco.begin() + static_cast<std::ptrdiff_t>(produzido));
         if (codigo == Z_STREAM_END) {
+            // Bytes depois do fim do primeiro membro: um segundo membro não é suportado. Descartá-lo em silêncio
+            // entregaria um XML incompleto como se fosse o inteiro (DA-2.41, d).
+            if (fluxo.avail_in > 0) {
+                return std::unexpected(erroGzip("gzip.membro_extra", "bytes depois do fim do gzip; não foi entregue"));
+            }
             return saida;
         }
         if (codigo == Z_OK || (codigo == Z_BUF_ERROR && produzido > 0)) {
