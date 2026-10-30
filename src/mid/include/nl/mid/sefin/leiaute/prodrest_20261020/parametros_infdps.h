@@ -15,12 +15,13 @@ namespace nl::mid::sefin::prodrest_20261020 {
 inline constexpr std::string_view kUriC14nLeiaute = "http://www.w3.org/TR/2001/REC-xml-c14n-20010315";
 inline constexpr std::string_view kUriEnvelopedLeiaute = "http://www.w3.org/2000/09/xmldsig#enveloped-signature";
 inline constexpr std::string_view kUriSha256Leiaute = "http://www.w3.org/2001/04/xmlenc#sha256";
+inline constexpr std::string_view kUriRsaSha256Leiaute = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256";
 inline constexpr std::string_view kNamespaceLeiauteNfse = "http://www.sped.fazenda.gov.br/nfse";
 
 /// Parâmetros para o digest canônico do infDPS: referência "infDPS" filha de "DPS", no namespace do leiaute.
 inline nl::foundation::xmldsig::ParametrosAssinatura parametrosDoInfDps() {
     // Rodada 5 (revisão): a NFS-e no leiaute traz NFSe/infNFSe/DPS/infDPS, e o digest aceita essa forma pelo caminho fixo.
-    return {kUriC14nLeiaute, kUriEnvelopedLeiaute, kUriSha256Leiaute, std::string_view{}, "infDPS", "DPS",
+    return {kUriC14nLeiaute, kUriEnvelopedLeiaute, kUriSha256Leiaute, kUriRsaSha256Leiaute, "infDPS", "DPS",
             kNamespaceLeiauteNfse, "NFSe", "infNFSe"};
 }
 
