@@ -65,6 +65,9 @@
 - (sem ID): limpeza das refs locais refs/sabotagem/* criadas por executores e revisores (L-53), pedindo a quem criou.
 - (sem ID): NL-2.8, E1204 sem texto no catálogo de erros da Sefin.
 - (sem ID): NL-2.8, o lançador do servidor falso separa argumentos por espaço, e por isso o teste do código E com CPF usa underscore. Avaliar o suporte a espaço.
+- (sem ID): NL-2.8, a contagem de bytes do envio vem só do uploadProgress; verificar na NL-2.10 (item C da INBOX da rodada 5).
+- (sem ID): NL-2.8, 4xx sem código E válido vira Definitiva mesmo com bytes escritos (item E da INBOX da rodada 5).
+- (sem ID): NL-2.10, medir na Produção Restrita se a Sefin devolve o infDPS sem alteração antes de DpsDuplicada chegar ao usuário (INFERÊNCIA do revisor, condição da NL-2.8).
 
 ## Backlog
 
@@ -102,7 +105,7 @@
 | NL-2.5 | W2 | Segurança | Transporte HTTPS com mTLS na Foundation, com erro transitório separado do definitivo; testes de integração contra o servidor falso. Plano, seção 2, NL-2.5. | Média (inferido) | NL-2.2, NL-2.6 | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-2.7 | W2 | Segurança | Log com redação de PII na Foundation pelo ADR-S4, com varredura não vazia e sabotagem de estreia. Plano, seção 2, NL-2.7. | Média (inferido) | NL-1.9 (ADR-S4) | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-2.8 | W2 | Engenharia | Cliente Sefin no Mid e política de retry: POST nunca repete sozinho e consulta GET /dps/{id} antes de reenviar; rejeição com código E não repete; certificado revogado mapeado pela recusa da Sefin (teste certificadoRevogadoMapeadoPelaRejeicaoDaSefin; código E a conferir no Anexo I), e checar revogação no app fica fora da v1 (decisão do líder, 29/10/2026: "Fora da v1 (Recomendado)"). Plano, seção 2, NL-2.8. | Média (inferido) | NL-2.4, NL-2.5, NL-2.7 | Média (inferido) | 🔍 Pendente verificação | — |
-| NL-2.9 | W2 | Engenharia | Caso de uso EmitirNota e CLI notalivre emitir; Produção bloqueada por configuração até o go/no-go da Onda 12; senha sem eco e nunca por argumento. Plano, seção 2, NL-2.9. | Média (inferido) | NL-2.3, NL-2.8 | Média (inferido) | ⏳ Pendente | — |
+| NL-2.9 | W2 | Engenharia | Caso de uso EmitirNota e CLI notalivre emitir; Produção bloqueada por configuração até o go/no-go da Onda 12; senha sem eco e nunca por argumento. Plano, seção 2, NL-2.9. | Média (inferido) | NL-2.3, NL-2.8 | Média (inferido) | 🔄 Em andamento | — |
 | NL-3.1 | W3 | Engenharia | Executor SQL e migrador na Foundation, schema v1 versionado com checksum (P4); integração contra mysql:8.4 e mariadb:11.8; consulta com concatenação não compila. Plano, seção 2, NL-3.1; CONTRACT 12.1. | Média (inferido) | NL-P.2 (P4), NL-1.9 | Média (inferido) | ⏳ Pendente | — |
 | NL-3.2 | W3 | Segurança | Primitivas de cripto na Foundation: AES-256-GCM, Argon2id e HMAC, com vetores NIST, RFC 9106 e RFC 4231. Plano, seção 2, NL-3.2. | Média (inferido) | NL-P.2, NL-1.9 (ADR-S5) | Média (inferido) | ⏳ Pendente | — |
 | NL-3.3 | W3 | Segurança | Hierarquia de chaves no Mid (cofre): desbloqueio por senha-mestra, código de recuperação e A1; a ausência dos três fatores trava (P1). Plano, seção 2, NL-3.3. | Média (inferido) | NL-P.2 (P1), NL-1.9 (ADR-S2), NL-3.2 | Média (inferido) | ⏳ Pendente | — |
