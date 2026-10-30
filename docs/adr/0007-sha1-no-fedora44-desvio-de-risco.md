@@ -1,6 +1,6 @@
 # ADR 0007: SHA-1 no arnês de teste do fedora44 (desvio de risco com controles compensatórios)
 
-**Status:** PROPOSTO (DA-2.27, decisão do CTO). Não aprovado: as rodadas 1 e 2 do revisor independente o reprovaram, e a aprovação é do revisor. Não vira ACEITO enquanto o controle 1 não estiver verde no job Flatpak (NL-2.3), e a NL-2.10 não começa com o ADR em PROPOSTO (DA-2.27, opção B(a)).
+**Status:** ACEITO por Narciso (CISO) em 30/10/2026, decisão autônoma (L-15) a ratificar pelo líder, depois da re-revisão que aprovou a NL-2.3 (`/var/tmp/notalivre-logs/NL-2.3-rev2-revisao.log`, merge 20eb6bf). Condição de 27/10 cumprida: o controle 1 foi visto vermelho e verde no job Flatpak, e o controle 2 foi visto verde no job higiene do CI (evidência na tabela). Antes: PROPOSTO (DA-2.27, decisão do CTO), reprovado nas rodadas 1 e 2 do revisor.
 **Data:** 27/10/2026 (revisto em 28/10/2026, rodadas 2 e 3 do revisor).
 **Origem:** plano, NL-2.6 (Desvio de risco, DA-2.10) e NL-2.3 (assinador). Medição: `/var/tmp/notalivre-smoke-NL-2.6/` (matriz de quatro imagens, rc medido).
 **Relacionadas:** ADR-0003 (envelope e hierarquia de chaves); DA-2.1 e DA-2.2 (assinatura com OpenSSL, rsa-sha1 como contrato de interoperabilidade).
@@ -18,7 +18,7 @@ os controles abaixo estiverem ativos e verificados. Sem verificação periódica
 - FATO medido: com `OPENSSL_ENABLE_SHA1_SIGNATURES=1` no contêiner fedora44, `openssl dgst` sign e verify, e `xmlsec1` sign e verify
   com rsa-sha1, dão rc 0. Sem a variável, o verify dá rc 1.
 - FATO medido: Ubuntu 26.04, Manjaro e Mint 22.3 assinam e verificam rsa-sha1 sem variável.
-- INFERÊNCIA: a variável é um mecanismo de patch de crypto-policy do Fedora. A origem exata não foi lida no código-fonte.
+- FATO, lido em 29/10/2026 (DA-2.40): a variável vem do patch `0008-RH-Allow-disabling-of-SHA1-signatures.patch` do OpenSSL do Fedora (https://src.fedoraproject.org/rpms/openssl/raw/rawhide/f/0008-RH-Allow-disabling-of-SHA1-signatures.patch). Todo `OSSL_LIB_CTX` novo nasce com assinatura SHA-1 recusada, e a variável, se existir no ambiente, libera a assinatura SHA-1 em qualquer contexto do processo.
 - FATO: o algoritmo rsa-sha1 é o da DA-2.2, escolha do CTO a ratificar (contrato de interoperabilidade, não escolha de segurança do app).
 - Risco de produto: a NL-2.3 assina com OpenSSL. Se o runtime Flatpak KDE 6.11 recusar SHA-1, o app não emite. A medição do runtime
   é do passo 0 da NL-2.3 e não está feita neste registro.
@@ -29,9 +29,9 @@ os controles abaixo estiverem ativos e verificados. Sem verificação periódica
 2. A variável `OPENSSL_ENABLE_SHA1_SIGNATURES=1` entra **somente** no ambiente do oráculo de teste (`tools/servidor_falso/oraculo.py`),
    e só quando o sistema é fedora 44. O `CMakeLists.txt` do arnês a põe no ambiente dos testes só nessa distro. Nenhum outro arquivo do
    repositório cita a variável (`tools/portoes/portao_sha1_env.py`).
-3. O app não deve ler nem definir a variável. Ele usa `OSSL_LIB_CTX` próprio (DA-2.10, NL-2.3). No fedora44 esse contexto recusa rsa-sha1 sem a variável (medido na NL-2.3, passo 1, em docs/pesquisa/ci_medicao.md): por isso a suíte do assinador roda ali com rsa-sha256 (DA-2.38), e o desvio continua restrito ao arnês de teste. Esta afirmação só vale na medida em que
+3. O app não deve ler nem definir a variável. Ele usa `OSSL_LIB_CTX` próprio (DA-2.10, NL-2.3), que o isola da configuração do sistema (`openssl.cnf`), mas não da variável: no OpenSSL com o patch do Fedora, a variável vale também no contexto próprio (correção (c) da DA-2.40, provada pelos testes `variavelDoFedoraValeNoContextoProprio` e `contextoProprioIgnoraConfiguracaoGlobal`). O produto não é afetado, porque o runtime KDE 6.11 assina SHA-1 sem a variável (controle 1). No fedora44 esse contexto recusa rsa-sha1 sem a variável (medido na NL-2.3, passo 1, em docs/pesquisa/ci_medicao.md): por isso a suíte do assinador roda ali com rsa-sha256 (DA-2.38), e o desvio continua restrito ao arnês de teste. Esta afirmação só vale na medida em que
    o portão varrer `src/` e `apps/` e o job de higiene do CI rodar verde; hoje o portão roda no build por SHA (ctest) e no job higiene
-   do `ci.yml` (passo `sha1_env`), que ainda não foi observado num CI verde porque nada foi empurrado.
+   do `ci.yml` (passo `sha1_env`), visto verde no run 40984792478 (job higiene 123833170332).
 
 ## Controles compensatórios e como cada um se verifica (L-77)
 
@@ -39,12 +39,12 @@ Estado em 28/10/2026, medido no commit da rodada 3. "Verifica-se por" diz o coma
 
 | # | Controle | Onde vive | Estado | Como se verifica (periodicamente) |
 |---|---|---|---|---|
-| 1 | Assinatura SHA-1 no SDK KDE 6.11 **sem** a variável: teste `assinaSha1NoSdkKdeSemVariavel` dentro do build do flatpak-builder (tests/unit/foundation/xmldsig, só com NL_FLATPAK_BUILD=ON) | NL-2.3 | **FECHA PELO FLATPAK, ainda sem log.** Prova obrigatória: log do job Flatpak com o slot verde e a linha de variável ausente. O passo 0 (runtime KDE 6.11, OpenSSL 3.5.7, SHA-1 sem variável) já está medido em docs/pesquisa/ci_medicao.md. Até o log do job Flatpak existir, o controle não está fechado e o ADR não vira ACEITO. |
-| 2 | Portão de varredura: a variável só pode aparecer no arnês do fedora44 | `tools/portoes/portao_sha1_env.py`; testes `portoes.*` no ctest; passo `sha1_env` no job `higiene` do `ci.yml` | **ATIVO no build e no host.** Visto vermelho antes da implementação (commit de vermelho `ca3523b` e rodadas 1 e 2 do revisor: `portaoSha1ViolacaoEmSrcOutReprova` e `portaoSha1ViolacaoEmSrcBuildXReprova`, mutante de poda antiga). **Ainda não observado no CI:** só valerá quando o job `higiene` rodar verde com o passo, o que exige push. | `ctest` no build por SHA (`portoes.*`); `python3 -I tools/portoes/portao_sha1_env.py <raiz>` no host e na imagem `notalivre-higiene:ci`; log do job `higiene` do CI com o passo `sha1_env` verde, citado com o SHA. |
+| 1 | Assinatura SHA-1 no SDK KDE 6.11 **sem** a variável: teste `assinaSha1NoSdkKdeSemVariavel` dentro do build do flatpak-builder (tests/unit/foundation/xmldsig, só com NL_FLATPAK_BUILD=ON) | NL-2.3 | **FECHADO em 30/10/2026.** O módulo do manifesto roda o slot por `test-commands` e reprova se o ctest não listar e aprovar exatamente 1 slot. Vermelho visto: run 40982658852 (SHA e194302, slot renomeado de propósito: "slot listado pelo ctest: 0", PARADA). Verde visto: run 40984792478 (SHA ecfea3d, job Flatpak 123833170666, "slot aprovado: 1"), conferido no log pelo CISO. Passo 0 em docs/pesquisa/ci_medicao.md. | A cada push, o job Flatpak do CI; o log tem de trazer "slot aprovado: 1". |
+| 2 | Portão de varredura: a variável só pode aparecer no arnês do fedora44 | `tools/portoes/portao_sha1_env.py`; testes `portoes.*` no ctest; passo `sha1_env` no job `higiene` do `ci.yml` | **ATIVO no build e no host.** Visto vermelho antes da implementação (commit de vermelho `ca3523b` e rodadas 1 e 2 do revisor: `portaoSha1ViolacaoEmSrcOutReprova` e `portaoSha1ViolacaoEmSrcBuildXReprova`, mutante de poda antiga). **Visto verde no CI:** run 40984792478, job higiene 123833170332, passo "Variável de SHA-1 fora do arnês fedora44 (portao_sha1_env)". | `ctest` no build por SHA (`portoes.*`); `python3 -I tools/portoes/portao_sha1_env.py <raiz>` no host e na imagem `notalivre-higiene:ci`; log do job `higiene` do CI com o passo `sha1_env` verde, citado com o SHA. |
 
 Cobertura do portão no build: `src/`, `apps/`, `flatpak/`, `tests/`, `tools/`, `.github/workflows/ci.yml` (acrescidos à `LISTA_FONTE` na rodada 2) e os CMakeLists da raiz. Os demais arquivos de `.github/` não entram no build; o job higiene do CI varre o workspace inteiro.
 
-**Afirmação sobre o app.** O app não lê nem define a variável. Essa afirmação só é verdadeira na medida em que o controle 2 roda sobre `src/` e `apps/` no CI. Até o log do job higiene existir, a afirmação vale só como verificação local.
+**Afirmação sobre o app.** O app não lê nem define a variável. Essa afirmação só é verdadeira na medida em que o controle 2 roda sobre `src/` e `apps/` no CI, o que está visto desde o run 40984792478.
 
 ## Consequências
 
