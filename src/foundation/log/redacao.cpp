@@ -109,6 +109,21 @@ std::string minusculoAscii(std::string_view texto)
     return saida;
 }
 
+// NL-2.12 (A2-07, DA-2.43): antes da lista e dos radicais, o nome vira só letras e dígitos em minúsculas. Assim
+// "c_p_f", "c.p.f", "C-P-F" e "c p f" caem no mesmo campo que "cpf".
+std::string normalizarNome(std::string_view nome)
+{
+    std::string saida;
+    for (const char caractere : nome) {
+        const bool digito = caractere >= '0' && caractere <= '9';
+        const bool letra = (caractere >= 'a' && caractere <= 'z') || (caractere >= 'A' && caractere <= 'Z');
+        if (digito || letra) {
+            saida.push_back(caractere >= 'A' && caractere <= 'Z' ? static_cast<char>(caractere - 'A' + 'a') : caractere);
+        }
+    }
+    return saida;
+}
+
 bool somenteAscii(std::string_view texto)
 {
     return std::ranges::all_of(texto, [](char caractere) { return static_cast<unsigned char>(caractere) < 0x80; });
@@ -139,7 +154,10 @@ bool ehCampoProibido(std::string_view nome)
     if (nome.empty() || !somenteAscii(nome)) {
         return true;  // falha fechada: nome vazio ou fora do ASCII nunca sai
     }
-    const std::string minusculo = minusculoAscii(nome);
+    const std::string minusculo = normalizarNome(nome);
+    if (minusculo.empty()) {
+        return true;  // nome só de separadores: falha fechada
+    }
     const bool naLista = std::ranges::any_of(kCamposProibidos, [&minusculo](std::string_view proibido) {
         return igualSemCaixa(proibido, minusculo);
     });
