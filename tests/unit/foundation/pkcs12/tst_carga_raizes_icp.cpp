@@ -106,6 +106,7 @@ private slots:
     void manifestoMalformadoRecusa();
     void nenhumaRaizAceitaRecusa();
     void raizAindaNaoValidaNaoEntraComoAncora();
+    void derComCaixaAltaNaoDeclaradoRecusado();
 };
 
 void TesteCargaRaizesIcp::raizesIcpCarregadasDoArquivoConferido()
@@ -382,6 +383,30 @@ void TesteCargaRaizesIcp::raizAindaNaoValidaNaoEntraComoAncora()
     QCOMPARE(QString::fromStdString(carga->descartes.front().arquivo), QStringLiteral("raiz_futura.der"));
     QVERIFY(carga->descartes.front().motivo == MotivoDescarte::AindaNaoValida);
 }
+
+void TesteCargaRaizesIcp::derComCaixaAltaNaoDeclaradoRecusado()
+{
+    // Um arquivo "raiz_fora.DER" (extensão em caixa alta) fora do manifesto é um .der a mais: a carga recusa com
+    // ArquivoNaoDeclarado. O filtro não pode diferenciar maiúscula de minúscula (revisão r2, item 2).
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const QByteArray geral = teste::raizSinteticaDer("Raiz listada de teste", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    const QByteArray fora = teste::raizSinteticaDer("Raiz fora com caixa alta", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    QVERIFY(!geral.isEmpty() && !fora.isEmpty());
+    const QString manifesto = teste::escreverRepositorioTeste(
+        tmp.path(), {{QStringLiteral("raiz_listada.der"), geral, QStringLiteral("geral")}});
+    QVERIFY(!manifesto.isEmpty());
+    QFile extra(tmp.filePath(QStringLiteral("raiz_fora.DER")));
+    QVERIFY(extra.open(QIODevice::WriteOnly));
+    QVERIFY(extra.write(fora) == fora.size());
+    extra.close();
+
+    Carga carga = carregarRaizesIcp(tmp.path(), manifesto, "geral", agoraDeTeste());
+    QVERIFY2(!carga.has_value(), "carga aceita com .DER não declarado no diretório");
+    QVERIFY2(carga.error().motivo == ErroRaizIcp::ArquivoNaoDeclarado, std::string(codigo(carga.error().motivo)).c_str());
+    QCOMPARE(QString::fromStdString(carga.error().arquivo), QStringLiteral("raiz_fora.DER"));
+}
+
 
 QTEST_APPLESS_MAIN(TesteCargaRaizesIcp)
 #include "tst_carga_raizes_icp.moc"
