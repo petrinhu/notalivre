@@ -33,7 +33,7 @@ modules:
       - |
         sh -c 'ctest --test-dir _build -N -R "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" > _build/nl-slot-listado.txt 2>&1; n=$(grep -c "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" _build/nl-slot-listado.txt || true); echo "slot listado pelo ctest: $n"; [ "$n" = 1 ] || { echo "PARADA: o ctest tem de listar exatamente 1 slot assinaSha1NoSdkKdeSemVariavel, achei $n"; exit 1; }'
       - |
-        sh -c 'echo "OPENSSL_ENABLE_SHA1_SIGNATURES no sandbox de teste: ${OPENSSL_ENABLE_SHA1_SIGNATURES:-AUSENTE}"; ctest --test-dir _build -R "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" --output-on-failure > _build/nl-slot-rodou.txt 2>&1; rc=$?; cat _build/nl-slot-rodou.txt; n=$(grep -c "Test *#[0-9]*: xmldsig[.]assinaSha1NoSdkKdeSemVariavel .* Passed" _build/nl-slot-rodou.txt || true); echo "slot aprovado: $n"; [ "$rc" = 0 ] && [ "$n" = 1 ] || { echo "PARADA: o slot nao passou exatamente 1 vez"; exit 1; }'
+        sh -c 'ctest --test-dir _build -R "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" --output-on-failure > _build/nl-slot-rodou.txt 2>&1; rc=$?; cat _build/nl-slot-rodou.txt; n=$(grep -c "Test *#[0-9]*: xmldsig[.]assinaSha1NoSdkKdeSemVariavel .* Passed" _build/nl-slot-rodou.txt || true); echo "slot aprovado: $n"; [ "$rc" = 0 ] && [ "$n" = 1 ] || { echo "PARADA: o slot nao passou exatamente 1 vez"; exit 1; }'
     sources:
       - type: dir
         path: ..
