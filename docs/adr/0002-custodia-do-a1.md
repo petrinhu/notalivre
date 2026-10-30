@@ -70,7 +70,7 @@
 
 - A zeragem é de melhor esforço. OpenSSL e Qt podem manter cópias internas. INFERÊNCIA, medir em NL-2.2.
 - O campo de senha em QML guarda o texto como string JS imutável. INFERÊNCIA, sem fonte lida; medir em NL-4.3.
-- QSslKey copia a chave para a conexão TLS. INFERÊNCIA, medir em NL-2.5.
+- QSslKey copia a chave para a conexão TLS. INFERÊNCIA, medir em NL-4.3.
 - `[alterado pelo CISO, 25/10/2026]` **O `.pfx` original costuma ficar no mesmo disco do banco** (pasta de downloads ou de documentos do usuário). INFERÊNCIA sobre o hábito do usuário, sem medição. Quem copia o disco leva o banco e o `.pfx`, e falta só a senha do certificado. A proteção do PKCS#12 contra força bruta offline depende da cifra e da contagem de iterações com que a AC o gerou, e pode ser fraca: há contêineres legados com RC2 ou 3DES (plano linha 58, INFERÊNCIA do CTO a medir em NL-2.2), e a contagem de iterações do PKCS#12 é escolha de quem gerou o arquivo; senha curta cai rápido. O app não muda o `.pfx` do usuário. A mitigação é orientação: o assistente de primeiro uso (NL-8.9) recomenda guardar o `.pfx` fora do computador, depois de importado.
 
 ## Fontes
