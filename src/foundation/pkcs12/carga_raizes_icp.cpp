@@ -30,10 +30,15 @@ ErroCarga falha(ErroRaizIcp motivo, std::string arquivo = {}) {
     return ErroCarga{motivo, std::move(arquivo)};
 }
 
-// Primeiro .der do diretório que o manifesto não declara. Só .der conta: CMakeLists, NOTICE e SHA256SUMS não são raízes.
+// Primeiro .der do diretório que o manifesto não declara. A extensão é comparada sem distinguir caixa ("raiz.DER" conta).
+// Só .der conta: CMakeLists, NOTICE e SHA256SUMS não são raízes. O filtro por padrão de nome não serve aqui, porque no
+// Linux ele diferencia maiúscula de minúscula.
 std::optional<std::string> primeiroNaoDeclarado(const QString& diretorio, const std::vector<EntradaRaiz>& entradas) {
     const QDir dir(diretorio);
-    for (const QString& nome : dir.entryList({QStringLiteral("*.der")}, QDir::Files)) {
+    for (const QString& nome : dir.entryList(QDir::Files)) {
+        if (!nome.endsWith(QStringLiteral(".der"), Qt::CaseInsensitive)) {
+            continue;
+        }
         const std::string texto = nome.toStdString();
         bool declarado = false;
         for (const EntradaRaiz& entrada : entradas) {
