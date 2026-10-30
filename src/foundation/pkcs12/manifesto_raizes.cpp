@@ -87,6 +87,7 @@ std::optional<LinhaMeta> lerLinhaMeta(std::string_view linha) {
     meta.arquivo = std::string(tokens.front());
     bool temProposito = false;
     bool temFonte = false;
+    std::vector<std::string_view> chavesVistas;
     for (std::size_t i = 1; i < tokens.size(); ++i) {
         const std::size_t igual = tokens[i].find('=');
         if (igual == std::string_view::npos || igual == 0) {
@@ -94,6 +95,13 @@ std::optional<LinhaMeta> lerLinhaMeta(std::string_view linha) {
         }
         const std::string_view chave = tokens[i].substr(0, igual);
         const std::string_view valor = tokens[i].substr(igual + 1);
+        // Chave repetida, de qualquer nome, reprova a linha: a última não pode ganhar em silêncio (CISO, item 3).
+        for (const std::string_view visto : chavesVistas) {
+            if (visto == chave) {
+                return std::nullopt;
+            }
+        }
+        chavesVistas.push_back(chave);
         if (chave == "proposito") {
             meta.proposito = std::string(valor);
             temProposito = true;
