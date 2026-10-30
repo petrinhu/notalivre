@@ -277,7 +277,7 @@ std::optional<Desfecho> resolverPosEnvio(ft::TransporteHttps& transporte, fl::Lo
 // DPS com a mesma série e o mesmo número. Consulta a chave, busca a NFS-e e compara o infDPS. Igual: a nota recuperada.
 // Diferente: DpsDuplicada, que nunca renumera sozinho e vai ao usuário. Sem conseguir buscar ou comparar: Indeterminado.
 // Nunca Rejeitada e nunca sucesso silencioso.
-Desfecho reconciliarE0014(ft::TransporteHttps& transporte, fl::Log& registro, const PoliticaRetry& politica,
+Desfecho reconciliarPorInfDps(ft::TransporteHttps& transporte, fl::Log& registro, const PoliticaRetry& politica,
                           const ComparadorInfDps& comparador, const bk::DpsAssinada& dps)
 {
     auto consulta = consultarDpsCom(transporte, registro, politica, dps.id);
@@ -299,18 +299,6 @@ Desfecho reconciliarE0014(ft::TransporteHttps& transporte, fl::Log& registro, co
     return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
 }
 
-// 409: a DPS já existe. Consulta; com chave, devolve a nota; sem chave, é duplicada e nunca se reenvia.
-Desfecho resolverDuplicada(ft::TransporteHttps& transporte, fl::Log& registro, const PoliticaRetry& politica,
-                           const bk::DpsAssinada& dps)
-{
-    auto consulta = consultarDpsCom(transporte, registro, politica, dps.id);
-    if (consulta) {
-        return notaDaChave(transporte, registro, politica, *consulta);
-    }
-    // Rodada 5 (DA-2.41, revisão A): DpsDuplicada só vale para conteúdo diferente. Sem consulta resolvida, não há como
-    // comparar: é Indeterminado.
-    return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
-}
 
 } // namespace
 
@@ -367,7 +355,7 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
             return notaDoCorpo(resposta->corpo);
         }
         if (status == 409) {
-            return resolverDuplicada(transporte_, registro_, politica_, dps);
+            return reconciliarPorInfDps(transporte_, registro_, politica_, *comparador_, dps);  // 409 (rodada 5d)
         }
         if (status >= 400 && status < 500) {
             // Recusa com resposta definitiva. Código E válido nunca repete, exceto E0014 num reenvio: a DPS já existe,
@@ -377,7 +365,7 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
             const std::string codigo = codigoSeValido(bruto);
             if (codigo == "E0014") {
                 // Adendo da DA-2.41: E0014 reconcilia em qualquer tentativa, inclusive a primeira.
-                return reconciliarE0014(transporte_, registro_, politica_, *comparador_, dps);
+                return reconciliarPorInfDps(transporte_, registro_, politica_, *comparador_, dps);
             }
             if (!codigo.empty()) {
                 return std::unexpected(falha(bk::MotivoFalhaSefin::Rejeitada, codigo));
