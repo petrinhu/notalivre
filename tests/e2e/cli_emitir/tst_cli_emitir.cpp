@@ -14,6 +14,7 @@
 
 #include <poll.h>
 #include <pty.h>
+#include <csignal>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -103,10 +104,12 @@ Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& config
         return execucao;
     }
     bool senhaEnviada = false;
+    bool expirou = false;
     char buffer[1024];
     for (;;) {
         pollfd espera{mestre, POLLIN, 0};
         if (poll(&espera, 1, 60000) <= 0) {
+            expirou = true;
             break;  // limite de espera: a CLI não respondeu
         }
         const ssize_t lidos = read(mestre, buffer, sizeof buffer);
@@ -120,10 +123,15 @@ Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& config
             senhaEnviada = true;
         }
     }
+    if (expirou) {
+        kill(pid, SIGKILL);  // a CLI não respondeu: mata antes do waitpid, que bloquearia
+    }
     int status = 0;
     waitpid(pid, &status, 0);
     close(mestre);
-    if (WIFEXITED(status)) {
+    if (expirou) {
+        execucao.codigo = -2;  // limite de espera estourado
+    } else if (WIFEXITED(status)) {
         execucao.codigo = WEXITSTATUS(status);
     }
     return execucao;
