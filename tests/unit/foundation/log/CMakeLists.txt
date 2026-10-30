@@ -20,3 +20,16 @@ add_test(NAME tst_log COMMAND tst_log)
 add_test(NAME portao_pii_logs
     COMMAND ${Python3_EXECUTABLE} -I "${NL_VARREDURA_LOGS}" --dir "${NL_LOGS_PII_DIR}" --termos "${NL_TERMOS_PII}")
 set_tests_properties(portao_pii_logs PROPERTIES DEPENDS tst_log)
+
+# Máscara da chave e do Id da NFS-e (NL-2.8, DA-2.21): slots foundation.log.<nome>, sem vírgula no nome (L-45).
+add_executable(tst_mascara_chave tst_mascara_chave.cpp)
+target_link_libraries(tst_mascara_chave PRIVATE Qt6::Core Qt6::Test nl_foundation_log nl_warnings)
+foreach(nome IN ITEMS
+    chaveDeAcessoLogadaComInscricaoMascarada
+    idNfseLogadoComInscricaoMascarada
+    chaveForaDoLeiauteDescartada)
+  add_test(NAME foundation.log.${nome} COMMAND tst_mascara_chave ${nome})
+  set_tests_properties(foundation.log.${nome} PROPERTIES
+                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()

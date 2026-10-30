@@ -209,6 +209,17 @@ class TesteServidorFalso(unittest.TestCase):
             self.assertEqual(self.enviar(srv, "HEAD", f"/dps/{self.id_dps}")[0], 200)
             self.assertIn("chaveAcesso", self.enviar(srv, "GET", f"/dps/{self.id_dps}")[1])
 
+    def test_rejeicaoRoteirizadaDevolveCodigoE(self):
+        # NL-2.8: a falha "rejeicao:<E>" responde 400 com o código E e um texto livre que traz um CPF (ADR-0005 c).
+        rot = roteiro.Roteiro()
+        rot.agendar("POST", "/nfse", "rejeicao:E1207")
+        srv = self.subir(rot)
+        status, corpo = self.postar_dps(srv)
+        self.assertEqual(status, 400, corpo)
+        self.assertEqual(corpo["Codigo"], "E1207")
+        self.assertIn("12345678909", corpo["Descricao"])
+        self.assertEqual(rot.pendentes(), 0)
+
     def test_variavelSha1SoNoFedora44(self):
         self.assertEqual(oraculo.ambiente_do_arnes({"ID": "fedora", "VERSION_ID": "44"}),
                          {"OPENSSL_ENABLE_SHA1_SIGNATURES": "1"})

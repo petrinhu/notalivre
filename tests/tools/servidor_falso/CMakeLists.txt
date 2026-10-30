@@ -50,6 +50,7 @@ foreach(nome IN ITEMS
     oraculoSemAssinarSemChamador
     rotasDeEventoEDfeRespondem501
     verificacaoPadraoSemLax
+    rejeicaoRoteirizadaDevolveCodigoE
     corpoTruncadoFechaNoMeio
     ecoAcceptEncodingDaFalha
     contentEncodingGzipDaFalha
