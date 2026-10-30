@@ -49,6 +49,7 @@ else()
         idEmOutroElementoRecusado
         idComAspasNaoInjetaAtributo
         xmlComDtdRecusado
+        dtdComSubconjuntoMalformadoRecusadoAntesDoParse
         variavelDoFedoraValeNoContextoProprio
         materialVencidoNaHoraDeAssinarRecusado
         materialAindaNaoValidoRecusado

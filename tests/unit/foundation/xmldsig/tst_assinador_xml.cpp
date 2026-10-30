@@ -723,6 +723,16 @@ private slots:
         QCOMPARE(codigoDe(comEnt.error()), QStringLiteral("assinatura.xml_com_dtd"));
     }
 
+    // NL-2.9, condição (d): o parser para no primeiro DOCTYPE, antes de ler o subconjunto interno. Um subconjunto
+    // malformado não pode virar xml_malformado: a recusa de DTD sai antes de qualquer declaração ser processada.
+    void dtdComSubconjuntoMalformadoRecusadoAntesDoParse() {
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("<DPS xmlns=", "<!DOCTYPE DPS [<!ENTITY e \"x>\n<DPS xmlns=");
+        auto assinado = assinarComCredencial(xml, parametrosDaDistro());
+        QVERIFY2(!assinado.has_value(), "DTD com subconjunto malformado tem de ser recusado");
+        QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.xml_com_dtd"));
+    }
+
     void variavelDoFedoraValeNoContextoProprio() {
         // DA-2.40 (c): o patch do fedora lê a variável em tempo de chamada. Sem ela, fedora44 recusa SHA-1; com ela, assina.
         ::unsetenv("OPENSSL_ENABLE_SHA1_SIGNATURES");
