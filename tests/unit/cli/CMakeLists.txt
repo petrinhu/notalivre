@@ -22,3 +22,15 @@ target_include_directories(tst_excecao_topo PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli
 target_link_libraries(tst_excecao_topo PRIVATE Qt6::Core Qt6::Test nl_foundation_log nl_warnings)
 add_test(NAME cli.excecaoTopo COMMAND tst_excecao_topo)
 set_tests_properties(cli.excecaoTopo PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+# Portão de PII nos logs da CLI (NL-2.9, ADR-0005 e): os testes da CLI gravam os logs deles na pasta própria, e o mesmo
+# varredor do Log (tests/unit/foundation/log/varredura_logs.py) confere a pasta com os termos da fixture de referência.
+# A limpeza roda antes, para que um log antigo não mascare uma varredura vazia (L-36). Varredura sem .log reprova.
+find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
+set(NL_LOGS_PII_CLI_DIR "${CMAKE_BINARY_DIR}/logs_pii_cli")
+add_test(NAME cli.limpaLogsPii COMMAND ${CMAKE_COMMAND} -E rm -rf "${NL_LOGS_PII_CLI_DIR}")
+set_tests_properties(cli.excecaoTopo PROPERTIES DEPENDS cli.limpaLogsPii ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${NL_LOGS_PII_CLI_DIR}")
+add_test(NAME cli.portaoPiiVarreLogsDaCli
+    COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tests/unit/foundation/log/varredura_logs.py"
+        --dir "${NL_LOGS_PII_CLI_DIR}" --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt")
+set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS cli.excecaoTopo)
