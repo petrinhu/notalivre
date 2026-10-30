@@ -41,6 +41,7 @@ enum class ErroCredencial : int {
 enum class ErroAncora {
     PemSemCertificado,  ///< Nenhum certificado PEM foi lido do texto.
     FalhaInterna,       ///< Alocação ou falha do OpenSSL ao ler o PEM.
+    SemCertificado,     ///< Lista de certificados vazia (NL-2.13): um conjunto de âncoras nunca é vazio.
 };
 
 } // namespace nl::foundation::pkcs12

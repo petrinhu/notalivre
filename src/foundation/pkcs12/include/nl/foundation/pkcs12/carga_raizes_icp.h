@@ -5,6 +5,8 @@
 // Política: todo arquivo do manifesto é conferido por hash (qualquer divergência recusa a carga inteira). Depois, cada
 // raiz é descartada, sem recusar a carga, se estiver vencida, ainda não válida ou com finalidade diferente da pedida.
 // Arquivo do diretório que não está no manifesto não entra nunca.
+// Uso (K2 do CLO, 30/10/2026): as raízes servem só de âncora para a cadeia do A1 do próprio usuário. Esta carga nunca
+// grava nada no repositório de confiança do sistema ou do usuário e nunca é usada em conexão TLS.
 #ifndef NL_FOUNDATION_PKCS12_CARGA_RAIZES_ICP_H
 #define NL_FOUNDATION_PKCS12_CARGA_RAIZES_ICP_H
 
