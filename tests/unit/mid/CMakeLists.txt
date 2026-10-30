@@ -4,3 +4,4 @@
 # Testes unitários da camada Mid (NL-1.6b): o codec da DPS em sefin/.
 add_subdirectory(sefin)
 add_subdirectory(cofre)
+add_subdirectory(composicao)
