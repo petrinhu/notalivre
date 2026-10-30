@@ -425,6 +425,45 @@ private slots:
 
     // Rodada 5 (revisão, A): 409 e a consulta respondendo outro código (não 404 E2404, não chave): Indeterminado, nunca
     // DpsDuplicada. DpsDuplicada só vale para conteúdo diferente, e aqui não há como comparar.
+    // Rodada 5d (revisão, B): o 409 cuja consulta devolve a chave compara o infDPS antes de devolver a nota. O mesmo Id
+    // não garante o mesmo conteúdo (o princípio do adendo E0014). Igual: a nota recuperada.
+    void conflito409ComMesmoInfDpsRecuperaANota()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse conflito409_gravado")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto igual = std::make_shared<ComparadorFalso>(mc::ResultadoComparacaoInfDps::Igual);
+        auto m = montar(srv.porta(), *cred, igual);
+        auto nota = m->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "409 com o mesmo infDPS recupera a nota");
+        QVERIFY2(nota->xmlNfse == dps->xml, "a nota recuperada é a DPS enviada");
+        QVERIFY2(igual->chamadas_ == 1, "o 409 com chave compara o infDPS antes de devolver a nota");
+        const std::vector<std::string> esperado{"POST:409", "GET:200", "GET:200"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "o 409 consulta a chave e busca a NFS-e");
+    }
+
+    // Rodada 5d (revisão, B): o 409 com infDPS diferente é colisão de numeração: DpsDuplicada, nunca a nota.
+    void conflito409ComInfDpsDiferenteViraDpsDuplicada()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse conflito409_gravado")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto diferente = std::make_shared<ComparadorFalso>(mc::ResultadoComparacaoInfDps::Diferente);
+        auto m = montar(srv.porta(), *cred, diferente);
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "409 com infDPS diferente não pode virar nota");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::DpsDuplicada,
+                 "colisão de numeração no 409 é DpsDuplicada, para o usuário decidir");
+        const std::vector<std::string> esperado{"POST:409", "GET:200", "GET:200"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "a colisão não reenvia nem renumera a DPS");
+    }
+
     void conflito409ComConsultaSemResolverViraIndeterminado()
     {
         auto cred = credencial();

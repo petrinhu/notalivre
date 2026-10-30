@@ -228,6 +228,9 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             return None
         if falha in SO_POST_NFSE:
             return self._json(201, corpo_nfse_defeituosa(chave, falha))
+        if falha == "conflito409_gravado":
+            # 409 DPS_DUPLICADA que já gravou a DPS: a consulta GET /dps devolve a chave (rodada 5d, revisão do 409 com chave)
+            return self._json(409, {"Codigo": "DPS_DUPLICADA", "Descricao": "falha roteirizada"})
         if falha == "post_sem_chave":
             return self._json(201, {"Codigo": "OK", "Descricao": "201 sem chaveAcesso"})
         if falha == "status202":

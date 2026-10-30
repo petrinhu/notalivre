@@ -44,6 +44,8 @@ foreach(nome IN ITEMS
     recusaDoCertificadoNoTls13NuncaReenviaAsCegas
     conflito409ComConsultaSemResolverViraIndeterminado
     base64ComIgualNoMeioRecusado
+    conflito409ComMesmoInfDpsRecuperaANota
+    conflito409ComInfDpsDiferenteViraDpsDuplicada
     codigoEComCpfNaoChegaAoLog
     codigoEForaDoFormatoFicaVazio
     base64ComCaractereInvalidoETamanhoValidoRecusado
