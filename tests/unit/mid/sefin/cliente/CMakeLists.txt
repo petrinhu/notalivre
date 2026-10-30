@@ -35,5 +35,6 @@ foreach(nome IN ITEMS
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "${NL_AMBIENTE_CLIENTE}"
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
-                       FAIL_REGULAR_EXPRESSION "FAIL!")
+                       FAIL_REGULAR_EXPRESSION "FAIL!"
+                       TIMEOUT 120)  # teto explícito por slot: sem ele o CTest espera 1500 s por teste travado
 endforeach()

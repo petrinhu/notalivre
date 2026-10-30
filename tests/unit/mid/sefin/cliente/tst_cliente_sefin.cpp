@@ -498,5 +498,7 @@ private slots:
     }
 };
 
-QTEST_APPLESS_MAIN(TesteClienteSefin)
+// QTEST_GUILESS_MAIN cria o QCoreApplication: o transporte espera pelo QEventLoop e o seu tempo limite é um QTimer, e
+// nenhum dos dois funciona sem laço de eventos (com APPLESS, o envio ficava sem prazo até o timeout de 300 s do QTest).
+QTEST_GUILESS_MAIN(TesteClienteSefin)
 #include "tst_cliente_sefin.moc"
