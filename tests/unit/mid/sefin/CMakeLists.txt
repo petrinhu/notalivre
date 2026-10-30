@@ -34,3 +34,6 @@ add_test(NAME oraculo_xmllint_dps
 
 # Cliente Sefin e política de retry (NL-2.8): subpasta própria.
 add_subdirectory(cliente)
+
+# Adaptador de assinatura da DPS (NL-2.9, DA-2.42): subpasta própria.
+add_subdirectory(assinatura)
