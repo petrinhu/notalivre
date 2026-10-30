@@ -47,4 +47,8 @@ install(FILES "${_nl_icp_notice}"
 
 set(NL_ICP_RAIZES_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE INTERNAL "Diretório com as raízes da ICP-Brasil (.der), conferidas")
 set(NL_ICP_RAIZES_MANIFESTO "${_nl_icp_manifesto}" CACHE INTERNAL "SHA256SUMS das raízes da ICP-Brasil")
+# SHA-256 do SHA256SUMS, embutido no binário (CISO, 30/10/2026, item 1): o conjunto de produção é o fixado, e a carga
+# de produção recusa qualquer SHA256SUMS com outro hash antes de ler uma raiz.
+file(SHA256 "${_nl_icp_manifesto}" _nl_icp_manifesto_sha)
+set(NL_ICP_RAIZES_MANIFESTO_SHA256 "${_nl_icp_manifesto_sha}" CACHE INTERNAL "SHA-256 do SHA256SUMS das raízes, embutido no build")
 message(STATUS "NL-2.13: raízes da ICP-Brasil conferidas (${_nl_icp_n} arquivos) em ${CMAKE_CURRENT_SOURCE_DIR}")
