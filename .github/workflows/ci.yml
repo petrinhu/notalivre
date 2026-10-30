@@ -313,6 +313,8 @@ jobs:
           cache-key: flatpak-builder-kde-6.11-${{ hashFiles('flatpak/io.github.petrinhu.notalivre.yml', 'flatpak/smoke/**') }}
           bundle: notalivre.flatpak
           artifact-name: notalivre-bundle
+          # DA-2.40 (b): liga o run-tests do módulo notalivre (o gate do slot assinaSha1NoSdkKdeSemVariavel fica no manifesto).
+          run-tests: true
 
       - name: Resumo do build Flatpak
         if: always()

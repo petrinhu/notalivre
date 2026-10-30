@@ -25,6 +25,15 @@ modules:
       - cmake --build _build
       - install -Dm755 _build/apps/gui/notalivre-gui /app/bin/notalivre-gui
       - install -Dm755 _build/apps/cli/notalivre-cli /app/bin/notalivre-cli
+    # DA-2.40 (b), achado 1 da revisão: só o slot assinaSha1NoSdkKdeSemVariavel roda aqui, depois do install, no sandbox
+    # do SDK KDE 6.11. Os testes são compilados em _build e não são instalados. O gate reprova se o CTest não listar
+    # exatamente 1 slot (piso, L-36) ou se o slot não passar exatamente 1 vez.
+    run-tests: true
+    test-commands:
+      - |
+        sh -c 'ctest --test-dir _build -N -R "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" > _build/nl-slot-listado.txt 2>&1; n=$(grep -c "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" _build/nl-slot-listado.txt || true); echo "slot listado pelo ctest: $n"; [ "$n" = 1 ] || { echo "PARADA: o ctest tem de listar exatamente 1 slot assinaSha1NoSdkKdeSemVariavel, achei $n"; exit 1; }'
+      - |
+        sh -c 'echo "OPENSSL_ENABLE_SHA1_SIGNATURES no sandbox de teste: ${OPENSSL_ENABLE_SHA1_SIGNATURES:-AUSENTE}"; ctest --test-dir _build -R "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" --output-on-failure > _build/nl-slot-rodou.txt 2>&1; rc=$?; cat _build/nl-slot-rodou.txt; n=$(grep -c "Test *#[0-9]*: xmldsig[.]assinaSha1NoSdkKdeSemVariavel .* Passed" _build/nl-slot-rodou.txt || true); echo "slot aprovado: $n"; [ "$rc" = 0 ] && [ "$n" = 1 ] || { echo "PARADA: o slot nao passou exatamente 1 vez"; exit 1; }'
     sources:
       - type: dir
         path: ..
