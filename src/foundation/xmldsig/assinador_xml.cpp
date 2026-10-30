@@ -263,16 +263,22 @@ struct LeituraXml {
     bool bemFormado;
 };
 
-// Lê o XML sem RECOVER, como o xmlReadMemory fazia: documento mal formado devolve bemFormado = false. A diferença é só a
-// parada no DOCTYPE (paradaNoDtd). Sem XML_PARSE_NONET de propósito: com a parada no DOCTYPE nenhum DTD externo é
-// carregado, então não há carregamento de rede a bloquear, e a API de opções (xmlCtxtUseOptions) fica fora do build
-// com -Werror. O documento fica dono do chamador; o contexto do parser é liberado aqui.
+// Lê o XML sem RECOVER, como o xmlReadMemory fazia: documento mal formado devolve bemFormado = false. Duas camadas
+// contra rede no DTD: a primeira é a parada no DOCTYPE (paradaNoDtd), que impede qualquer leitura do DTD externo; a
+// segunda é XML_PARSE_NONET, que bloqueia o carregamento de rede se a parada falhasse. A API de opções muda por versão:
+// xmlCtxtSetOptions a partir da 2.13 (LIBXML_VERSION 21300), xmlCtxtUseOptions antes (ex.: Mint 22.3, inferência a
+// confirmar no build). O documento fica dono do chamador; o contexto do parser é liberado aqui.
 LeituraXml lerParandoNoDtd(QByteArrayView xml) {
     xmlParserCtxtPtr ctx = xmlCreateMemoryParserCtxt(xml.data(), static_cast<int>(xml.size()));
     if (ctx == nullptr) {
         return LeituraXml{Doc(), false};
     }
     ctx->sax->internalSubset = paradaNoDtd;
+#if LIBXML_VERSION >= 21300
+    xmlCtxtSetOptions(ctx, XML_PARSE_NONET);
+#else
+    xmlCtxtUseOptions(ctx, XML_PARSE_NONET);
+#endif
     xmlParseDocument(ctx);
     LeituraXml leitura{Doc(ctx->myDoc), ctx->wellFormed != 0};
     ctx->myDoc = nullptr;
