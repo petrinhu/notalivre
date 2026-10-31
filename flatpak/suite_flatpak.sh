@@ -57,6 +57,12 @@ falharam="$(printf '%s\n' "$resumo" | sed -n 's/.*, \([0-9]*\) tests failed.*/\1
 
 echo "suite_flatpak: analisados=$analisados falharam=$falharam ctest_rc=$rc"
 cat "$BUILD/suite-executados.txt" | tail -n 3
+# Diagnóstico (CI, run 41176856725): o ctest guarda a saída do teste que falhou só em $BUILD/suite-executados.txt, e o
+# log do job mostra apenas o tail. Quando algum teste falha, as linhas de reprovação dos portões e dos testes vão ao log.
+if [ "$rc" -ne 0 ] || [ "$falharam" -ne 0 ]; then
+    echo "suite_flatpak: linhas de reprovação dos testes que falharam:"
+    grep -E 'VIOLACAO|violacoes=|encontrados=|Traceback|AssertionError|FAIL!|Error|No such|not a git' "$BUILD/suite-executados.txt" | head -n 60
+fi
 
 if [ "$analisados" -ne "$encontrados" ]; then
     echo "PARADA: varredura incompleta: executou $analisados de $encontrados testes listados"
