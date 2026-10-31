@@ -34,6 +34,8 @@ const QString kTabelaSha1 = QStringLiteral(NL_TABELA_SHA1_EMITIR);
 
 // Expectativa do assinador para a distro desta máquina (DA-2.38, tabela versionada): "sha1" ou "algoritmo_bloqueado". Vazio
 // quando a distro não está na tabela, e o teste reprova (DA-2.40, item 1).
+QByteArray lerArquivo(const QString& caminho);
+
 QString esperadoDaDistro()
 {
     QString id;
@@ -202,7 +204,7 @@ void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada, con
         "[sefin]\nurl = %5\nancoras = %1/ac.pem\n"
         "[xsd]\ndiretorio = %2\nmanifesto = %3\n"
         "[emissao]\nproducao_liberada = %4\n")
-                              .arg(kCertificados, kXsd, kManifesto, producaoLiberada ? QStringLiteral("true") : QStringLiteral("false"));
+                              .arg(kCertificados, kXsd, kManifesto, producaoLiberada ? QStringLiteral("true") : QStringLiteral("false"), url);
     arquivo.write(texto.toUtf8());
 }
 
