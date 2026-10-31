@@ -196,6 +196,14 @@ printf '%s\n' 'add_test([=[tst_a]=] "/x/tst_a" "-o" "-,txt")' 'add_test([=[tst_r
 printf '%s\n' tst_a tst_raw > "$D/junit/executaveis_manual.txt"
 caso qt_fora_do_registro_reprova 1 "fora do registro" "$D" fedora44 "$LISTA_VAZIA"
 
+# 14b. Executável tst_ fora da lista de executáveis Qt (link indireto, ex.: Qt6::QuickTest ou biblioteca intermediária) e
+# fora do manifesto reprova: a convenção tst_ é a segunda linha de defesa (rodada de 31/10 07:20: tst_qml_gui).
+D="$(pasta_build tst_sem_link_direto)"; echo tst_a >> "$D/junit/esperados.txt"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+printf '%s\n' 'add_test([=[tst_a]=] "/x/tst_a" "-o" "-,txt")' 'add_test([=[tst_indireto]=] "/x/tst_indireto")' > "$D/junit/ctest_manual.txt"
+printf '%s\n' tst_a > "$D/junit/executaveis_manual.txt"
+caso tst_sem_link_direto_reprova 1 "fora do registro" "$D" fedora44 "$LISTA_VAZIA"
+
 # 15. Registrado no manifesto e ausente do CTest reprova (teste removido do CTest com xml antigo).
 D="$(pasta_build registrado_fora_do_ctest)"; echo tst_a >> "$D/junit/esperados.txt"
 verdes3 | xml "$D/junit/tst_a.xml" 3
