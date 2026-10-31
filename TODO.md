@@ -6,6 +6,10 @@
 
 ## INBOX (descobertas não priorizadas)
 
+- (sem ID): NL-2.10a, rev seg MÉDIA-1, ratificada pelo CISO às 16:38: loopback vira Homologação para qualquer serviço local (politica_emissao.cpp:42-44). Teste `loopbackComCertificadoDeOutroNomeNaoConecta` antes da NL-12. Relatório: /var/tmp/notalivre-logs/NL-2.10a-rev-seg.md.
+- (sem ID): NL-2.10a, rev seg BAIXA-2: nomes de chave da resposta crua saem sem máscara (resposta_crua.cpp:59). Os valores aninhados, de array e numéricos já foram cobertos na rodada 2.
+- (sem ID): NL-2.10a, rev seg BAIXA-3: não há teste de `?`, `#`, `..` e `//` no [sefin] prefixo; o host e o esquema não mudam (transporte_https.cpp:138-139).
+- (sem ID): NL-2.10a, rev seg BAIXA-4: chave de âncora nula não é recusada na composição (emissao_cli.cpp:125-128).
 - (sem ID): NL-2.14, rev devops rodada 6: o mutante G8 (pulos_testes.sh sem a checagem de existência do realpath) sobrevive ao autoteste; não é escape, porque o case de prefixo recusa a string vazia, mas falta o caso negativo (L-36). Relatório: /var/tmp/notalivre-logs/NL-2.14-rev-devops.md, seção Rodada 6.
 - (sem ID): NL-2.14, rev devops rodada 6: num push direto na onda-2, o resumo das listas sai vazio, porque NL_BASE_REF=origin/onda-2 faz o merge-base ser o próprio HEAD; os portões continuam reprovando. Caminho: comparar com o commit anterior do push ou com main.
 - (sem ID): NL-2.14, rev devops MÉDIA-3: nenhum portão valida a sintaxe YAML do ci.yml localmente, e as imagens não têm parser (L-51). Caminho: parse com python3 (yaml existe no ubuntu-latest) no job autotestes. Fonte: /var/tmp/notalivre-logs/NL-2.14-rev-devops.md.
