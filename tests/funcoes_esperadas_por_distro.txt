@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Contagem exata de funções por distro (NL-2.14, adendo 4 da DA-2.61; piso do tipo da DA-2.60). Uma linha por distro: distro N.
+# N é o total de testcases de todos os junitxml do build (initTestCase e cleanupTestCase incluídos). Comparada com ==.
+# Mudar a contagem é ato visível no diff, que a revisão confere contra os testes acrescentados ou retirados.
+fedora44 1073
+ubuntu26.04 1073
+manjaro 1073
+mint22.3 1073

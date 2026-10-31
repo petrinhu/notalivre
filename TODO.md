@@ -7,7 +7,6 @@
 ## INBOX (descobertas não priorizadas)
 
 - (sem ID): NL-2.14, rev devops MÉDIA-3: nenhum portão valida a sintaxe YAML do ci.yml localmente, e as imagens não têm parser (L-51). Caminho: parse com python3 (yaml existe no ubuntu-latest) no job autotestes. Fonte: /var/tmp/notalivre-logs/NL-2.14-rev-devops.md.
-- (sem ID): NL-2.14, rev devops BAIXA-5: a contagem de funções por executável (1073) não tem piso; apagar uma função do fonte cai em silêncio. Caminho: piso versionado por executável no portão de registro.
 - (sem ID): NL-2.11, caminho de recusa de write() no terminal sem eco (src/mid/cofre/terminal_sem_eco.cpp, escreverTudo) sem teste próprio (L-35): cobrir a falha de write no prompt e na quebra de linha, com a sabotagem de estreia. Fonte: revisão do conserto do Flatpak (28088ed), 31/10/2026.
 - (sem ID): NL-2.11, gêmeo do static_cast<void> de write em tests/e2e/cli_emitir/tst_cli_emitir.cpp:172 e :177 (L-17); fora do Flatpak, mas a mesma classe de defeito.
 - (sem ID): NL-2.11, mutante CERT_REQUIRED para CERT_OPTIONAL no job mutacao: a imagem de higiene não tem Qt nem xmlsec1, então o slot C++ (transporte.semCertificadoDeClienteHandshakeRecusado) e o teste Python precisam de imagem de build; decidir o gatilho. Prova local: clone com o mutante, build_local, 4 de 342 falharam incluindo o slot (NL-2.11-build-mutante-cert-optional.log).

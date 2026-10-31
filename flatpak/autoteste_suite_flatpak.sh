@@ -43,6 +43,9 @@ caso() {
     # não tem. A lista real é conferida pelo build de verdade, não por este autoteste.
     printf '%s\n' '# sem linhas (fixture do autoteste do suite)' > "$dir/tests/testes_sem_saida_por_funcao.txt"
     printf '%s\n' '# sem linhas (fixture do autoteste do suite)' > "$dir/tests/testes_obrigatorios_por_distro.txt"
+    # Contagem de funções e allowlist (NL-2.14, adendo 4): o stub tem um testcase (junitxml abaixo), e a allowlist é a real.
+    printf '%s\n' '# contagem de funções (fixture do autoteste do suite)' 'flatpak 1' > "$dir/tests/funcoes_esperadas_por_distro.txt"
+    cp "$RAIZ/tests/interpretadores_permitidos.txt" "$dir/tests/interpretadores_permitidos.txt"
     # CTest de mentira (JSON do ctest --show-only=json-v1, NL_CTEST_JSON_ARQ) com um teste, e o junitxml dele (NL-2.14).
     printf '%s\n' '{' '  "kind" : "ctestInfo",' '  "tests" :' '  [' '    {' '      "command" :' '      [' '        "/x/stub"' '      ],' \
         '      "name" : "stub"' '    }' '  ]' '}' > "$dir/_build/junit/ctest.json"

@@ -1,14 +1,18 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Portão de testes (NL-2.14, DA-2.61 adendo 3; L-36): mundo fechado em tempo de execução.
-# 1. A lista de testes é a do próprio CTest: ctest --show-only=json-v1 (JSON 3.14+, sem introspecção do CMake).
-# 2. Cada teste da lista tem junitxml por função em <build>/junit/<NOME>.xml, gravado pela função de registro
-#    nl_registra_teste_qt; ou está em tests/testes_sem_saida_por_funcao.txt (scripts, python, e2e), por igualdade exata.
-# 3. Cada junitxml é completo e tem ao menos um testcase. Todo pulo tem de estar na lista de pulos da distro, e toda linha
-#    da lista de pulos tem de ocorrer.
-# 4. Os testes obrigatórios da distro têm de estar no CTest.
-# Uso: pulos_testes.sh <dir_build> <distro> <lista_pulos> [sem_saida] [obrigatorios]
+# Portão de testes (NL-2.14, DA-2.61 adendos 3 e 4; L-36): mundo fechado em tempo de execução.
+# 1. A lista de testes é a do próprio CTest: ctest --show-only=json-v1, lido depois do build (o campo command só existe
+#    para executável já compilado; sem build o portão reprova por formato, fechado).
+# 2. Cada teste da lista tem junitxml por função em <build>/junit/<NOME>.xml, gravado por nl_registra_teste_qt; ou está em
+#    tests/testes_sem_saida_por_funcao.txt. Cada entrada dessa lista tem de ter, como primeiro item do command do CTest, um
+#    interpretador da allowlist (tests/interpretadores_permitidos.txt). Executável compilado na lista reprova, com o nome.
+# 3. Cada junitxml é completo e tem ao menos um testcase. Todo pulo tem de estar na lista de pulos da distro, e toda linha da
+#    lista de pulos tem de ocorrer.
+# 4. A contagem de funções (testcases de todos os junitxml) é exata por distro: tests/funcoes_esperadas_por_distro.txt, com ==.
+#    Mudar a contagem é ato visível no diff.
+# 5. Os testes obrigatórios da distro têm de estar no CTest.
+# Uso: pulos_testes.sh <dir_build> <distro> <lista_pulos> [sem_saida] [obrigatorios] [funcoes] [allowlist]
 # Só o autoteste define NL_CTEST_JSON_ARQ (JSON de mentira); em produção o portão roda o ctest.
 # Sem processo por teste ou por registro: laços com read e case, e comparações por grep -f numa passagem.
 set -u
@@ -18,8 +22,10 @@ DISTRO="${2:-}"
 PULOS="${3:-}"
 SEM_SAIDA="${4:-tests/testes_sem_saida_por_funcao.txt}"
 OBRIG="${5:-tests/testes_obrigatorios_por_distro.txt}"
+FUNCOES="${6:-tests/funcoes_esperadas_por_distro.txt}"
+ALLOW="${7:-tests/interpretadores_permitidos.txt}"
 if [ -z "$BUILD" ] || [ -z "$PULOS" ]; then
-    echo "uso: pulos_testes.sh <dir_build> <distro> <lista_pulos> [sem_saida] [obrigatorios]"
+    echo "uso: pulos_testes.sh <dir_build> <distro> <lista_pulos> [sem_saida] [obrigatorios] [funcoes] [allowlist]"
     exit 2
 fi
 J="$BUILD/junit"
@@ -34,7 +40,7 @@ if [ -z "$DISTRO" ]; then
     echo "PARADA: distro ausente (NL_DISTRO vazio): sem distro não há lista de pulos esperados"
     exit 1
 fi
-for arq in "$PULOS" "$SEM_SAIDA" "$OBRIG"; do
+for arq in "$PULOS" "$SEM_SAIDA" "$OBRIG" "$FUNCOES" "$ALLOW"; do
     if [ ! -r "$arq" ]; then
         echo "PARADA: lista ilegível: $arq"
         exit 1
@@ -61,7 +67,36 @@ elif [ "$n_objetos" -ne "$n_nomes" ] || [ "$n_nomes" -ne "$n_comandos" ]; then
     parada "formato do JSON do ctest não reconhecido: $n_objetos objetos, $n_nomes nomes, $n_comandos comandos"
 fi
 
-# Particiona: com junitxml, e sem junitxml (candidatos à lista de exceções).
+# 1b. Primeiro item do command de cada teste (basename), lido do JSON por read e case (sem processo por teste).
+CMDS="$J/.comandos.txt"
+: > "$CMDS"
+cmd_pend=0
+cmd_val=""
+while IFS= read -r linha; do
+    case "$linha" in
+        '      "command" :'*)
+            cmd_pend=1
+            cmd_val=""
+            ;;
+        '        "'*)
+            if [ "$cmd_pend" -eq 1 ] && [ -z "$cmd_val" ]; then
+                v="${linha#*\"}"
+                v="${v%%\"*}"
+                cmd_val="$v"
+            fi
+            ;;
+        '      "name" : "'*)
+            nome="${linha#*\"name\" : \"}"
+            nome="${nome%%\"*}"
+            base="${cmd_val##*/}"
+            echo "$nome $base" >> "$CMDS"
+            cmd_pend=0
+            cmd_val=""
+            ;;
+    esac
+done < "$JSON"
+
+# 2. Particiona: com junitxml, e sem junitxml (candidatos à lista de exceções).
 COM="$J/.com_junit.txt"
 SEM="$J/.sem_junit.txt"
 : > "$COM"
@@ -77,9 +112,11 @@ done < "$TESTES"
 n_com=$(wc -l < "$COM" | tr -d ' ')
 n_sem=$(wc -l < "$SEM" | tr -d ' ')
 
-# 2. Lista de exceções da distro (sem junitxml). Linha sem motivo reprova, em qualquer distro.
+# 3. Lista de exceções da distro (sem junitxml). Linha sem motivo reprova, em qualquer distro.
 EXC="$J/.excecoes.txt"
 : > "$EXC"
+EXC_LISTA="
+"
 n_linha=0
 while IFS= read -r linha; do
     n_linha=$((n_linha + 1))
@@ -99,9 +136,46 @@ while IFS= read -r linha; do
     fi
     if [ "$dist" = "$DISTRO" ]; then
         echo "$teste" >> "$EXC"
+        EXC_LISTA="$EXC_LISTA$teste
+"
     fi
 done < "$SEM_SAIDA"
 n_exc=$(wc -l < "$EXC" | tr -d ' ')
+
+# 3b. Allowlist de interpretadores: cada exceção tem de ter command e começar por interpretador permitido.
+PADROES="$J/.padroes.txt"
+: > "$PADROES"
+while IFS= read -r padrao; do
+    case "$padrao" in
+        ''|'#'*) continue ;;
+    esac
+    echo "$padrao" >> "$PADROES"
+done < "$ALLOW"
+if [ ! -s "$PADROES" ]; then
+    parada "allowlist de interpretadores vazia: nenhuma exceção pode ser aceita (zero interpretadores não é varredura)"
+fi
+while IFS= read -r nome; do
+    [ -n "$nome" ] || continue
+    base=""
+    while IFS= read -r par; do
+        case "$par" in
+            "$nome "*) base="${par#* }" ;;
+        esac
+    done < "$CMDS"
+    if [ -z "$base" ]; then
+        parada "exceção sem command no JSON do ctest: $nome"
+        continue
+    fi
+    permitido=0
+    while IFS= read -r padrao; do
+        case "$base" in
+            $padrao) permitido=1 ;;
+        esac
+    done < "$PADROES"
+    if [ "$permitido" -ne 1 ]; then
+        parada "executável sem interpretador permitido: $nome (na lista de exceções, comando $base; a allowlist aceita só interpretador de script)"
+    fi
+done < "$EXC"
 
 grep -vxF -f "$TESTES" "$EXC" > "$J/.velhas.txt"
 while IFS= read -r nome; do
@@ -119,7 +193,7 @@ while IFS= read -r nome; do
     parada "teste sem junitxml fora da lista de exceções: $nome"
 done < "$J/.sem_sem_excecao.txt"
 
-# 3. Junitxml de cada teste com junitxml: completo, com testcase, contagem igual, e os pulos e falhas por função.
+# 4. Junitxml de cada teste com junitxml: completo, com testcase, contagem igual, e os pulos e falhas por função.
 OBT="$J/.pulos_obtidos.txt"
 : > "$OBT"
 total=0
@@ -143,7 +217,6 @@ while IFS= read -r nome; do
             *'<testcase '*)
                 if [ "$tem_rec" -eq 1 ]; then
                     rec_fecha="$rec"
-                    # classificação do registro anterior (ver abaixo)
                     case "$rec_fecha" in
                         *'<failure'*|*'<error'*) falhou=$((falhou + 1)) ;;
                         *' result="pass"'*) passou=$((passou + 1)) ;;
@@ -203,7 +276,7 @@ while IFS= read -r nome; do
     fi
 done < "$COM"
 
-# 4. Pulos: igualdade exata, por distro, nas duas direções. O motivo é documentação e não é comparado.
+# 5. Pulos: igualdade exata, por distro, nas duas direções. O motivo é documentação e não é comparado.
 ESP="$J/.pulos_esperados.txt"
 : > "$ESP"
 n_linha=0
@@ -243,7 +316,34 @@ if [ "$falhou" -gt 0 ]; then
     parada "$falhou funcao(oes) falharam"
 fi
 
-# 5. Testes obrigatórios da distro: têm de estar no CTest.
+# 6. Contagem de funções exata por distro (==). Sem linha da distro, reprova (fechado).
+esperadas=""
+while IFS= read -r linha; do
+    case "$linha" in
+        ''|'#'*) continue ;;
+    esac
+    set -f
+    set -- $linha
+    set +f
+    if [ "${1:-}" = "$DISTRO" ]; then
+        esperadas="${2:-}"
+    fi
+done < "$FUNCOES"
+case "$esperadas" in
+    '')
+        parada "sem contagem de funções versionada para a distro $DISTRO ($FUNCOES)"
+        ;;
+    *[!0-9]*)
+        parada "contagem de funções versionada ilegível para $DISTRO: '$esperadas'"
+        ;;
+    *)
+        if [ "$total" -ne "$esperadas" ]; then
+            parada "contagem de funções: esperadas $esperadas, obtidas $total (exata por distro, $FUNCOES: mudar a contagem é ato do diff)"
+        fi
+        ;;
+esac
+
+# 7. Testes obrigatórios da distro: têm de estar no CTest.
 OBRIG_DIST="$J/.obrigatorios.txt"
 : > "$OBRIG_DIST"
 while IFS= read -r linha; do
@@ -264,10 +364,10 @@ while IFS= read -r nome; do
     parada "teste obrigatório ausente no CTest (distro $DISTRO): $nome"
 done < "$J/.obrig_ausentes.txt"
 
-echo "pulos_testes: distro=$DISTRO ctest=$n_nomes com_junitxml=$n_com sem_junitxml=$n_sem excecoes=$n_exc funcoes=$total passou=$passou falhou=$falhou pulou=$pulou (pulos: $nesp esperados, $nobt obtidos, obrigatorios=$n_obrig)"
+echo "pulos_testes: distro=$DISTRO ctest=$n_nomes com_junitxml=$n_com sem_junitxml=$n_sem excecoes=$n_exc funcoes=$total esperadas=${esperadas:-nenhuma} passou=$passou falhou=$falhou pulou=$pulou (pulos: $nesp esperados, $nobt obtidos, obrigatorios=$n_obrig)"
 if [ "$ruins" -ne 0 ]; then
     echo "pulos_testes: REPROVADO ($ruins motivo(s))"
     exit 1
 fi
-echo "pulos_testes: VERDE, mundo fechado: todo teste do CTest tem junitxml ou exceção, e os pulos batem com a lista de $DISTRO"
+echo "pulos_testes: VERDE, mundo fechado: lista de exceções por interpretador, contagem exata e pulos batem com a lista de $DISTRO"
 exit 0
