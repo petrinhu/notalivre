@@ -5,6 +5,8 @@
 
 #include <optional>
 
+#include <nl/mid/sefin/leiaute/prodrest_20261020/hosts_sefin.h>
+
 #include <QUrl>
 
 namespace nl::mid::composicao {
@@ -26,11 +28,15 @@ std::expected<Ambiente, nl::base::Erro> ambienteDeTexto(std::string_view texto)
 // Ambiente que o endpoint diz ser (NL-2.9, item 1): o host decide. Ver politica_emissao.h.
 std::expected<Ambiente, nl::base::Erro> ambienteDoEndpoint(QStringView url)
 {
-    const QString host = QUrl(url.toString()).host().toLower();
-    if (host == QStringLiteral("sefin.nfse.gov.br")) {
+    const QUrl endereco(url.toString());
+    if (endereco.scheme().compare(QLatin1String("https"), Qt::CaseInsensitive) != 0) {
+        return std::unexpected(nl::base::Erro("emissao.endpoint_inseguro", std::nullopt, "o endpoint da Sefin tem de usar https"));
+    }
+    const QString host = endereco.host().toLower();
+    if (host == QLatin1String(nl::mid::sefin::prodrest_20261020::kHostProducao.data())) {
         return Ambiente::Producao;
     }
-    if (host == QStringLiteral("sefin.producaorestrita.nfse.gov.br")) {
+    if (host == QLatin1String(nl::mid::sefin::prodrest_20261020::kHostProducaoRestrita.data())) {
         return Ambiente::ProducaoRestrita;
     }
     if (host == QStringLiteral("127.0.0.1") || host == QStringLiteral("localhost")) {
