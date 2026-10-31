@@ -1,42 +1,29 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Portão de pulos de teste (NL-2.14, DA-2.61; L-36). Agrega, por função, o junitxml que cada teste Qt Test grava (o CMake
-# registra o arquivo em <build>/junit/<teste>.xml, pela função nl_registra_teste_qt). O CTest conta um teste que pulou
-# como passou (QSKIP sai com 0), por isso o pulo é lido aqui, função a função.
-#
-# Uso: pulos_testes.sh <dir_build> <distro> <lista>
-#   dir_build  pasta de build do CMake; o manifesto <build>/junit/esperados.txt lista os testes registrados
-#   distro     NL_DISTRO: fedora44, ubuntu26.04, manjaro, mint22.3 ou flatpak. Vazio reprova (fechado)
-#   lista      tests/pulos_esperados_por_distro.txt: uma linha por pulo, "distro teste motivo"
-#
-# Reprova (rc 1) se: a distro vier vazia; a lista não abrir ou tiver linha sem motivo; o manifesto não abrir ou vier
-# vazio; um junitxml faltar, vier sem </testsuite> ou tiver contagem diferente dos registros lidos; um registro não tiver
-# nome legível; uma função falhar; um pulo ocorrer fora da lista da distro; ou uma linha da lista da distro não ocorrer.
-# Comparação por igualdade exata, nas duas direções. O motivo é documentação e não é comparado.
-# Contagem: funcoes inclui initTestCase e cleanupTestCase, porque o QTest os conta como funções. A linha de contagens sai
-# sempre, mesmo com zero. Não confundir com o piso de testes, que continua na contagem do ctest -N.
-# Só POSIX sh, sem python: roda também no sandbox do SDK Flatpak.
+# Portão de testes (NL-2.14, DA-2.61 adendo 3; L-36): mundo fechado em tempo de execução.
+# 1. A lista de testes é a do próprio CTest: ctest --show-only=json-v1 (JSON 3.14+, sem introspecção do CMake).
+# 2. Cada teste da lista tem junitxml por função em <build>/junit/<NOME>.xml, gravado pela função de registro
+#    nl_registra_teste_qt; ou está em tests/testes_sem_saida_por_funcao.txt (scripts, python, e2e), por igualdade exata.
+# 3. Cada junitxml é completo e tem ao menos um testcase. Todo pulo tem de estar na lista de pulos da distro, e toda linha
+#    da lista de pulos tem de ocorrer.
+# 4. Os testes obrigatórios da distro têm de estar no CTest.
+# Uso: pulos_testes.sh <dir_build> <distro> <lista_pulos> [sem_saida] [obrigatorios]
+# Só o autoteste define NL_CTEST_JSON_ARQ (JSON de mentira); em produção o portão roda o ctest.
+# Sem processo por teste ou por registro: laços com read e case, e comparações por grep -f numa passagem.
 set -u
 
 BUILD="${1:-}"
 DISTRO="${2:-}"
-LISTA="${3:-}"
-# Quarto argumento, opcional: lista de testes obrigatórios por distro (padrão: a do repositório, NL-2.14 MÉDIA-2).
-OBRIG="${4:-tests/testes_obrigatorios_por_distro.txt}"
-if [ -z "$BUILD" ] || [ -z "$LISTA" ]; then
-    echo "uso: pulos_testes.sh <dir_build> <distro> <lista> [obrigatorios]"
+PULOS="${3:-}"
+SEM_SAIDA="${4:-tests/testes_sem_saida_por_funcao.txt}"
+OBRIG="${5:-tests/testes_obrigatorios_por_distro.txt}"
+if [ -z "$BUILD" ] || [ -z "$PULOS" ]; then
+    echo "uso: pulos_testes.sh <dir_build> <distro> <lista_pulos> [sem_saida] [obrigatorios]"
     exit 2
 fi
-# Os portões de registro (NL-2.14, revisão devops ALTA-1) ficam ao lado deste script.
-PORTOES_DIR="$(dirname "$0")"
-
-JUNIT="$BUILD/junit"
-MANIFESTO="$JUNIT/esperados.txt"
-REGISTROS="$JUNIT/.registros.txt"
-OBTIDOS="$JUNIT/.pulos_obtidos.txt"
-ESPERADOS="$JUNIT/.pulos_esperados.txt"
-
+J="$BUILD/junit"
+mkdir -p "$J"
 ruins=0
 parada() {
     echo "PARADA: $*"
@@ -47,122 +34,240 @@ if [ -z "$DISTRO" ]; then
     echo "PARADA: distro ausente (NL_DISTRO vazio): sem distro não há lista de pulos esperados"
     exit 1
 fi
-if [ ! -r "$LISTA" ]; then
-    echo "PARADA: lista de pulos ilegível: $LISTA"
-    exit 1
+for arq in "$PULOS" "$SEM_SAIDA" "$OBRIG"; do
+    if [ ! -r "$arq" ]; then
+        echo "PARADA: lista ilegível: $arq"
+        exit 1
+    fi
+done
+
+# 1. Lista de testes do CTest (a autoridade).
+JSON="${NL_CTEST_JSON_ARQ:-$J/.ctest.json}"
+if [ -z "${NL_CTEST_JSON_ARQ:-}" ]; then
+    if ! ctest --test-dir "$BUILD" --show-only=json-v1 > "$JSON" 2> "$J/.ctest.err"; then
+        parada "ctest --show-only=json-v1 falhou (ver $J/.ctest.err)"
+    fi
 fi
-if [ ! -r "$MANIFESTO" ]; then
-    echo "PARADA: manifesto de testes ausente ($MANIFESTO): o configure grava o manifesto"
-    exit 1
+TESTES="$J/.testes.txt"
+sed -n 's/^      "name" : "\(.*\)",\{0,1\}$/\1/p' "$JSON" 2>/dev/null > "$TESTES"
+n_nomes=$(wc -l < "$TESTES" | tr -d ' ')
+n_objetos=$(grep -c '^    {$' "$JSON" 2>/dev/null)
+n_comandos=$(grep -c '^      "command" :' "$JSON" 2>/dev/null)
+n_objetos=${n_objetos:-0}
+n_comandos=${n_comandos:-0}
+if [ "$n_nomes" -eq 0 ]; then
+    parada "JSON do ctest vazio: nenhum teste listado (zero testes não é varredura)"
+elif [ "$n_objetos" -ne "$n_nomes" ] || [ "$n_nomes" -ne "$n_comandos" ]; then
+    parada "formato do JSON do ctest não reconhecido: $n_objetos objetos, $n_nomes nomes, $n_comandos comandos"
 fi
 
-total=0
-passou=0
-falhou=0
-pulou=0
-nomes=0
-nesp=0
-nobt=0
+# Particiona: com junitxml, e sem junitxml (candidatos à lista de exceções).
+COM="$J/.com_junit.txt"
+SEM="$J/.sem_junit.txt"
+: > "$COM"
+: > "$SEM"
+while IFS= read -r nome; do
+    [ -n "$nome" ] || continue
+    if [ -e "$J/$nome.xml" ]; then
+        echo "$nome" >> "$COM"
+    else
+        echo "$nome" >> "$SEM"
+    fi
+done < "$TESTES"
+n_com=$(wc -l < "$COM" | tr -d ' ')
+n_sem=$(wc -l < "$SEM" | tr -d ' ')
 
-# Lista da distro. Toda linha tem de ter distro, teste e motivo, mesmo as de outra distro (formato fechado).
-: > "$ESPERADOS"
+# 2. Lista de exceções da distro (sem junitxml). Linha sem motivo reprova, em qualquer distro.
+EXC="$J/.excecoes.txt"
+: > "$EXC"
 n_linha=0
 while IFS= read -r linha; do
     n_linha=$((n_linha + 1))
     case "$linha" in
         ''|'#'*) continue ;;
     esac
-    dist=$(printf '%s\n' "$linha" | sed -n 's/^\([^ ][^ ]*\) \([^ ][^ ]*\) \([^ ].*\)$/\1/p')
-    teste=$(printf '%s\n' "$linha" | sed -n 's/^\([^ ][^ ]*\) \([^ ][^ ]*\) \([^ ].*\)$/\2/p')
-    motivo=$(printf '%s\n' "$linha" | sed -n 's/^\([^ ][^ ]*\) \([^ ][^ ]*\) \([^ ].*\)$/\3/p')
-    if [ -z "$dist" ] || [ -z "$teste" ] || [ -z "$motivo" ]; then
-        parada "linha $n_linha da lista sem motivo (formato: distro teste motivo): $linha"
+    set -f
+    set -- $linha
+    set +f
+    dist="${1:-}"
+    teste="${2:-}"
+    resto="${linha#* }"
+    motivo="${resto#* }"
+    if [ -z "$dist" ] || [ -z "$teste" ] || [ "$motivo" = "$resto" ] || [ -z "$motivo" ]; then
+        parada "linha sem motivo na lista de exceções (linha $n_linha): $linha"
         continue
     fi
     if [ "$dist" = "$DISTRO" ]; then
-        echo "$teste" >> "$ESPERADOS"
-        nesp=$((nesp + 1))
+        echo "$teste" >> "$EXC"
     fi
-done < "$LISTA"
+done < "$SEM_SAIDA"
+n_exc=$(wc -l < "$EXC" | tr -d ' ')
 
-# Resultado por função, a partir do junitxml de cada teste registrado.
-: > "$OBTIDOS"
+grep -vxF -f "$TESTES" "$EXC" > "$J/.velhas.txt"
 while IFS= read -r nome; do
     [ -n "$nome" ] || continue
-    nomes=$((nomes + 1))
-    xml="$JUNIT/$nome.xml"
-    if [ ! -r "$xml" ]; then
-        parada "xml ausente para o teste $nome ($xml): o teste não gravou resultado"
-        continue
-    fi
-    if ! grep -q '</testsuite>' "$xml"; then
-        parada "xml incompleto (sem </testsuite>), o processo morreu no meio: $nome"
-        continue
-    fi
-    declarados=$(sed -n 's/^<testsuite .* tests="\([0-9][0-9]*\)".*/\1/p' "$xml" | head -n 1)
-    if [ -z "$declarados" ]; then
-        parada "xml sem contagem de testes (tests=): $nome"
-        continue
-    fi
-    tr '\n' ' ' < "$xml" | sed 's/<testcase /\n<testcase /g' | grep '^<testcase ' > "$REGISTROS"
-    lidos=$(wc -l < "$REGISTROS" | tr -d ' ')
-    if [ "$lidos" -eq 0 ] || [ "$lidos" -ne "$declarados" ]; then
-        parada "xml inconsistente: $nome declara $declarados testes e tem $lidos registros"
-        continue
-    fi
-    while IFS= read -r registro; do
-        total=$((total + 1))
-        chave=$(printf '%s\n' "$registro" | sed -n 's/^<testcase name="\([^"]*\)" classname="\([^"]*\)".*/\2.\1/p')
-        if [ -z "$chave" ]; then
-            parada "registro sem nome legível em $nome"
-            continue
-        fi
-        case "$registro" in
+    parada "linha velha na lista de exceções (não é teste do CTest): $nome"
+done < "$J/.velhas.txt"
+grep -xF -f "$COM" "$EXC" > "$J/.excecao_com_xml.txt"
+while IFS= read -r nome; do
+    [ -n "$nome" ] || continue
+    parada "exceção com junitxml (lista desatualizada): $nome"
+done < "$J/.excecao_com_xml.txt"
+grep -vxF -f "$EXC" "$SEM" > "$J/.sem_sem_excecao.txt"
+while IFS= read -r nome; do
+    [ -n "$nome" ] || continue
+    parada "teste sem junitxml fora da lista de exceções: $nome"
+done < "$J/.sem_sem_excecao.txt"
+
+# 3. Junitxml de cada teste com junitxml: completo, com testcase, contagem igual, e os pulos e falhas por função.
+OBT="$J/.pulos_obtidos.txt"
+: > "$OBT"
+total=0
+passou=0
+falhou=0
+pulou=0
+while IFS= read -r nome; do
+    [ -n "$nome" ] || continue
+    xml="$J/$nome.xml"
+    fechado=0
+    declarados=""
+    lidos=0
+    rec=""
+    tem_rec=0
+    while IFS= read -r linha; do
+        case "$linha" in
+            *'<testsuite '*)
+                declarados="${linha#*tests=\"}"
+                declarados="${declarados%%\"*}"
+                ;;
+            *'<testcase '*)
+                if [ "$tem_rec" -eq 1 ]; then
+                    rec_fecha="$rec"
+                    # classificação do registro anterior (ver abaixo)
+                    case "$rec_fecha" in
+                        *'<failure'*|*'<error'*) falhou=$((falhou + 1)) ;;
+                        *' result="pass"'*) passou=$((passou + 1)) ;;
+                        *'<skipped'*|*' result="skip"'*)
+                            pulou=$((pulou + 1))
+                            cls="${rec_fecha#*classname=\"}"
+                            cls="${cls%%\"*}"
+                            nt="${rec_fecha#*name=\"}"
+                            nt="${nt%%\"*}"
+                            echo "$cls.$nt" >> "$OBT"
+                            ;;
+                        *' result="'*) falhou=$((falhou + 1)) ;;
+                        *) passou=$((passou + 1)) ;;
+                    esac
+                fi
+                rec="$linha"
+                tem_rec=1
+                lidos=$((lidos + 1))
+                ;;
+            *'</testsuite>'*)
+                fechado=1
+                ;;
+            *)
+                if [ "$tem_rec" -eq 1 ]; then
+                    rec="$rec $linha"
+                fi
+                ;;
+        esac
+    done < "$xml" 2>/dev/null
+    if [ "$tem_rec" -eq 1 ] && [ "$fechado" -eq 1 ]; then
+        case "$rec" in
             *'<failure'*|*'<error'*) falhou=$((falhou + 1)) ;;
             *' result="pass"'*) passou=$((passou + 1)) ;;
             *'<skipped'*|*' result="skip"'*)
                 pulou=$((pulou + 1))
-                printf '%s\n' "$chave" >> "$OBTIDOS"
+                cls="${rec#*classname=\"}"
+                cls="${cls%%\"*}"
+                nt="${rec#*name=\"}"
+                nt="${nt%%\"*}"
+                echo "$cls.$nt" >> "$OBT"
                 ;;
             *' result="'*) falhou=$((falhou + 1)) ;;
             *) passou=$((passou + 1)) ;;
         esac
-    done < "$REGISTROS"
-done < "$MANIFESTO"
+    fi
+    if [ "$fechado" -ne 1 ]; then
+        parada "junitxml vazio ou incompleto (sem </testsuite>): $nome"
+        continue
+    fi
+    if [ "$lidos" -eq 0 ]; then
+        parada "junitxml sem testcase: $nome"
+        continue
+    fi
+    total=$((total + lidos))
+    if [ -z "$declarados" ] || [ "$lidos" -ne "$declarados" ]; then
+        parada "xml inconsistente: $nome declara ${declarados:-nenhum} testes e tem $lidos registros"
+    fi
+done < "$COM"
 
-if [ "$nomes" -eq 0 ]; then
-    parada "manifesto vazio: nenhum teste registrado (zero funções não é varredura)"
-fi
-nobt=$(wc -l < "$OBTIDOS" | tr -d ' ')
-
-# Igualdade exata nas duas direções, por distro.
+# 4. Pulos: igualdade exata, por distro, nas duas direções. O motivo é documentação e não é comparado.
+ESP="$J/.pulos_esperados.txt"
+: > "$ESP"
+n_linha=0
+while IFS= read -r linha; do
+    n_linha=$((n_linha + 1))
+    case "$linha" in
+        ''|'#'*) continue ;;
+    esac
+    set -f
+    set -- $linha
+    set +f
+    dist="${1:-}"
+    teste="${2:-}"
+    resto="${linha#* }"
+    motivo="${resto#* }"
+    if [ -z "$dist" ] || [ -z "$teste" ] || [ "$motivo" = "$resto" ] || [ -z "$motivo" ]; then
+        parada "linha sem motivo na lista de pulos (linha $n_linha): $linha"
+        continue
+    fi
+    if [ "$dist" = "$DISTRO" ]; then
+        echo "$teste" >> "$ESP"
+    fi
+done < "$PULOS"
+nesp=$(wc -l < "$ESP" | tr -d ' ')
+nobt=$(wc -l < "$OBT" | tr -d ' ')
+grep -vxF -f "$ESP" "$OBT" > "$J/.pulo_fora_da_lista.txt"
 while IFS= read -r chave; do
     [ -n "$chave" ] || continue
-    if ! grep -qxF -- "$chave" "$ESPERADOS"; then
-        parada "pulo fora da lista ($DISTRO): $chave"
-    fi
-done < "$OBTIDOS"
+    parada "pulo fora da lista ($DISTRO): $chave"
+done < "$J/.pulo_fora_da_lista.txt"
+grep -vxF -f "$OBT" "$ESP" > "$J/.pulo_listado_nao_ocorreu.txt"
 while IFS= read -r chave; do
     [ -n "$chave" ] || continue
-    if ! grep -qxF -- "$chave" "$OBTIDOS"; then
-        parada "pulo listado que não ocorreu ($DISTRO): $chave"
-    fi
-done < "$ESPERADOS"
-
-echo "pulos_testes: distro=$DISTRO funcoes=$total passou=$passou falhou=$falhou pulou=$pulou (lista: $nesp esperados, $nobt obtidos)"
+    parada "pulo listado que não ocorreu ($DISTRO): $chave"
+done < "$J/.pulo_listado_nao_ocorreu.txt"
 if [ "$falhou" -gt 0 ]; then
     parada "$falhou funcao(oes) falharam"
 fi
-# Registro Qt Test: todo Qt Test do CTest no manifesto, obrigatórios presentes, e a checagem estática (reforço).
-if ! sh "$PORTOES_DIR/registro_qt.sh" "$BUILD" "$DISTRO" "$OBRIG"; then
-    parada "registro Qt Test reprovou (linhas acima)"
-fi
-if ! sh "$PORTOES_DIR/registro_qt_estatico.sh" "${PULOS_RAIZ:-.}"; then
-    parada "checagem estática do registro Qt Test reprovou (linhas acima)"
-fi
+
+# 5. Testes obrigatórios da distro: têm de estar no CTest.
+OBRIG_DIST="$J/.obrigatorios.txt"
+: > "$OBRIG_DIST"
+while IFS= read -r linha; do
+    case "$linha" in
+        ''|'#'*) continue ;;
+    esac
+    set -f
+    set -- $linha
+    set +f
+    if [ "${1:-}" = "$DISTRO" ] && [ -n "${2:-}" ]; then
+        echo "$2" >> "$OBRIG_DIST"
+    fi
+done < "$OBRIG"
+n_obrig=$(wc -l < "$OBRIG_DIST" | tr -d ' ')
+grep -vxF -f "$TESTES" "$OBRIG_DIST" > "$J/.obrig_ausentes.txt"
+while IFS= read -r nome; do
+    [ -n "$nome" ] || continue
+    parada "teste obrigatório ausente no CTest (distro $DISTRO): $nome"
+done < "$J/.obrig_ausentes.txt"
+
+echo "pulos_testes: distro=$DISTRO ctest=$n_nomes com_junitxml=$n_com sem_junitxml=$n_sem excecoes=$n_exc funcoes=$total passou=$passou falhou=$falhou pulou=$pulou (pulos: $nesp esperados, $nobt obtidos, obrigatorios=$n_obrig)"
 if [ "$ruins" -ne 0 ]; then
     echo "pulos_testes: REPROVADO ($ruins motivo(s))"
     exit 1
 fi
-echo "pulos_testes: VERDE, pulos batem com a lista de $DISTRO"
+echo "pulos_testes: VERDE, mundo fechado: todo teste do CTest tem junitxml ou exceção, e os pulos batem com a lista de $DISTRO"
 exit 0

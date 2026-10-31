@@ -47,7 +47,7 @@ if [ "$encontrados" -ne "$piso" ]; then
     exit 1
 fi
 
-ctest --test-dir "$BUILD" -j 4 --output-on-failure > "$BUILD/suite-executados.txt" 2>&1
+ctest --test-dir "$BUILD" -j 4 --output-on-failure --no-tests=error > "$BUILD/suite-executados.txt" 2>&1
 rc=$?
 resumo="$(grep 'tests passed' "$BUILD/suite-executados.txt" | tail -n 1)"
 analisados="$(printf '%s\n' "$resumo" | sed -n 's/.*out of \([0-9]*\).*/\1/p')"
