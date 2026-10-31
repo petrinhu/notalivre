@@ -219,8 +219,8 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     // Análise local (DA-2.59 item 4). A falha de gravação não desfaz a emissão, que já aconteceu na Sefin: o caso fica sem
     // arquivo, e a chave segue na saída da CLI.
     const QString estado = qEnvironmentVariable("XDG_STATE_HOME");
-    const QString base = (estado.isEmpty() ? QDir::homePath() + QStringLiteral("/.local/state") : estado) + QStringLiteral("/notalivre");
-    static_cast<void>(gravarRespostaCrua(nota->corpoCru, base, idDps->texto().toStdString()));
+    const QString pastaAnalise = (estado.isEmpty() ? QDir::homePath() + QStringLiteral("/.local/state") : estado) + QStringLiteral("/notalivre");
+    static_cast<void>(gravarRespostaCrua(nota->corpoCru, pastaAnalise, idDps->texto().toStdString()));
     registro.registrarEmissaoAceita(idDps->texto().toStdString(), nota->chave.texto().toStdString());
     return nota->chave.texto();
 }
