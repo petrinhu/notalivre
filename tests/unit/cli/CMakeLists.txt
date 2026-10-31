@@ -72,5 +72,5 @@ target_compile_definitions(tst_instalacao_bundle PRIVATE
     "NL_XSD_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\"")
 foreach(nome IN ITEMS raizesIcpInstaladasNoBundle xsdInstaladosNoBundle)
   nl_registra_teste_qt(NAME cli.bundle.${nome} COMMAND tst_instalacao_bundle ${nome})
-  set_tests_properties(cli.bundle.${nome} PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+  set_tests_properties(cli.bundle.${nome} PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
