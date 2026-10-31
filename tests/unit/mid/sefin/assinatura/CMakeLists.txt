@@ -15,20 +15,20 @@ add_test(NAME mid.sefin.assinatura.tabelaCobreRuntimeKdeFlatpak
          COMMAND tst_assinatura_dps tabelaCobreRuntimeKdeFlatpak)
 set_tests_properties(mid.sefin.assinatura.tabelaCobreRuntimeKdeFlatpak PROPERTIES
                     ENVIRONMENT "NL_TABELA_SHA1_ASSINATURA=${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/tabela_sha1_por_distro.txt"
-                    PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed"
+                    PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed, 0 skipped"
                     FAIL_REGULAR_EXPRESSION "FAIL!")
 add_test(NAME mid.sefin.assinatura.digestDeComparacaoEhSha256
          COMMAND tst_assinatura_dps digestDeComparacaoEhSha256)
-set_tests_properties(mid.sefin.assinatura.digestDeComparacaoEhSha256 PROPERTIES PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+set_tests_properties(mid.sefin.assinatura.digestDeComparacaoEhSha256 PROPERTIES PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed, 0 skipped" FAIL_REGULAR_EXPRESSION "FAIL!")
 add_test(NAME mid.sefin.assinatura.emissaoLigaAdaptadorRealPelaRaiz
          COMMAND tst_assinatura_dps emissaoLigaAdaptadorRealPelaRaiz)
 set_tests_properties(mid.sefin.assinatura.emissaoLigaAdaptadorRealPelaRaiz PROPERTIES
                     FIXTURES_REQUIRED certificados_teste
                     ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_FIXTURES_DPS=${CMAKE_SOURCE_DIR}/tests/fixtures/dps;NL_TABELA_SHA1_ASSINATURA=${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/tabela_sha1_por_distro.txt"
-                    PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed"
+                    PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed, 0 skipped"
                     FAIL_REGULAR_EXPRESSION "FAIL!")
 set_tests_properties(mid.sefin.assinatura.parametrosDaAssinaturaVemDaPastaDoLeiaute PROPERTIES
                     FIXTURES_REQUIRED certificados_teste
                     ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_FIXTURES_DPS=${CMAKE_SOURCE_DIR}/tests/fixtures/dps;NL_TABELA_SHA1_ASSINATURA=${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/tabela_sha1_por_distro.txt"
-                    PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed"
+                    PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed, 0 skipped"
                     FAIL_REGULAR_EXPRESSION "FAIL!")
