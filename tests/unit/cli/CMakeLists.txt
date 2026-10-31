@@ -31,11 +31,17 @@ set(NL_LOGS_PII_CLI_DIR "${CMAKE_BINARY_DIR}/logs_pii_cli")
 set(NL_SEGREDOS_PII_REF "${CMAKE_BINARY_DIR}/segredos_pii_execucao.txt")
 add_test(NAME cli.limpaLogsPii COMMAND ${CMAKE_COMMAND} -E rm -rf "${NL_LOGS_PII_CLI_DIR}")
 set_tests_properties(cli.excecaoTopo PROPERTIES DEPENDS cli.limpaLogsPii ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${NL_LOGS_PII_CLI_DIR}")
-add_test(NAME cli.portaoPiiVarreLogsDaCli
-    COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tests/unit/foundation/log/varredura_logs.py"
-        --dir "${NL_LOGS_PII_CLI_DIR}" --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt"
-        --termos "${NL_SEGREDOS_PII_REF}")
-set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS "cli.excecaoTopo;e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso")
+# Build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28, DA-2.60): o portão de PII da CLI lê o segredo de referência que o e2e cli_emitir
+# gera, e o e2e fica fora do Flatpak. Sem o e2e, o portão não tem o que varrer; por isso também sai desse build.
+if(NL_FLATPAK_BUILD)
+    message(STATUS "cli: portão de PII dos logs do e2e desligado no build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28)")
+else()
+    add_test(NAME cli.portaoPiiVarreLogsDaCli
+        COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tests/unit/foundation/log/varredura_logs.py"
+            --dir "${NL_LOGS_PII_CLI_DIR}" --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt"
+            --termos "${NL_SEGREDOS_PII_REF}")
+    set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS "cli.excecaoTopo;e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso")
+endif()
 
 # Configuração da CLI (NL-2.9, DA-2.44): arquivo XDG, chaves obrigatórias, Produção nasce falsa.
 add_executable(tst_configuracao_cli tst_configuracao_cli.cpp ${CMAKE_SOURCE_DIR}/apps/cli/configuracao_cli.cpp)
