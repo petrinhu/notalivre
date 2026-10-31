@@ -28,7 +28,10 @@ foreach(nome IN ITEMS
     cliRecusaProducaoBloqueada
     cliRecusaProducaoSemCnpjDigitado
     senhaNaoApareceEmArgvNemLog
-    cliRecusaDpsInvalidaSemPost)
+    cliRecusaDpsInvalidaSemPost
+    e0014DaMesmaDpsRecuperaAChave
+    e0014ComInfDpsDiferenteSaiComCinco
+    e0014SemComparacaoSaiComSete)
     add_test(NAME e2e.cliEmitir.${nome} COMMAND tst_cli_emitir ${nome})
     set_tests_properties(e2e.cliEmitir.${nome} PROPERTIES
                          FIXTURES_REQUIRED certificados_teste

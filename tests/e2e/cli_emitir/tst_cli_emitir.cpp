@@ -70,9 +70,14 @@ QByteArray lerArquivo(const QString& caminho)
 class ServidorFalso
 {
 public:
-    ServidorFalso()
+    /// falhaPost, se vier, é o roteiro do POST /nfse (ex.: rejeicao_gerada:E0014, DA-2.58).
+    explicit ServidorFalso(const QString& falhaPost = QString())
     {
-        processo_.start(kPython, QStringList{QStringLiteral("-I"), kLancador, kCertificados, QStringLiteral("--com-oraculo")});
+        QStringList argumentos{QStringLiteral("-I"), kLancador, kCertificados, QStringLiteral("--com-oraculo")};
+        if (!falhaPost.isEmpty()) {
+            argumentos << QStringLiteral("--falha") << QStringLiteral("POST") << QStringLiteral("/nfse") << falhaPost;
+        }
+        processo_.start(kPython, argumentos);
         if (processo_.waitForReadyRead(20000)) {
             const QString linha = QString::fromUtf8(processo_.readLine()).trimmed();
             if (linha.startsWith(QStringLiteral("PORTA "))) {
@@ -201,6 +206,23 @@ void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada, con
     arquivo.write(texto.toUtf8());
 }
 
+// Emissão contra o servidor falso com uma falha no POST /nfse (DA-2.59, E0014). A distro com SHA-1 bloqueado nunca chega ao POST.
+Execucao emitirContraServidorComFalhaNoPost(const QString& falha)
+{
+    QTemporaryDir configDir;
+    ServidorFalso servidor(falha);
+    if (!configDir.isValid() || servidor.porta() <= 0) {
+        return Execucao{};
+    }
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+    return rodarCliNoTerminal(argumentos, configDir.path(), senha);
+}
+
 class TstCliEmitir : public QObject
 {
     Q_OBJECT
@@ -217,6 +239,12 @@ private slots:
     void senhaNaoApareceEmArgvNemLog();
     // DPS de entrada que não confere no leiaute: sai com 4, e o servidor falso recebe zero requisições (DA-2.51, mutante H).
     void cliRecusaDpsInvalidaSemPost();
+    // E0014 na primeira tentativa com o mesmo infDPS: a CLI recupera a chave e sai com 0 (DA-2.58).
+    void e0014DaMesmaDpsRecuperaAChave();
+    // E0014 com infDPS diferente para o mesmo Id: DPS duplicada, código 5, sem renumerar (DA-2.58).
+    void e0014ComInfDpsDiferenteSaiComCinco();
+    // E0014 sem conseguir comparar o infDPS: código 7 (DA-2.58).
+    void e0014SemComparacaoSaiComSete();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -349,6 +377,36 @@ void TstCliEmitir::cliRecusaDpsInvalidaSemPost()
     QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
+}
+
+void TstCliEmitir::e0014DaMesmaDpsRecuperaAChave()
+{
+    if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
+        QSKIP("distro com SHA-1 bloqueado: a emissão não chega ao POST (DA-2.38)");
+    }
+    const Execucao execucao = emitirContraServidorComFalhaNoPost(QStringLiteral("rejeicao_gerada:E0014"));
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("emitida: chave "), "o mesmo infDPS tem de recuperar a chave da nota");
+}
+
+void TstCliEmitir::e0014ComInfDpsDiferenteSaiComCinco()
+{
+    if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
+        QSKIP("distro com SHA-1 bloqueado: a emissão não chega ao POST (DA-2.38)");
+    }
+    const Execucao execucao = emitirContraServidorComFalhaNoPost(QStringLiteral("rejeicao_gerada_diferente:E0014"));
+    QVERIFY2(execucao.codigo == 5, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("sefin.dps_duplicada"), "o infDPS diferente tem de sair como DPS duplicada");
+}
+
+void TstCliEmitir::e0014SemComparacaoSaiComSete()
+{
+    if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
+        QSKIP("distro com SHA-1 bloqueado: a emissão não chega ao POST (DA-2.38)");
+    }
+    const Execucao execucao = emitirContraServidorComFalhaNoPost(QStringLiteral("rejeicao_gerada_sem_comparacao:E0014"));
+    QVERIFY2(execucao.codigo == 7, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("sefin.comparacao_indisponivel"), "a comparação impossível tem de sair com o código de comparação indisponível");
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)
