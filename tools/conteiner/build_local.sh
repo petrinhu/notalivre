@@ -278,7 +278,7 @@ executar()
     gitopts=()
     gitcomum="$(git -C "$NL_REPO" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
     if [ -n "$gitcomum" ] && [ -d "$gitcomum" ]; then
-        gitopts=(-v "$gitcomum:/gitrepo:ro,z" -e GIT_DIR=/gitrepo -e NL_SHA="$sha")
+        gitopts=(-v "$gitcomum:/gitrepo:ro,z" -e NL_GIT_DIR=/gitrepo -e NL_SHA="$sha")
     fi
     docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" \
         --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp -e NL_DISTRO="$distro" \
