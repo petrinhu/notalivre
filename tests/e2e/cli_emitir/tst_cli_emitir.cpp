@@ -56,12 +56,16 @@ QByteArray lerArquivo(const QString& caminho)
 class ServidorFalso
 {
 public:
-    /// falhaPost, se vier, é o roteiro do POST /nfse (ex.: rejeicao_gerada:E0014, DA-2.58).
-    explicit ServidorFalso(const QString& falhaPost = QString())
+    /// falhaPost, se vier, é o roteiro do POST /nfse (ex.: rejeicao_gerada:E0014, DA-2.58). prefixo, se vier, é o caminho da API
+    /// (DA-2.5, NL-2.10a): o servidor responde só nele.
+    explicit ServidorFalso(const QString& falhaPost = QString(), const QString& prefixo = QStringLiteral("/SefinNacional"))
     {
         QStringList argumentos{QStringLiteral("-I"), kLancador, kCertificados, QStringLiteral("--com-oraculo")};
         if (!falhaPost.isEmpty()) {
             argumentos << QStringLiteral("--falha") << QStringLiteral("POST") << QStringLiteral("/nfse") << falhaPost;
+        }
+        if (!prefixo.isEmpty()) {
+            argumentos << QStringLiteral("--prefixo") << prefixo;
         }
         processo_.start(kPython, argumentos);
         if (processo_.waitForReadyRead(20000)) {
@@ -92,6 +96,32 @@ public:
             }
         }
         return -1;
+    }
+    /// Fecha o stdin e devolve os caminhos dos POST /nfse que chegaram (NL-2.10a, passo 3): o lancador os imprime ao sair.
+    QStringList caminhosAoFechar()
+    {
+        processo_.closeWriteChannel();
+        processo_.waitForFinished(5000);
+        const QString resto = QString::fromUtf8(processo_.readAllStandardOutput());
+        for (const QString& linha : resto.split(QLatin1Char('\n'))) {
+            if (linha.startsWith(QStringLiteral("CAMINHOS "))) {
+                return linha.mid(9).trimmed().split(QLatin1Char(','), Qt::SkipEmptyParts);
+            }
+        }
+        return {};
+    }
+    /// URI do Algorithm do SignatureMethod de cada POST /nfse que chegou (NL-2.10a, rodada 2). Stub: ainda não lê o servidor.
+    QStringList algoritmosAoFechar()
+    {
+        processo_.closeWriteChannel();
+        processo_.waitForFinished(5000);
+        const QString resto = QString::fromUtf8(processo_.readAllStandardOutput());
+        for (const QString& linha : resto.split(QLatin1Char('\n'))) {
+            if (linha.startsWith(QStringLiteral("ALGORITMOS "))) {
+                return linha.mid(11).trimmed().split(QLatin1Char(','), Qt::SkipEmptyParts);
+            }
+        }
+        return {};
     }
     int porta() const { return porta_; }
     QString diagnostico() const { return diagnostico_; }
@@ -187,7 +217,7 @@ void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada, con
         return;
     }
     const QString texto = QStringLiteral(
-        "[sefin]\nurl = %5\nancoras = %1/ac.pem\n"
+        "[sefin]\nurl = %5\nprefixo = /SefinNacional\nancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\ncaminho = %1/cnpj_ok.pfx\n"
         "[xsd]\ndiretorio = %2\nmanifesto = %3\n"
         "[emissao]\nproducao_liberada = %4\n")
                               .arg(kCertificados, kXsd, kManifesto, producaoLiberada ? QStringLiteral("true") : QStringLiteral("false"), url);
@@ -209,7 +239,7 @@ Execucao emitirContraServidorComFalhaNoPost(const QString& falha, int* requisico
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     if (requisicoes != nullptr) {
         *requisicoes = servidor.requisicoesAoFechar();
@@ -255,6 +285,23 @@ private slots:
     void e0014SemComparacaoSaiComSete();
     // DA-2.59 item 4: a resposta crua da Sefin fica num arquivo local 0600, com o XML e a chave mascarados, sem senha.
     void respostaCruaGravadaParaAnalise();
+    // NL-2.10a, passo 3 (DA-2.5): [sefin] prefixo vai ao caminho do POST; o servidor com o mesmo prefixo recebe em /SefinNacional/nfse.
+    void prefixoDaConfiguracaoVaiNaUrl();
+    // NL-2.10a, passo 3: sem [sefin] prefixo, a CLI recusa com 10 e nomeia a chave, antes de pedir a senha.
+    void prefixoAusenteSaiComDez();
+    // NL-2.10a, passo 5: o caminho do .pfx vem de [certificado] caminho, sem o argumento --certificado.
+    void caminhoDoCertificadoVemDaConfiguracao();
+    // NL-2.10a, passo 5: arquivo ilegível ou inexistente sai com 10, código certificado.caminho_ilegivel, e a mensagem diz como dar
+    // acesso ao arquivo no Flatpak (ordem do passo 4).
+    void certificadoIlegivelSaiComDezEInstrucao();
+    // NL-2.10a, passo 5: o caminho do certificado não aparece na saída da CLI (pode conter nome de pessoa).
+    void caminhoDoCertificadoNuncaVaiAoLog();
+    // NL-2.10a, rodada 2 (QA, item 1): o XML que chega ao servidor leva o URI rsa-sha256 quando a configuração pede rsa-sha256.
+    void algoritmoRsaSha256NoXmlEnviado();
+    // NL-2.10a, rodada 2 (QA, item 1): sem [assinatura], o XML leva rsa-sha1 (padrão); no fedora44 a política recusa antes do envio.
+    void algoritmoRsaSha1NoXmlPadrao();
+    // NL-2.10a, rodada 2 (QA, item 2): as âncoras do servidor TLS são as da chave ancoras_tls, não as do A1 (M3 do QA).
+    void ancorasTlsSozinhasValidamOServidor();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -269,7 +316,11 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
     const QString config = QStringLiteral(
         "[sefin]\n"
         "url = https://127.0.0.1:%1\n"
+        "prefixo = /SefinNacional\n"
+        "ancoras_tls = %2/ac.pem\n"
+        "[certificado]\n"
         "ancoras = %2/ac.pem\n"
+        "caminho = %2/cnpj_ok.pfx\n"
         "[xsd]\n"
         "diretorio = %3\n"
         "manifesto = %4\n"
@@ -299,8 +350,7 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
 
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
                                  QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"),
-                                 QStringLiteral("homologacao"), QStringLiteral("--certificado"),
-                                 kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 QStringLiteral("homologacao")};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
 
     // ADR-0005 e: a saída da CLI no e2e vai para a pasta que o portão de PII varre (cli.portaoPiiVarreLogsDaCli).
@@ -330,7 +380,7 @@ void TstCliEmitir::cliRecusaProducaoBloqueada()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("producao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("bloqueada"), "a recusa tem de dizer que Produção está bloqueada");
@@ -346,7 +396,7 @@ void TstCliEmitir::cliRecusaProducaoSemCnpjDigitado()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("producao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("CNPJ"), "a recusa tem de exigir o CNPJ digitado");
@@ -362,7 +412,7 @@ void TstCliEmitir::senhaNaoApareceEmArgvNemLog()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx"),
+                                 
                                  QStringLiteral("--senha"), QString::fromUtf8(senha)};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
@@ -382,7 +432,7 @@ void TstCliEmitir::cliRecusaDpsInvalidaSemPost()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/xdescserv_2001.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     // Fixture xdescserv_2001.json: xDescServ com 2001 caracteres. O domínio (Back) não limita o texto; o XSD limita em 2000
@@ -457,7 +507,7 @@ void TstCliEmitir::respostaCruaGravadaParaAnalise()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
         exigeRecusaSha1SemEnvio(execucao, servidor.requisicoesAoFechar());
@@ -475,6 +525,186 @@ void TstCliEmitir::respostaCruaGravadaParaAnalise()
     QVERIFY2(!conteudo.contains("nfseXmlGZipB64\":\"H4s"), "o XML da NFS-e (GZip em Base64) não pode ir ao arquivo");
     QVERIFY2(!conteudo.contains(senha), "a senha não pode ir ao arquivo");
     QVERIFY2(!conteudo.contains("11222333000181"), "o CNPJ do certificado não pode ir ao arquivo sem máscara");
+}
+
+// Configuração XDG com [sefin] url, prefixo e algoritmo (NL-2.10a, passo 3). Sem prefixo ou algoritmo, a linha não é escrita.
+void escreverConfigPrefixo(const QTemporaryDir& pasta, const QString& url, const QString& prefixo, const QString& algoritmo,
+                           const QString& caminhoCertificado = QString())
+{
+    QDir().mkpath(pasta.filePath(QStringLiteral("notalivre")));
+    QFile arquivo(pasta.filePath(QStringLiteral("notalivre/config.ini")));
+    if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return;
+    }
+    // [sefin] com prefixo e âncoras do servidor; [certificado] com as do A1, na ordem em que o INI as lê por seção.
+    QString texto = QStringLiteral("[sefin]\nurl = %1\n").arg(url);
+    if (!prefixo.isEmpty()) {
+        texto += QStringLiteral("prefixo = %1\n").arg(prefixo);
+    }
+    texto += QStringLiteral("ancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\n").arg(kCertificados);
+    const QString caminho = caminhoCertificado.isEmpty() ? kCertificados + QStringLiteral("/cnpj_ok.pfx") : caminhoCertificado;
+    texto += QStringLiteral("caminho = %1\n").arg(caminho);
+    texto += QStringLiteral("[xsd]\ndiretorio = %1\nmanifesto = %2\n[emissao]\nproducao_liberada = false\n").arg(kXsd, kManifesto);
+    if (!algoritmo.isEmpty()) {
+        texto += QStringLiteral("[assinatura]\nalgoritmo = %1\n").arg(algoritmo);
+    }
+    arquivo.write(texto.toUtf8());
+}
+
+void TstCliEmitir::prefixoDaConfiguracaoVaiNaUrl()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor(QString(), QStringLiteral("/SefinNacional"));
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 };
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
+    const QStringList caminhos = servidor.caminhosAoFechar();
+    QVERIFY2(caminhos.contains(QStringLiteral("/SefinNacional/nfse")),
+             qPrintable(QStringLiteral("o POST tinha de chegar em /SefinNacional/nfse; chegou em: [%1]").arg(caminhos.join(QLatin1Char(',')))));
+}
+
+void TstCliEmitir::prefixoAusenteSaiComDez()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:9443"), QString(), QString());
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 };
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 10, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("sefin.prefixo"), "a mensagem tem de nomear a chave que falta");
+    QVERIFY2(!execucao.saida.contains("senha do certificado"), "a senha não pode ser pedida antes da recusa");
+}
+
+// Argumentos sem --certificado (NL-2.10a, passo 5): o .pfx só entra pela configuração.
+QStringList argumentosSemCertificado()
+{
+    return {QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+            QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+}
+
+void TstCliEmitir::caminhoDoCertificadoVemDaConfiguracao()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"), kCertificados + QStringLiteral("/cnpj_ok.pfx"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
+    QVERIFY2(servidor.caminhosAoFechar().contains(QStringLiteral("/SefinNacional/nfse")), "o POST tem de sair com o .pfx da configuração");
+}
+
+void TstCliEmitir::certificadoIlegivelSaiComDezEInstrucao()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:9443"), QStringLiteral("/SefinNacional"), QString(),
+                          kCertificados + QStringLiteral("/inexistente.pfx"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 10, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("certificado.caminho_ilegivel"), "a saída tem de trazer o código estável");
+    QVERIFY2(execucao.saida.contains("Flatpak"), "a mensagem tem de dizer que, no Flatpak, o arquivo precisa estar acessível ao app");
+    QVERIFY2(!execucao.saida.contains("senha do certificado"), "a senha não pode ser pedida antes da recusa");
+}
+
+void TstCliEmitir::caminhoDoCertificadoNuncaVaiAoLog()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const QString caminho = kCertificados + QStringLiteral("/cnpj_ok.pfx");
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"), caminho);
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(!execucao.saida.contains(caminho.toUtf8()), "o caminho do .pfx não pode aparecer na saída da CLI");
+    QVERIFY2(!execucao.saida.contains("cnpj_ok.pfx"), "nem o nome do arquivo");
+}
+
+void TstCliEmitir::algoritmoRsaSha256NoXmlEnviado()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"), kCertificados + QStringLiteral("/cnpj_ok.pfx"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
+    // INFERÊNCIA: o URI vem do RFC 4051, §2.3.2 (xmldsig-more#rsa-sha256), e é o do SignatureMethod exigido pelo W3C XMLDSig §4.4.2.
+    QCOMPARE(servidor.algoritmosAoFechar(), QStringList{QStringLiteral("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")});
+}
+
+void TstCliEmitir::algoritmoRsaSha1NoXmlPadrao()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QString(), kCertificados + QStringLiteral("/cnpj_ok.pfx"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
+        exigeRecusaSha1SemEnvio(execucao, servidor.requisicoesAoFechar());
+        return;
+    }
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QCOMPARE(servidor.algoritmosAoFechar(), QStringList{QStringLiteral("http://www.w3.org/2000/09/xmldsig#rsa-sha1")});
+}
+
+void TstCliEmitir::ancorasTlsSozinhasValidamOServidor()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    // Âncoras do servidor TLS vazias: a conexão tem de ser recusada, mesmo com o A1 válido. Se o código trocar as âncoras do A1
+    // pelas do TLS, a conexão passa e o teste reprova (M3 do QA).
+    const QString vazio = configDir.filePath(QStringLiteral("tls_vazio.pem"));
+    QFile semAncora(vazio);
+    QVERIFY(semAncora.open(QIODevice::WriteOnly));
+    semAncora.close();
+    QVERIFY(QDir().mkpath(configDir.filePath(QStringLiteral("notalivre"))));
+    QFile config(configDir.filePath(QStringLiteral("notalivre/config.ini")));
+    QVERIFY(config.open(QIODevice::WriteOnly | QIODevice::Text));
+    config.write(QStringLiteral("[sefin]\nurl = https://127.0.0.1:%1\nprefixo = /SefinNacional\nancoras_tls = %2\n"
+                                "[certificado]\nancoras = %3/ac.pem\ncaminho = %3/cnpj_ok.pfx\n"
+                                "[xsd]\ndiretorio = %4\nmanifesto = %5\n[emissao]\nproducao_liberada = false\n"
+                                "[assinatura]\nalgoritmo = rsa-sha256\n")
+                     .arg(servidor.porta())
+                     .arg(vazio)
+                     .arg(kCertificados)
+                     .arg(kXsd)
+                     .arg(kManifesto)
+                     .toUtf8());
+    config.close();
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo != 0, qPrintable(QStringLiteral("a conexão tinha de ser recusada; rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(!execucao.saida.contains("emitida: chave "), "sem âncora TLS, nenhuma NFS-e pode sair como emitida");
+    QCOMPARE(servidor.requisicoesAoFechar(), 0);
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)

@@ -18,7 +18,6 @@ struct ArgumentosEmitir
     QString serie;
     QString numero;
     QString ambiente;
-    QString certificado;    ///< caminho do .pfx (--certificado); só o caminho, a senha vem do terminal
 };
 
 /// Espera a lista inteira da linha de comando, começando por "emitir".

@@ -7,14 +7,61 @@
 #include <QDir>
 #include <QFile>
 #include <QFileDevice>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QJsonValue>
 
 #include <cstddef>
 #include <optional>
 
 namespace nl::mid::composicao {
+namespace {
+
+// A chave de acesso sai com # no lugar de cada caractere: ela não vai ao arquivo em claro (ADR-0005).
+const QString kCampoChave = QStringLiteral("chaveAcesso");
+
+QJsonObject mascararObjeto(const QJsonObject& objeto);
+
+// Allowlist de valor (CISO N-03, ADR-0005): só a chave sai mascarada; qualquer outro valor sai como <tipo:tamanho>. Os nomes dos
+// campos e a forma do objeto ficam, para o analista ver o que a Sefin mandou sem ver o conteúdo.
+QJsonValue mascararValor(const QString& nome, const QJsonValue& valor)
+{
+    if (valor.isObject()) {
+        return mascararObjeto(valor.toObject());
+    }
+    if (valor.isArray()) {
+        return QStringLiteral("<array:%1>").arg(valor.toArray().size());
+    }
+    if (valor.isString()) {
+        const QString texto = valor.toString();
+        if (nome == kCampoChave) {
+            QString mascara;
+            mascara.fill(QLatin1Char('#'), texto.size());
+            return mascara;
+        }
+        return QStringLiteral("<string:%1>").arg(texto.size());
+    }
+    if (valor.isBool()) {
+        return QStringLiteral("<bool:%1>").arg(valor.toBool() ? 4 : 5);
+    }
+    if (valor.isDouble()) {
+        return QStringLiteral("<number:%1>").arg(QString::number(valor.toDouble()).size());
+    }
+    return QStringLiteral("<null:0>");
+}
+
+QJsonObject mascararObjeto(const QJsonObject& objeto)
+{
+    QJsonObject mascarado;
+    for (auto it = objeto.constBegin(); it != objeto.constEnd(); ++it) {
+        mascarado.insert(it.key(), mascararValor(it.key(), it.value()));
+    }
+    return mascarado;
+}
+
+} // namespace
 
 QByteArray mascararRespostaCrua(const QByteArray& corpo)
 {
@@ -23,16 +70,7 @@ QByteArray mascararRespostaCrua(const QByteArray& corpo)
     if (!doc.isObject()) {
         return QByteArrayLiteral("{\"aviso\":\"corpo que nao e JSON, omitido\"}");
     }
-    QJsonObject objeto = doc.object();
-    if (objeto.contains(QStringLiteral("nfseXmlGZipB64"))) {
-        objeto[QStringLiteral("nfseXmlGZipB64")] = QStringLiteral("<omitido: XML da NFS-e com dados do titular>");
-    }
-    if (objeto.contains(QStringLiteral("chaveAcesso"))) {
-        QString mascara;
-        mascara.fill(QLatin1Char('#'), objeto.value(QStringLiteral("chaveAcesso")).toString().size());
-        objeto[QStringLiteral("chaveAcesso")] = mascara;
-    }
-    return QJsonDocument(objeto).toJson(QJsonDocument::Compact);
+    return QJsonDocument(mascararObjeto(doc.object())).toJson(QJsonDocument::Compact);
 }
 
 std::expected<QString, nl::base::Erro> gravarRespostaCrua(const QByteArray& corpo, const QString& pastaBase, std::string_view idDps)

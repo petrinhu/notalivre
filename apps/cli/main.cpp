@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Ponto de entrada da CLI notalivre (NL-2.9, itens 4 e 5, DA-2.53): o registro e a guarda do manipulador do Qt nascem antes da
 // QCoreApplication. A CLI só chama a raiz de composição da Mid; não inclui nada de nl/foundation/log.
+#include "comando_config.h"
 #include "comando_dps_validar.h"
 #include "comando_emitir.h"
 
@@ -25,6 +26,9 @@ int despachar(const QStringList& argumentos, nl::mid::composicao::RegistroCli& r
     }
     if (!argumentos.isEmpty() && argumentos.at(0) == QLatin1String("emitir")) {
         return nl::cli::executarEmitir(argumentos, registro);
+    }
+    if (!argumentos.isEmpty() && argumentos.at(0) == QLatin1String("config")) {
+        return nl::cli::executarConfig(argumentos);
     }
     QTextStream erro{stderr};
     erro << QStringLiteral("uso: notalivre dps validar <entrada.json> <saida.xml> --xsd <diretorio> --manifesto <arquivo>") << Qt::endl;

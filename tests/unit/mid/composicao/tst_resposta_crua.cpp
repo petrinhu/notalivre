@@ -41,6 +41,16 @@ private slots:
     void corpoQueNaoEJsonViraAviso();
     // A gravação sai com permissão 0600 e o nome do arquivo não contém o Id da DPS.
     void gravacaoSai0600ComNomeSemId();
+    // NL-2.10a, passo 7 (CISO N-03): só a allowlist grava valor; um campo fora dela sai como <tipo:tamanho>, nunca com o valor.
+    void respostaCruaGravadaPorAllowlist();
+    // NL-2.10a, passo 7 (CISO N-03): um campo novo com o CPF da fixture não põe o CPF no arquivo gravado (varredura com contagem).
+    void campoNovoComCpfSomeDoArquivo();
+    // NL-2.10a, rodada 2 (CISO, pedido de 31/10): o CPF dentro de objeto aninhado não chega ao arquivo.
+    void cpfAninhadoSomeDoArquivo();
+    // NL-2.10a, rodada 2 (CISO): o CPF dentro de array não chega ao arquivo.
+    void cpfEmArraySomeDoArquivo();
+    // NL-2.10a, rodada 2 (CISO): o CPF como número JSON (não string) não chega ao arquivo.
+    void cpfNumericoSomeDoArquivo();
 };
 
 void TstRespostaCrua::mascaraTrocaXmlEChave()
@@ -71,6 +81,75 @@ void TstRespostaCrua::gravacaoSai0600ComNomeSemId()
     QFile arquivo(*gravado);
     QVERIFY(arquivo.open(QIODevice::ReadOnly));
     QVERIFY2(!arquivo.readAll().contains(kXmlSintetico), "o XML não pode estar no arquivo gravado");
+}
+
+void TstRespostaCrua::respostaCruaGravadaPorAllowlist()
+{
+    // "protocolo" não está na allowlist: o valor não pode sair, só a forma <string:5>.
+    const QByteArray corpo = "{\"chaveAcesso\":\"" + kChaveSintetica + "\",\"protocolo\":\"98765\",\"nfseXmlGZipB64\":\"" + kXmlSintetico + "\"}";
+    const QByteArray mascarado = nl::mid::composicao::mascararRespostaCrua(corpo);
+    QVERIFY2(!mascarado.contains("98765"), "um campo fora da allowlist não pode sair com o valor");
+    QVERIFY2(mascarado.contains("\"protocolo\":\"<string:5>\""), "o campo tem de sair com a forma <tipo:tamanho>");
+}
+
+void TstRespostaCrua::campoNovoComCpfSomeDoArquivo()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    // CPF da fixture (tests/fixtures/certificados, CPF_OK) dentro de um campo que a allowlist não conhece.
+    const QByteArray corpo = "{\"chaveAcesso\":\"" + kChaveSintetica + "\",\"novoCampo\":\"12345678909\"}";
+    const auto gravado = nl::mid::composicao::gravarRespostaCrua(corpo, pasta.path(), "DPS-ID-SINTETICO-0002");
+    QVERIFY2(gravado.has_value(), "a resposta tem de ser gravada na pasta de análise");
+    QFile arquivo(*gravado);
+    QVERIFY(arquivo.open(QIODevice::ReadOnly));
+    const QByteArray conteudo = arquivo.readAll();
+    const qsizetype ocorrencias = conteudo.count("12345678909");
+    QVERIFY2(ocorrencias == 0, qPrintable(QStringLiteral("CPF da fixture no arquivo gravado: %1 ocorrência(s) em %2 bytes varridos")
+                                              .arg(ocorrencias)
+                                              .arg(conteudo.size())));
+}
+
+namespace {
+
+// Grava o corpo com gravarRespostaCrua e devolve quantas vezes o CPF da fixture aparece no arquivo gravado (0 é o esperado).
+qsizetype ocorrenciasDoCpfNoArquivo(const QByteArray& corpo, const char* idDps)
+{
+    QTemporaryDir pasta;
+    if (!pasta.isValid()) {
+        return -1;
+    }
+    const auto gravado = nl::mid::composicao::gravarRespostaCrua(corpo, pasta.path(), idDps);
+    if (!gravado) {
+        return -1;
+    }
+    QFile arquivo(*gravado);
+    if (!arquivo.open(QIODevice::ReadOnly)) {
+        return -1;
+    }
+    return arquivo.readAll().count("12345678909");
+}
+
+} // namespace
+
+void TstRespostaCrua::cpfAninhadoSomeDoArquivo()
+{
+    const QByteArray corpo = "{\"chaveAcesso\":\"" + kChaveSintetica + "\",\"titular\":{\"contato\":{\"cpf\":\"12345678909\"}}}";
+    const qsizetype ocorrencias = ocorrenciasDoCpfNoArquivo(corpo, "DPS-ID-SINTETICO-0003");
+    QVERIFY2(ocorrencias == 0, qPrintable(QStringLiteral("CPF aninhado no arquivo gravado: %1 ocorrência(s)").arg(ocorrencias)));
+}
+
+void TstRespostaCrua::cpfEmArraySomeDoArquivo()
+{
+    const QByteArray corpo = "{\"chaveAcesso\":\"" + kChaveSintetica + "\",\"itens\":[\"12345678909\",\"outro\"]}";
+    const qsizetype ocorrencias = ocorrenciasDoCpfNoArquivo(corpo, "DPS-ID-SINTETICO-0004");
+    QVERIFY2(ocorrencias == 0, qPrintable(QStringLiteral("CPF em array no arquivo gravado: %1 ocorrência(s)").arg(ocorrencias)));
+}
+
+void TstRespostaCrua::cpfNumericoSomeDoArquivo()
+{
+    const QByteArray corpo = "{\"chaveAcesso\":\"" + kChaveSintetica + "\",\"cpfNumerico\":12345678909}";
+    const qsizetype ocorrencias = ocorrenciasDoCpfNoArquivo(corpo, "DPS-ID-SINTETICO-0005");
+    QVERIFY2(ocorrencias == 0, qPrintable(QStringLiteral("CPF numérico no arquivo gravado: %1 ocorrência(s)").arg(ocorrencias)));
 }
 
 QTEST_APPLESS_MAIN(TstRespostaCrua)

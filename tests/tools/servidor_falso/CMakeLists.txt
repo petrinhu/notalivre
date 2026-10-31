@@ -58,7 +58,10 @@ foreach(nome IN ITEMS
     corpoSemTamanhoFechaNoCorpo
     nfseDefeituosaNoSucessoDoPostChegaComChaveEFormaErrada
     nfseDefeituosaSoValeParaPostNfse
-    tlsMaximoTls12LimitaVersao)
+    tlsMaximoTls12LimitaVersao
+    prefixoRetiradoAntesDaRota
+    semOPrefixoContinua404
+    postsGuardamOCaminho)
   add_test(NAME servidor_falso.${nome}
            COMMAND Python3::Interpreter -I "${NL_TESTE_SERVIDOR_FALSO}" "test_${nome}")
   set_tests_properties(servidor_falso.${nome} PROPERTIES ENVIRONMENT "${NL_AMBIENTE_SERVIDOR_FALSO}")

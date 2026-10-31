@@ -80,8 +80,8 @@ class TesteServidorFalso(unittest.TestCase):
 
     # --- auxiliares de teste ---------------------------------------------------------------------
 
-    def subir(self, roteiro_=None, tls_maximo=None):
-        srv = servidor.ServidorFalso(self.certs, self.oraculo, roteiro_, tls_maximo=tls_maximo)
+    def subir(self, roteiro_=None, tls_maximo=None, prefixo=""):
+        srv = servidor.ServidorFalso(self.certs, self.oraculo, roteiro_, tls_maximo=tls_maximo, prefixo=prefixo)
         srv.iniciar()
         self.addCleanup(srv.encerrar)
         return srv
@@ -490,6 +490,29 @@ class TesteServidorFalso(unittest.TestCase):
             recusado = True
         self.assertTrue(recusado, "cliente que só fala TLS 1.3 tinha que ser recusado")
         self.assertEqual(self.enviar(srv, "GET", "/dps/" + self.id_dps)[0], 404)
+
+    def test_prefixoRetiradoAntesDaRota(self):
+        # NL-2.10a: com o prefixo configurado (DA-2.5, /SefinNacional), a rota casa sem o prefixo: o POST chega e a consulta responde
+        srv = self.subir(prefixo="/SefinNacional")
+        status, corpo = self.enviar(srv, "POST", "/SefinNacional/nfse", envelope.envelope(self.dps))
+        self.assertEqual(status, 201, corpo)
+        self.assertEqual(self.enviar(srv, "GET", f"/SefinNacional/dps/{self.id_dps}")[0], 200)
+
+    def test_semOPrefixoContinua404(self):
+        # NL-2.10a: com o prefixo configurado, o mesmo caminho sem o prefixo não é rota: 404 e nada entra no registro
+        srv = self.subir(prefixo="/SefinNacional")
+        self.assertEqual(self.enviar(srv, "POST", "/nfse", envelope.envelope(self.dps))[0], 404)
+        self.assertEqual(self.enviar(srv, "GET", f"/dps/{self.id_dps}")[0], 404)
+
+    def test_postsGuardamOCaminho(self):
+        # NL-2.10a: o registro de dupla emissão guarda o caminho de cada POST /nfse, para o e2e provar a rota (ADR-0005: sem PII)
+        srv = self.subir(prefixo="/SefinNacional")
+        self.enviar(srv, "POST", "/SefinNacional/nfse", envelope.envelope(self.dps))
+        status, registro = self.enviar(srv, "GET", "/_teste/posts")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(registro), 1)
+        self.assertIn("caminho", registro[0])
+        self.assertEqual(registro[0]["caminho"], "/SefinNacional/nfse")
 
 
 if __name__ == "__main__":

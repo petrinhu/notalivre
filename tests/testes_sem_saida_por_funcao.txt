@@ -470,3 +470,15 @@ flatpak tabelas.xlsxUtf16ComEntityRecusado ferramenta python de tabelas (xlsx, C
 flatpak tabelas.xlsxUtf16SemDoctypeLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 flatpak tabelas.xlsxUtf8ComBomLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 flatpak tabelas.xlsxValidoEhLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora44 servidor_falso.prefixoRetiradoAntesDaRota servidor falso python (arnês de rede), sem junitxml por função
+fedora44 servidor_falso.semOPrefixoContinua404 servidor falso python (arnês de rede), sem junitxml por função
+fedora44 servidor_falso.postsGuardamOCaminho servidor falso python (arnês de rede), sem junitxml por função
+ubuntu26.04 servidor_falso.prefixoRetiradoAntesDaRota servidor falso python (arnês de rede), sem junitxml por função
+ubuntu26.04 servidor_falso.semOPrefixoContinua404 servidor falso python (arnês de rede), sem junitxml por função
+ubuntu26.04 servidor_falso.postsGuardamOCaminho servidor falso python (arnês de rede), sem junitxml por função
+mint22.3 servidor_falso.prefixoRetiradoAntesDaRota servidor falso python (arnês de rede), sem junitxml por função
+mint22.3 servidor_falso.semOPrefixoContinua404 servidor falso python (arnês de rede), sem junitxml por função
+mint22.3 servidor_falso.postsGuardamOCaminho servidor falso python (arnês de rede), sem junitxml por função
+manjaro servidor_falso.prefixoRetiradoAntesDaRota servidor falso python (arnês de rede), sem junitxml por função
+manjaro servidor_falso.semOPrefixoContinua404 servidor falso python (arnês de rede), sem junitxml por função
+manjaro servidor_falso.postsGuardamOCaminho servidor falso python (arnês de rede), sem junitxml por função

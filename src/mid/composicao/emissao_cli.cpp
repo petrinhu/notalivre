@@ -174,8 +174,8 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
         return std::unexpected(idDps.error());
     }
     // 3. Âncoras e credencial do A1 (a senha é consumida aqui: o carregador a zera).
-    const QByteArray ancorasPem = lerArquivo(pedido.caminhoAncoras);
-    auto ancoras = fp::Ancoras::dePem(ancorasPem);
+    const QByteArray ancorasA1Pem = lerArquivo(pedido.caminhoAncoras);
+    auto ancoras = fp::Ancoras::dePem(ancorasA1Pem);
     if (!ancoras) {
         return std::unexpected(falha("credencial.ancoras_invalidas", "o arquivo de âncoras não pode ser lido"));
     }
@@ -208,8 +208,10 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
         return std::unexpected(recusada(registro, *idDps, falha("xsd.pos_assinatura", "o XML assinado não confere no XSD: nada foi enviado")));
     }
     // 7. Envio mTLS pelo cliente Sefin, com o Log do cliente (allowlist da Mid sefin, DA-2.54).
-    const ft::UrlBase base{QUrl(pedido.urlSefin), QString(), std::chrono::milliseconds{30000}};
-    ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasPem));
+    const ft::UrlBase base{QUrl(pedido.urlSefin), pedido.prefixoSefin, std::chrono::milliseconds{30000}};
+    // Âncoras do servidor TLS (config [sefin] ancoras_tls), separadas das do A1 (NL-2.10a, passo 4).
+    const QByteArray ancorasTlsPem = lerArquivo(pedido.caminhoAncorasTls);
+    ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasTlsPem));
     nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{},
                                                   std::make_shared<nl::mid::sefin::cliente::ComparadorInfDpsC14n>());
     auto nota = cliente.emitir(bk::DpsAssinada{*idDps, *assinado});
@@ -241,8 +243,12 @@ std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& 
 
 std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, fp::SenhaSegura&& senha, RegistroCli& registro)
 {
-    const FabricaAssinador fabrica = [](const fp::CredencialX509& credencial) -> std::unique_ptr<nl::back::AssinadorDps> {
-        return std::make_unique<nl::mid::sefin::assinatura::AssinadorDpsSefin>(credencial);
+    const FabricaAssinador fabrica = [algoritmo = pedido.algoritmo](const fp::CredencialX509& credencial)
+                                         -> std::unique_ptr<nl::back::AssinadorDps> {
+        // Conversão só aqui: o adaptador tem o próprio enum, e a fachada não o expõe à CLI.
+        const auto doAdaptador = algoritmo == AlgoritmoAssinatura::RsaSha256 ? nl::mid::sefin::assinatura::AlgoritmoAssinatura::RsaSha256
+                                                                            : nl::mid::sefin::assinatura::AlgoritmoAssinatura::RsaSha1;
+        return std::make_unique<nl::mid::sefin::assinatura::AssinadorDpsSefin>(credencial, doAdaptador);
     };
     return emitirDpsComAssinador(pedido, std::move(senha), registro, fabrica);
 }

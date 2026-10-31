@@ -3,7 +3,8 @@
 // Código de saída da CLI para uma emissão recusada (NL-2.9, DA-2.51 e DA-2.57c). Mora na Mid, junto dos códigos que classifica,
 // para ser testado sem a CLI. Classes: 4 documento reprovado no leiaute (entrada, XML assinado, identificação); 2 ambiente do
 // XSD; 5 DPS duplicada na Sefin (E0014 com infDPS diferente); 7 comparação indisponível; 1 recusa de regra (credencial,
-// assinatura, confirmação, cofre, Sefin). Código fora dessas listas sai como 70 (EX_SOFTWARE): código novo sem classificação
+// assinatura, confirmação, cofre, Sefin); 10 configuração ou banco (chave ausente, arquivo ou caminho ilegível, algoritmo
+// fora da lista; NL-3.8). Código fora dessas listas sai como 70 (EX_SOFTWARE): código novo sem classificação
 // não passa calado.
 #ifndef NL_MID_COMPOSICAO_CODIGO_SAIDA_H
 #define NL_MID_COMPOSICAO_CODIGO_SAIDA_H

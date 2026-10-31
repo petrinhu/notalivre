@@ -33,6 +33,9 @@ public:
     /// Emissão recusada: o Id da DPS vai mascarado e o código de recusa vai como está (DA-2.54).
     void registrarEmissaoRecusada(std::string_view idDps, std::string_view codigo);
 
+    /// O caminho do .pfx foi lido da configuração: só o evento, sem campo (NL-2.10a, emenda 6). O caminho nunca entra no log.
+    void registrarCertificadoConfigurado();
+
     /// O Log que o cliente Sefin e o manipulador do Qt usam. Só a Mid chama; a CLI não.
     [[nodiscard]] nl::foundation::log::Log* logDoCliente() noexcept;
 

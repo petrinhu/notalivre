@@ -24,6 +24,8 @@ def main():
                         metavar=("METODO", "CAMINHO", "FALHA"))
     parser.add_argument("--tls-maximo", choices=["1.2"], default=None,
                         help="versão máxima de TLS do cenário (rodada 4, DA-2.41); sem a opção, TLS 1.3 é o máximo")
+    parser.add_argument("--prefixo", default="",
+                        help="prefixo do caminho da API (DA-2.5, p.ex. /SefinNacional); sem a opção, a API fica na raiz")
     parser.add_argument("--com-oraculo", action="store_true",
                         help="liga o oráculo (xmllint e xmlsec1 de NL_XMLLINT e NL_XMLSEC1, XSD de NL_XSD_PRODREST_DIR)")
     args = parser.parse_args()
@@ -46,13 +48,17 @@ def main():
         oraculo = oraculo_mod.Oraculo(os.environ["NL_XMLLINT"], os.environ["NL_XMLSEC1"],
                                       os.path.join(os.environ["NL_XSD_PRODREST_DIR"], "DPS_v1.01.xsd"),
                                       certs.ca, os.path.join(base, "lancador-oraculo-%d" % os.getpid()))
-    srv = servidor.ServidorFalso(certs, oraculo, rota, tls_maximo=args.tls_maximo)
+    srv = servidor.ServidorFalso(certs, oraculo, rota, tls_maximo=args.tls_maximo, prefixo=args.prefixo)
     srv.iniciar()
     print(f"PORTA {srv.porta}", flush=True)
     sys.stdin.read()  # fica no ar até o dono fechar o stdin
     srv.encerrar()
     # Ao sair, diz quantas requisições chegaram (DA-2.51): o e2e confere zero quando a CLI recusa antes do envio.
     print(f"REQUISICOES {srv.requisicoes}", flush=True)
+    # NL-2.10a: o caminho de cada POST /nfse que chegou, para o e2e provar a rota (sem corpo, sem PII).
+    print("CAMINHOS " + ",".join(p["caminho"] for p in srv.posts_recebidos if "caminho" in p), flush=True)
+    # NL-2.10a, rodada 2: o URI do SignatureMethod de cada POST /nfse, para o e2e conferir o algoritmo do XML que chegou.
+    print("ALGORITMOS " + ",".join(p.get("algoritmo") or "" for p in srv.posts_recebidos if "caminho" in p), flush=True)
     return 0
 
 

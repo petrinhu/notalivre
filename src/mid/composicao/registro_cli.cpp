@@ -43,7 +43,7 @@ std::vector<fl::DeclaracaoCampo> allowlistDaCli()
 
 std::vector<std::string> eventosDaCli()
 {
-    std::vector<std::string> eventos{"cli.excecao", "qt.mensagem"};
+    std::vector<std::string> eventos{"cli.excecao", "qt.mensagem", "certificado.caminho_configurado"};
     for (auto& evento : nl::mid::sefin::cliente::eventosLogSefin()) {
         eventos.push_back(std::move(evento));
     }
@@ -72,6 +72,11 @@ void RegistroCli::registrarEmissaoAceita(std::string_view idDps, std::string_vie
 {
     const std::vector<fl::Campo> campos{fl::Campo{"idDps", std::string(idDps)}, fl::Campo{"chaveAcesso", std::string(chaveAcesso)}};
     static_cast<void>(interno_->log.registrar(fl::Nivel::Info, "emissao.aceita", campos));
+}
+
+void RegistroCli::registrarCertificadoConfigurado()
+{
+    static_cast<void>(interno_->log.registrar(fl::Nivel::Info, "certificado.caminho_configurado", {}));
 }
 
 void RegistroCli::registrarEmissaoRecusada(std::string_view idDps, std::string_view codigo)

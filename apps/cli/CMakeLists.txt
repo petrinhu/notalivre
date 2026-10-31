@@ -8,5 +8,6 @@ add_executable(notalivre-cli
     comando_dps_validar.cpp
     argumentos_emitir.cpp
     comando_emitir.cpp
+    comando_config.cpp
     configuracao_cli.cpp)
 target_link_libraries(notalivre-cli PRIVATE nl_mid Qt6::Core nl_warnings)
