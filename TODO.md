@@ -6,6 +6,8 @@
 
 ## INBOX (descobertas não priorizadas)
 
+- (sem ID): NL-2.14, rev devops rodada 6: o mutante G8 (pulos_testes.sh sem a checagem de existência do realpath) sobrevive ao autoteste; não é escape, porque o case de prefixo recusa a string vazia, mas falta o caso negativo (L-36). Relatório: /var/tmp/notalivre-logs/NL-2.14-rev-devops.md, seção Rodada 6.
+- (sem ID): NL-2.14, rev devops rodada 6: num push direto na onda-2, o resumo das listas sai vazio, porque NL_BASE_REF=origin/onda-2 faz o merge-base ser o próprio HEAD; os portões continuam reprovando. Caminho: comparar com o commit anterior do push ou com main.
 - (sem ID): NL-2.14, rev devops MÉDIA-3: nenhum portão valida a sintaxe YAML do ci.yml localmente, e as imagens não têm parser (L-51). Caminho: parse com python3 (yaml existe no ubuntu-latest) no job autotestes. Fonte: /var/tmp/notalivre-logs/NL-2.14-rev-devops.md.
 - (sem ID): NL-2.11, caminho de recusa de write() no terminal sem eco (src/mid/cofre/terminal_sem_eco.cpp, escreverTudo) sem teste próprio (L-35): cobrir a falha de write no prompt e na quebra de linha, com a sabotagem de estreia. Fonte: revisão do conserto do Flatpak (28088ed), 31/10/2026.
 - (sem ID): NL-2.11, gêmeo do static_cast<void> de write em tests/e2e/cli_emitir/tst_cli_emitir.cpp:172 e :177 (L-17); fora do Flatpak, mas a mesma classe de defeito.
