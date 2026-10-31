@@ -2,6 +2,13 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # E2E de `notalivre emitir` contra o servidor falso (NL-2.9, DA-2.44, DA-2.45) e os casos de recusa do plano. Só fixtures
 # sintéticas. Só em contêiner. A saída de cada caso vai para a pasta de logs da CLI, que o portão de PII varre (ADR-0005 e).
+# Build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28): o SDK KDE 6.11 não traz xmlsec1, e este E2E depende do xmlsec1 e do servidor
+# falso com oráculo. Fica desligado no Flatpak, como o servidor falso e o cliente Sefin; no build nativo nada muda.
+if(NL_FLATPAK_BUILD)
+    message(STATUS "e2e cli_emitir: desligado no build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28): depende de xmlsec1 e do servidor falso")
+    return()
+endif()
+
 find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
 find_program(NL_XMLLINT_EMITIR xmllint REQUIRED)
 find_program(NL_XMLSEC1_EMITIR xmlsec1 REQUIRED)
