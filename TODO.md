@@ -73,6 +73,9 @@
 - (sem ID): NL-2.8, a contagem de bytes do envio vem só do uploadProgress; verificar na NL-2.10 (item C da INBOX da rodada 5).
 - (sem ID): NL-2.8, 4xx sem código E válido vira Definitiva mesmo com bytes escritos (item E da INBOX da rodada 5).
 - (sem ID): NL-2.10, medir na Produção Restrita se a Sefin devolve o infDPS sem alteração antes de DpsDuplicada chegar ao usuário (INFERÊNCIA do revisor, condição da NL-2.8).
+- (sem ID): A10 da revisão qa da NL-2.11: diretório criado como root na pasta de trabalho do contêiner; corrigir dono ou local. Fonte: DA-2.61.
+- (sem ID): BAIXA-6 da revisão de segurança da NL-2.11: fidelidade do mutante de mTLS ao preset do build. Fonte: DA-2.61.
+- (sem ID): BAIXA-7 da revisão de segurança da NL-2.11: escopo de "a cada push" do mutante de mTLS no job ubuntu26.04. Fonte: DA-2.61.
 
 ## Backlog
 
@@ -114,6 +117,8 @@
 | NL-2.12 | W2 | Segurança | Nome de campo normalizado (só letras e dígitos, minúsculas) antes da lista Proibido do Log; teste campoComSeparadoresNoNomeContinuaProibido visto vermelho antes. Achado A2-07 da auditoria da Onda 2, triagem do CISO de 30/10/2026; DA-2.43. Plano, seção 2, NL-2.12. | Alta (antes da NL-2.10) | — | Baixa (inferido) | 🔍 Pendente verificação | — |
 | NL-2.11 | W2 | Engenharia | Mutante CERT_REQUIRED para CERT_OPTIONAL no servidor falso deixa vermelho o semCertificadoDeClienteHandshakeRecusado; job Flatpak roda a suíte de unidade sem xmlsec1 nem rede, com contagem e piso; testes do servidor falso fora do Flatpak, por escrito. Achados A2-01 e A2-04 da auditoria da Onda 2; DA-2.43. Plano, seção 2, NL-2.11. | Alta (antes da NL-2.10) | NL-2.9 | Média (inferido) | ⏳ Pendente | — |
 | NL-2.13 | W2 | Segurança | Raízes da ICP-Brasil baixadas do ITI só quando a fatia começar (decisão do líder, 29/10/2026, CLAUDE.md), com URL, tamanho e SHA-256 versionados e conferidos na carga; padrão de produção das âncoras do A1 (NL-2.2, DA-2.44). Plano, seção 2, NL-2.13. | Alta (antes da NL-2.10) | — | Média (inferido) | 🔍 Pendente verificação | — |
+| NL-2.9b | W2 | Engenharia | Os testes parametrosDaAssinaturaVemDaPastaDoLeiaute e emissaoLigaAdaptadorRealPelaRaiz deixam de pular no fedora44 e afirmam a tabela por distro da DA-2.38 (assinatura.algoritmo_bloqueado). Achado A7; DA-2.61. Plano, seção 2, NL-2.9b. | Alta (antes da NL-2.10) | NL-2.9 | Baixa (inferido) | ⏳ Pendente | — |
+| NL-2.14 | W2 | Engenharia | Contagem por função (junitxml do Qt Test) e lista versionada de pulos esperados por distro, igualdade exata, nos portões de teste; SKIP_REGULAR_EXPRESSION recusado. Achado A7 da revisão da NL-2.11; DA-2.61. Plano, seção 2, NL-2.14. | Alta (antes da NL-2.10) | — | Média (inferido) | ⏳ Pendente | — |
 | NL-2.10 | W2 | Operação | Emissão de teste do líder em Produção Restrita com o A1 dele (decisão do líder, 27/10/2026); o líder opera, nenhum agente toca o .pfx nem a senha. Plano, seção 2, NL-2.10. | Alta (decisão do líder) | NL-2.9, NL-2.11, NL-2.12, NL-2.13 | Média (inferido) | ⏳ Pendente | — |
 | NL-3.1 | W3 | Engenharia | Executor SQL e migrador na Foundation, schema v1 versionado com checksum (P4); integração contra mysql:8.4 e mariadb:11.8; consulta com concatenação não compila. Plano, seção 2, NL-3.1; CONTRACT 12.1. | Média (inferido) | NL-P.2 (P4), NL-1.9 | Média (inferido) | ⏳ Pendente | — |
 | NL-3.2 | W3 | Segurança | Primitivas de cripto na Foundation: AES-256-GCM, Argon2id e HMAC, com vetores NIST, RFC 9106 e RFC 4231. Plano, seção 2, NL-3.2. | Média (inferido) | NL-P.2, NL-1.9 (ADR-S5) | Média (inferido) | ⏳ Pendente | — |
