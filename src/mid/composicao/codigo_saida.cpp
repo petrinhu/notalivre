@@ -29,6 +29,13 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
     constexpr std::array<std::string_view, 4> documentoPrefixo{"cpf.", "cnpj.", "dps.", "entrada."};
     constexpr std::array<std::string_view, 2> ambienteXsd{"xsd.esquema", "xsd.interno"};
     constexpr std::array<std::string_view, 5> recusaPrefixo{"credencial.", "assinatura.", "confirmacao.", "cofre.", "sefin."};
+    // Falhas internas com código próprio (DA-2.59, item 3): não são recusa de regra nem documento, e saem como 70 por entrada explícita.
+    constexpr std::array<std::string_view, 2> internoExato{"emissao.id_dps_invalido", "emissao.id_vazio"};
+    for (auto exato : internoExato) {
+        if (codigo == exato) {
+            return kSaidaInterna;
+        }
+    }
     for (auto exato : documentoExato) {
         if (codigo == exato) {
             return kSaidaDocumento;
