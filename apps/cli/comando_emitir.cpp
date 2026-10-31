@@ -6,6 +6,7 @@
 #include "argumentos_emitir.h"
 #include "configuracao_cli.h"
 
+#include <cmath>
 #include <optional>
 #include <string>
 
@@ -26,35 +27,71 @@
 
 namespace nl::cli {
 
-// Confere um campo inteiro da DPS contra o valor da linha de comando. Campo ausente recebe o valor; campo diferente é conflito.
-std::expected<void, QString> conferirCampoDaDps(const QJsonObject& objeto, const QString& campo, qint64 valor)
+namespace {
+
+// Maior inteiro exato que o leiaute aceita para série (5 dígitos) e número (15 dígitos): acima disso o campo é inválido.
+constexpr double kMaiorInteiroDoCampo = 999999999999999.0;
+
+// Inteiro exato de um campo da DPS (NL-2.10b, BAIXA-6). Ausente devolve vazio. Número JSON sem fração e dentro da faixa é aceito;
+// fração, texto, booleano, objeto ou valor fora da faixa é campo inválido, com saída 4 e código entrada.numero_invalido.
+std::expected<std::optional<qint64>, ErroNumero> inteiroDoCampo(const QJsonObject& objeto, const QString& campo)
 {
-    const QJsonValue atual = objeto.value(campo);
-    if (!atual.isUndefined() && atual.toInteger() != valor) {
-        return std::unexpected(QStringLiteral("%1 da DPS diferente da linha de comando: a DPS traz %2 e a linha de comando pede %3")
-                                   .arg(campo)
-                                   .arg(atual.toInteger())
-                                   .arg(valor));
+    const QJsonValue valor = objeto.value(campo);
+    if (valor.isUndefined()) {
+        return std::optional<qint64>{};
+    }
+    if (!valor.isDouble()) {
+        return std::unexpected(ErroNumero{4, QStringLiteral("entrada.numero_invalido"),
+                                          QStringLiteral("campo %1 da DPS não é um número inteiro").arg(campo)});
+    }
+    const double numero = valor.toDouble();
+    if (std::trunc(numero) != numero || std::fabs(numero) > kMaiorInteiroDoCampo) {
+        return std::unexpected(ErroNumero{4, QStringLiteral("entrada.numero_invalido"),
+                                          QStringLiteral("campo %1 da DPS fora de inteiro exato").arg(campo)});
+    }
+    return std::optional<qint64>{static_cast<qint64>(numero)};
+}
+
+// Confere um campo inteiro da DPS contra o valor da linha de comando. Ausente recebe o valor; igual passa; diferente é conflito,
+// saída 2: a CLI não escolhe um dos dois valores.
+std::expected<void, ErroNumero> conferirCampoDaDps(const QJsonObject& objeto, const QString& campo, qint64 valor)
+{
+    auto atual = inteiroDoCampo(objeto, campo);
+    if (!atual) {
+        return std::unexpected(atual.error());
+    }
+    if (atual->has_value() && **atual != valor) {
+        return std::unexpected(ErroNumero{2, QStringLiteral("emissao.numero_conflitante"),
+                                          QStringLiteral("%1 da DPS diferente da linha de comando: a DPS traz %2 e a linha de comando pede %3")
+                                              .arg(campo)
+                                              .arg(**atual)
+                                              .arg(valor)});
     }
     return {};
 }
+
+} // namespace
 
 std::expected<QByteArray, ErroNumero> aplicarSerieENumero(const QByteArray& dpsJson, const ArgumentosEmitir& argumentos)
 {
     QJsonParseError erroJson;
     const QJsonDocument documento = QJsonDocument::fromJson(dpsJson, &erroJson);
     if (erroJson.error != QJsonParseError::NoError || !documento.isObject()) {
-        return std::unexpected(ErroNumero{2, QStringLiteral("a DPS de entrada não é um objeto JSON")});
+        return std::unexpected(ErroNumero{4, QStringLiteral("entrada.numero_invalido"), QStringLiteral("a DPS de entrada não é um objeto JSON")});
+    }
+    bool serieValida = false;
+    bool numeroValido = false;
+    const qint64 serie = argumentos.serie.toLongLong(&serieValida);
+    const qint64 numero = argumentos.numero.toLongLong(&numeroValido);
+    if (!serieValida || !numeroValido) {
+        return std::unexpected(ErroNumero{2, QStringLiteral("argumento.numero_invalido"), QStringLiteral("série ou número da linha de comando inválidos")});
     }
     QJsonObject objeto = documento.object();
-    const qint64 serie = argumentos.serie.toLongLong();
-    const qint64 numero = argumentos.numero.toLongLong();
-    // Conflito recusa a emissão (código 2): não se escolhe um dos dois valores (NL-2.10b, emenda 3).
     if (auto conferido = conferirCampoDaDps(objeto, QStringLiteral("serie"), serie); !conferido) {
-        return std::unexpected(ErroNumero{2, conferido.error()});
+        return std::unexpected(conferido.error());
     }
     if (auto conferido = conferirCampoDaDps(objeto, QStringLiteral("nDps"), numero); !conferido) {
-        return std::unexpected(ErroNumero{2, conferido.error()});
+        return std::unexpected(conferido.error());
     }
     objeto.insert(QStringLiteral("serie"), QJsonValue(serie));
     objeto.insert(QStringLiteral("nDps"), QJsonValue(numero));
@@ -63,7 +100,7 @@ std::expected<QByteArray, ErroNumero> aplicarSerieENumero(const QByteArray& dpsJ
 
 int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro)
 {
-        QTextStream erro{stderr};
+    QTextStream erro{stderr};
     QTextStream saida{stdout};
     const auto lidos = lerArgumentosEmitir(argumentos);
     if (!lidos) {
@@ -88,11 +125,18 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         erro << QString::fromStdString(derivado.error().mensagem()) << Qt::endl;
         return 2;
     }
-    // Âncoras definidas fora de Homologação são erro de configuração, código 10 (condição do CISO, 31/10/2026).
-    const auto ancorasConferidas = conferirAncorasDeAmbiente(*config, *derivado == nl::mid::composicao::Ambiente::Homologacao);
+    const bool homologacao = *derivado == nl::mid::composicao::Ambiente::Homologacao;
+    // Âncoras e [xsd] definidos fora de Homologação são erro de configuração, código 10 (condição do CISO, 31/10/2026; BAIXA-4).
+    // A guarda olha a presença da chave: a leitura já recusou o valor vazio, então não há como contornar por ele (BAIXA-5).
+    const auto ancorasConferidas = conferirAncorasDeAmbiente(*config, homologacao);
     if (!ancorasConferidas) {
         erro << QString::fromStdString(ancorasConferidas.error().codigo) << ": " << ancorasConferidas.error().mensagem << Qt::endl;
         return nl::mid::composicao::codigoDeSaidaDaEmissao(ancorasConferidas.error().codigo);
+    }
+    const auto xsdConferido = conferirXsdDeAmbiente(*config, homologacao);
+    if (!xsdConferido) {
+        erro << QString::fromStdString(xsdConferido.error().codigo) << ": " << xsdConferido.error().mensagem << Qt::endl;
+        return nl::mid::composicao::codigoDeSaidaDaEmissao(xsdConferido.error().codigo);
     }
     const auto conferido = nl::mid::composicao::conferirFlagDoAmbiente(*ambiente, *derivado);
     if (!conferido) {
@@ -109,10 +153,10 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         erro << QStringLiteral("não foi possível ler a DPS de entrada: %1").arg(lidos->entrada) << Qt::endl;
         return 2;
     }
-    // --serie e --numero entram na DPS (NL-2.10b, emenda 3); conflito com o que a DPS traz sai com 2, sem escolher um dos dois.
+    // --serie e --numero entram na DPS (NL-2.10b, emenda 3). Conflito sai com 2; número inválido no JSON sai com 4.
     const auto dpsAplicada = aplicarSerieENumero(arquivoDps.readAll(), *lidos);
     if (!dpsAplicada) {
-        erro << dpsAplicada.error().mensagem << Qt::endl;
+        erro << dpsAplicada.error().codigo << ": " << dpsAplicada.error().mensagem << Qt::endl;
         return dpsAplicada.error().saida;
     }
     // Produção: o CPF ou CNPJ é digitado no terminal, antes da senha, e confere com o A1 e com o emitente (item 2).
@@ -150,7 +194,7 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         config->prefixo,
         config->ancorasTls,
         *derivado,
-        QDir::cleanPath(QCoreApplication::applicationDirPath() + QStringLiteral("/../share/notalivre/icp-brasil")),
+        diretorioPadraoDasRaizesIcp(QCoreApplication::applicationDirPath()),
     };
     // A senha só entra pelo terminal, sem eco, dentro da fachada: a CLI nunca a vê (DA-2.57b).
     const auto chave = nl::mid::composicao::emitirDpsPeloTerminal(pedido, registro, QStringLiteral("senha do certificado: "));

@@ -25,6 +25,7 @@ struct ArgumentosEmitir;
 struct ErroNumero
 {
     int saida;
+    QString codigo;  ///< código estável do erro (entrada.numero_invalido, emissao.numero_conflitante, argumento.numero_invalido)
     QString mensagem;
 };
 
