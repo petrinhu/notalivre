@@ -56,16 +56,27 @@ fi
 ctest --test-dir "$TRAB/build" -R "^transporte[.]semCertificadoDeClienteHandshakeRecusado\$" --output-on-failure \
     > "$TRAB/ctest.log" 2>&1
 rc=$?
-if [ "$rc" -eq 0 ]; then
-    veredito="VIVO (o slot passou com o mutante: a sabotagem não o pegou)"
-    estado=1
-else
+
+# Contagem do passo (DA-2.60): encontradas = mutantes da lista (um hoje); aplicadas = sabotagem chegou ao código;
+# mortas = o slot falhou com o mutante; sobreviventes = aplicadas que não morreram. Sobrevivente reprova.
+encontradas=1
+aplicadas=1
+mortas=0
+if [ "$rc" -ne 0 ]; then
+    mortas=1
     veredito="MORTO (o slot falhou com o mutante)"
-    estado=0
+else
+    veredito="VIVO (o slot passou com o mutante: a sabotagem não o pegou)"
 fi
-linha="mutante=CERT_OPTIONAL slot=$SLOT rc=$rc veredito=$veredito sha=$SHA"
-echo "$linha"
+sobreviventes=$((aplicadas - mortas))
+contagem="encontradas=$encontradas aplicadas=$aplicadas mortas=$mortas sobreviventes=$sobreviventes"
+echo "mutantes servidor falso: $contagem"
+echo "mutante=CERT_OPTIONAL slot=$SLOT rc=$rc veredito=$veredito sha=$SHA"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-    printf '%s\n' "- Mutante CERT_OPTIONAL (DA-2.60): $veredito, slot \`$SLOT\`, rc $rc" >> "$GITHUB_STEP_SUMMARY"
+    printf '%s\n' "- Mutantes do servidor falso (DA-2.60): $contagem; CERT_OPTIONAL: $veredito" >> "$GITHUB_STEP_SUMMARY"
 fi
-exit "$estado"
+if [ "$encontradas" -ne "$aplicadas" ] || [ "$sobreviventes" -ne 0 ]; then
+    echo "PARADA: mutantes sobreviventes ou não aplicados ($contagem)"
+    exit 1
+fi
+exit 0
