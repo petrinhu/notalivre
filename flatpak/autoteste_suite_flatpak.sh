@@ -34,7 +34,14 @@ caso() {
     local nome="$1" piso="$2" mais="$3" total="$4" resumo="$5" rc="$6" esperado="$7" texto="$8"
     local dir="$BASE/c-$nome" saida rc_suite
     CASOS=$((CASOS + 1))
-    mkdir -p "$dir/flatpak" "$dir/_build"
+    mkdir -p "$dir/flatpak" "$dir/_build" "$dir/tools/portoes" "$dir/tests" "$dir/_build/junit"
+    # NL-2.14: o suite chama o portão de pulos depois das checagens acima. O caso verde precisa de um junitxml válido
+    # (um teste, sem pulo) e da lista real, senão o portão reprova um caso que só quer testar a contagem.
+    cp "$RAIZ/tools/portoes/pulos_testes.sh" "$dir/tools/portoes/pulos_testes.sh"
+    cp "$RAIZ/tests/pulos_esperados_por_distro.txt" "$dir/tests/pulos_esperados_por_distro.txt"
+    printf '%s\n' stub > "$dir/_build/junit/esperados.txt"
+    printf '%s\n' '<?xml version="1.0" encoding="UTF-8" ?>' '<testsuite name="TstStub" tests="1" failures="0" errors="0" skipped="0" time="0.001">' \
+        '<testcase name="stub" classname="TstStub" time="0.000"/>' '</testsuite>' > "$dir/_build/junit/stub.xml"
     cp "$RAIZ/flatpak/suite_flatpak.sh" "$dir/flatpak/suite_flatpak.sh"
     printf '%s\n' "$piso" > "$dir/flatpak/piso_suite.txt"
     if [ -n "$mais" ]; then

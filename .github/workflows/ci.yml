@@ -155,6 +155,15 @@ jobs:
         id: ctest
         run: ctest --preset debug --output-on-failure
 
+      # NL-2.14 (DA-2.61): o pulo sai do junitxml por função, comparado por igualdade exata com tests/pulos_esperados_por_distro.txt
+      # para esta distro. Roda mesmo com ctest vermelho, para o log trazer as três contagens. NL_DISTRO vazio reprova.
+      - name: "Pulos de teste por função (NL-2.14, DA-2.61)"
+        id: pulos
+        if: ${{ always() && steps.ctest.outcome != 'skipped' }}
+        env:
+          NL_DISTRO: ${{ matrix.distro }}
+        run: sh tools/portoes/pulos_testes.sh "$NL_TMP_BASE/notalivre-build/debug" "$NL_DISTRO" tests/pulos_esperados_por_distro.txt
+
       # DA-2.60 (item 2, NL-2.11): mutante CERT_OPTIONAL no servidor falso, em onda-*, main e PR (não em fatia/*). Roda numa cópia do SHA fora do
       # workspace; o slot transporte.semCertificadoDeClienteHandshakeRecusado tem de morrer. A contagem vai para o resumo
       # deste job (o job mutacao tem o próprio resumo).
@@ -327,6 +336,9 @@ jobs:
 
       - name: Autoteste dos limites de contêiner (NL-2.11, A2 e A3)
         run: bash tools/conteiner/autoteste_build_limites.sh
+
+      - name: "Autoteste do portão de pulos (NL-2.14, DA-2.61)"
+        run: bash tools/portoes/autoteste_pulos_testes.sh
 
   # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
   # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.

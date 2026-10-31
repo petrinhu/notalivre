@@ -245,7 +245,7 @@ executar()
     # ele chama o próprio build_local (recursão) e usa um docker de mentira no PATH, que não existe no contêiner. Roda
     # no job autotestes do ci.yml.
     local autoteste
-    for autoteste in tools/conteiner/autoteste_piso_portoes.sh flatpak/autoteste_suite_flatpak.sh; do
+    for autoteste in tools/conteiner/autoteste_piso_portoes.sh flatpak/autoteste_suite_flatpak.sh tools/portoes/autoteste_pulos_testes.sh; do
         if ! docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --network none \
             --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -v "$fonte:/src:ro,z" -w /src "$imagem" \
             sh -c "mkdir -p \"\$HOME\" && bash $autoteste"; then
@@ -273,7 +273,7 @@ executar()
     # Etapa 2, como 1000:1000: configure, build e ctest. Arquivos do build ficam com o dono do host.
     # NL_XSD_ZIP_CACHE (gêmeo da INBOX): o ZIP do XSD vem do cache do host, como no CI, e não do gov.br.
     docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" \
-        --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
+        --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp -e NL_DISTRO="$distro" \
         -e CMAKE_PREFIX_PATH="$QT_PREFIXO" -e CMAKE_BUILD_PARALLEL_LEVEL="$THREADS" \
         -e NL_XSD_ZIP_CACHE=/xsd-cache \
         -v "$fonte:/src:ro,z" -v "$build_host:/var/tmp/notalivre-build:z" -v "$VOLUME_QT:/opt/qt:ro" \

@@ -77,5 +77,11 @@ if [ "$rc" -ne 0 ] || [ "$falharam" -ne 0 ]; then
     echo "PARADA: $falharam teste(s) falharam (ctest rc=$rc)"
     exit 1
 fi
+# NL-2.14 (DA-2.61): o SDK não mostra pulo no resumo do ctest (QSKIP conta como passou). O pulo sai do junitxml por função,
+# comparado por igualdade exata com a lista da distro "flatpak" (vazia). Reprova se houver pulo fora da lista ou linha morta.
+if ! sh tools/portoes/pulos_testes.sh "$BUILD" flatpak tests/pulos_esperados_por_distro.txt; then
+    echo "PARADA: pulos de teste fora da lista de pulos esperados (NL-2.14, DA-2.61)"
+    exit 1
+fi
 echo "suite_flatpak: VERDE, $analisados de $encontrados testes passaram, piso $piso"
 exit 0
