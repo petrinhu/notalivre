@@ -38,6 +38,7 @@ struct NotaSefin {
     ChaveAcesso chave;
     QByteArray xmlNfse;               ///< XML da NFS-e já descompactado (DA-2.39). Vazio quando xmlPendente.
     bool xmlPendente = false;         ///< Sucesso sem XML legível: a chave vale, o reenvio fica bloqueado e o XML vem por GET /nfse/{chave}.
+    QByteArray corpoCru;              ///< Corpo cru da resposta de sucesso (DA-2.59 item 4): só vai à gravação de análise local, nunca a log.
 };
 
 class GatewaySefin {

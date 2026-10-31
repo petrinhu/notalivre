@@ -154,7 +154,7 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> notaDoCorpo(const QByteArray& corpo
     if (!xml) {
         return bk::NotaSefin{*chave, {}, true};
     }
-    return bk::NotaSefin{*chave, *xml, false};
+    return bk::NotaSefin{*chave, *xml, false, corpo};
 }
 
 // Chave do corpo de GET /dps/{id}: não toca no XML, então um XML ruim nunca libera nem bloqueia a consulta.

@@ -19,6 +19,9 @@
 #include <nl/mid/composicao/registro_cli.h>
 #include <nl/mid/cofre/senha_do_terminal.h>
 #include <nl/mid/cofre/terminal_sem_eco.h>
+#include <nl/mid/composicao/resposta_crua.h>
+
+#include <QDir>
 #include <nl/foundation/pkcs12/ancoras.h>
 #include <nl/foundation/pkcs12/carregador_pkcs12.h>
 #include <nl/foundation/pkcs12/credencial_x509.h>
@@ -213,6 +216,11 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     if (!nota) {
         return std::unexpected(recusada(registro, *idDps, falhaDoEnvio(nota.error())));
     }
+    // Análise local (DA-2.59 item 4). A falha de gravação não desfaz a emissão, que já aconteceu na Sefin: o caso fica sem
+    // arquivo, e a chave segue na saída da CLI.
+    const QString estado = qEnvironmentVariable("XDG_STATE_HOME");
+    const QString base = (estado.isEmpty() ? QDir::homePath() + QStringLiteral("/.local/state") : estado) + QStringLiteral("/notalivre");
+    static_cast<void>(gravarRespostaCrua(nota->corpoCru, base, idDps->texto().toStdString()));
     registro.registrarEmissaoAceita(idDps->texto().toStdString(), nota->chave.texto().toStdString());
     return nota->chave.texto();
 }
