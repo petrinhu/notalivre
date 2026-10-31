@@ -5,6 +5,10 @@
 // configuração temporária com Produção falsa (padrão do app).
 #include "comando_emitir.h"
 
+#include <nl/mid/composicao/registro_cli.h>
+
+#include <sstream>
+
 #include <QDir>
 #include <QFile>
 #include <QIODevice>
@@ -14,6 +18,13 @@
 namespace {
 
 // Configuração temporária com Produção falsa, apontada por XDG_CONFIG_HOME. A pasta fica viva enquanto o objeto existir.
+int emitirComRegistro(const QStringList& argumentos)
+{
+    std::ostringstream destino;
+    auto registro = nl::mid::composicao::criarLogDaCli(destino);
+    return nl::cli::executarEmitir(argumentos, *registro);
+}
+
 class ConfigTemporaria
 {
 public:
@@ -22,7 +33,7 @@ public:
         QDir().mkpath(pasta_.filePath(QStringLiteral("notalivre")));
         QFile arquivo(pasta_.filePath(QStringLiteral("notalivre/config.ini")));
         static_cast<void>(arquivo.open(QIODevice::WriteOnly | QIODevice::Text));
-        arquivo.write("[sefin]\nurl = https://127.0.0.1:9443\nancoras = /tmp/ac.pem\n"
+        arquivo.write("[sefin]\nurl = https://sefin.nfse.gov.br/SefinNacional\nancoras = /tmp/ac.pem\n"
                       "[xsd]\ndiretorio = /tmp/xsd\nmanifesto = /tmp/xsd/MANIFESTO.sha256\n"
                       "[emissao]\nproducao_liberada = false\n");
         arquivo.close();
@@ -51,14 +62,14 @@ void TstComandoEmitir::producaoBloqueadaSaiAntesDaSenha()
     ConfigTemporaria config;
     const QStringList argumentos{"emitir", "dps.json", "--serie", "1", "--numero", "1", "--ambiente", "producao",
                                  "--cnpj-confirmado", "12345678000195"};
-    QCOMPARE(nl::cli::executarEmitir(argumentos), 1);
+    QCOMPARE(emitirComRegistro(argumentos), 1);
 }
 
 void TstComandoEmitir::producaoSemCnpjDigitadoSaiAntesDaSenha()
 {
     ConfigTemporaria config;
     const QStringList argumentos{"emitir", "dps.json", "--serie", "1", "--numero", "1", "--ambiente", "producao"};
-    QCOMPARE(nl::cli::executarEmitir(argumentos), 1);
+    QCOMPARE(emitirComRegistro(argumentos), 1);
 }
 
 QTEST_APPLESS_MAIN(TstComandoEmitir)

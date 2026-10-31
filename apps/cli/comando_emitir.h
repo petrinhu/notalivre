@@ -7,11 +7,15 @@
 
 #include <QStringList>
 
+namespace nl::mid::composicao {
+class RegistroCli;
+}
+
 namespace nl::cli {
 
 /// Código de saída: 0 emissão concluída (ainda não alcançável nesta fatia WIP); 1 recusa de regra (Produção bloqueada, CNPJ
 /// não digitado); 2 uso, ambiente ou senha ausente; 3 envio ainda não ligado (estado WIP).
-int executarEmitir(const QStringList& argumentos);
+int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro);
 
 } // namespace nl::cli
 

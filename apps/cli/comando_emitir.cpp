@@ -9,6 +9,7 @@
 
 #include <nl/mid/composicao/emissao_cli.h>
 #include <nl/mid/composicao/politica_emissao.h>
+#include <nl/mid/composicao/registro_cli.h>
 
 #include <QFile>
 #include <QIODevice>
@@ -17,8 +18,9 @@
 
 namespace nl::cli {
 
-int executarEmitir(const QStringList& argumentos)
+int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro)
 {
+    static_cast<void>(registro);  // a emissão grava o evento no registro na tarefa seguinte (DA-2.54)
     QTextStream erro{stderr};
     QTextStream saida{stdout};
     const auto lidos = lerArgumentosEmitir(argumentos);

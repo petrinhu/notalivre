@@ -9,6 +9,5 @@ add_executable(notalivre-cli
     argumentos_emitir.cpp
     comando_emitir.cpp
     configuracao_cli.cpp
-    senha_terminal.cpp
-    excecao_topo.cpp)
-target_link_libraries(notalivre-cli PRIVATE nl_mid nl_foundation_log Qt6::Core nl_warnings)
+    senha_terminal.cpp)
+target_link_libraries(notalivre-cli PRIVATE nl_mid Qt6::Core nl_warnings)
