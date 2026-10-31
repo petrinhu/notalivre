@@ -5,7 +5,7 @@
 
 #include "argumentos_emitir.h"
 #include "configuracao_cli.h"
-#include <nl/mid/composicao/terminal_sem_eco.h>
+#include <nl/mid/cofre/terminal_sem_eco.h>
 
 #include <optional>
 #include <string>
@@ -71,14 +71,14 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
     // Produção: o CPF ou CNPJ é digitado no terminal, antes da senha, e confere com o A1 e com o emitente (item 2).
     std::optional<QString> confirmacao;
     if (*derivado == nl::mid::composicao::Ambiente::Producao) {
-        confirmacao = nl::mid::composicao::lerConfirmacaoDoTerminal(QStringLiteral("confirme o CPF ou CNPJ do emissor: "));
+        confirmacao = nl::mid::cofre::lerConfirmacaoDoTerminal(QStringLiteral("confirme o CPF ou CNPJ do emissor: "));
         if (!confirmacao || confirmacao->isEmpty()) {
             erro << QStringLiteral("Produção exige o CPF ou CNPJ digitado no terminal como confirmação") << Qt::endl;
             return 1;
         }
     }
     // A senha só entra pelo terminal, sem eco. Sem terminal de controle, a CLI não emite.
-    auto senhaSegura = nl::mid::composicao::lerSenhaDoTerminal(QStringLiteral("senha do certificado: "));
+    auto senhaSegura = nl::mid::cofre::lerSenhaDoTerminal(QStringLiteral("senha do certificado: "));
     if (!senhaSegura) {
         erro << QStringLiteral("senha ausente: sem terminal de controle, a CLI não lê a senha") << Qt::endl;
         return 2;
