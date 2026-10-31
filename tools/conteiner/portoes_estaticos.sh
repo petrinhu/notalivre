@@ -10,6 +10,7 @@
 #   SHA      commit a verificar (40 hex)
 #   DESTINO  pasta NOVA, fora do repositório; recebe o clone do SHA (gitleaks git e os portões de git exigem histórico)
 # Variável: NL_HIGIENE_IMAGEM (padrão notalivre-higiene:ci, a mesma imagem do job higiene do CI)
+# Cota desta máquina (ordem do líder de 30/10/2026, dividida com outra sessão): cada contêiner tem 7 núcleos e 12 GiB.
 # Saída: uma linha "portao=<nome> rc=<rc>" por portão e o total "portoes=N falharam=K".
 # Sai com 1 se algum portão reprovar, ou se a lista não rodar inteira (piso: N tem de ser o número de portões).
 set -u
@@ -55,7 +56,7 @@ for item in "${PORTOES[@]}"; do
     nome="${item%%|*}"
     cmd="${item#*|}"
     rodados=$((rodados + 1))
-    docker run --rm --network none --user 1000:1000 -e HOME=/tmp \
+    docker run --rm --cpus 7 --memory 12g --memory-swap 12g --network none --user 1000:1000 -e HOME=/tmp \
         -v "$ARVORE:/src:ro,z" -w /src "$IMG" sh -c "$cmd" > "$DESTINO/$nome.log" 2>&1
     rc=$?
     echo "portao=$nome rc=$rc"
