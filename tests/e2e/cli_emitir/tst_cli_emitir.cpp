@@ -216,11 +216,16 @@ void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada, con
     if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Text)) {
         return;
     }
-    const QString texto = QStringLiteral(
-        "[sefin]\nurl = %5\nprefixo = /SefinNacional\nancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\ncaminho = %1/cnpj_ok.pfx\n"
-        "[xsd]\ndiretorio = %2\nmanifesto = %3\n"
-        "[emissao]\nproducao_liberada = %4\n")
-                              .arg(kCertificados, kXsd, kManifesto, producaoLiberada ? QStringLiteral("true") : QStringLiteral("false"), url);
+    // NL-2.10b (condição do CISO, 31/10/2026): as âncoras só existem em Homologação (loopback). Fora dela, definir uma é erro
+    // de configuração (código 10), então a configuração de Produção não as traz.
+    const bool homologacao = url.startsWith(QStringLiteral("https://127.0.0.1"));
+    const QString ancoras = homologacao ? QStringLiteral("ancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\n")
+                                        : QStringLiteral("[certificado]\n");
+    const QString texto = QStringLiteral("[sefin]\nurl = %5\nprefixo = /SefinNacional\n%6caminho = %1/cnpj_ok.pfx\n"
+                                         "[xsd]\ndiretorio = %2\nmanifesto = %3\n"
+                                         "[emissao]\nproducao_liberada = %4\n")
+                              .arg(kCertificados, kXsd, kManifesto, producaoLiberada ? QStringLiteral("true") : QStringLiteral("false"), url)
+                              .arg(ancoras.arg(kCertificados));
     arquivo.write(texto.toUtf8());
 }
 
