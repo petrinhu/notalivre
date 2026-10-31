@@ -216,7 +216,9 @@ Execucao emitirContraServidorComFalhaNoPost(const QString& falha)
     QTemporaryDir configDir;
     ServidorFalso servidor(falha);
     if (!configDir.isValid() || servidor.porta() <= 0) {
-        return Execucao{};
+        Execucao semServidor;
+        semServidor.saida = QByteArray("servidor falso não subiu: ") + servidor.diagnostico().toUtf8();
+        return semServidor;
     }
     escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
