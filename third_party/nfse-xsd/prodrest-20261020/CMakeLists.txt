@@ -80,7 +80,8 @@ endif()
 file(REMOVE_RECURSE "${_nl_xsd_extraido}")
 file(ARCHIVE_EXTRACT INPUT "${_nl_xsd_zip}" DESTINATION "${_nl_xsd_extraido}")
 
-# 3. Conferência de cada arquivo do manifesto contra o extraído.
+# 3. Conferência de cada arquivo do manifesto contra o extraído. Os conferidos entram na lista de instalação (NL-2.10b).
+set(_nl_xsd_instalar "")
 foreach(_nl_xsd_linha IN LISTS _nl_xsd_entradas)
     string(REGEX REPLACE "^([0-9a-f]+)  (.+)$" "\\1" _nl_xsd_esperado "${_nl_xsd_linha}")
     string(REGEX REPLACE "^([0-9a-f]+)  (.+)$" "\\2" _nl_xsd_nome "${_nl_xsd_linha}")
@@ -92,7 +93,13 @@ foreach(_nl_xsd_linha IN LISTS _nl_xsd_entradas)
     if(NOT _nl_xsd_obtido STREQUAL _nl_xsd_esperado)
         message(FATAL_ERROR "NL-1.6a: SHA-256 divergente em ${_nl_xsd_nome}: esperado ${_nl_xsd_esperado}, obtido ${_nl_xsd_obtido}. Não usar este XSD.")
     endif()
+    list(APPEND _nl_xsd_instalar "${_nl_xsd_arq}")
 endforeach()
+
+# Dados, não código: os XSD conferidos e o SHA256SUMS vão para share/notalivre/xsd (NL-2.10b). O padrão de xsd.diretorio e
+# xsd.manifesto da CLI aponta para esse diretório, no Flatpak e no prefixo de instalação.
+install(FILES ${_nl_xsd_instalar} "${_nl_xsd_manifesto}"
+        DESTINATION share/notalivre/xsd)
 
 set(NL_XSD_PRODREST_DIR "${_nl_xsd_extraido}" CACHE INTERNAL "XSD de Produção Restrita 20/10/2026, extraído e conferido")
 set(NL_XSD_PRODREST_MANIFESTO "${_nl_xsd_manifesto}" CACHE INTERNAL "SHA256SUMS do leiaute de 20/10/2026")
