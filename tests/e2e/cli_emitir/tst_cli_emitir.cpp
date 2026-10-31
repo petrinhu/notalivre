@@ -115,6 +115,12 @@ public:
     {
         processo_.closeWriteChannel();
         processo_.waitForFinished(5000);
+        const QString resto = QString::fromUtf8(processo_.readAllStandardOutput());
+        for (const QString& linha : resto.split(QLatin1Char('\n'))) {
+            if (linha.startsWith(QStringLiteral("ALGORITMOS "))) {
+                return linha.mid(11).trimmed().split(QLatin1Char(','), Qt::SkipEmptyParts);
+            }
+        }
         return {};
     }
     int porta() const { return porta_; }

@@ -36,17 +36,21 @@ def chave_de_teste(id_dps):
 
 
 def registro_do_post(corpo):
-    """Id e nDPS do que chegou num POST /nfse, para a conferência de dupla emissão (nunca o texto da DPS)."""
+    """Id, nDPS e URI do Algorithm do SignatureMethod do que chegou num POST /nfse (nunca o texto da DPS)."""
     try:
         xml = envelope.decodificar(corpo)
     except envelope.ErroEnvelope:
-        return {"id": None, "nDPS": None}
+        return {"id": None, "nDPS": None, "algoritmo": None}
     try:
         id_dps = id_do_infdps(xml)
     except ValueError:
         id_dps = None
     numero = re.search(rb"<nDPS>([^<]*)</nDPS>", xml)
-    return {"id": id_dps, "nDPS": numero.group(1).decode("ascii", "replace") if numero else None}
+    # NL-2.10a, rodada 2 (QA, item 1): o URI do SignatureMethod é o que a assinatura gravou (W3C XMLDSig §4.4.2).
+    algoritmo = re.search(rb'<(?:\w+:)?SignatureMethod\b[^>]*\bAlgorithm="([^"]*)"', xml)
+    return {"id": id_dps,
+            "nDPS": numero.group(1).decode("ascii", "replace") if numero else None,
+            "algoritmo": algoritmo.group(1).decode("ascii", "replace") if algoritmo else None}
 
 
 def corpo_da_nota(chave, xml):
