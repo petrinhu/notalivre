@@ -119,7 +119,6 @@ private slots:
     void cLocEmiValorExato();
     void vereditoDoValidadorBateComONomeDaFixture();
     void fixturesDpsIguaisAoCodec();
-    void geraFixturesDps();
 };
 
 void TstCodecDps::dpsMeiMinimaValidaNoXsd()
@@ -368,22 +367,7 @@ void TstCodecDps::fixturesDpsIguaisAoCodec()
     }
 }
 
-void TstCodecDps::geraFixturesDps()
-{
-    // Só roda pelo CTest gera_fixtures_dps (que define NL_FIXTURES_DPS_SAIDA com o diretório de build).
-    const QString saida = qEnvironmentVariable("NL_FIXTURES_DPS_SAIDA");
-    if (saida.isEmpty()) {
-        QSKIP("NL_FIXTURES_DPS_SAIDA não definido: a geração das fixtures é feita pelo CTest gera_fixtures_dps");
-    }
-    QVERIFY2(QDir{}.mkpath(saida), qPrintable(QStringLiteral("não consegui criar ") + saida));
-    const auto fixtures = casos::casosFixture();
-    QVERIFY2(fixtures.has_value(), "builder de alguma fixture recusou a entrada");
-    for (const auto& caso : *fixtures) {
-        QFile arquivo{QDir{saida}.filePath(caso.nome)};
-        QVERIFY2(arquivo.open(QIODevice::WriteOnly), qPrintable(QStringLiteral("não consegui gravar ") + caso.nome));
-        QCOMPARE(arquivo.write(caso.xml), static_cast<qint64>(caso.xml.size()));
-    }
-}
+// A geração das fixtures saiu deste executável de teste (DA-2.61): é a ferramenta tests/tools/gera_fixtures_dps, fora do CTest.
 
 QTEST_GUILESS_MAIN(TstCodecDps)
 #include "tst_codec_dps.moc"
