@@ -80,6 +80,8 @@
 - (sem ID): BAIXA-6 da revisão de segurança da NL-2.11: fidelidade do mutante de mTLS ao preset do build. Fonte: DA-2.61.
 - (sem ID): BAIXA-7 da revisão de segurança da NL-2.11: escopo de "a cada push" do mutante de mTLS no job ubuntu26.04. Fonte: DA-2.61.
 - (sem ID): NL-2.11, mutante_mtls.sh conta encontradas por ${#MUTANTES[@]}, mas só aplica MUTANTES[0]; antes de entrar um segundo mutante, precisa de laço ou de PARADA se encontradas != aplicadas (MÉDIA-4 residual da revisão de segurança, rodada 2).
+- (sem ID): MÉDIA-1 da revisão de segurança do conserto do CI (fix-ci-portao-rev-seg.md): a exceção 5 do portao_sha1_env.py aceita pasta versionada que tenha um CMakeCache.txt declarando a si mesma; recusar pasta com arquivo rastreado, com teste vermelho antes. Hoje o job higiene, sem argumento, cobre. Fonte: DA-2.62.
+- (sem ID): BAIXA-2 da mesma revisão: o safe.directory fica no HOME do contêiner até o fim do job ubuntu26.04 (ci.yml:164-166); escopar com git -c safe.directory dentro do mutante_mtls.sh.
 
 ## Backlog
 
