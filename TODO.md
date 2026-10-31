@@ -6,6 +6,9 @@
 
 ## INBOX (descobertas não priorizadas)
 
+- (sem ID): NL-2.11, caminho de recusa de write() no terminal sem eco (src/mid/cofre/terminal_sem_eco.cpp, escreverTudo) sem teste próprio (L-35): cobrir a falha de write no prompt e na quebra de linha, com a sabotagem de estreia. Fonte: revisão do conserto do Flatpak (28088ed), 31/10/2026.
+- (sem ID): NL-2.11, gêmeo do static_cast<void> de write em tests/e2e/cli_emitir/tst_cli_emitir.cpp:172 e :177 (L-17); fora do Flatpak, mas a mesma classe de defeito.
+- (sem ID): NL-2.11, mutante CERT_REQUIRED para CERT_OPTIONAL no job mutacao: a imagem de higiene não tem Qt nem xmlsec1, então o slot C++ (transporte.semCertificadoDeClienteHandshakeRecusado) e o teste Python precisam de imagem de build; decidir o gatilho. Prova local: clone com o mutante, build_local, 4 de 342 falharam incluindo o slot (NL-2.11-build-mutante-cert-optional.log).
 - (sem ID): NL-2.9, ressalva MÉDIA da revisão r2: o e2e cliEmiteDpsAceitaPeloServidorFalso não pegou o eco ligado (mutante C, tst_cli_emitir.cpp:319); o C morreu só por cliRecusaDpsInvalidaSemPost. Investigar corrida no pseudo-terminal antes da NL-2.10. Fonte: NL-2.9-r2-mutacao-R2-fedora44.log.
 - (sem ID): NL-2.9, defesa em profundidade: emissao_cli.cpp:189 só confere a confirmação se ela vier preenchida; em Produção a CLI a exige antes (comando_emitir.cpp:72-77), mas outro chamador da fachada (a GUI) poderia passar vazio. A fachada deve exigir a confirmação quando o ambiente derivado for Produção. INFERÊNCIA do main ao ler o blob 605bc48; vai ao CISO.
 - (sem ID): NL-2.9, BAIXA: a cópia interna da chave do A1 no QSslKey não é zerada (emissao_cli.cpp:126-127); medir na NL-4.3.
