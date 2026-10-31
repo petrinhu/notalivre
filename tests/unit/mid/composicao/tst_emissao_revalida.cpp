@@ -81,9 +81,11 @@ void TstEmissaoRevalida::xmlInvalidoAposAssinarSaiComXsdPosAssinatura()
         return std::unique_ptr<nl::back::AssinadorDps>(new AssinadorInvalido());
     };
 
-    const auto emitido = comp::emitirDpsComAssinador(pedido, senha, *registro, fabrica);
+    // DA-2.59 item 1: a emissão consome a senha por movimento; o chamador vê o objeto movido (vazio).
+    const auto emitido = comp::emitirDpsComAssinador(pedido, std::move(senha), *registro, fabrica);
     QVERIFY2(!emitido.has_value(), "XML assinado inválido no XSD tem de ser recusado");
     QCOMPARE(QString::fromStdString(emitido.error().codigo), QStringLiteral("xsd.pos_assinatura"));
+    QCOMPARE(senha.tamanho(), std::size_t{0});
 }
 
 QTEST_APPLESS_MAIN(TstEmissaoRevalida)
