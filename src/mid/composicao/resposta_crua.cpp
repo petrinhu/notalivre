@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileDevice>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
