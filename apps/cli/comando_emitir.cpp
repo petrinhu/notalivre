@@ -29,12 +29,13 @@ namespace nl::cli {
 
 namespace {
 
-// Maior inteiro exato que o leiaute aceita para série (5 dígitos) e número (15 dígitos): acima disso o campo é inválido.
-constexpr double kMaiorInteiroDoCampo = 999999999999999.0;
+// Maior valor que cada campo do leiaute aceita (NL-2.10b, emenda 3): série tem cinco dígitos e número tem quinze.
+constexpr double kMaiorSerieDoLeiaute = 99999.0;
+constexpr double kMaiorNumeroDoLeiaute = 999999999999999.0;
 
-// Inteiro exato de um campo da DPS (NL-2.10b, BAIXA-6). Ausente devolve vazio. Número JSON sem fração e dentro da faixa é aceito;
-// fração, texto, booleano, objeto ou valor fora da faixa é campo inválido, com saída 4 e código entrada.numero_invalido.
-std::expected<std::optional<qint64>, ErroNumero> inteiroDoCampo(const QJsonObject& objeto, const QString& campo)
+// Inteiro exato de um campo da DPS (NL-2.10b, BAIXA-6). Ausente devolve vazio. Número JSON sem fração e dentro do limite do campo é
+// aceito; fração, texto, booleano, objeto ou valor acima do limite do campo é inválido, com saída 4 e código entrada.numero_invalido.
+std::expected<std::optional<qint64>, ErroNumero> inteiroDoCampo(const QJsonObject& objeto, const QString& campo, double limite)
 {
     const QJsonValue valor = objeto.value(campo);
     if (valor.isUndefined()) {
@@ -45,7 +46,7 @@ std::expected<std::optional<qint64>, ErroNumero> inteiroDoCampo(const QJsonObjec
                                           QStringLiteral("campo %1 da DPS não é um número inteiro").arg(campo)});
     }
     const double numero = valor.toDouble();
-    if (std::trunc(numero) != numero || std::fabs(numero) > kMaiorInteiroDoCampo) {
+    if (std::trunc(numero) != numero || std::fabs(numero) > limite) {
         return std::unexpected(ErroNumero{4, QStringLiteral("entrada.numero_invalido"),
                                           QStringLiteral("campo %1 da DPS fora de inteiro exato").arg(campo)});
     }
@@ -54,9 +55,9 @@ std::expected<std::optional<qint64>, ErroNumero> inteiroDoCampo(const QJsonObjec
 
 // Confere um campo inteiro da DPS contra o valor da linha de comando. Ausente recebe o valor; igual passa; diferente é conflito,
 // saída 2: a CLI não escolhe um dos dois valores.
-std::expected<void, ErroNumero> conferirCampoDaDps(const QJsonObject& objeto, const QString& campo, qint64 valor)
+std::expected<void, ErroNumero> conferirCampoDaDps(const QJsonObject& objeto, const QString& campo, qint64 valor, double limite)
 {
-    auto atual = inteiroDoCampo(objeto, campo);
+    auto atual = inteiroDoCampo(objeto, campo, limite);
     if (!atual) {
         return std::unexpected(atual.error());
     }
@@ -87,10 +88,10 @@ std::expected<QByteArray, ErroNumero> aplicarSerieENumero(const QByteArray& dpsJ
         return std::unexpected(ErroNumero{2, QStringLiteral("argumento.numero_invalido"), QStringLiteral("série ou número da linha de comando inválidos")});
     }
     QJsonObject objeto = documento.object();
-    if (auto conferido = conferirCampoDaDps(objeto, QStringLiteral("serie"), serie); !conferido) {
+    if (auto conferido = conferirCampoDaDps(objeto, QStringLiteral("serie"), serie, kMaiorSerieDoLeiaute); !conferido) {
         return std::unexpected(conferido.error());
     }
-    if (auto conferido = conferirCampoDaDps(objeto, QStringLiteral("nDps"), numero); !conferido) {
+    if (auto conferido = conferirCampoDaDps(objeto, QStringLiteral("nDps"), numero, kMaiorNumeroDoLeiaute); !conferido) {
         return std::unexpected(conferido.error());
     }
     objeto.insert(QStringLiteral("serie"), QJsonValue(serie));
@@ -133,8 +134,8 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         erro << QString::fromStdString(ancorasConferidas.error().codigo) << ": " << ancorasConferidas.error().mensagem << Qt::endl;
         return nl::mid::composicao::codigoDeSaidaDaEmissao(ancorasConferidas.error().codigo);
     }
-    // STUB NL-2.10b (R9, vermelho por asserção): a conferência de [xsd] fora de Homologação ainda não é aplicada na emissão.
-    const auto xsdConferido = conferirXsdDeAmbiente(*config, true);
+    // [xsd] definido fora de Homologação é erro de configuração, código 10 (condição do CISO; BAIXA-4; R9 do qa).
+    const auto xsdConferido = conferirXsdDeAmbiente(*config, homologacao);
     if (!xsdConferido) {
         erro << QString::fromStdString(xsdConferido.error().codigo) << ": " << xsdConferido.error().mensagem << Qt::endl;
         return nl::mid::composicao::codigoDeSaidaDaEmissao(xsdConferido.error().codigo);
