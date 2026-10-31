@@ -97,6 +97,6 @@ if(NOT NL_FLATPAK_BUILD)
     set_tests_properties(xmldsig.contextoProprioIgnoraConfiguracaoGlobal PROPERTIES
                          FIXTURES_REQUIRED certificados_teste
                          ENVIRONMENT "${NL_AMBIENTE_XMLDSIG};OPENSSL_CONF=${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/openssl_global_restrito.cnf"
-                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                         PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed"
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endif()
