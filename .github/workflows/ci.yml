@@ -55,7 +55,7 @@ jobs:
       # A imagem ubuntu26.04 não traz git. Sem git no PATH, o actions/checkout baixa o arquivo sem .git (log do run
       # 41176856725: "The repository will be downloaded using the GitHub REST API"), e o mutante_mtls.sh, que faz
       # git archive do SHA, falha. Por isso o git entra ANTES do checkout, só nesta distro.
-      - name: Git antes do checkout (só ubuntu26.04: a imagem não traz git)
+      - name: "Git antes do checkout (só ubuntu26.04: a imagem não traz git)"
         if: matrix.distro == 'ubuntu26.04'
         run: |
           apt-get update -qq
