@@ -7,4 +7,4 @@ fedora44 1114
 ubuntu26.04 1114
 manjaro 1114
 mint22.3 1114
-flatpak 809
+flatpak 826

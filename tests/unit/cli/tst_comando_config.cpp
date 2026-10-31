@@ -75,14 +75,11 @@ void TstComandoConfig::configCertificadoIlegivelSaiComDezSemGravar()
     // Caso 1: o arquivo não existe.
     QCOMPARE(nl::cli::executarConfig({QStringLiteral("config"), QStringLiteral("certificado"), pasta.filePath(QStringLiteral("inexistente.pfx"))}), 10);
 
-    // Caso 2: o arquivo existe, mas o dono não tem leitura nele.
-    const QString semLeitura = pasta.filePath(QStringLiteral("sem_leitura.pfx"));
-    QFile certificado(semLeitura);
-    QVERIFY(certificado.open(QIODevice::WriteOnly));
-    certificado.write("conteudo que o comando não pode ler");
-    certificado.close();
-    QVERIFY(QFile::setPermissions(semLeitura, QFileDevice::WriteOwner));
-    QCOMPARE(nl::cli::executarConfig({QStringLiteral("config"), QStringLiteral("certificado"), semLeitura}), 10);
+    // Caso 2: o caminho é um diretório com cara de .pfx. Não depende de permissão nem de uid: um chmod 000 não serve de teste
+    // porque root lê o arquivo mesmo assim (é o que o CI do GitHub roda, em contêiner como root, NL-2.10a rodada CI).
+    const QString diretorio = pasta.filePath(QStringLiteral("nao_e_arquivo.pfx"));
+    QVERIFY(QDir().mkpath(diretorio));
+    QCOMPARE(nl::cli::executarConfig({QStringLiteral("config"), QStringLiteral("certificado"), diretorio}), 10);
 
     QCOMPARE(lerTexto(arquivoConfig), antes);
 }
