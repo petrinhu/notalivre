@@ -9,6 +9,7 @@ target_sources(nl_mid PRIVATE
     emissao_nota.cpp
     manipulador_qt.cpp
     guarda_manipulador_qt.cpp
+    registro_cli.cpp
     politica_emissao.cpp
     emissao_cli.cpp
     ler_dados_dps.cpp
