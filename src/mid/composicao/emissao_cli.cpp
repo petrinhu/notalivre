@@ -243,7 +243,10 @@ std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedid
 {
     const FabricaAssinador fabrica = [algoritmo = pedido.algoritmo](const fp::CredencialX509& credencial)
                                          -> std::unique_ptr<nl::back::AssinadorDps> {
-        return std::make_unique<nl::mid::sefin::assinatura::AssinadorDpsSefin>(credencial, algoritmo);
+        // Conversão só aqui: o adaptador tem o próprio enum, e a fachada não o expõe à CLI.
+        const auto doAdaptador = algoritmo == AlgoritmoAssinatura::RsaSha256 ? nl::mid::sefin::assinatura::AlgoritmoAssinatura::RsaSha256
+                                                                            : nl::mid::sefin::assinatura::AlgoritmoAssinatura::RsaSha1;
+        return std::make_unique<nl::mid::sefin::assinatura::AssinadorDpsSefin>(credencial, doAdaptador);
     };
     return emitirDpsComAssinador(pedido, std::move(senha), registro, fabrica);
 }

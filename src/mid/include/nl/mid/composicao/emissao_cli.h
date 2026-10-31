@@ -6,7 +6,6 @@
 #define NL_MID_COMPOSICAO_EMISSAO_CLI_H
 
 #include <nl/mid/composicao/dps_validar.h>
-#include <nl/mid/sefin/assinatura/assinador_dps_sefin.h>
 
 #include <optional>
 #include <QByteArray>
@@ -29,8 +28,9 @@ namespace nl::mid::composicao {
 
 class RegistroCli;
 
-/// Algoritmo da assinatura da DPS, escolhido na configuração pela CLI (NL-2.10a). A CLI só vê este nome, nunca o adaptador.
-using AlgoritmoAssinatura = nl::mid::sefin::assinatura::AlgoritmoAssinatura;
+/// Algoritmo da assinatura da DPS, escolhido na configuração pela CLI (NL-2.10a). Enum próprio da fachada: a CLI não inclui a Mid
+/// sefin. A fachada converte para o enum do adaptador (src/mid/composicao, DA-2.42).
+enum class AlgoritmoAssinatura { RsaSha1, RsaSha256 };
 
 /// Tudo o que a emissão precisa, já lido pela CLI. A senha não entra aqui: vai à parte, do terminal.
 struct PedidoEmissao
