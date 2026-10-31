@@ -9,7 +9,7 @@ target_compile_definitions(tst_validador_xsd PRIVATE
     "NL_XSD_PRODREST_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\""
     "NL_XSD_PRODREST_RAIZ=\"${NL_XSD_PRODREST_RAIZ}\""
     "NL_FIXTURES_XSD=\"${CMAKE_SOURCE_DIR}/tests/fixtures/xsd\"")
-add_test(NAME tst_validador_xsd COMMAND tst_validador_xsd)
+nl_registra_teste_qt(NAME tst_validador_xsd COMMAND tst_validador_xsd)
 
 # Teste de hash do ZIP (mutação M3): configure hermético de um projeto mínimo, com ZIP adulterado e com ZIP certo.
 add_test(NAME hash_zip_adulterado_recusado

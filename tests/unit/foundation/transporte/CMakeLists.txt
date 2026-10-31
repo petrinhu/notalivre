@@ -34,7 +34,7 @@ foreach(nome IN ITEMS
     redirecionamentoNaoSeguidoViraErro
     tempoLimiteAcimaDoTetoRecusado
     prefixoInvalidoRecusadoComoConfiguracao)
-  add_test(NAME transporte.${nome} COMMAND tst_transporte_https ${nome})
+  nl_registra_teste_qt(NAME transporte.${nome} COMMAND tst_transporte_https ${nome})
   set_tests_properties(transporte.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
@@ -51,7 +51,7 @@ foreach(nome IN ITEMS
     tabelaDeCodigosDeRede
     faixaDeRespostaCompleta
     redirecionamentoEhSo3xx)
-  add_test(NAME transporte.classificacao.${nome} COMMAND tst_classificacao_erro ${nome})
+  nl_registra_teste_qt(NAME transporte.classificacao.${nome} COMMAND tst_classificacao_erro ${nome})
   set_tests_properties(transporte.classificacao.${nome} PROPERTIES
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")

@@ -5,4 +5,4 @@ add_executable(tst_gzip tst_gzip.cpp)
 target_link_libraries(tst_gzip PRIVATE Qt6::Test nl_foundation_gzip nl_warnings)
 # O seam interno (gzip_interno.h) é do motor: o teste o inclui pelo mesmo include PRIVATE, como tst_codec_dps faz.
 target_include_directories(tst_gzip PRIVATE ${CMAKE_SOURCE_DIR}/src/foundation/gzip/privado)
-add_test(NAME tst_gzip COMMAND tst_gzip)
+nl_registra_teste_qt(NAME tst_gzip COMMAND tst_gzip)

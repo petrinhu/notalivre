@@ -18,7 +18,7 @@ foreach(nome IN ITEMS
     credencialSemEkuRegistraEventoNoLog
     credencialComEkuNaoRegistraEvento
     falhaDoRegistroRecusaCredencialSemEku)
-  add_test(NAME mid.cofre.${nome} COMMAND tst_adaptador_credencial ${nome})
+  nl_registra_teste_qt(NAME mid.cofre.${nome} COMMAND tst_adaptador_credencial ${nome})
   set_tests_properties(mid.cofre.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
@@ -27,7 +27,7 @@ foreach(nome IN ITEMS
 endforeach()
 
 foreach(nome IN ITEMS materialDaCredencialViva credencialDescartadaNaoEntregaMaterial)
-  add_test(NAME mid.cofre.${nome} COMMAND tst_material_assinatura ${nome})
+  nl_registra_teste_qt(NAME mid.cofre.${nome} COMMAND tst_material_assinatura ${nome})
   set_tests_properties(mid.cofre.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
@@ -46,7 +46,7 @@ target_compile_definitions(tst_raizes_producao PRIVATE
 foreach(nome IN ITEMS
     ancorasPadraoDeProducaoSaoAsRaizesIcp
     manifestoComHashDiferenteDoEmbutidoRecusado)
-  add_test(NAME mid.cofre.${nome} COMMAND tst_raizes_producao ${nome})
+  nl_registra_teste_qt(NAME mid.cofre.${nome} COMMAND tst_raizes_producao ${nome})
   set_tests_properties(mid.cofre.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_ICP_RAIZES_DIR=${NL_ICP_RAIZES_DIR}"

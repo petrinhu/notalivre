@@ -73,7 +73,7 @@ else()
 endif()
 
 foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
-    add_test(NAME xmldsig.${nome} COMMAND tst_assinador_xml ${nome})
+    nl_registra_teste_qt(NAME xmldsig.${nome} COMMAND tst_assinador_xml ${nome})
     set_tests_properties(xmldsig.${nome} PROPERTIES
                          FIXTURES_REQUIRED certificados_teste
                          ENVIRONMENT "${NL_AMBIENTE_XMLDSIG}"
@@ -93,7 +93,7 @@ endif()
 # DA-2.40 (adendo): o contexto próprio ignora a configuração global. Processo próprio do CTest, com OPENSSL_CONF do arquivo
 # de teste. Só no build nativo: o Flatpak não tem o material de teste nem o xmlsec1 (NL_FLATPAK_BUILD, DA-2.28).
 if(NOT NL_FLATPAK_BUILD)
-    add_test(NAME xmldsig.contextoProprioIgnoraConfiguracaoGlobal COMMAND tst_assinador_xml contextoProprioIgnoraConfiguracaoGlobal)
+    nl_registra_teste_qt(NAME xmldsig.contextoProprioIgnoraConfiguracaoGlobal COMMAND tst_assinador_xml contextoProprioIgnoraConfiguracaoGlobal)
     set_tests_properties(xmldsig.contextoProprioIgnoraConfiguracaoGlobal PROPERTIES
                          FIXTURES_REQUIRED certificados_teste
                          ENVIRONMENT "${NL_AMBIENTE_XMLDSIG};OPENSSL_CONF=${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/openssl_global_restrito.cnf"

@@ -8,18 +8,18 @@ set(NL_FONTES_CLI ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp ${CMAKE_SOU
 add_executable(tst_argumentos_emitir tst_argumentos_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp)
 target_include_directories(tst_argumentos_emitir PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
 target_link_libraries(tst_argumentos_emitir PRIVATE Qt6::Core Qt6::Test nl_warnings)
-add_test(NAME cli.argumentosEmitir COMMAND tst_argumentos_emitir)
+nl_registra_teste_qt(NAME cli.argumentosEmitir COMMAND tst_argumentos_emitir)
 set_tests_properties(cli.argumentosEmitir PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 5 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 add_executable(tst_comando_emitir tst_comando_emitir.cpp ${NL_FONTES_CLI})
 target_include_directories(tst_comando_emitir PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
 target_link_libraries(tst_comando_emitir PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_warnings)
-add_test(NAME cli.comandoEmitir COMMAND tst_comando_emitir)
+nl_registra_teste_qt(NAME cli.comandoEmitir COMMAND tst_comando_emitir)
 set_tests_properties(cli.comandoEmitir PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 4 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 add_executable(tst_excecao_topo tst_excecao_topo.cpp)
 target_link_libraries(tst_excecao_topo PRIVATE Qt6::Core Qt6::Test nl_mid nl_warnings)
-add_test(NAME cli.excecaoTopo COMMAND tst_excecao_topo)
+nl_registra_teste_qt(NAME cli.excecaoTopo COMMAND tst_excecao_topo)
 set_tests_properties(cli.excecaoTopo PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 # Portão de PII nos logs da CLI (NL-2.9, ADR-0005 e): os testes da CLI gravam os logs deles na pasta própria, e o mesmo
@@ -47,5 +47,5 @@ endif()
 add_executable(tst_configuracao_cli tst_configuracao_cli.cpp ${CMAKE_SOURCE_DIR}/apps/cli/configuracao_cli.cpp)
 target_include_directories(tst_configuracao_cli PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
 target_link_libraries(tst_configuracao_cli PRIVATE Qt6::Core Qt6::Test nl_warnings)
-add_test(NAME cli.configuracao COMMAND tst_configuracao_cli)
+nl_registra_teste_qt(NAME cli.configuracao COMMAND tst_configuracao_cli)
 set_tests_properties(cli.configuracao PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 6 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
