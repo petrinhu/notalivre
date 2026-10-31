@@ -263,7 +263,7 @@ caso a5_cmake_E_env_escape_reprova 1 "exceção fora do formato permitido: tst_a
 D="$(pasta a5_python3_no_build)"
 printf '%s\n' "tst_a5c|-|$D/tests/python3" | jsonc "$BASE/a5c.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso a5_python3_dentro_do_build_reprova 1 "exceção fora do formato permitido: tst_a5c (interpretador dentro do build)" "$D" fedora44 "$VAZIA" \
+caso a5_python3_dentro_do_build_reprova 1 "exceção fora do formato permitido: tst_a5c (interpretador fora da allowlist de caminhos fixos" "$D" fedora44 "$VAZIA" \
     "$(arquivo_com a5c 'fedora44 tst_a5c executavel chamado python3')" "$BASE/a5c.json" "$F3"
 
 D="$(pasta a5_path_no_environment)"

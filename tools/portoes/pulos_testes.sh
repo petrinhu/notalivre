@@ -174,11 +174,24 @@ while IFS= read -r linha; do
 done < "$SEM_SAIDA"
 n_exc=$(wc -l < "$EXC" | tr -d ' ')
 
-# 3b. Formato exato do command de cada exceção (adendo 5 da DA-2.61): interpretador absoluto fora do build, cuja basename
-# está na allowlist; -I opcional; script versionado em tests/ ou tools/ (git ls-files, ou árvore exportada sem .git); sem -c,
-# -E e env; nenhum argumento depois do script que aponte para o build; nenhum ENVIRONMENT com PATH ou LD_.
+# 3b. Formato exato do command de cada exceção (DA-2.61 adendo 5; corrigido em DA-2.63, rodada 6):
+#  - interpretador: caminho absoluto IGUAL a um dos caminhos fixos de tests/interpretadores_permitidos.txt (sem glob), e
+#    fora do build e do repositório;
+#  - -I (python) ou -P (cmake -P) opcional, e depois o script;
+#  - script: sem '..' no caminho cru; canonizado por realpath -e (tem de existir e resolver); o caminho canônico tem de estar
+#    dentro de <raiz canônica>/tests/ ou <raiz canônica>/tools/ (a barra final impede o prefixo de um irmão); com .git,
+#    também em git ls-files; sem .git (sandbox Flatpak), vale a canonização com existência (DA-2.63);
+#  - nenhum -c, -E ou env; nenhum argumento depois do script que aponte para o build; nenhum ENVIRONMENT com PATH ou LD_.
+# Fontes (L-22): CWE-22, https://cwe.mitre.org/data/definitions/22.html ; realpath, https://man7.org/linux/man-pages/man1/realpath.1.html
+# RISCO ACEITO (DA-2.61 adendo 5, reafirmado em DA-2.63): um script versionado em tests/ ou tools/ que chame um Qt Test de
+# propósito, com a contagem editada no mesmo commit, passa por este portão. Quem pega é a revisão do diff impresso no
+# resumo (tools/portoes/resumo_listas.sh). Vale também sem .git (Flatpak).
 ABS_BUILD="$(cd "$BUILD" && pwd)"
 ABS_RAIZ="$(cd "${PULOS_RAIZ:-.}" && pwd)"
+CANON_RAIZ="$(realpath -e -- "$ABS_RAIZ" 2>/dev/null || true)"
+if [ -z "$CANON_RAIZ" ]; then
+    parada "raiz do repositório não canoniza (realpath): $ABS_RAIZ"
+fi
 TRACKED="$J/.versionados.txt"
 : > "$TRACKED"
 if [ -e "$ABS_RAIZ/.git" ]; then
@@ -233,19 +246,16 @@ while IFS= read -r nome; do
         esac
     fi
     if [ -z "$motivo" ]; then
-        case "$e1" in
-            "$ABS_BUILD"/*) motivo="interpretador dentro do build" ;;
-        esac
+        achou=0
+        while IFS= read -r p; do
+            if [ "$e1" = "$p" ]; then achou=1; break; fi
+        done < "$PADROES"
+        [ "$achou" -eq 1 ] || motivo="interpretador fora da allowlist de caminhos fixos: $e1"
     fi
     if [ -z "$motivo" ]; then
-        base="${e1##*/}"
-        permitido=0
-        while IFS= read -r padrao; do
-            case "$base" in
-                $padrao) permitido=1 ;;
-            esac
-        done < "$PADROES"
-        [ "$permitido" -eq 1 ] || motivo="interpretador fora da allowlist: $base"
+        case "$e1" in
+            "$ABS_BUILD"/*|"$ABS_RAIZ"/*) motivo="interpretador dentro do build ou do repositório: $e1" ;;
+        esac
     fi
     if [ -z "$motivo" ]; then
         shift
@@ -253,24 +263,32 @@ while IFS= read -r nome; do
         script="${1:-}"
         if [ -z "$script" ]; then
             motivo="sem script versionado depois do interpretador"
-        else
-            case "$script" in
-                "$ABS_RAIZ"/tests/*|"$ABS_RAIZ"/tools/*) ;;
-                *) motivo="script fora de tests/ ou tools/ da árvore: $script" ;;
-            esac
         fi
     fi
     if [ -z "$motivo" ]; then
-        rel="${script#"$ABS_RAIZ"/}"
-        if [ "$VERSIONADO" = git ]; then
-            achou=0
-            while IFS= read -r t; do
-                if [ "$t" = "$rel" ]; then achou=1; break; fi
-            done < "$TRACKED"
-            [ "$achou" -eq 1 ] || motivo="script não versionado (git ls-files): $rel"
-        else
-            [ -f "$ABS_RAIZ/$rel" ] || motivo="script ausente da árvore exportada: $rel"
-        fi
+        case "$script" in
+            *..*) motivo="script com '..' no caminho (proibido): $script" ;;
+            /*) ;;
+            *) motivo="script não absoluto: $script" ;;
+        esac
+    fi
+    if [ -z "$motivo" ]; then
+        canon="$(realpath -e -- "$script" 2>/dev/null || true)"
+        [ -n "$canon" ] || motivo="script não existe ou não resolve (realpath): $script"
+    fi
+    if [ -z "$motivo" ]; then
+        case "$canon" in
+            "$CANON_RAIZ"/tests/*|"$CANON_RAIZ"/tools/*) ;;
+            *) motivo="script fora de tests/ ou tools/ após realpath: $canon" ;;
+        esac
+    fi
+    if [ -z "$motivo" ] && [ "$VERSIONADO" = git ]; then
+        rel="${canon#"$CANON_RAIZ"/}"
+        achou=0
+        while IFS= read -r t; do
+            if [ "$t" = "$rel" ]; then achou=1; break; fi
+        done < "$TRACKED"
+        [ "$achou" -eq 1 ] || motivo="script não versionado (git ls-files): $rel"
     fi
     if [ -z "$motivo" ]; then
         shift
