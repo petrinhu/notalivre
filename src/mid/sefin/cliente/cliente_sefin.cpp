@@ -152,9 +152,9 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> notaDoCorpo(const QByteArray& corpo
     }
     auto xml = xmlDoCampo(doc.object().value(QStringLiteral("nfseXmlGZipB64")).toString());
     if (!xml) {
-        return bk::NotaSefin{*chave, {}, true};
+        return bk::NotaSefin{*chave, {}, true, {}};
     }
-    return bk::NotaSefin{*chave, *xml, false};
+    return bk::NotaSefin{*chave, *xml, false, corpo};
 }
 
 // Chave do corpo de GET /dps/{id}: não toca no XML, então um XML ruim nunca libera nem bloqueia a consulta.
@@ -246,7 +246,7 @@ Desfecho notaDaChave(ft::TransporteHttps& transporte, fl::Log& registro, const P
     if (nota) {
         return *nota;
     }
-    return bk::NotaSefin{chave, {}, true};
+    return bk::NotaSefin{chave, {}, true, {}};
 }
 
 // Estado depois de um envio que pode ter chegado à Sefin. A consulta GET /dps/{id} decide (DA-2.41, a). Devolve o
@@ -294,7 +294,7 @@ Desfecho reconciliarPorInfDps(ft::TransporteHttps& transporte, fl::Log& registro
     case ResultadoComparacaoInfDps::Diferente:
         return std::unexpected(falha(bk::MotivoFalhaSefin::DpsDuplicada));
     case ResultadoComparacaoInfDps::Indisponivel:
-        break;
+        return std::unexpected(falha(bk::MotivoFalhaSefin::ComparacaoIndisponivel));
     }
     return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
 }

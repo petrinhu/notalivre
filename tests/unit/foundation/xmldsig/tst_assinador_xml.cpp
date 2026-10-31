@@ -11,11 +11,15 @@
 #include <nl/foundation/pkcs12/senha_segura.h>
 #include <nl/foundation/xmldsig/assinador_xml.h>
 
+#include <libxml/SAX2.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 
+#include "parse_xml_privado.h"
+
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QIODevice>
 #include <QProcess>
@@ -25,6 +29,8 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <optional>
+
 #include <openssl/bio.h>
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
@@ -32,10 +38,17 @@
 #include <openssl/provider.h>
 #include <openssl/x509.h>
 
+#include <netinet/in.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+#include <atomic>
 #include <cstdlib>
 #include <expected>
 #include <memory>
 #include <string_view>
+#include <thread>
 
 namespace xd = nl::foundation::xmldsig;
 namespace pk = nl::foundation::pkcs12;
@@ -63,6 +76,19 @@ QString campoDoOsRelease(const QString& campo) {
         }
     }
     return campo == QStringLiteral("VERSION_ID") ? QStringLiteral("rolling") : QString();
+}
+
+// Piso de HTTP (CISO, 10:02): grava a situação do teste (rodou ou pulou, com o motivo) no arquivo que a variável
+// NL_PISO_HTTP_ARQ aponta, na pasta de build da imagem. Sobrescreve a cada execução. Sem a variável, não grava nada.
+void registrarPisoHttp(const QString& situacao) {
+    const QString arquivo = qEnvironmentVariable("NL_PISO_HTTP_ARQ");
+    if (arquivo.isEmpty()) {
+        return;
+    }
+    QFile piso(arquivo);
+    if (piso.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        piso.write(situacao.toUtf8() + "\n");
+    }
 }
 
 const QByteArray kIdDps = "DPS430510821122233300018100001000000000000001";
@@ -95,6 +121,64 @@ xd::ParametrosAssinatura parametrosSha256() {
     return {kC14n, kEnveloped, kSha256, kRsaSha256, "infDPS", "DPS", kNsLeiaute};
 }
 
+// Ouvinte TCP em 127.0.0.1 (NL-2.9, condição do CISO sobre DTD remoto): conta cada conexão aceita e a fecha. Thread
+// própria, porque o parse é síncrono e o servidor precisa existir fora da thread do teste. Porta efêmera.
+class OuvinteTcp {
+public:
+    OuvinteTcp() {
+        fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+        sockaddr_in endereco{};
+        endereco.sin_family = AF_INET;
+        endereco.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        socklen_t tamanho = sizeof(endereco);
+        if (fd_ < 0 || ::bind(fd_, reinterpret_cast<sockaddr*>(&endereco), sizeof(endereco)) != 0 ||
+            ::listen(fd_, 16) != 0 || ::getsockname(fd_, reinterpret_cast<sockaddr*>(&endereco), &tamanho) != 0) {
+            return;
+        }
+        porta_ = ntohs(endereco.sin_port);
+        ativo_ = true;
+        thread_ = std::thread([this] { laco(); });
+    }
+    ~OuvinteTcp() { parar(); }
+    OuvinteTcp(const OuvinteTcp&) = delete;
+    OuvinteTcp& operator=(const OuvinteTcp&) = delete;
+
+    int porta() const { return porta_; }
+    int conexoes() const { return conexoes_.load(); }
+
+    // Para o laço e espera a thread. Depois de parar, conexoes() é o total final.
+    void parar() {
+        ativo_ = false;
+        if (thread_.joinable()) {
+            thread_.join();
+        }
+        if (fd_ >= 0) {
+            ::close(fd_);
+            fd_ = -1;
+        }
+    }
+
+private:
+    void laco() {
+        while (ativo_) {
+            pollfd espera{fd_, POLLIN, 0};
+            if (::poll(&espera, 1, 20) > 0) {
+                const int conexao = ::accept(fd_, nullptr, nullptr);
+                if (conexao >= 0) {
+                    conexoes_++;
+                    ::close(conexao);
+                }
+            }
+        }
+    }
+
+    int fd_ = -1;
+    int porta_ = 0;
+    std::atomic<bool> ativo_{false};
+    std::atomic<int> conexoes_{0};
+    std::thread thread_;
+};
+
 // Código estável de um erro do assinador, como QString, para comparar nas asserções.
 QString codigoDe(xd::ErroAssinatura erro) {
     const auto codigo = xd::codigo(erro);
@@ -110,10 +194,34 @@ QByteArray dpsComXsiNaRaiz() {
     return xml;
 }
 
-// DA-2.38: no fedora44 o OSSL_LIB_CTX próprio recusa rsa-sha1 (medido). O resto da suíte roda com rsa-sha256 ali.
+QByteArray lerArquivo(const QString& caminho);
+
+// Expectativa de SHA-1 de uma distro, lida da tabela versionada (NL-2.9, condição (a) da re-revisão da NL-2.3). Sem linha
+// para a distro, devolve nullopt, e a suíte reprova (distroAtualTemLinhaNaTabela).
+std::optional<bool> recusaSha1SegundoTabela(const QString& id, const QString& versao) {
+    const QByteArray tabela =
+        lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/tabela_sha1_por_distro.txt"));
+    std::optional<QString> esperado;
+    for (const QString& linha : QString::fromUtf8(tabela).split(QLatin1Char('\n'))) {
+        if (linha.startsWith(QLatin1Char('#')) || linha.trimmed().isEmpty()) {
+            continue;
+        }
+        const QStringList colunas = linha.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (colunas.size() == 3 && colunas[0] == id && colunas[1] == versao) {
+            esperado = colunas[2];
+        }
+    }
+    if (!esperado) {
+        return std::nullopt;
+    }
+    return *esperado == QStringLiteral("algoritmo_bloqueado");
+}
+
+// DA-2.38: a distro que recusa rsa-sha1 (linha algoritmo_bloqueado da tabela) usa rsa-sha256 na suíte. A tabela é a fonte;
+// sem linha, o valor é falso aqui e a suíte reprova no teste distroAtualTemLinhaNaTabela.
 bool distroRecusaSha1() {
-    return campoDoOsRelease(QStringLiteral("ID")) == QStringLiteral("fedora") &&
-           campoDoOsRelease(QStringLiteral("VERSION_ID")) == QStringLiteral("44");
+    return recusaSha1SegundoTabela(campoDoOsRelease(QStringLiteral("ID")), campoDoOsRelease(QStringLiteral("VERSION_ID")))
+        .value_or(false);
 }
 
 xd::ParametrosAssinatura parametrosDaDistro() {
@@ -159,7 +267,8 @@ std::expected<pk::CredencialX509, pk::ErroCredencial> credencialDeTeste(pk::Senh
 }
 
 std::expected<QByteArray, xd::ErroAssinatura> assinarComCredencial(const QByteArray& xml,
-                                                                   const xd::ParametrosAssinatura& parametros) {
+                                                                   const xd::ParametrosAssinatura& parametros,
+                                                                   const QString& id = QStringLiteral("DPS430510821122233300018100001000000000000001")) {
     pk::SenhaSegura senha = pk::SenhaSegura::de(QByteArray());
     QFile senhaArquivo(qEnvironmentVariable("NL_CERTIFICADOS_DIR") + QStringLiteral("/senha_teste.txt"));
     if (senhaArquivo.open(QIODevice::ReadOnly)) {
@@ -170,8 +279,7 @@ std::expected<QByteArray, xd::ErroAssinatura> assinarComCredencial(const QByteAr
         return std::unexpected(xd::ErroAssinatura::MaterialInvalido);
     }
     xd::MaterialAssinatura material{credencial->certificado(), credencial->chavePrivada()};
-    return xd::AssinadorXml::assinarEnveloped(xml, QStringLiteral("DPS430510821122233300018100001000000000000001"),
-                                              parametros, material);
+    return xd::AssinadorXml::assinarEnveloped(xml, id, parametros, material);
 }
 
 // Versão do xmlsec1 de linha de comando: a busca estrita da 1.3 precisa de --lax-key-search (DA-2.28).
@@ -582,6 +690,19 @@ private slots:
         QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.referencia_nao_encontrada"));
     }
 
+    // NL-2.9, condição (c): o Id entra no modelo da Signature pela API de árvore da libxml2, nunca por concatenação.
+    // Um Id com aspa dupla e um "atributo" dentro do valor não pode abrir atributo novo no Reference.
+    void idComAspasNaoInjetaAtributo() {
+        const QString idComAspas = QStringLiteral("DPS430510821122233300018100001000000000000001\" Evil=\"x");
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("<infDPS Id=\"DPS430510821122233300018100001000000000000001\">",
+                    "<infDPS Id='DPS430510821122233300018100001000000000000001\" Evil=\"x'>");
+        auto assinado = assinarComCredencial(xml, parametrosDaDistro(), idComAspas);
+        QVERIFY2(assinado.has_value(), "o Id com aspas é valor XML válido e tem de achar o infDPS");
+        QCOMPARE(contarNos(*assinado, "//*[local-name()='Reference'][@Evil]"), 0);
+        QCOMPARE(contarNos(*assinado, "//*[local-name()='Reference'][@URI='#DPS430510821122233300018100001000000000000001\" Evil=\"x']"), 1);
+    }
+
     // Rodada 5 (revisão): a NFS-e no formato do XSD dá o mesmo digest que a DPS, e um campo alterado dentro dela difere.
     void digestDaNfseNoFormatoDoXsdIgualAoDaDps() {
         const QStringView id = QStringLiteral("DPS430510821122233300018100001000000000000001");
@@ -684,6 +805,109 @@ private slots:
         QCOMPARE(codigoDe(comEnt.error()), QStringLiteral("assinatura.xml_com_dtd"));
     }
 
+    // NL-2.9, condição (d): o parser para no primeiro DOCTYPE, antes de ler o subconjunto interno. Um subconjunto
+    // malformado não pode virar xml_malformado: a recusa de DTD sai antes de qualquer declaração ser processada.
+    void dtdComSubconjuntoMalformadoRecusadoAntesDoParse() {
+        QByteArray xml = dpsDeReferencia();
+        xml.replace("<DPS xmlns=", "<!DOCTYPE DPS [<!ENTITY e \"x>\n<DPS xmlns=");
+        auto assinado = assinarComCredencial(xml, parametrosDaDistro());
+        QVERIFY2(!assinado.has_value(), "DTD com subconjunto malformado tem de ser recusado");
+        QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.xml_com_dtd"));
+    }
+
+    // NL-2.9, reforço sobre o DTD: um DOCTYPE SYSTEM ou uma entidade externa apontando para a rede não pode abrir conexão.
+    // O ouvinte em 127.0.0.1 conta as conexões aceitas; a espera é zero em ambas as variantes.
+    void xmlComDoctypeSystemRemotoNaoAcessaARede() {
+        OuvinteTcp ouvinte;
+        QVERIFY2(ouvinte.porta() != 0, "o ouvinte TCP local tem de subir");
+        const QByteArray url = "http://127.0.0.1:" + QByteArray::number(ouvinte.porta()) + "/dtd.dtd";
+        QByteArray comSystem = dpsDeReferencia();
+        comSystem.replace("<DPS xmlns=", "<!DOCTYPE DPS SYSTEM \"" + url + "\">\n<DPS xmlns=");
+        const auto semDtd = assinarComCredencial(comSystem, parametrosDaDistro());
+        QByteArray comEntidade = dpsDeReferencia();
+        comEntidade.replace("<DPS xmlns=", "<!DOCTYPE DPS [<!ENTITY e SYSTEM \"" + url + "\">]>\n<DPS xmlns=");
+        comEntidade.replace("</DPS>", "&e;</DPS>");
+        const auto comEnt = assinarComCredencial(comEntidade, parametrosDaDistro());
+        ouvinte.parar();
+        QVERIFY2(!semDtd.has_value(), "DOCTYPE SYSTEM tem de ser recusado");
+        QCOMPARE(codigoDe(semDtd.error()), QStringLiteral("assinatura.xml_com_dtd"));
+        QVERIFY2(!comEnt.has_value(), "entidade externa tem de ser recusada");
+        QCOMPARE(codigoDe(comEnt.error()), QStringLiteral("assinatura.xml_com_dtd"));
+        QCOMPARE(ouvinte.conexoes(), 0);
+    }
+
+    // NL-2.9, DA-2.50 (item 6 da triagem do CISO): entidades em cascata e entidade externa para um arquivo com marcador. A recusa
+    // sai com o código, o marcador não aparece no código devolvido e o tempo é baixo: nada foi expandido nem lido. Mutante L:
+    // sem xmlStopParser no DOCTYPE, o parser processa as declarações e o teste reprova.
+    void dtdComExpansaoDeEntidadesRecusadaSemProcessar() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString caminho = dir.filePath(QStringLiteral("marcador.txt"));
+        QFile arquivo(caminho);
+        QVERIFY(arquivo.open(QIODevice::WriteOnly));
+        arquivo.write("MARCADOR_EXTERNO_NAO_PODE_APARECER");
+        arquivo.close();
+        QByteArray xml = dpsDeReferencia();
+        const QByteArray dtd = "<!DOCTYPE DPS [<!ENTITY d \"x\"><!ENTITY c \"&d;&d;&d;&d;&d;&d;&d;&d;&d;&d;\">"
+                               "<!ENTITY b \"&c;&c;&c;&c;&c;&c;&c;&c;&c;&c;\"><!ENTITY a \"&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;\">"
+                               "<!ENTITY ext SYSTEM \"file://" + caminho.toUtf8() + "\">]>\n";
+        xml.replace("<DPS xmlns=", dtd + "<DPS xmlns=");
+        xml.replace("</DPS>", "&a;&ext;</DPS>");
+        QElapsedTimer relogio;
+        relogio.start();
+        const auto recusado = assinarComCredencial(xml, parametrosDaDistro());
+        const qint64 ms = relogio.elapsed();
+        QVERIFY2(!recusado.has_value(), "DTD com entidades em cascata tem de ser recusado");
+        const QString codigo = codigoDe(recusado.error());
+        QCOMPARE(codigo, QStringLiteral("assinatura.xml_com_dtd"));
+        QVERIFY2(!codigo.contains(QStringLiteral("MARCADOR")), "o marcador do arquivo externo não pode aparecer na saída");
+        QVERIFY2(ms < 2000, "a recusa tem de sair sem expandir as entidades: tempo acima do teto");
+    }
+
+    // NL-2.9 (CISO, 05:34), camada 1 no átomo: o parser para no DOCTYPE. Subconjunto interno de 1 MiB seguido do corpo: o
+    // corpo nunca começa. Mutante sem xmlStopParser: o parser segue, chega ao corpo, e o teste reprova.
+    void paradaNoDoctypeNaoLeOSubconjunto() {
+        const QByteArray comentario = "<!--" + QByteArray(1024 * 1024 - 7, 'a') + "-->";
+        const QByteArray xml = "<!DOCTYPE DPS [" + comentario + "]>\n<DPS><x/></DPS>";
+        const auto saida = xd::privado::analisarSemDtd(xml);
+        QVERIFY2(!saida.posicaoDoCorpo.has_value(), "o parser tem de parar no DOCTYPE: o corpo nunca começa");
+    }
+
+    // NL-2.9 (CISO, 05:34), camada 2 no átomo: o contexto do átomo, com a carga do DTD externo acrescentada por campo (sem
+    // apagar as opções) e sem o tratador da parada, não abre conexão para um DOCTYPE SYSTEM. Mutante sem NONET no átomo: o
+    // ouvinte em 127.0.0.1 conta a conexão e o teste reprova.
+    // Piso de HTTP (CISO, 10:02): o teste só tem prova onde a libxml2 tem cliente HTTP. A 2.15 removeu o cliente
+    // (NEWS 2.15.0), e então o teste pula com o motivo. Onde roda, a marca vai para o arquivo do piso, lido pelo
+    // tools/conteiner/piso_http_libxml.sh; a rodada reprova se nenhuma imagem rodar o teste.
+    void contextoDoParserBloqueiaRede() {
+        if (xmlHasFeature(XML_WITH_HTTP) == 0) {
+            registrarPisoHttp(QStringLiteral("pulou libxml2 %1: sem cliente HTTP, NEWS 2.15.0 removeu o cliente HTTP embutido")
+                                  .arg(QStringLiteral(LIBXML_DOTTED_VERSION)));
+            QSKIP("libxml2 sem cliente HTTP (NEWS 2.15.0: The built-in HTTP client was removed): sem prova de rede nesta imagem");
+        }
+#if LIBXML_VERSION >= 21300
+        // Com HTTP, mas em 2.13/2.14: a API aditiva de opções não foi medida nesta suíte. Pula com o motivo, sem fingir prova.
+        registrarPisoHttp(QStringLiteral("pulou libxml2 %1: API de opções não medida nesta versão").arg(QStringLiteral(LIBXML_DOTTED_VERSION)));
+        QSKIP("libxml2 2.13/2.14 com HTTP: API de opções aditiva não medida nesta suíte");
+#else
+        registrarPisoHttp(QStringLiteral("rodou libxml2 %1 em %2 %3")
+                              .arg(QStringLiteral(LIBXML_DOTTED_VERSION), campoDoOsRelease(QStringLiteral("ID")),
+                                   campoDoOsRelease(QStringLiteral("VERSION_ID"))));
+        OuvinteTcp ouvinte;
+        QVERIFY2(ouvinte.porta() != 0, "o ouvinte TCP local tem de subir");
+        const QByteArray url = "http://127.0.0.1:" + QByteArray::number(ouvinte.porta()) + "/dtd.dtd";
+        const QByteArray xml = "<!DOCTYPE DPS SYSTEM \"" + url + "\">\n<DPS/>";
+        auto ctx = xd::privado::criarContextoDoParser(xml);
+        QVERIFY2(ctx.get() != nullptr, "o contexto do átomo tem de existir");
+        ctx->sax->internalSubset = xmlSAX2InternalSubset;  // tira a parada: só a camada NONET fica
+        // Carga do DTD externo pela API aditiva: soma XML_PARSE_DTDLOAD às opções do átomo, sem apagar o NONET.
+        xmlCtxtUseOptions(ctx.get(), XML_PARSE_DTDLOAD);
+        xmlParseDocument(ctx.get());
+        ouvinte.parar();
+        QCOMPARE(ouvinte.conexoes(), 0);
+#endif
+    }
+
     void variavelDoFedoraValeNoContextoProprio() {
         // DA-2.40 (c): o patch do fedora lê a variável em tempo de chamada. Sem ela, fedora44 recusa SHA-1; com ela, assina.
         ::unsetenv("OPENSSL_ENABLE_SHA1_SIGNATURES");
@@ -726,6 +950,42 @@ private slots:
         auto assinado = assinarComCredencial(xml, parametrosDaDistro());
         QVERIFY2(assinado.has_value(), "a DPS com xml:lang na raiz tem de assinar");
         QVERIFY2(verificarComXmlsec1(*assinado), "o xmlsec1 tem de verificar: o xml:lang da raiz entra no digest");
+    }
+
+    // NL-2.9, condição (a): a expectativa sai da tabela. Trocar a linha da distro na tabela muda o resultado, e a distro
+    // sem linha não tem expectativa. Usa uma tabela temporária, e restaura a variável no fim.
+    void distroRecusaSha1VemDaTabelaNaoDoCodigo() {
+        const QString id = campoDoOsRelease(QStringLiteral("ID"));
+        const QString versao = campoDoOsRelease(QStringLiteral("VERSION_ID"));
+        QVERIFY2(!id.isEmpty(), "/etc/os-release sem ID");
+        QTemporaryDir pasta;
+        QVERIFY2(pasta.isValid(), "a pasta temporária da tabela tem de existir");
+        const QByteArray antiga = qgetenv("NL_FIXTURES_XMLDSIG");
+        auto gravar = [&](const QString& valor) {
+            QFile arquivo(pasta.filePath(QStringLiteral("tabela_sha1_por_distro.txt")));
+            if (arquivo.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                arquivo.write(QStringLiteral("%1 %2 %3\n").arg(id, versao, valor).toUtf8());
+            }
+        };
+        qputenv("NL_FIXTURES_XMLDSIG", pasta.path().toUtf8());
+        // A função que a suíte usa (distroRecusaSha1), não o leitor: uma função fixa em false reprova aqui (CISO, 05:34).
+        gravar(QStringLiteral("sha1"));
+        const bool comSha1 = distroRecusaSha1();
+        gravar(QStringLiteral("algoritmo_bloqueado"));
+        const bool comBloqueio = distroRecusaSha1();
+        qputenv("NL_FIXTURES_XMLDSIG", antiga);
+        QVERIFY2(!comSha1, "linha sha1 na tabela: a suíte assina SHA-1");
+        QVERIFY2(comBloqueio, "linha algoritmo_bloqueado na tabela: a suíte usa SHA-256");
+        QVERIFY2(!recusaSha1SegundoTabela(QStringLiteral("distro-inexistente"), QStringLiteral("0")).has_value(),
+                 "distro fora da tabela não tem expectativa");
+    }
+
+    // NL-2.9, condição (a): a suíte reprova se a distro atual não tem linha na tabela versionada.
+    void distroAtualTemLinhaNaTabela() {
+        const QString id = campoDoOsRelease(QStringLiteral("ID"));
+        const QString versao = campoDoOsRelease(QStringLiteral("VERSION_ID"));
+        QVERIFY2(recusaSha1SegundoTabela(id, versao).has_value(),
+                 "distro fora de tests/fixtures/xmldsig/tabela_sha1_por_distro.txt: a suíte reprova");
     }
 
     void tabelaPorDistroVemDoArquivo() {

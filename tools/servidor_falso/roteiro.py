@@ -23,7 +23,7 @@ RE_REJEICAO = re.compile(r"^rejeicao:(E\d{4})$")  # rejeicao:<código E>, NL-2.8
 
 
 RE_REJEICAO_BRUTA = re.compile(r"^rejeicao_bruta:\S+$")  # Codigo da API sem validar: o cliente tem de recusar o formato
-RE_REJEICAO_GERADA = re.compile(r"^rejeicao_gerada:(E\d{4})$")  # grava a DPS e recusa com E: a nota já existe
+RE_REJEICAO_GERADA = re.compile(r"^rejeicao_gerada(?:_[a-z_]+)?:(E\d{4})$")  # grava a DPS e recusa com E (DA-2.59: _diferente e _sem_comparacao)
 
 
 def eh_rejeicao(falha):

@@ -223,6 +223,12 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         chave = chave_de_teste(id_dps)
         srv.dps_aceitas[id_dps] = chave
         srv.notas[chave] = xml
+        if falha == "rejeicao_gerada_diferente:E0014":
+            # DA-2.59: infDPS diferente para o mesmo Id; a nota guardada tem um campo a mais dentro do infDPS
+            srv.notas[chave] = xml.replace(b"</infDPS>", b"<xDiferenca>1</xDiferenca></infDPS>", 1)
+        if falha == "rejeicao_gerada_sem_comparacao:E0014":
+            # DA-2.59: a nota guardada não tem infDPS, então a comparação não é possível
+            srv.notas[chave] = b"<NFSe/>"
         if falha == "conexao_cortada_apos_aceite":
             self.close_connection = True  # aceita e grava, mas corta a conexão sem resposta
             return None
@@ -239,7 +245,7 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             # 201 com Content-Encoding gzip: o transporte recusa (protocolo) depois do envio, a DPS já está gravada
             dados = gzip.compress(json.dumps(corpo_da_nota(chave, xml)).encode("utf-8"))
             return self._corpo_bruto(201, "application/json; charset=utf-8", dados, extra={"Content-Encoding": "gzip"})
-        if falha is not None and falha.startswith("rejeicao_gerada:"):
+        if falha is not None and falha.startswith("rejeicao_gerada"):
             # a DPS já está gravada e a recusa traz o código E (E0014: conjunto já gerado), DA-2.41
             return self._json(400, {"Codigo": falha.split(":", 1)[1], "Descricao": "DPS já gerada"})
         return self._json(201, corpo_da_nota(chave, xml))

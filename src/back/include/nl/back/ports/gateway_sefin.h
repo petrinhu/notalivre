@@ -25,6 +25,7 @@ enum class MotivoFalhaSefin {
     Definitiva,    ///< Resposta que o cliente não consegue ler, ou configuração inválida.
     Indeterminado, ///< Os bytes do POST podem ter chegado e a consulta GET /dps não disse o que aconteceu. Nunca vira
                    ///< Definitiva nem Rejeitada: o chamador não sabe se a nota existe e não pode reenviar (DA-2.41).
+    ComparacaoIndisponivel, ///< E0014 com a nota buscada, mas o infDPS não se compara (DA-2.59): a DPS não se confirma nem se reenvia.
 };
 
 struct FalhaSefin {
@@ -37,6 +38,7 @@ struct NotaSefin {
     ChaveAcesso chave;
     QByteArray xmlNfse;               ///< XML da NFS-e já descompactado (DA-2.39). Vazio quando xmlPendente.
     bool xmlPendente = false;         ///< Sucesso sem XML legível: a chave vale, o reenvio fica bloqueado e o XML vem por GET /nfse/{chave}.
+    QByteArray corpoCru;              ///< Corpo cru da resposta de sucesso (DA-2.59 item 4): só vai à gravação de análise local, nunca a log.
 };
 
 class GatewaySefin {

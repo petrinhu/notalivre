@@ -24,6 +24,10 @@ public:
     /// A senha entra por referência e sai zerada, com sucesso ou falha. O chamador vê o próprio objeto vazio.
     [[nodiscard]] std::expected<CredencialX509, ErroCredencial> carregar(QByteArrayView pfx, SenhaSegura& senha,
                                                                          const Ancoras& ancoras);
+
+    /// Mesma carga, com a senha consumida por movimento (NL-2.9, DA-2.59 item 1): o chamador perde o objeto. Só a emissão usa.
+    [[nodiscard]] std::expected<CredencialX509, ErroCredencial> carregarConsumindo(QByteArrayView pfx, SenhaSegura&& senha,
+                                                                                 const Ancoras& ancoras);
 };
 
 } // namespace nl::foundation::pkcs12

@@ -6,6 +6,9 @@
 
 ## INBOX (descobertas não priorizadas)
 
+- (sem ID): NL-2.9, ressalva MÉDIA da revisão r2: o e2e cliEmiteDpsAceitaPeloServidorFalso não pegou o eco ligado (mutante C, tst_cli_emitir.cpp:319); o C morreu só por cliRecusaDpsInvalidaSemPost. Investigar corrida no pseudo-terminal antes da NL-2.10. Fonte: NL-2.9-r2-mutacao-R2-fedora44.log.
+- (sem ID): NL-2.9, defesa em profundidade: emissao_cli.cpp:189 só confere a confirmação se ela vier preenchida; em Produção a CLI a exige antes (comando_emitir.cpp:72-77), mas outro chamador da fachada (a GUI) poderia passar vazio. A fachada deve exigir a confirmação quando o ambiente derivado for Produção. INFERÊNCIA do main ao ler o blob 605bc48; vai ao CISO.
+- (sem ID): NL-2.9, BAIXA: a cópia interna da chave do A1 no QSslKey não é zerada (emissao_cli.cpp:126-127); medir na NL-4.3.
 - (sem ID): troca em massa das 49 chamadas de CarregadorPkcs12::carregar(lvalue) para o consumo da SenhaSegura por valor (DA-2.59, item 1); fora da NL-2.9 por L-34. Fonte: correções da revisão da NL-2.9.
 - (sem ID): CMakeLists de teste com regex de contagem fixa ("Totals: 3 passed") podem dar falso verde ou falso vermelho; auditar e trocar por contagem derivada (L-36). Fonte: executor da NL-2.9, 30/10 22:46; vai à NL-2.11.
 - (sem ID): NL-2.13, teste fraco do ManifestoAusente: manifestoAusenteRecusa confere só o rótulo do erro, e o mutante A4 (manifesto ausente vira vazio) continua recusando por outro motivo (tst_carga_raizes_icp.cpp:324; revisão r4, NL-2.13-r4-mutacao-R7-fedora44.log). Reforçar para provar a recusa pelo motivo certo. Também a ratificar pelo líder: v4, v6, v7 e v13 com o ITI como fonte única (triagem do CISO, 20:20, item 6).
@@ -67,6 +70,9 @@
 - (sem ID): limpeza das refs locais refs/sabotagem/* criadas por executores e revisores (L-53), pedindo a quem criou.
 - (sem ID): NL-2.8, E1204 sem texto no catálogo de erros da Sefin.
 - (sem ID): NL-2.8, o lançador do servidor falso separa argumentos por espaço, e por isso o teste do código E com CPF usa underscore. Avaliar o suporte a espaço.
+- (sem ID): NL-2.8, a contagem de bytes do envio vem só do uploadProgress; verificar na NL-2.10 (item C da INBOX da rodada 5).
+- (sem ID): NL-2.8, 4xx sem código E válido vira Definitiva mesmo com bytes escritos (item E da INBOX da rodada 5).
+- (sem ID): NL-2.10, medir na Produção Restrita se a Sefin devolve o infDPS sem alteração antes de DpsDuplicada chegar ao usuário (INFERÊNCIA do revisor, condição da NL-2.8).
 
 ## Backlog
 
@@ -104,7 +110,7 @@
 | NL-2.5 | W2 | Segurança | Transporte HTTPS com mTLS na Foundation, com erro transitório separado do definitivo; testes de integração contra o servidor falso. Plano, seção 2, NL-2.5. | Média (inferido) | NL-2.2, NL-2.6 | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-2.7 | W2 | Segurança | Log com redação de PII na Foundation pelo ADR-S4, com varredura não vazia e sabotagem de estreia. Plano, seção 2, NL-2.7. | Média (inferido) | NL-1.9 (ADR-S4) | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-2.8 | W2 | Engenharia | Cliente Sefin no Mid e política de retry: POST nunca repete sozinho e consulta GET /dps/{id} antes de reenviar; rejeição com código E não repete; certificado revogado mapeado pela recusa da Sefin (teste certificadoRevogadoMapeadoPelaRejeicaoDaSefin; código E a conferir no Anexo I), e checar revogação no app fica fora da v1 (decisão do líder, 29/10/2026: "Fora da v1 (Recomendado)"). Plano, seção 2, NL-2.8. | Média (inferido) | NL-2.4, NL-2.5, NL-2.7 | Média (inferido) | 🔍 Pendente verificação | — |
-| NL-2.9 | W2 | Engenharia | Caso de uso EmitirNota e CLI notalivre emitir; Produção bloqueada por configuração até o go/no-go da Onda 12; senha sem eco e nunca por argumento. Plano, seção 2, NL-2.9. | Média (inferido) | NL-2.3, NL-2.8 | Média (inferido) | ⏳ Pendente | — |
+| NL-2.9 | W2 | Engenharia | Caso de uso EmitirNota e CLI notalivre emitir; Produção bloqueada por configuração até o go/no-go da Onda 12; senha sem eco e nunca por argumento. Plano, seção 2, NL-2.9. | Média (inferido) | NL-2.3, NL-2.8 | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-2.12 | W2 | Segurança | Nome de campo normalizado (só letras e dígitos, minúsculas) antes da lista Proibido do Log; teste campoComSeparadoresNoNomeContinuaProibido visto vermelho antes. Achado A2-07 da auditoria da Onda 2, triagem do CISO de 30/10/2026; DA-2.43. Plano, seção 2, NL-2.12. | Alta (antes da NL-2.10) | — | Baixa (inferido) | 🔍 Pendente verificação | — |
 | NL-2.11 | W2 | Engenharia | Mutante CERT_REQUIRED para CERT_OPTIONAL no servidor falso deixa vermelho o semCertificadoDeClienteHandshakeRecusado; job Flatpak roda a suíte de unidade sem xmlsec1 nem rede, com contagem e piso; testes do servidor falso fora do Flatpak, por escrito. Achados A2-01 e A2-04 da auditoria da Onda 2; DA-2.43. Plano, seção 2, NL-2.11. | Alta (antes da NL-2.10) | NL-2.9 | Média (inferido) | ⏳ Pendente | — |
 | NL-2.13 | W2 | Segurança | Raízes da ICP-Brasil baixadas do ITI só quando a fatia começar (decisão do líder, 29/10/2026, CLAUDE.md), com URL, tamanho e SHA-256 versionados e conferidos na carga; padrão de produção das âncoras do A1 (NL-2.2, DA-2.44). Plano, seção 2, NL-2.13. | Alta (antes da NL-2.10) | — | Média (inferido) | 🔍 Pendente verificação | — |

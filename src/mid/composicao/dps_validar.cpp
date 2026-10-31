@@ -64,17 +64,23 @@ std::expected<QByteArray, FalhaDpsValidar> DpsValidar::executar(QByteArrayView e
     }
 
     const QByteArray xml = prod::CodecDps::serializar(*dps);
+    if (auto revalidado = DpsValidar::validarXml(xml, localizacao); !revalidado) {
+        return std::unexpected(revalidado.error());
+    }
+    return xml;
+}
 
+std::expected<void, FalhaDpsValidar> DpsValidar::validarXml(QByteArrayView xml, const LocalizacaoEsquemaDps& localizacao)
+{
     const auto esquema = xsd::Esquema::abrir(localizacao.diretorio, localizacao.manifesto, kRaizEsquema);
     if (!esquema) {
         return std::unexpected(falhaDoXsd(esquema.error()));
     }
-
     const auto validacao = xsd::ValidadorXsd::validar(xml, *esquema);
     if (!validacao) {
         return std::unexpected(falhaDoXsd(validacao.error()));
     }
-    return xml;
+    return {};
 }
 
 } // namespace nl::mid::composicao

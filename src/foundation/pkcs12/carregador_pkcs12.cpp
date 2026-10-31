@@ -101,4 +101,12 @@ std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteAr
                           *ekuAusente);
 }
 
+std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregarConsumindo(QByteArrayView pfx, SenhaSegura&& senha,
+                                                                                  const Ancoras& ancoras)
+{
+    // A senha é movida para um local: quem passou não tem mais o objeto, e o local é zerado ao sair da função.
+    SenhaSegura consumida = std::move(senha);
+    return carregar(pfx, consumida, ancoras);
+}
+
 } // namespace nl::foundation::pkcs12
