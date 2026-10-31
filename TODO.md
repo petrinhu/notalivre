@@ -93,6 +93,8 @@
 - (sem ID): Mover o leitor da configuração de apps/cli/configuracao_cli para src/foundation/config (genérico) e o esquema de chaves para o Mid, antes de a GUI usar a configuração (NL-8.8). Fonte: DA-2.64, adendo.
 - NL-2.16 (INBOX, BAIXA-2 da revisão de segurança da NL-2.10b): a recusa por bundle adulterado (emissao_cli.cpp:180-183, blob eeaa556) não registra evento de auditoria; registrar como os outros recusados (:188). Fonte: triagem do CISO de 31/10/2026, 18:48:14.
 - NL-2.17 (INBOX, BAIXA-3 da revisão de segurança da NL-2.10b): TOCTOU no manifesto das raízes ICP, lido duas vezes (raizes_producao.cpp:46-59 e carga_raizes_icp.cpp:120); ler uma vez e passar os bytes. Só se explora com escrita na pasta de instalação do Flatpak. Fonte: triagem do CISO de 31/10/2026, 18:48:14.
+- NL-2.18 (INBOX, BAIXA-10 da revisão de segurança da NL-2.10b, rodada 2): a falha do pin do XSD no passo 6 sai como xsd.pos_assinatura com saída 4 (emissao_cli.cpp:217-218, blob 641eeb0), quando deveria ser 10; endpoint_desconhecido, endpoint_inseguro e ambiente_divergente caem em 70 quando a Mid é chamada direto. Fonte: triagem do CISO de 31/10/2026, 19:38:36.
+- NL-2.19 (INBOX, BAIXA-12 da revisão de segurança da NL-2.10b, rodada 2; estende a NL-2.17): o XSD é relido em três pontos e a libxml2 lê do disco depois da conferência do pin (esquema.cpp:117, :130, :137-147); conferir e validar sobre os mesmos bytes. Fonte: triagem do CISO de 31/10/2026, 19:38:36.
 
 ## Backlog
 
