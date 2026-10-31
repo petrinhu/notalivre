@@ -165,6 +165,15 @@ FalhaEmissao recusada(RegistroCli& registro, const bk::IdDps& idDps, FalhaEmissa
 std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, fp::SenhaSegura&& senha, RegistroCli& registro,
                                                            const FabricaAssinador& fabrica)
 {
+    // 0. Ambiente (NL-2.10b, MÉDIA-1): o endpoint decide; o ambiente afirmado por quem chama só pode confirmá-lo. Divergente sai
+    // antes de qualquer leitura de DPS, de âncora e de envio, com código interno (70, codigo_saida.cpp).
+    const auto derivado = ambienteDoEndpoint(pedido.urlSefin);
+    if (!derivado) {
+        return std::unexpected(falha(derivado.error().codigo(), derivado.error().mensagem()));
+    }
+    if (pedido.ambiente && *pedido.ambiente != *derivado) {
+        return std::unexpected(falha("emissao.ambiente_divergente", "o ambiente afirmado não confere com o endpoint da configuração"));
+    }
     // 1. DPS de entrada: JSON validado no XSD. Reprovação vem com o primeiro código do validador.
     auto xml = DpsValidar::executar(pedido.dpsJson, pedido.esquema);
     if (!xml) {
@@ -228,11 +237,28 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     return nota->chave.texto();
 }
 
+namespace {
+
+// Ambiente que manda nas âncoras (NL-2.10b, MÉDIA-1): o derivado do endpoint. Sem endpoint reconhecido, vale o afirmado, ou
+// Produção, que é o lado seguro (nada de PEM local fora de Homologação).
+Ambiente ambienteDoPedido(const PedidoEmissao& pedido)
+{
+    if (const auto derivado = ambienteDoEndpoint(pedido.urlSefin)) {
+        return *derivado;
+    }
+    return pedido.ambiente.value_or(Ambiente::Producao);
+}
+
+} // namespace
+
 // Âncoras do A1 (NL-2.10b, emenda 5): em Homologação com [certificado] ancoras, o PEM; em qualquer outro caso, as raízes ICP
 // embutidas no bundle. Fora de Homologação o caminho nem é lido (a CLI já recusou a chave com código 10).
 std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao& pedido, std::chrono::system_clock::time_point agora)
 {
-    if (pedido.ambiente.value_or(Ambiente::Homologacao) != Ambiente::Homologacao || pedido.caminhoAncoras.isEmpty()) {
+    if (ambienteDoPedido(pedido) != Ambiente::Homologacao || pedido.caminhoAncoras.isEmpty()) {
+        if (pedido.diretorioRaizesIcp.isEmpty()) {
+            return std::unexpected(falha("configuracao.raizes_diretorio_vazio", "o diretório das raízes ICP do bundle não foi informado"));
+        }
         auto carga = nl::mid::cofre::carregarRaizesDeProducao(pedido.diretorioRaizesIcp, agora);
         if (!carga) {
             return std::unexpected(falha("credencial.ancoras_icp_invalidas", "as raízes ICP do bundle não conferem com o hash embutido"));
@@ -250,7 +276,7 @@ std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao& pedido
 // do sistema do runtime, sem pin e sem bundle próprio (condição do CISO, 31/10/2026).
 QList<QSslCertificate> ancorasTlsDoPedido(const PedidoEmissao& pedido)
 {
-    if (pedido.ambiente.value_or(Ambiente::Homologacao) != Ambiente::Homologacao || pedido.caminhoAncorasTls.isEmpty()) {
+    if (ambienteDoPedido(pedido) != Ambiente::Homologacao || pedido.caminhoAncorasTls.isEmpty()) {
         return QSslConfiguration::systemCaCertificates();
     }
     return QSslCertificate::fromData(lerArquivo(pedido.caminhoAncorasTls), QSsl::Pem);
