@@ -230,7 +230,7 @@ class TestePortaoSha1(unittest.TestCase):
         self.assertIn("tests/unit/foundation/xmldsig/outro_teste.cpp", saida)
 
     def test_portaoSha1BuildComCacheNaRaizNaoReprova(self):
-        # Exceção 5 (DA-2.62): _build na raiz com CMakeCache.txt é saída do build; o objeto do teste permitido não reprova.
+        # Exceção 5 do portão: _build na raiz com CMakeCache.txt é saída do build; o objeto do teste permitido não reprova.
         raiz = self._arvore({
             "src/codigo.cpp": "int x = 1;\n",
             "_build/CMakeCache.txt": "CMAKE_BUILD_TYPE:STRING=Release\n",

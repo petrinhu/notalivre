@@ -48,7 +48,7 @@ PERMITIDOS = frozenset({
 })
 PODAR = frozenset({".git"})  # só o histórico do git (exceção 1)
 PODAR_NA_RAIZ = frozenset({"worktrees"})  # cópias de trabalho, só na raiz e só não rastreadas (exceção 4, L-55)
-PODAR_BUILD_NA_RAIZ = "_build"  # pasta de build do CMake, só na raiz e só com CMakeCache.txt (exceção 5, DA-2.62)
+PODAR_BUILD_NA_RAIZ = "_build"  # pasta de build do CMake, só na raiz e só com CMakeCache.txt (exceção 5)
 RE_PYC = re.compile(r"^(?P<stem>[A-Za-z_][A-Za-z0-9_]*)\.cpython-\d+\.pyc$")  # stem sem ponto (rodada 5, achado 2)
 
 
