@@ -51,6 +51,8 @@ def main():
     print(f"PORTA {srv.porta}", flush=True)
     sys.stdin.read()  # fica no ar até o dono fechar o stdin
     srv.encerrar()
+    # Ao sair, diz quantas requisições chegaram (DA-2.51): o e2e confere zero quando a CLI recusa antes do envio.
+    print(f"REQUISICOES {srv.requisicoes}", flush=True)
     return 0
 
 
