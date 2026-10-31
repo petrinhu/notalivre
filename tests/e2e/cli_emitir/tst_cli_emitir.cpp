@@ -421,6 +421,21 @@ void TstCliEmitir::e0014SemComparacaoSaiComSete()
     QVERIFY2(execucao.saida.contains("sefin.comparacao_indisponivel"), "a comparação impossível tem de sair com o código de comparação indisponível");
 }
 
+namespace {
+
+// Dono lê e escreve; grupo e outros sem nenhum bit (0600). O Qt devolve o bit de usuário junto do de dono, então a
+// igualdade exata com ReadOwner|WriteOwner nunca bate; por isso a conferência é por máscara.
+bool permissaoSoDoDono(const QString& caminho)
+{
+    const QFileDevice::Permissions p = QFile::permissions(caminho);
+    const QFileDevice::Permissions dono = QFileDevice::ReadOwner | QFileDevice::WriteOwner;
+    const QFileDevice::Permissions outros = QFileDevice::GroupRead | QFileDevice::GroupWrite | QFileDevice::GroupExec |
+                                            QFileDevice::OtherRead | QFileDevice::OtherWrite | QFileDevice::OtherExec;
+    return (p & dono) == dono && (p & outros) == 0;
+}
+
+} // namespace
+
 void TstCliEmitir::respostaCruaGravadaParaAnalise()
 {
     if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
@@ -442,7 +457,7 @@ void TstCliEmitir::respostaCruaGravadaParaAnalise()
     const QStringList arquivos = pasta.entryList({QStringLiteral("*.json")}, QDir::Files);
     QCOMPARE(arquivos.size(), 1);
     const QString caminho = pasta.filePath(arquivos.first());
-    QVERIFY2(QFile::permissions(caminho) == (QFileDevice::ReadOwner | QFileDevice::WriteOwner), "o arquivo da resposta tem de ser 0600");
+    QVERIFY2(permissaoSoDoDono(caminho), "o arquivo da resposta tem de ser 0600: dono lê e escreve, grupo e outros sem bit");
     const QByteArray conteudo = lerArquivo(caminho);
     QVERIFY2(!conteudo.contains("nfseXmlGZipB64\":\"H4s"), "o XML da NFS-e (GZip em Base64) não pode ir ao arquivo");
     QVERIFY2(!conteudo.contains(senha), "a senha não pode ir ao arquivo");

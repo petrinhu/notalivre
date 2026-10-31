@@ -17,6 +17,17 @@ namespace {
 const QByteArray kChaveSintetica = "12345678901234567890123456789012345678901234";
 const QByteArray kXmlSintetico = "H4sIAAAAAAAAAPNIzcnJVyjPL8pKUQQAjAqUFgUAAAA";
 
+// Dono lê e escreve; grupo e outros sem nenhum bit (0600). O Qt devolve o bit de usuário junto do de dono, então a
+// igualdade exata com ReadOwner|WriteOwner nunca bate; por isso a conferência é por máscara.
+bool permissaoSoDoDono(const QString& caminho)
+{
+    const QFileDevice::Permissions p = QFile::permissions(caminho);
+    const QFileDevice::Permissions dono = QFileDevice::ReadOwner | QFileDevice::WriteOwner;
+    const QFileDevice::Permissions outros = QFileDevice::GroupRead | QFileDevice::GroupWrite | QFileDevice::GroupExec |
+                                            QFileDevice::OtherRead | QFileDevice::OtherWrite | QFileDevice::OtherExec;
+    return (p & dono) == dono && (p & outros) == 0;
+}
+
 } // namespace
 
 class TstRespostaCrua : public QObject
@@ -55,7 +66,7 @@ void TstRespostaCrua::gravacaoSai0600ComNomeSemId()
     const QByteArray corpo = "{\"chaveAcesso\":\"" + kChaveSintetica + "\",\"nfseXmlGZipB64\":\"" + kXmlSintetico + "\"}";
     const auto gravado = nl::mid::composicao::gravarRespostaCrua(corpo, pasta.path(), "DPS-ID-SINTETICO-0001");
     QVERIFY2(gravado.has_value(), "a resposta tem de ser gravada na pasta de análise");
-    QVERIFY2(QFile::permissions(*gravado) == (QFileDevice::ReadOwner | QFileDevice::WriteOwner), "o arquivo tem de ser 0600");
+    QVERIFY2(permissaoSoDoDono(*gravado), "o arquivo tem de ser 0600: dono lê e escreve, grupo e outros sem bit");
     QVERIFY2(!gravado->contains("DPS-ID-SINTETICO"), "o nome do arquivo não pode conter o Id da DPS");
     QFile arquivo(*gravado);
     QVERIFY(arquivo.open(QIODevice::ReadOnly));
