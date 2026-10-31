@@ -20,6 +20,7 @@
 #   NL_FONTE          modo compatível para revisores com snapshot: copia esta pasta em vez de fazer o archive.
 #                     O log grava "SHA: <sha>+copia", e o build PARA antes do contêiner se o manifesto da cópia
 #                     diverge do commit (arquivo fora do commit). Sem NL_SHA, usa o HEAD da pasta, se ela for git.
+#   NL_HIGIENE_IMAGEM imagem dos portões estáticos rodados antes do configure (padrão notalivre-higiene:ci; DA-2.55)
 #   NL_TMP_BASE       base de temporários e de build no host (padrão: /var/tmp; o preset exige a variável)
 #   NL_LOG            log do run (padrão: $NL_TMP_BASE/notalivre-logs/NL-0.4-<distro>-<preset>.log;
 #                     imagem: $NL_TMP_BASE/notalivre-logs/NL-2.0-imagem-<distro>.log)
@@ -238,6 +239,15 @@ executar()
         fi
     fi
     mkdir -p "$build_host" "$xsd_host"
+
+    # Portões estáticos (DA-2.55, NL-2.11): os mesmos que o CI roda nos jobs higiene e camadas, sobre o mesmo SHA, antes do
+    # configure (L-36). Pasta própria do SHA e da fatia; o rm -rf atinge só o caminho que este script monta.
+    portoes="$NL_TMP_BASE/notalivre-portoes-$sha-$fatia"
+    rm -rf -- "$portoes"
+    if ! bash "$RAIZ/tools/conteiner/portoes_estaticos.sh" "$NL_REPO" "$sha" "$portoes"; then
+        echo "PARADA: portões estáticos reprovaram (DA-2.55); build não iniciado"
+        return 5
+    fi
 
     # Etapa 1, como root e só de leitura do Qt: tabela de versões e pré-cheque (o índice do gerenciador exige root).
     if ! docker run --rm --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" \
