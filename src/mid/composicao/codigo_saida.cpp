@@ -33,8 +33,11 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
     constexpr std::array<std::string_view, 5> recusaPrefixo{"credencial.", "assinatura.", "confirmacao.", "cofre.", "sefin."};
     // Configuração (NL-2.10a, emenda 4): saída 10 por entrada explícita, antes de qualquer prefixo, porque "assinatura." e
     // "certificado." não podem cair na recusa comum.
-    constexpr std::array<std::string_view, 4> configuracaoExato{"configuracao.chave_ausente", "configuracao.arquivo_ilegivel",
-                                                                "certificado.caminho_ilegivel", "assinatura.algoritmo_invalido"};
+    // Âncora definida fora de Homologação (NL-2.10b, condição do CISO de 31/10/2026, emenda 2): também sai com 10.
+    constexpr std::array<std::string_view, 6> configuracaoExato{"configuracao.chave_ausente", "configuracao.arquivo_ilegivel",
+                                                                "certificado.caminho_ilegivel", "assinatura.algoritmo_invalido",
+                                                                "configuracao.ancoras_a1_fora_de_homologacao",
+                                                                "configuracao.ancoras_tls_fora_de_homologacao"};
     for (auto exato : configuracaoExato) {
         if (codigo == exato) {
             return kSaidaConfiguracao;
