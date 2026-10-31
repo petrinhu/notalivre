@@ -23,6 +23,9 @@ private slots:
     void comparacaoIndisponivelSaiComSete();
     // Código sem classificação, ou falha interna do Id, sai com 70.
     void codigoDesconhecidoSaiComSetenta();
+    // Configuração ou banco (NL-3.8, código 10): chave ausente, arquivo ilegível, caminho do certificado ilegível e algoritmo
+    // de assinatura fora da lista (NL-2.10a, emenda 4). Nenhum deles sai como recusa comum.
+    void configuracaoSaiComDez();
 };
 
 using nl::mid::composicao::codigoDeSaidaDaEmissao;
@@ -59,6 +62,14 @@ void TstCodigoSaida::dpsDuplicadaSaiComCinco()
 void TstCodigoSaida::comparacaoIndisponivelSaiComSete()
 {
     QCOMPARE(codigoDeSaidaDaEmissao("sefin.comparacao_indisponivel"), 7);
+}
+
+void TstCodigoSaida::configuracaoSaiComDez()
+{
+    for (const char* codigo : {"configuracao.chave_ausente", "configuracao.arquivo_ilegivel", "certificado.caminho_ilegivel",
+                               "assinatura.algoritmo_invalido"}) {
+        QCOMPARE(codigoDeSaidaDaEmissao(codigo), 10);
+    }
 }
 
 void TstCodigoSaida::codigoDesconhecidoSaiComSetenta()
