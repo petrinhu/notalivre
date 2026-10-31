@@ -9,6 +9,7 @@
 #include <nl/foundation/log/log.h>
 #include <nl/mid/composicao/manipulador_qt.h>
 
+#include <QCoreApplication>
 #include <QString>
 #include <QStringList>
 #include <QTextStream>
@@ -37,6 +38,7 @@ int despachar(const QStringList& argumentos)
 
 int main(int argc, char* argv[])
 {
+    QCoreApplication aplicacao(argc, argv);  // o envio HTTPS usa o laço de eventos do Qt; sem a aplicação, nada termina
     // Registro da CLI: só campos declarados entram. A exceção do topo usa tipo e posicao (ADR-0005 d).
     nl::foundation::log::Log registro{std::cerr, "notalivre-cli",
                                       {nl::foundation::log::DeclaracaoCampo{"tipo", nl::foundation::log::Regra::Cru},
