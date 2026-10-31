@@ -29,9 +29,10 @@ namespace sefin = nl::mid::sefin;
 
 namespace {
 
-// DA-2.38 e DA-2.49: a tabela por distro diz se o OpenSSL desta distro recusa o SHA-1 da assinatura. Onde recusa, o assinador
-// devolve assinatura.algoritmo_bloqueado, e estes slots (que assinam pelo adaptador) pulam com a razão, em vez de falhar.
-bool sha1BloqueadoNestaDistro()
+// DA-2.38, DA-2.40 e DA-2.61: a tabela por distro diz se o OpenSSL desta distro recusa o SHA-1 da assinatura. Onde recusa, o
+// assinador tem de devolver assinatura.algoritmo_bloqueado; onde aceita, a assinatura tem de sair. Nenhum slot pula.
+// Devolve "sha1", "algoritmo_bloqueado" ou vazio (distro fora da tabela, ou tabela que não abre). Vazio reprova o teste.
+QString esperadoDaDistro()
 {
     QString id;
     QString versao = QStringLiteral("rolling");
@@ -47,7 +48,7 @@ bool sha1BloqueadoNestaDistro()
     }
     QFile tabela(qEnvironmentVariable("NL_TABELA_SHA1_ASSINATURA"));
     if (!tabela.open(QIODevice::ReadOnly)) {
-        return false;
+        return {};
     }
     for (const QString& linha : QString::fromUtf8(tabela.readAll()).split(QLatin1Char('\n'))) {
         const QStringList campos = linha.simplified().split(QLatin1Char(' '));
@@ -55,10 +56,18 @@ bool sha1BloqueadoNestaDistro()
             continue;
         }
         if (campos.at(0) == id && campos.at(1) == versao) {
-            return campos.at(2) == QStringLiteral("algoritmo_bloqueado");
+            return campos.at(2);
         }
     }
-    return false;
+    return {};
+}
+
+// Distro que recusa o SHA-1 (DA-2.38): o erro tem de ser o código da tabela, e nenhuma assinatura pode sair.
+template <typename Resultado>
+void exigeRecusaSha1(const Resultado& assinado)
+{
+    QVERIFY2(!assinado.has_value(), "nesta distro o SHA-1 é recusado (DA-2.38): nenhuma assinatura pode sair");
+    QCOMPARE(QString::fromStdString(assinado.error().codigo()), QStringLiteral("assinatura.algoritmo_bloqueado"));
 }
 
 const char kIdDps[] = "DPS430510821122233300018100001000000000000001";
@@ -136,9 +145,9 @@ private slots:
 
 void TesteAssinaturaDps::parametrosDaAssinaturaVemDaPastaDoLeiaute()
 {
-    if (sha1BloqueadoNestaDistro()) {
-        QSKIP("distro com SHA-1 bloqueado (DA-2.38): o adaptador não assina aqui, e a tabela cobre a recusa");
-    }
+    const QString esperado = esperadoDaDistro();
+    QVERIFY2(esperado == QStringLiteral("sha1") || esperado == QStringLiteral("algoritmo_bloqueado"),
+             "a distro desta máquina tem de estar em tabela_sha1_por_distro.txt, com sha1 ou algoritmo_bloqueado (DA-2.40)");
     const QByteArray dps = lerFixtureDps();
     QVERIFY2(!dps.isEmpty(), "a fixture da DPS tem de existir (NL_FIXTURES_DPS)");
     auto credencial = credencialDeTeste();
@@ -146,7 +155,11 @@ void TesteAssinaturaDps::parametrosDaAssinaturaVemDaPastaDoLeiaute()
 
     sefin::assinatura::AssinadorDpsSefin assinador(*credencial);
     auto assinado = assinador.assinar(dps, QStringLiteral("DPS430510821122233300018100001000000000000001"));
-    QVERIFY2(assinado.has_value(), "a DPS tem de sair assinada pelo adaptador");
+    if (esperado == QStringLiteral("algoritmo_bloqueado")) {
+        exigeRecusaSha1(assinado);
+        return;
+    }
+    QVERIFY2(assinado.has_value(), "nesta distro o SHA-1 é aceito (DA-2.38): a DPS tem de sair assinada pelo adaptador");
     const QByteArray xml = *assinado;
 
     // Oráculo literal do leiaute, sem passar por parametros_infdps.h.
@@ -175,9 +188,9 @@ void TesteAssinaturaDps::digestDeComparacaoEhSha256()
 
 void TesteAssinaturaDps::emissaoLigaAdaptadorRealPelaRaiz()
 {
-    if (sha1BloqueadoNestaDistro()) {
-        QSKIP("distro com SHA-1 bloqueado (DA-2.38): o adaptador não assina aqui, e a tabela cobre a recusa");
-    }
+    const QString esperado = esperadoDaDistro();
+    QVERIFY2(esperado == QStringLiteral("sha1") || esperado == QStringLiteral("algoritmo_bloqueado"),
+             "a distro desta máquina tem de estar em tabela_sha1_por_distro.txt, com sha1 ou algoritmo_bloqueado (DA-2.40)");
     const QByteArray dps = lerFixtureDps();
     QVERIFY2(!dps.isEmpty(), "a fixture da DPS tem de existir (NL_FIXTURES_DPS)");
     auto credencial = credencialDeTeste();
@@ -185,6 +198,10 @@ void TesteAssinaturaDps::emissaoLigaAdaptadorRealPelaRaiz()
 
     nl::mid::composicao::EmissaoNota raiz(*credencial);
     auto assinado = raiz.emitirNota().executar(dps, QStringLiteral("DPS430510821122233300018100001000000000000001"));
+    if (esperado == QStringLiteral("algoritmo_bloqueado")) {
+        exigeRecusaSha1(assinado);
+        return;
+    }
     QVERIFY2(assinado.has_value(), "a raiz de composição tem de ligar EmitirNota ao adaptador real de assinatura");
     const QByteArray xml = *assinado;
     QCOMPARE(contarNos(xml, "//*[local-name()='SignatureMethod'][@Algorithm='http://www.w3.org/2000/09/xmldsig#rsa-sha1']"), 1);
