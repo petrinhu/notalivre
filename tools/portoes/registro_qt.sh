@@ -65,11 +65,14 @@ fi
 # Testes do CTest cujo executável está na lista de Qt Test (um só grep, padrão montado a partir da lista).
 PADRAO=$(paste -sd'|' "$J/executaveis_qt.txt")
 QT_NOMES="$J/.ctest_qt.txt"
+# Segunda linha de defesa: por convenção do repositório todo executável de teste Qt se chama tst_*. Um tst_ fora da lista
+# (link indireto) entra na conferência mesmo assim (rodada de 31/10 07:20: tst_qml_gui linka Qt6::QuickTest).
 if [ -n "$PADRAO" ]; then
-    grep -E "^[^ ]* ($PADRAO)\$" "$CT_PARES" | cut -d' ' -f1 > "$QT_NOMES"
+    ALTERNATIVAS="($PADRAO|tst_[^ ]*)"
 else
-    : > "$QT_NOMES"
+    ALTERNATIVAS="(tst_[^ ]*)"
 fi
+grep -E "^[^ ]* $ALTERNATIVAS\$" "$CT_PARES" | cut -d' ' -f1 > "$QT_NOMES"
 n_qt=$(wc -l < "$QT_NOMES" | tr -d ' ')
 
 # Conferência nas duas direções, por igualdade de conjuntos.
