@@ -52,7 +52,7 @@ struct FalhaEmissao
 using FabricaAssinador = std::function<std::unique_ptr<nl::back::AssinadorDps>(const nl::foundation::pkcs12::CredencialX509&)>;
 
 /// A senha é consumida: o carregador a zera (NL-2.9, item 3). O registro recebe o evento da emissão (DA-2.54).
-std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, nl::foundation::pkcs12::SenhaSegura& senha,
+std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, nl::foundation::pkcs12::SenhaSegura&& senha,
                                                       RegistroCli& registro);
 
 /// Lê a confirmação (CPF ou CNPJ) no terminal sem eco. A CLI usa só esta fachada, não o cofre (matriz 1.1, DA-2.59).
@@ -64,7 +64,7 @@ std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& 
                                                           const QString& promptSenha);
 
 /// Mesma emissão, com o assinador vindo da fábrica (DA-2.56: a revalidação depois de assinar é testada com um assinador falso).
-std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, nl::foundation::pkcs12::SenhaSegura& senha,
+std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, nl::foundation::pkcs12::SenhaSegura&& senha,
                                                            RegistroCli& registro, const FabricaAssinador& fabrica);
 
 } // namespace nl::mid::composicao

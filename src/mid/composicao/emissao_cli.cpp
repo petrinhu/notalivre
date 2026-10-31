@@ -156,7 +156,7 @@ FalhaEmissao recusada(RegistroCli& registro, const bk::IdDps& idDps, FalhaEmissa
 
 } // namespace
 
-std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, fp::SenhaSegura& senha, RegistroCli& registro,
+std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, fp::SenhaSegura&& senha, RegistroCli& registro,
                                                            const FabricaAssinador& fabrica)
 {
     // 1. DPS de entrada: JSON validado no XSD. Reprovação vem com o primeiro código do validador.
@@ -178,7 +178,7 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     }
     const QByteArray pfx = lerArquivo(pedido.caminhoCertificado);
     fp::CarregadorPkcs12 carregador;
-    auto credencial = carregador.carregar(pfx, senha, *ancoras);
+    auto credencial = carregador.carregarConsumindo(pfx, std::move(senha), *ancoras);
     if (!credencial) {
         return std::unexpected(recusada(registro, *idDps, falha("credencial.nao_carregou", "o certificado não carregou com a senha informada")));
     }
@@ -228,15 +228,15 @@ std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& 
     if (!senha) {
         return std::unexpected(falha("cofre.senha_ausente", "senha ausente: sem terminal de controle, a CLI não lê a senha"));
     }
-    return emitirDpsPelaCli(pedido, *senha, registro);
+    return emitirDpsPelaCli(pedido, std::move(*senha), registro);
 }
 
-std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, fp::SenhaSegura& senha, RegistroCli& registro)
+std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, fp::SenhaSegura&& senha, RegistroCli& registro)
 {
     const FabricaAssinador fabrica = [](const fp::CredencialX509& credencial) -> std::unique_ptr<nl::back::AssinadorDps> {
         return std::make_unique<nl::mid::sefin::assinatura::AssinadorDpsSefin>(credencial);
     };
-    return emitirDpsComAssinador(pedido, senha, registro, fabrica);
+    return emitirDpsComAssinador(pedido, std::move(senha), registro, fabrica);
 }
 
 } // namespace nl::mid::composicao
