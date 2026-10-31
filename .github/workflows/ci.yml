@@ -62,6 +62,8 @@ jobs:
           apt-get install -y -qq --no-install-recommends git ca-certificates
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # NL-2.14 (DA-2.63, R5-3): histórico inteiro para o merge-base com a onda-2 no resumo do job
 
       - name: Ferramentas de build (mesmo script do Dockerfile)
         run: |
@@ -162,7 +164,20 @@ jobs:
         if: ${{ always() && steps.ctest.outcome != 'skipped' }}
         env:
           NL_DISTRO: ${{ matrix.distro }}
-        run: sh tools/portoes/pulos_testes.sh "$NL_TMP_BASE/notalivre-build/debug" "$NL_DISTRO" tests/pulos_esperados_por_distro.txt
+          NL_BASE_REF: origin/onda-2
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
+          sh tools/portoes/pulos_testes.sh "$NL_TMP_BASE/notalivre-build/debug" "$NL_DISTRO" tests/pulos_esperados_por_distro.txt
+
+      # NL-2.14 (DA-2.63, R5-3): diff das listas e contagens contra o merge-base com a onda-2, no resumo do job. O checkout acima
+      # traz o histórico inteiro (fetch-depth 0); NL_BASE_REF aponta para o ref da onda-2 que esse checkout baixa.
+      - name: "Diff das listas e contagens contra a onda-2 (NL-2.14, DA-2.63 R5-3)"
+        if: ${{ always() }}
+        env:
+          NL_BASE_REF: origin/onda-2
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
+          sh tools/portoes/resumo_listas.sh .
 
       # DA-2.60 (item 2, NL-2.11): mutante CERT_OPTIONAL no servidor falso, em onda-*, main e PR (não em fatia/*). Roda numa cópia do SHA fora do
       # workspace; o slot transporte.semCertificadoDeClienteHandshakeRecusado tem de morrer. A contagem vai para o resumo
