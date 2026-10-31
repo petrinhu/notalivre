@@ -25,7 +25,21 @@ foreach(nome IN ITEMS
     portaoSha1MarkdownSrcReprova
     portaoSha1TesteXmldsigPermitidoPeloCaminhoExato
     portaoSha1OutroTesteDoXmldsigReprova
+    portaoSha1BuildDeclaradoComArgumentoNaoReprova
+    portaoSha1BuildVersionadoSemArgumentoReprova
+    portaoSha1BuildDeclaradoNaoCegaSrcBuild
+    portaoSha1ArgumentoSemCacheProprioRecusado
+    portaoSha1ArgumentoCacheDeOutraPastaRecusado
+    portaoSha1ArgumentoForaDaRaizRecusado
     ciHigieneLigaPortaoSha1)
   add_test(NAME portoes.${nome}
            COMMAND Python3::Interpreter -I "${NL_TESTE_PORTAO_SHA1}" "test_${nome}")
 endforeach()
+
+# Exceção 5 do portão (CISO, DA-2.62 recusada): o CTest passa o CMAKE_BINARY_DIR ao portão só quando o build está DENTRO
+# da árvore (Flatpak, cmake -B _build na raiz). Fora da árvore (CI nativo, build_local), o teste roda sem argumento.
+string(FIND "${CMAKE_BINARY_DIR}" "${CMAKE_SOURCE_DIR}/" NL_POS_BUILD_NA_ARVORE)
+if(NL_POS_BUILD_NA_ARVORE EQUAL 0)
+  set_tests_properties(portoes.portaoSha1ArvoreRealLimpa PROPERTIES
+                       ENVIRONMENT "NL_BUILD_DIR=${CMAKE_BINARY_DIR}")
+endif()

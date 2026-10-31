@@ -161,7 +161,11 @@ jobs:
       - name: Mutante CERT_OPTIONAL no servidor falso (DA-2.60, cópia fora do workspace)
         id: mutante_mtls
         if: matrix.distro == 'ubuntu26.04'
-        run: bash tools/mutacao/mutante_mtls.sh "$GITHUB_WORKSPACE" "$GITHUB_SHA" "$RUNNER_TEMP/mutante-mtls"
+        run: |
+          # Run 41179570887: "fatal: detected dubious ownership in repository". O .git é do usuário do runner, e este passo
+          # roda como outro usuário no contêiner. Confiança declarada só para este caminho, no mesmo padrão dos portões.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          bash tools/mutacao/mutante_mtls.sh "$GITHUB_WORKSPACE" "$GITHUB_SHA" "$RUNNER_TEMP/mutante-mtls"
 
       # A0-05 (L-36): o build nativo tem de REPROVAR uma sabotagem do próprio tst_sanidade, pelo motivo esperado.
       # Roda no mesmo contêiner, sobre uma cópia em NL_TMP_BASE. Este step passa só se a sabotagem reprovar.
