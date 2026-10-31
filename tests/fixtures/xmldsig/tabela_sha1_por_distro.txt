@@ -10,3 +10,7 @@ manjaro rolling sha1
 linuxmint 22.3 sha1
 # A imagem linuxmintd/mint22.3 declara ubuntu 24.04 no /etc/os-release (medido no build verde 65e51f8).
 ubuntu 24.04 sha1
+# Runtime KDE 6.11 do Flatpak (org.kde.Platform 6.11). O ID e a versão são os do /etc/os-release do runtime implantado,
+# lidos do arquivo files/etc/os-release (NL-2.3, passo 0). O OpenSSL 3.5.7 do runtime assina SHA-1 sem a variável
+# (NL-2.3, passo 0), e o slot assinaSha1NoSdkKdeSemVariavel passou no job Flatpak do CI (c6f4f3a).
+org.kde.Platform 6.11 sha1

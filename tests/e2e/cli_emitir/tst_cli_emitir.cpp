@@ -3,6 +3,8 @@
 // E2E de `notalivre emitir` contra o servidor falso (NL-2.9, DA-2.44 e DA-2.45). A CLI roda como o usuário a roda, num
 // pseudo-terminal que este teste cria: a senha é digitada no prompt e nunca vai por argv nem por ambiente. Só fixtures
 // sintéticas (NL_CERTIFICADOS_DIR, certificados de teste da NL-2.1). Nenhum .pfx do líder.
+#include <nl/teste/tabela_sha1_distro.h>
+
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
@@ -32,31 +34,13 @@ const QString kXsd = QStringLiteral(NL_XSD_EMITIR);
 const QString kManifesto = QStringLiteral(NL_MANIFESTO_EMITIR);
 const QString kTabelaSha1 = QStringLiteral(NL_TABELA_SHA1_EMITIR);
 
-// Expectativa do assinador para a distro desta máquina (DA-2.38, tabela versionada): "sha1" ou "algoritmo_bloqueado". Vazio
-// quando a distro não está na tabela, e o teste reprova (DA-2.40, item 1).
 QByteArray lerArquivo(const QString& caminho);
 
+// Expectativa do assinador para a distro desta máquina (DA-2.38), lida da tabela versionada pelo auxiliar único (DA-2.61):
+// "sha1" ou "algoritmo_bloqueado". Vazio quando a distro não está na tabela, e o teste reprova (DA-2.40, item 1).
 QString esperadoDaDistro()
 {
-    QString id;
-    QString versao = QStringLiteral("rolling");
-    for (const QString& linha : QString::fromUtf8(lerArquivo(QStringLiteral("/etc/os-release"))).split(QLatin1Char('\n'))) {
-        if (linha.startsWith(QStringLiteral("ID="))) {
-            id = linha.mid(3).remove(QLatin1Char('"'));
-        } else if (linha.startsWith(QStringLiteral("VERSION_ID="))) {
-            versao = linha.mid(11).remove(QLatin1Char('"'));
-        }
-    }
-    for (const QString& linha : QString::fromUtf8(lerArquivo(kTabelaSha1)).split(QLatin1Char('\n'))) {
-        const QStringList campos = linha.simplified().split(QLatin1Char(' '));
-        if (linha.startsWith(QLatin1Char('#')) || campos.size() != 3) {
-            continue;
-        }
-        if (campos.at(0) == id && campos.at(1) == versao) {
-            return campos.at(2);
-        }
-    }
-    return QString();
+    return nl::teste::expectativaSha1DaDistroAtual(kTabelaSha1);
 }
 
 QByteArray lerArquivo(const QString& caminho)
@@ -211,7 +195,7 @@ void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada, con
 }
 
 // Emissão contra o servidor falso com uma falha no POST /nfse (DA-2.59, E0014). A distro com SHA-1 bloqueado nunca chega ao POST.
-Execucao emitirContraServidorComFalhaNoPost(const QString& falha)
+Execucao emitirContraServidorComFalhaNoPost(const QString& falha, int* requisicoes = nullptr)
 {
     QTemporaryDir configDir;
     ServidorFalso servidor(falha);
@@ -226,8 +210,26 @@ Execucao emitirContraServidorComFalhaNoPost(const QString& falha)
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
                                  QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
-    return rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    if (requisicoes != nullptr) {
+        *requisicoes = servidor.requisicoesAoFechar();
+    }
+    return execucao;
 }
+
+namespace {
+
+// DA-2.38 e DA-2.61: nesta distro o SHA-1 é recusado, então a CLI sai com 1 e o código da tabela, e nenhuma requisição chega
+// ao servidor. Vale para os slots que, na distro que aceita o SHA-1, chegariam ao POST; o comportamento completo continua
+// testado nas outras três imagens.
+void exigeRecusaSha1SemEnvio(const Execucao& execucao, int requisicoesRecebidas)
+{
+    QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("assinatura.algoritmo_bloqueado"), "nesta distro, a assinatura SHA-1 tem de ser recusada pelo código da tabela");
+    QCOMPARE(requisicoesRecebidas, 0);
+}
+
+} // namespace
 
 class TstCliEmitir : public QObject
 {
@@ -395,30 +397,36 @@ void TstCliEmitir::cliRecusaDpsInvalidaSemPost()
 
 void TstCliEmitir::e0014DaMesmaDpsRecuperaAChave()
 {
+    int requisicoes = -1;
+    const Execucao execucao = emitirContraServidorComFalhaNoPost(QStringLiteral("rejeicao_gerada:E0014"), &requisicoes);
     if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
-        QSKIP("distro com SHA-1 bloqueado: a emissão não chega ao POST (DA-2.38)");
+        exigeRecusaSha1SemEnvio(execucao, requisicoes);
+        return;
     }
-    const Execucao execucao = emitirContraServidorComFalhaNoPost(QStringLiteral("rejeicao_gerada:E0014"));
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("emitida: chave "), "o mesmo infDPS tem de recuperar a chave da nota");
 }
 
 void TstCliEmitir::e0014ComInfDpsDiferenteSaiComCinco()
 {
+    int requisicoes = -1;
+    const Execucao execucao = emitirContraServidorComFalhaNoPost(QStringLiteral("rejeicao_gerada_diferente:E0014"), &requisicoes);
     if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
-        QSKIP("distro com SHA-1 bloqueado: a emissão não chega ao POST (DA-2.38)");
+        exigeRecusaSha1SemEnvio(execucao, requisicoes);
+        return;
     }
-    const Execucao execucao = emitirContraServidorComFalhaNoPost(QStringLiteral("rejeicao_gerada_diferente:E0014"));
     QVERIFY2(execucao.codigo == 5, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("sefin.dps_duplicada"), "o infDPS diferente tem de sair como DPS duplicada");
 }
 
 void TstCliEmitir::e0014SemComparacaoSaiComSete()
 {
+    int requisicoes = -1;
+    const Execucao execucao = emitirContraServidorComFalhaNoPost(QStringLiteral("rejeicao_gerada_sem_comparacao:E0014"), &requisicoes);
     if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
-        QSKIP("distro com SHA-1 bloqueado: a emissão não chega ao POST (DA-2.38)");
+        exigeRecusaSha1SemEnvio(execucao, requisicoes);
+        return;
     }
-    const Execucao execucao = emitirContraServidorComFalhaNoPost(QStringLiteral("rejeicao_gerada_sem_comparacao:E0014"));
     QVERIFY2(execucao.codigo == 7, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("sefin.comparacao_indisponivel"), "a comparação impossível tem de sair com o código de comparação indisponível");
 }
@@ -440,9 +448,6 @@ bool permissaoSoDoDono(const QString& caminho)
 
 void TstCliEmitir::respostaCruaGravadaParaAnalise()
 {
-    if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
-        QSKIP("distro com SHA-1 bloqueado: a emissão não chega ao POST (DA-2.38)");
-    }
     QTemporaryDir configDir;
     QVERIFY(configDir.isValid());
     ServidorFalso servidor;
@@ -454,6 +459,12 @@ void TstCliEmitir::respostaCruaGravadaParaAnalise()
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
                                  QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
+        exigeRecusaSha1SemEnvio(execucao, servidor.requisicoesAoFechar());
+        QVERIFY2(QDir(configDir.path() + QStringLiteral("/state/notalivre/respostas")).entryList({QStringLiteral("*.json")}, QDir::Files).isEmpty(),
+                 "nesta distro nada chega ao POST, e não pode haver resposta crua gravada");
+        return;
+    }
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     const QDir pasta(configDir.path() + QStringLiteral("/state/notalivre/respostas"));
     const QStringList arquivos = pasta.entryList({QStringLiteral("*.json")}, QDir::Files);

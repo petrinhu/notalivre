@@ -2,9 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Testes do codec XML da DPS (NL-1.6b): QtTest sobre os tipos do Back, validação pelo ValidadorXsd e oráculo xmllint.
 # Fixtures em tests/fixtures/dps: saída do próprio codec, byte a byte (o QtTest fixturesDpsIguaisAoCodec confere).
-# Regeração (no contêiner, como a suíte): tools/conteiner/build_local.sh fedora44 debug roda o CTest gera_fixtures_dps,
-# que grava em <build>/fixtures_dps. Depois, revisar o diff e copiar: cp <build>/fixtures_dps/*.xml tests/fixtures/dps/
-# (o build do contêiner fica em /var/tmp/notalivre-build-fedora44/debug no host).
+# Regeração (fora do CTest, DA-2.61): cmake --build <build> --target gera_fixtures_dps, depois
+# <build>/tests/tools/gera_fixtures_dps/gera_fixtures_dps <pasta de saída>. Revisar o diff e copiar para tests/fixtures/dps/.
 add_executable(tst_codec_dps tst_codec_dps.cpp)
 # Os limites da pasta do leiaute são lidos direto pelo teste (kLimiteXDescServ, kVersaoLeiaute), sem constante copiada.
 target_include_directories(tst_codec_dps PRIVATE ${CMAKE_SOURCE_DIR}/src/mid/sefin/leiaute/prodrest_20261020)
@@ -21,10 +20,6 @@ add_test(NAME tst_codec_dps COMMAND tst_codec_dps)
 add_executable(tst_envelope_dps tst_envelope_dps.cpp)
 target_link_libraries(tst_envelope_dps PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_base nl_warnings)
 add_test(NAME tst_envelope_dps COMMAND tst_envelope_dps)
-
-# Geração das fixtures (fora da suíte normal): grava os XML do codec no diretório de build, de onde são copiados para a árvore.
-add_test(NAME gera_fixtures_dps COMMAND tst_codec_dps geraFixturesDps)
-set_tests_properties(gera_fixtures_dps PROPERTIES ENVIRONMENT "NL_FIXTURES_DPS_SAIDA=${CMAKE_BINARY_DIR}/fixtures_dps")
 
 # Oráculo independente: xmllint --schema sobre as mesmas fixtures; o mesmo script do validador da NL-1.6a (régua por nome).
 find_program(NL_XMLLINT_DPS xmllint REQUIRED)

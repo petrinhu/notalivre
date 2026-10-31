@@ -15,7 +15,7 @@ find_program(NL_XMLSEC1_EMITIR xmlsec1 REQUIRED)
 
 add_executable(tst_cli_emitir tst_cli_emitir.cpp)
 add_dependencies(tst_cli_emitir notalivre-cli)
-target_link_libraries(tst_cli_emitir PRIVATE Qt6::Core Qt6::Test util nl_warnings)
+target_link_libraries(tst_cli_emitir PRIVATE Qt6::Core Qt6::Test util nl_warnings nl_teste_apoio)
 target_compile_definitions(tst_cli_emitir PRIVATE
     "NL_CLI_EMITIR=\"$<TARGET_FILE:notalivre-cli>\""
     "NL_LANCADOR_EMITIR=\"${CMAKE_SOURCE_DIR}/tools/servidor_falso/lancador.py\""
@@ -45,6 +45,6 @@ foreach(nome IN ITEMS
                          FIXTURES_REQUIRED certificados_teste
                          DEPENDS cli.limpaLogsPii
                          ENVIRONMENT "${NL_AMBIENTE_E2E_EMITIR}"
-                         PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed"
+                         PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed, 0 skipped"
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
