@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Leitura do terminal sem eco (NL-2.9, itens 2 e 3). Ver terminal_sem_eco.h. O buffer de leitura é zerado logo depois do uso.
+#include <nl/mid/cofre/senha_do_terminal.h>
 #include <nl/mid/cofre/terminal_sem_eco.h>
 
 #include <openssl/crypto.h>

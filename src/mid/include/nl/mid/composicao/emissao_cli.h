@@ -5,8 +5,6 @@
 #ifndef NL_MID_COMPOSICAO_EMISSAO_CLI_H
 #define NL_MID_COMPOSICAO_EMISSAO_CLI_H
 
-#include <nl/back/ports/assinador_dps.h>
-#include <nl/foundation/pkcs12/credencial_x509.h>
 #include <nl/mid/composicao/dps_validar.h>
 
 #include <QByteArray>
@@ -19,6 +17,10 @@
 
 namespace nl::foundation::pkcs12 {
 class SenhaSegura;
+class CredencialX509;
+}
+namespace nl::back {
+class AssinadorDps;
 }
 
 namespace nl::mid::composicao {
@@ -51,6 +53,11 @@ using FabricaAssinador = std::function<std::unique_ptr<nl::back::AssinadorDps>(c
 /// A senha é consumida: o carregador a zera (NL-2.9, item 3). O registro recebe o evento da emissão (DA-2.54).
 std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, nl::foundation::pkcs12::SenhaSegura& senha,
                                                       RegistroCli& registro);
+
+/// Lê a senha do terminal sem eco e emite (NL-2.9, item 3): a senha nunca sai desta fachada. Sem terminal de controle, sai com
+/// cofre.senha_ausente, que a CLI traduz para o código 2.
+std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& pedido, RegistroCli& registro,
+                                                          const QString& promptSenha);
 
 /// Mesma emissão, com o assinador vindo da fábrica (DA-2.56: a revalidação depois de assinar é testada com um assinador falso).
 std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, nl::foundation::pkcs12::SenhaSegura& senha,

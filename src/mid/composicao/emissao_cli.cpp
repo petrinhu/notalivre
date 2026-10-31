@@ -16,6 +16,7 @@
 #include <nl/mid/sefin/assinatura/assinador_dps_sefin.h>
 #include <nl/mid/composicao/confirmacao_inscricao.h>
 #include <nl/mid/composicao/registro_cli.h>
+#include <nl/mid/cofre/senha_do_terminal.h>
 #include <nl/foundation/pkcs12/ancoras.h>
 #include <nl/foundation/pkcs12/carregador_pkcs12.h>
 #include <nl/foundation/pkcs12/credencial_x509.h>
@@ -203,6 +204,15 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     }
     registro.registrarEmissaoAceita(idDps->texto().toStdString(), nota->chave.texto().toStdString());
     return nota->chave.texto();
+}
+
+std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& pedido, RegistroCli& registro, const QString& promptSenha)
+{
+    auto senha = nl::mid::cofre::lerSenhaDoTerminal(promptSenha);
+    if (!senha) {
+        return std::unexpected(falha("cofre.senha_ausente", "senha ausente: sem terminal de controle, a CLI não lê a senha"));
+    }
+    return emitirDpsPelaCli(pedido, *senha, registro);
 }
 
 std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, fp::SenhaSegura& senha, RegistroCli& registro)

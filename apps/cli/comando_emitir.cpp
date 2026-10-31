@@ -77,13 +77,6 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
             return 1;
         }
     }
-    // A senha só entra pelo terminal, sem eco. Sem terminal de controle, a CLI não emite.
-    auto senhaSegura = nl::mid::cofre::lerSenhaDoTerminal(QStringLiteral("senha do certificado: "));
-    if (!senhaSegura) {
-        erro << QStringLiteral("senha ausente: sem terminal de controle, a CLI não lê a senha") << Qt::endl;
-        return 2;
-    }
-
     nl::mid::composicao::PedidoEmissao pedido{
         arquivoDps.readAll(),
         nl::mid::composicao::LocalizacaoEsquemaDps{config->xsdDiretorio, config->xsdManifesto},
@@ -92,8 +85,13 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         config->ancoras,
         confirmacao.value_or(QString()),
     };
-    const auto chave = nl::mid::composicao::emitirDpsPelaCli(pedido, *senhaSegura, registro);
+    // A senha só entra pelo terminal, sem eco, dentro da fachada: a CLI nunca a vê (DA-2.57b).
+    const auto chave = nl::mid::composicao::emitirDpsPeloTerminal(pedido, registro, QStringLiteral("senha do certificado: "));
     if (!chave) {
+        if (chave.error().codigo == "cofre.senha_ausente") {
+            erro << QString::fromStdString(chave.error().mensagem) << Qt::endl;
+            return 2;
+        }
         erro << QStringLiteral("emissão recusada (%1): %2")
                     .arg(QString::fromStdString(chave.error().codigo), QString::fromStdString(chave.error().mensagem))
              << Qt::endl;
