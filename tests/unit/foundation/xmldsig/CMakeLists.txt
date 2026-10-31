@@ -85,12 +85,8 @@ foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
-# Marca do piso de HTTP (CISO, 10:02): o slot contextoDoParserBloqueiaRede grava a situação (afirmou ou rodou, com a versão
-# da libxml2) no arquivo do piso na pasta de build, lido por tools/conteiner/piso_http_libxml.sh. Não pula mais (NL-2.14).
-if(NOT NL_FLATPAK_BUILD)
-    set_property(TEST xmldsig.contextoDoParserBloqueiaRede APPEND PROPERTY ENVIRONMENT
-                 "NL_PISO_HTTP_ARQ=${CMAKE_BINARY_DIR}/piso_http_contextoDoParser.txt")
-endif()
+# O slot contextoDoParserBloqueiaRede não pula mais e não grava marca em arquivo (NL-2.14, MÉDIA-2): a obrigação de rodar nas
+# imagens nativas é de tests/testes_obrigatorios_por_distro.txt, conferida pelo portão de registro.
 
 # DA-2.40 (adendo): o contexto próprio ignora a configuração global. Processo próprio do CTest, com OPENSSL_CONF do arquivo
 # de teste. Só no build nativo: o Flatpak não tem o material de teste nem o xmlsec1 (NL_FLATPAK_BUILD, DA-2.28).

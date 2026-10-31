@@ -76,19 +76,6 @@ QString caminhoTabelaHttp() {
     return qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/tabela_http_por_distro.txt");
 }
 
-// Piso de HTTP (CISO, 10:02): grava a situação do teste (rodou ou pulou, com o motivo) no arquivo que a variável
-// NL_PISO_HTTP_ARQ aponta, na pasta de build da imagem. Sobrescreve a cada execução. Sem a variável, não grava nada.
-void registrarPisoHttp(const QString& situacao) {
-    const QString arquivo = qEnvironmentVariable("NL_PISO_HTTP_ARQ");
-    if (arquivo.isEmpty()) {
-        return;
-    }
-    QFile piso(arquivo);
-    if (piso.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        piso.write(situacao.toUtf8() + "\n");
-    }
-}
-
 const QByteArray kIdDps = "DPS430510821122233300018100001000000000000001";
 const char kC14n[] = "http://www.w3.org/TR/2001/REC-xml-c14n-20010315";
 const char kEnveloped[] = "http://www.w3.org/2000/09/xmldsig#enveloped-signature";
@@ -859,8 +846,8 @@ private slots:
     // nunca de nome de distro no código, e o teste nunca pula. Onde a tabela diz sem_http, afirma que a libxml2 não tem cliente
     // HTTP (xmlHasFeature(XML_WITH_HTTP) == 0): a propriedade que o CISO protege, o parser não acessar a rede, fica provada pela
     // ausência do cliente. Onde diz com_http, prova o bloqueio de rede com o ouvinte local. Sem linha para a distro, ou com a
-    // linha contrária à libxml2 da imagem, reprova. O piso (CISO, 10:02) fica em tabelaHttpTemLinhaQueBloqueiaRede, e a marca
-    // deste teste vai para o arquivo do piso, lido por tools/conteiner/piso_http_libxml.sh.
+    // linha contrária à libxml2 da imagem, reprova. O piso (CISO, 10:02) fica em tabelaHttpTemLinhaQueBloqueiaRede e, na
+    // obrigação por imagem, em tests/testes_obrigatorios_por_distro.txt (NL-2.14, MÉDIA-2): este slot tem de passar nas imagens nativas.
     void contextoDoParserBloqueiaRede() {
         const QByteArray expectativa = valorDaDistroAtual(caminhoTabelaHttp()).toUtf8();
         const QByteArray aviso = "a distro atual não tem linha com_http ou sem_http em tests/fixtures/xmldsig/tabela_http_por_distro.txt";
@@ -868,8 +855,6 @@ private slots:
         const bool temHttp = xmlHasFeature(XML_WITH_HTTP) != 0;
         if (expectativa == "sem_http") {
             QVERIFY2(!temHttp, "a tabela diz sem_http, mas a libxml2 desta imagem tem cliente HTTP: a tabela está errada");
-            registrarPisoHttp(QStringLiteral("afirmou libxml2 %1 sem cliente HTTP: xmlHasFeature(XML_WITH_HTTP) == 0")
-                                  .arg(QStringLiteral(LIBXML_DOTTED_VERSION)));
             return;
         }
         QVERIFY2(temHttp, "a tabela diz com_http, mas a libxml2 desta imagem não tem cliente HTTP: a tabela está errada");
@@ -877,9 +862,6 @@ private slots:
         // Com HTTP, mas em 2.13/2.14: a API aditiva de opções não foi medida nesta suíte. Falha com o motivo, sem pular.
         QFAIL("libxml2 2.13/2.14 com HTTP: a API de opções aditiva não foi medida nesta suíte; medir antes de marcar com_http");
 #else
-        registrarPisoHttp(QStringLiteral("rodou libxml2 %1 em %2 %3")
-                              .arg(QStringLiteral(LIBXML_DOTTED_VERSION), campoDoOsRelease(QStringLiteral("ID")),
-                                   campoDoOsRelease(QStringLiteral("VERSION_ID"))));
         OuvinteTcp ouvinte;
         QVERIFY2(ouvinte.porta() != 0, "o ouvinte TCP local tem de subir");
         const QByteArray url = "http://127.0.0.1:" + QByteArray::number(ouvinte.porta()) + "/dtd.dtd";
