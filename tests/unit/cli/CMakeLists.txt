@@ -60,3 +60,17 @@ nl_registra_teste_qt(NAME cli.comandoConfig.configCertificadoGravaACaminho COMMA
 set_tests_properties(cli.comandoConfig.configCertificadoGravaACaminho PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 nl_registra_teste_qt(NAME cli.comandoConfig.configCertificadoIlegivelSaiComDezSemGravar COMMAND tst_comando_config configCertificadoIlegivelSaiComDezSemGravar)
 set_tests_properties(cli.comandoConfig.configCertificadoIlegivelSaiComDezSemGravar PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+# Instalação do bundle (NL-2.10b, passo 1; emenda 1 do CTO): `cmake --install` do build para um prefixo temporário,
+# com o SHA-256 de cada XSD, raiz ICP e binário conferido. Os caminhos de origem vêm do CMake de third_party.
+add_executable(tst_instalacao_bundle tst_instalacao_bundle.cpp)
+target_link_libraries(tst_instalacao_bundle PRIVATE Qt6::Core Qt6::Test nl_warnings)
+target_compile_definitions(tst_instalacao_bundle PRIVATE
+    "NL_CMAKE=\"${CMAKE_COMMAND}\""
+    "NL_DIRETORIO_BUILD=\"${CMAKE_BINARY_DIR}\""
+    "NL_ICP_MANIFESTO=\"${NL_ICP_RAIZES_MANIFESTO}\""
+    "NL_XSD_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\"")
+foreach(nome IN ITEMS raizesIcpInstaladasNoBundle xsdInstaladosNoBundle)
+  nl_registra_teste_qt(NAME cli.bundle.${nome} COMMAND tst_instalacao_bundle ${nome})
+  set_tests_properties(cli.bundle.${nome} PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()
