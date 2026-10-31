@@ -31,6 +31,8 @@ class TstComandoConfig : public QObject
 private slots:
     // notalivre config certificado <caminho> confere o arquivo, grava [certificado] caminho e preserva as outras chaves.
     void configCertificadoGravaACaminho();
+    // NL-2.10a, rodada 2 (QA, item 3): arquivo inexistente ou sem leitura sai com 10 e não grava nada no config.ini (M6 do QA).
+    void configCertificadoIlegivelSaiComDezSemGravar();
 };
 
 void TstComandoConfig::configCertificadoGravaACaminho()
@@ -55,6 +57,34 @@ void TstComandoConfig::configCertificadoGravaACaminho()
     QVERIFY2(texto.contains(QStringLiteral("[certificado]\ncaminho = %1\n").arg(pfx)), "o caminho tem de ficar em [certificado] caminho");
     QVERIFY2(texto.contains(QStringLiteral("url = https://127.0.0.1:9443")), "a chave [sefin] url tem de ser preservada");
     QVERIFY2(texto.contains(QStringLiteral("diretorio = /tmp/xsd")), "a chave [xsd] diretorio tem de ser preservada");
+}
+
+void TstComandoConfig::configCertificadoIlegivelSaiComDezSemGravar()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    qputenv("XDG_CONFIG_HOME", pasta.path().toUtf8());
+    QVERIFY(QDir().mkpath(pasta.filePath(QStringLiteral("notalivre"))));
+    const QString arquivoConfig = pasta.filePath(QStringLiteral("notalivre/config.ini"));
+    QFile config(arquivoConfig);
+    QVERIFY(config.open(QIODevice::WriteOnly | QIODevice::Text));
+    config.write("[sefin]\nurl = https://127.0.0.1:9443\n");
+    config.close();
+    const QString antes = lerTexto(arquivoConfig);
+
+    // Caso 1: o arquivo não existe.
+    QCOMPARE(nl::cli::executarConfig({QStringLiteral("config"), QStringLiteral("certificado"), pasta.filePath(QStringLiteral("inexistente.pfx"))}), 10);
+
+    // Caso 2: o arquivo existe, mas o dono não tem leitura nele.
+    const QString semLeitura = pasta.filePath(QStringLiteral("sem_leitura.pfx"));
+    QFile certificado(semLeitura);
+    QVERIFY(certificado.open(QIODevice::WriteOnly));
+    certificado.write("conteudo que o comando não pode ler");
+    certificado.close();
+    QVERIFY(QFile::setPermissions(semLeitura, QFileDevice::WriteOwner));
+    QCOMPARE(nl::cli::executarConfig({QStringLiteral("config"), QStringLiteral("certificado"), semLeitura}), 10);
+
+    QCOMPARE(lerTexto(arquivoConfig), antes);
 }
 
 QTEST_APPLESS_MAIN(TstComandoConfig)

@@ -44,7 +44,10 @@ foreach(nome IN ITEMS
     prefixoAusenteSaiComDez
     caminhoDoCertificadoVemDaConfiguracao
     certificadoIlegivelSaiComDezEInstrucao
-    caminhoDoCertificadoNuncaVaiAoLog)
+    caminhoDoCertificadoNuncaVaiAoLog
+    algoritmoRsaSha256NoXmlEnviado
+    algoritmoRsaSha1NoXmlPadrao
+    ancorasTlsSozinhasValidamOServidor)
     nl_registra_teste_qt(NAME e2e.cliEmitir.${nome} COMMAND tst_cli_emitir ${nome})
     set_tests_properties(e2e.cliEmitir.${nome} PROPERTIES
                          FIXTURES_REQUIRED certificados_teste

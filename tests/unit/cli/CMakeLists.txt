@@ -58,3 +58,5 @@ target_include_directories(tst_comando_config PRIVATE ${CMAKE_SOURCE_DIR}/apps/c
 target_link_libraries(tst_comando_config PRIVATE Qt6::Core Qt6::Test nl_warnings)
 nl_registra_teste_qt(NAME cli.comandoConfig.configCertificadoGravaACaminho COMMAND tst_comando_config configCertificadoGravaACaminho)
 set_tests_properties(cli.comandoConfig.configCertificadoGravaACaminho PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+nl_registra_teste_qt(NAME cli.comandoConfig.configCertificadoIlegivelSaiComDezSemGravar COMMAND tst_comando_config configCertificadoIlegivelSaiComDezSemGravar)
+set_tests_properties(cli.comandoConfig.configCertificadoIlegivelSaiComDezSemGravar PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")

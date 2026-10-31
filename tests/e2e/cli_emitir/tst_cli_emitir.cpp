@@ -110,6 +110,13 @@ public:
         }
         return {};
     }
+    /// URI do Algorithm do SignatureMethod de cada POST /nfse que chegou (NL-2.10a, rodada 2). Stub: ainda não lê o servidor.
+    QStringList algoritmosAoFechar()
+    {
+        processo_.closeWriteChannel();
+        processo_.waitForFinished(5000);
+        return {};
+    }
     int porta() const { return porta_; }
     QString diagnostico() const { return diagnostico_; }
 
@@ -283,6 +290,12 @@ private slots:
     void certificadoIlegivelSaiComDezEInstrucao();
     // NL-2.10a, passo 5: o caminho do certificado não aparece na saída da CLI (pode conter nome de pessoa).
     void caminhoDoCertificadoNuncaVaiAoLog();
+    // NL-2.10a, rodada 2 (QA, item 1): o XML que chega ao servidor leva o URI rsa-sha256 quando a configuração pede rsa-sha256.
+    void algoritmoRsaSha256NoXmlEnviado();
+    // NL-2.10a, rodada 2 (QA, item 1): sem [assinatura], o XML leva rsa-sha1 (padrão); no fedora44 a política recusa antes do envio.
+    void algoritmoRsaSha1NoXmlPadrao();
+    // NL-2.10a, rodada 2 (QA, item 2): as âncoras do servidor TLS são as da chave ancoras_tls, não as do A1 (M3 do QA).
+    void ancorasTlsSozinhasValidamOServidor();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -619,6 +632,73 @@ void TstCliEmitir::caminhoDoCertificadoNuncaVaiAoLog()
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(!execucao.saida.contains(caminho.toUtf8()), "o caminho do .pfx não pode aparecer na saída da CLI");
     QVERIFY2(!execucao.saida.contains("cnpj_ok.pfx"), "nem o nome do arquivo");
+}
+
+void TstCliEmitir::algoritmoRsaSha256NoXmlEnviado()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"), kCertificados + QStringLiteral("/cnpj_ok.pfx"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
+    // INFERÊNCIA: o URI vem do RFC 4051, §2.3.2 (xmldsig-more#rsa-sha256), e é o do SignatureMethod exigido pelo W3C XMLDSig §4.4.2.
+    QCOMPARE(servidor.algoritmosAoFechar(), QStringList{QStringLiteral("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")});
+}
+
+void TstCliEmitir::algoritmoRsaSha1NoXmlPadrao()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QString(), kCertificados + QStringLiteral("/cnpj_ok.pfx"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
+        exigeRecusaSha1SemEnvio(execucao, servidor.requisicoesAoFechar());
+        return;
+    }
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QCOMPARE(servidor.algoritmosAoFechar(), QStringList{QStringLiteral("http://www.w3.org/2000/09/xmldsig#rsa-sha1")});
+}
+
+void TstCliEmitir::ancorasTlsSozinhasValidamOServidor()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    // Âncoras do servidor TLS vazias: a conexão tem de ser recusada, mesmo com o A1 válido. Se o código trocar as âncoras do A1
+    // pelas do TLS, a conexão passa e o teste reprova (M3 do QA).
+    const QString vazio = configDir.filePath(QStringLiteral("tls_vazio.pem"));
+    QFile semAncora(vazio);
+    QVERIFY(semAncora.open(QIODevice::WriteOnly));
+    semAncora.close();
+    QVERIFY(QDir().mkpath(configDir.filePath(QStringLiteral("notalivre"))));
+    QFile config(configDir.filePath(QStringLiteral("notalivre/config.ini")));
+    QVERIFY(config.open(QIODevice::WriteOnly | QIODevice::Text));
+    config.write(QStringLiteral("[sefin]\nurl = https://127.0.0.1:%1\nprefixo = /SefinNacional\nancoras_tls = %2\n"
+                                "[certificado]\nancoras = %3/ac.pem\ncaminho = %3/cnpj_ok.pfx\n"
+                                "[xsd]\ndiretorio = %4\nmanifesto = %5\n[emissao]\nproducao_liberada = false\n"
+                                "[assinatura]\nalgoritmo = rsa-sha256\n")
+                     .arg(servidor.porta())
+                     .arg(vazio)
+                     .arg(kCertificados)
+                     .arg(kXsd)
+                     .arg(kManifesto)
+                     .toUtf8());
+    config.close();
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo != 0, qPrintable(QStringLiteral("a conexão tinha de ser recusada; rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(!execucao.saida.contains("emitida: chave "), "sem âncora TLS, nenhuma NFS-e pode sair como emitida");
+    QCOMPARE(servidor.requisicoesAoFechar(), 0);
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)
