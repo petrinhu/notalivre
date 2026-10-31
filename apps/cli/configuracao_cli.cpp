@@ -39,6 +39,18 @@ QString caminhoConfiguracao()
     return base + QStringLiteral("/notalivre/config.ini");
 }
 
+// STUB NL-2.10b (vermelho por asserção): ainda não recusa [xsd] fora de Homologação.
+std::expected<void, ErroConfiguracao> conferirXsdDeAmbiente(const ConfiguracaoCli&, bool)
+{
+    return {};
+}
+
+// STUB NL-2.10b (vermelho por asserção): ainda não tem o diretório padrão das raízes ICP.
+QString diretorioPadraoDasRaizesIcp(const QString&)
+{
+    return QString();
+}
+
 std::expected<void, ErroConfiguracao> conferirAncorasDeAmbiente(const ConfiguracaoCli& cfg, bool homologacao)
 {
     if (homologacao) {

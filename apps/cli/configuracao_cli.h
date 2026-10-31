@@ -47,6 +47,13 @@ std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& 
 /// Homologação. Fora dela, qualquer uma definida é erro de configuração (configuracao.ancoras_*_fora_de_homologacao).
 std::expected<void, ErroConfiguracao> conferirAncorasDeAmbiente(const ConfiguracaoCli& cfg, bool homologacao);
 
+/// XSD por configuração (condição do CISO, NL-2.10b, BAIXA-4): [xsd] diretorio e manifesto só valem em Homologação; fora dela, chave
+/// definida é configuracao.xsd_fora_de_homologacao (código 10).
+std::expected<void, ErroConfiguracao> conferirXsdDeAmbiente(const ConfiguracaoCli& cfg, bool homologacao);
+
+/// Diretório padrão das raízes ICP do bundle (NL-2.10b, A2): <dir do executável>/../share/notalivre/icp-brasil.
+QString diretorioPadraoDasRaizesIcp(const QString& dirExecutavel);
+
 } // namespace nl::cli
 
 #endif // NL_CLI_CONFIGURACAO_CLI_H

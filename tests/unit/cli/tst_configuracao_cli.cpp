@@ -69,6 +69,14 @@ private slots:
     void ancorasDoA1PorConfiguracaoRecusadasForaDeHomologacao();
     // NL-2.10b, condição do CISO: sefin.ancoras_tls definida fora de Homologação é erro de configuração, código 10.
     void ancorasTlsPorConfiguracaoRecusadasForaDeHomologacao();
+    // NL-2.10b, BAIXA-5: chave repetida é recusada, sem escolher a última ocorrência.
+    void chaveDuplicadaRecusada();
+    // NL-2.10b, BAIXA-5: chave de âncora presente e vazia não contorna a guarda de ambiente: a leitura recusa.
+    void chaveVaziaNaoContornaAGuarda();
+    // NL-2.10b, BAIXA-4: [xsd] definido fora de Homologação é erro de configuração, código 10.
+    void xsdPorConfiguracaoRecusadoForaDeHomologacao();
+    // NL-2.10b, A2: o diretório padrão das raízes ICP sai de <dir do executável>/../share/notalivre/icp-brasil.
+    void diretorioPadraoDasRaizesIcp();
 };
 
 void TstConfiguracaoCli::arquivoCompletoLido()
@@ -199,6 +207,53 @@ void TstConfiguracaoCli::ancorasTlsPorConfiguracaoRecusadasForaDeHomologacao()
     QVERIFY2(!foraDeHomologacao.has_value(), "âncora TLS definida fora de Homologação tem de ser recusada");
     QCOMPARE(QString::fromStdString(foraDeHomologacao.error().codigo), QStringLiteral("configuracao.ancoras_tls_fora_de_homologacao"));
     QVERIFY2(nl::cli::conferirAncorasDeAmbiente(*lida, true).has_value(), "em Homologação, a âncora TLS é aceita");
+}
+
+void TstConfiguracaoCli::chaveDuplicadaRecusada()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    // A segunda [sefin] url repete sefin.url: a leitura tem de recusar, e não escolher uma das duas.
+    const QString duplicada = kCompleta + QStringLiteral("[sefin]\nurl = https://sefin.nfse.gov.br/SefinNacional\n");
+    const auto lida = nl::cli::lerConfiguracao(escrever(pasta, duplicada), kDirExecutavel);
+    QVERIFY2(!lida.has_value(), "chave repetida tem de ser recusada, sem escolher uma das ocorrências");
+    QCOMPARE(QString::fromStdString(lida.error().codigo), QStringLiteral("configuracao.chave_duplicada"));
+}
+
+void TstConfiguracaoCli::chaveVaziaNaoContornaAGuarda()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    // Produção com [certificado] ancoras presente e vazia: a guarda olha a presença da chave, então o valor vazio não pode passar.
+    const QString vazia = QStringLiteral(
+        "[sefin]\nurl = https://sefin.nfse.gov.br/SefinNacional\nprefixo = /SefinNacional\n"
+        "[certificado]\nancoras =\ncaminho = /tmp/a1.pfx\n"
+        "[emissao]\nproducao_liberada = false\n");
+    const auto lida = nl::cli::lerConfiguracao(escrever(pasta, vazia), kDirExecutavel);
+    QVERIFY2(!lida.has_value(), "âncora presente e vazia tem de ser recusada: a guarda não pode ser contornada por valor vazio");
+    QCOMPARE(QString::fromStdString(lida.error().codigo), QStringLiteral("configuracao.chave_vazia"));
+}
+
+void TstConfiguracaoCli::xsdPorConfiguracaoRecusadoForaDeHomologacao()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    const QString prodComXsd = QStringLiteral(
+        "[sefin]\nurl = https://sefin.producaorestrita.nfse.gov.br/SefinNacional\nprefixo = /SefinNacional\n"
+        "[certificado]\ncaminho = /tmp/a1.pfx\n"
+        "[xsd]\ndiretorio = /tmp/xsd\nmanifesto = /tmp/xsd/MANIFESTO.sha256\n"
+        "[emissao]\nproducao_liberada = false\n");
+    const auto lida = nl::cli::lerConfiguracao(escrever(pasta, prodComXsd), kDirExecutavel);
+    QVERIFY2(lida.has_value(), "a configuração com [xsd] tem de ser lida; a recusa é da conferência por ambiente");
+    const auto foraDeHomologacao = nl::cli::conferirXsdDeAmbiente(*lida, false);
+    QVERIFY2(!foraDeHomologacao.has_value(), "[xsd] definido fora de Homologação tem de ser recusado");
+    QCOMPARE(QString::fromStdString(foraDeHomologacao.error().codigo), QStringLiteral("configuracao.xsd_fora_de_homologacao"));
+    QVERIFY2(nl::cli::conferirXsdDeAmbiente(*lida, true).has_value(), "em Homologação, [xsd] é aceito");
+}
+
+void TstConfiguracaoCli::diretorioPadraoDasRaizesIcp()
+{
+    QCOMPARE(nl::cli::diretorioPadraoDasRaizesIcp(kDirExecutavel), QStringLiteral("/app/share/notalivre/icp-brasil"));
 }
 
 QTEST_APPLESS_MAIN(TstConfiguracaoCli)

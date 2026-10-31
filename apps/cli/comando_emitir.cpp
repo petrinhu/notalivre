@@ -39,22 +39,22 @@ std::expected<void, QString> conferirCampoDaDps(const QJsonObject& objeto, const
     return {};
 }
 
-std::expected<QByteArray, QString> aplicarSerieENumero(const QByteArray& dpsJson, const ArgumentosEmitir& argumentos)
+std::expected<QByteArray, ErroNumero> aplicarSerieENumero(const QByteArray& dpsJson, const ArgumentosEmitir& argumentos)
 {
     QJsonParseError erroJson;
     const QJsonDocument documento = QJsonDocument::fromJson(dpsJson, &erroJson);
     if (erroJson.error != QJsonParseError::NoError || !documento.isObject()) {
-        return std::unexpected(QStringLiteral("a DPS de entrada não é um objeto JSON"));
+        return std::unexpected(ErroNumero{2, QStringLiteral("a DPS de entrada não é um objeto JSON")});
     }
     QJsonObject objeto = documento.object();
     const qint64 serie = argumentos.serie.toLongLong();
     const qint64 numero = argumentos.numero.toLongLong();
     // Conflito recusa a emissão (código 2): não se escolhe um dos dois valores (NL-2.10b, emenda 3).
     if (auto conferido = conferirCampoDaDps(objeto, QStringLiteral("serie"), serie); !conferido) {
-        return std::unexpected(conferido.error());
+        return std::unexpected(ErroNumero{2, conferido.error()});
     }
     if (auto conferido = conferirCampoDaDps(objeto, QStringLiteral("nDps"), numero); !conferido) {
-        return std::unexpected(conferido.error());
+        return std::unexpected(ErroNumero{2, conferido.error()});
     }
     objeto.insert(QStringLiteral("serie"), QJsonValue(serie));
     objeto.insert(QStringLiteral("nDps"), QJsonValue(numero));
@@ -112,8 +112,8 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
     // --serie e --numero entram na DPS (NL-2.10b, emenda 3); conflito com o que a DPS traz sai com 2, sem escolher um dos dois.
     const auto dpsAplicada = aplicarSerieENumero(arquivoDps.readAll(), *lidos);
     if (!dpsAplicada) {
-        erro << dpsAplicada.error() << Qt::endl;
-        return 2;
+        erro << dpsAplicada.error().mensagem << Qt::endl;
+        return dpsAplicada.error().saida;
     }
     // Produção: o CPF ou CNPJ é digitado no terminal, antes da senha, e confere com o A1 e com o emitente (item 2).
     std::optional<QString> confirmacao;

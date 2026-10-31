@@ -232,7 +232,7 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
 // embutidas no bundle. Fora de Homologação o caminho nem é lido (a CLI já recusou a chave com código 10).
 std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao& pedido, std::chrono::system_clock::time_point agora)
 {
-    if (pedido.ambiente != Ambiente::Homologacao || pedido.caminhoAncoras.isEmpty()) {
+    if (pedido.ambiente.value_or(Ambiente::Homologacao) != Ambiente::Homologacao || pedido.caminhoAncoras.isEmpty()) {
         auto carga = nl::mid::cofre::carregarRaizesDeProducao(pedido.diretorioRaizesIcp, agora);
         if (!carga) {
             return std::unexpected(falha("credencial.ancoras_icp_invalidas", "as raízes ICP do bundle não conferem com o hash embutido"));
@@ -250,7 +250,7 @@ std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao& pedido
 // do sistema do runtime, sem pin e sem bundle próprio (condição do CISO, 31/10/2026).
 QList<QSslCertificate> ancorasTlsDoPedido(const PedidoEmissao& pedido)
 {
-    if (pedido.ambiente != Ambiente::Homologacao || pedido.caminhoAncorasTls.isEmpty()) {
+    if (pedido.ambiente.value_or(Ambiente::Homologacao) != Ambiente::Homologacao || pedido.caminhoAncorasTls.isEmpty()) {
         return QSslConfiguration::systemCaCertificates();
     }
     return QSslCertificate::fromData(lerArquivo(pedido.caminhoAncorasTls), QSsl::Pem);

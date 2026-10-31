@@ -18,6 +18,8 @@ private slots:
     void senhaPorArgumentoRecusada();
     // Série ou número ausentes, não numéricos ou fora do tamanho são recusados.
     void serieENumeroObrigatoriosENumericos();
+    // NL-2.10b, BAIXA-7: só dígitos ASCII 0 a 9 entram no número; dígito de outro alfabeto sai como argumento inválido.
+    void digitoUnicodeNoNumeroRecusado();
 };
 
 void TstArgumentosEmitir::linhaCompletaLida()
@@ -45,6 +47,14 @@ void TstArgumentosEmitir::serieENumeroObrigatoriosENumericos()
     QVERIFY(!nl::cli::lerArgumentosEmitir(QStringList{"emitir", "dps.json", "--serie", "1", "--ambiente", "homologacao"}).has_value());
     QVERIFY(!nl::cli::lerArgumentosEmitir(QStringList{"emitir", "dps.json", "--serie", "A", "--numero", "42", "--ambiente", "homologacao"}).has_value());
     QVERIFY(!nl::cli::lerArgumentosEmitir(QStringList{"emitir", "dps.json", "--serie", "123456", "--numero", "42", "--ambiente", "homologacao"}).has_value());
+}
+
+void TstArgumentosEmitir::digitoUnicodeNoNumeroRecusado()
+{
+    // U+FF14 (fullwidth 4) passa em QChar::isDigit, mas não é dígito ASCII: o número tem de ser recusado.
+    const QString numeroUnicode = QStringLiteral("\uFF14\uFF12");
+    QVERIFY(!nl::cli::lerArgumentosEmitir(QStringList{"emitir", "dps.json", "--serie", "1", "--numero", numeroUnicode, "--ambiente", "homologacao"}).has_value());
+    QVERIFY(!nl::cli::lerArgumentosEmitir(QStringList{"emitir", "dps.json", "--serie", "\u0661", "--numero", "42", "--ambiente", "homologacao"}).has_value());
 }
 
 QTEST_APPLESS_MAIN(TstArgumentosEmitir)
