@@ -3,6 +3,7 @@
 # Composição (NL-1.7): fachadas que a CLI pode chamar. A fachada da DPS lê o JSON, monta pelo Back, serializa e valida no XSD.
 # Cada arquivo é um átomo (L-34); os leitores de grupo ficam em arquivos próprios e o header interno é leitores_dps.h.
 target_sources(nl_mid PRIVATE
+    confirmacao_inscricao.cpp
     campos_json.cpp
     dps_validar.cpp
     emissao_nota.cpp
