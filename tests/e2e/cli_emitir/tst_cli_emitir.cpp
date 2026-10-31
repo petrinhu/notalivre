@@ -143,6 +143,8 @@ Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& config
     const pid_t pid = forkpty(&mestre, nullptr, nullptr, nullptr);
     if (pid == 0) {
         setenv("XDG_CONFIG_HOME", configDir.toLocal8Bit().constData(), 1);
+        const QByteArray estado = (configDir + QStringLiteral("/state")).toLocal8Bit();  // respostas da emissão (DA-2.59 item 4)
+        setenv("XDG_STATE_HOME", estado.constData(), 1);
         execv(argv[0], argv.data());
         _exit(127);
     }
@@ -247,6 +249,8 @@ private slots:
     void e0014ComInfDpsDiferenteSaiComCinco();
     // E0014 sem conseguir comparar o infDPS: código 7 (DA-2.58).
     void e0014SemComparacaoSaiComSete();
+    // DA-2.59 item 4: a resposta crua da Sefin fica num arquivo local 0600, com o XML e a chave mascarados, sem senha.
+    void respostaCruaGravadaParaAnalise();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -409,6 +413,34 @@ void TstCliEmitir::e0014SemComparacaoSaiComSete()
     const Execucao execucao = emitirContraServidorComFalhaNoPost(QStringLiteral("rejeicao_gerada_sem_comparacao:E0014"));
     QVERIFY2(execucao.codigo == 7, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("sefin.comparacao_indisponivel"), "a comparação impossível tem de sair com o código de comparação indisponível");
+}
+
+void TstCliEmitir::respostaCruaGravadaParaAnalise()
+{
+    if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
+        QSKIP("distro com SHA-1 bloqueado: a emissão não chega ao POST (DA-2.38)");
+    }
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    const QDir pasta(configDir.path() + QStringLiteral("/state/notalivre/respostas"));
+    const QStringList arquivos = pasta.entryList({QStringLiteral("*.json")}, QDir::Files);
+    QCOMPARE(arquivos.size(), 1);
+    const QString caminho = pasta.filePath(arquivos.first());
+    QVERIFY2(QFile::permissions(caminho) == (QFileDevice::ReadOwner | QFileDevice::WriteOwner), "o arquivo da resposta tem de ser 0600");
+    const QByteArray conteudo = lerArquivo(caminho);
+    QVERIFY2(!conteudo.contains("nfseXmlGZipB64":"H4s"), "o XML da NFS-e (GZip em Base64) não pode ir ao arquivo");
+    QVERIFY2(!conteudo.contains(senha), "a senha não pode ir ao arquivo");
+    QVERIFY2(!conteudo.contains("11222333000181"), "o CNPJ do certificado não pode ir ao arquivo sem máscara");
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)
