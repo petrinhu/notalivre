@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Resposta crua da Sefin para análise local (NL-2.9, DA-2.59 item 4). A fachada grava o corpo da resposta de sucesso em
-// arquivo 0600, com a PII mascarada: o XML da NFS-e sai como marcador e a chave sai com # no lugar dos caracteres. Nome do
+// arquivo 0600, por allowlist (CISO N-03): só a chave sai mascarada (# no lugar dos caracteres) e cada outro valor sai como
+// <tipo:tamanho>; os nomes e a forma dos campos ficam. Nome do
 // arquivo é o hash do Id, sem o Id nem a chave. Nenhuma senha passa por aqui.
 #ifndef NL_MID_COMPOSICAO_RESPOSTA_CRUA_H
 #define NL_MID_COMPOSICAO_RESPOSTA_CRUA_H
