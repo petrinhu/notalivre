@@ -1,10 +1,10 @@
 # Roteiro: emissão de teste em Produção Restrita (NL-2.10)
 
-**Situação:** rascunho com pendências abertas. Não rode a emissão antes de fechar a seção 6, "Pendências que bloqueiam o teste".
+**Situação:** pronto para o líder, com uma verificação aberta antes do teste: a seção 6, item 4 (o Qt usa o arquivo de CAs do runtime dentro do programa isolado).
 **Data:** 31/10/2026.
-**Código:** branch `onda-2`, commit `4d33051`, com a fatia NL-2.10a já integrada (merge `d4ad607`).
-**Bundle (programa instalável):** ainda não gerado. O CI do commit `4d33051` terminou vermelho (job `flatpak` e os nativos fedora44, ubuntu26.04, manjaro e mint22.3). Enquanto o CI não ficar verde, este roteiro não pode ser executado. O caminho esperado é `/var/tmp/notalivre-nl210/bundle/notalivre.flatpak`.
-**SHA-256 do bundle:** `<preencher após o CI verde, o download e a conferência>`.
+**Código:** branch `onda-2`, commit `cca6d76` (merge da NL-2.10b, com bundle, âncoras por ambiente e `--numero` conferido contra a DPS). Esta fatia está sobre ele.
+**Bundle (programa instalável):** `/var/tmp/notalivre-nl210/bundle/run-41251698052/extraido/notalivre.flatpak`, 619896 bytes, gerado pelo CI do run `41251698052`, verde nos 10 jobs, commit `cca6d76`.
+**SHA-256 do bundle:** `261eb964902215ca0e8b5a01ea65ad146c8835d706ffcf96f7418794db3350c2` (calculado pelo agente sobre o arquivo extraído do artefato `notalivre-bundle`). O digest do ZIP do artefato, dado pela API do GitHub, é `01dab6a02066c0f71c46171f4a995e087240a267329180f917f4d9f41b97e953`. O job não imprime o SHA-256 do `.flatpak`; por isso a conferência é a do ZIP contra a API e a do `.flatpak` contra este valor.
 
 Nos comandos abaixo, o que está entre `< >` é um texto que você troca pelo seu valor. O caminho do seu certificado nunca aparece neste roteiro: use sempre `<caminho do seu .pfx>`.
 
@@ -35,15 +35,15 @@ Quem roda os comandos é você, no seu computador, com o seu certificado. O agen
 ### 3.1 Conferir o arquivo do programa
 
 ```
-sha256sum /var/tmp/notalivre-nl210/bundle/notalivre.flatpak
+sha256sum /var/tmp/notalivre-nl210/bundle/run-41251698052/extraido/notalivre.flatpak
 ```
 
-O resultado tem de ser exatamente `<SHA-256 do bundle>`. Se for outro, pare e avise o agente.
+O resultado tem de ser exatamente `261eb964902215ca0e8b5a01ea65ad146c8835d706ffcf96f7418794db3350c2`. Se for outro, pare e avise o agente.
 
 ### 3.2 Instalar o programa
 
 ```
-flatpak install --user --bundle /var/tmp/notalivre-nl210/bundle/notalivre.flatpak
+flatpak install --user --bundle /var/tmp/notalivre-nl210/bundle/run-41251698052/extraido/notalivre.flatpak
 ```
 
 Se o sistema pedir o ambiente de execução do KDE 6.11 e você ainda não o tiver, instale com `flatpak install --user flathub org.kde.Platform//6.11` e repita este passo.
@@ -70,13 +70,13 @@ Guarde o caminho impresso como `<caminho da DPS no app>`.
 
 ### 3.5 Conferir a cadeia de segurança do servidor
 
-Antes de mandar qualquer coisa, confirme que o arquivo de confiança do servidor está dentro do programa:
+Antes de mandar qualquer coisa, confirme que o arquivo de CAs que o programa usa para falar com o servidor está dentro do programa. Você não configura esse arquivo: a CLI usa o repositório de CAs do próprio sistema do programa. Este comando só confere que o arquivo existe:
 
 ```
 flatpak run --command=ls io.github.petrinhu.notalivre -l /etc/pki/tls/certs/ca-bundle.crt
 ```
 
-Se o comando disser que o arquivo não existe, pare. Não siga para a configuração e avise o agente.
+Se o comando disser que o arquivo não existe, pare. Não siga para a configuração e avise o agente. Mesmo que o arquivo exista, a verificação da seção 6, item 4, continua aberta.
 
 Confira também a pasta de configuração que o programa vai usar:
 
@@ -88,21 +88,12 @@ O normal é aparecer algo como `/home/<seu usuário>/.var/app/io.github.petrinhu
 
 ### 3.6 Preencher a configuração
 
-Crie o arquivo `config.ini` na pasta `notalivre` dentro da pasta mostrada no passo anterior. Ele deve ter estas chaves:
+Crie o arquivo `config.ini` na pasta `notalivre` dentro da pasta mostrada no passo anterior. Escreva exatamente estas chaves, sem nenhuma outra:
 
 ```
 [sefin]
 url = https://sefin.producaorestrita.nfse.gov.br
 prefixo = /SefinNacional
-ancoras_tls = /etc/pki/tls/certs/ca-bundle.crt
-
-[certificado]
-ancoras = <PENDENTE: arquivo PEM com as raízes da ICP-Brasil, ver seção 6>
-caminho = <gravado pelo passo 3.7>
-
-[xsd]
-diretorio = <PENDENTE: pasta com os XSD de Produção Restrita, ver seção 6>
-manifesto = <PENDENTE: arquivo SHA256SUMS dos XSD, ver seção 6>
 
 [assinatura]
 algoritmo = rsa-sha1
@@ -111,9 +102,14 @@ algoritmo = rsa-sha1
 producao_liberada = false
 ```
 
-Cada linha tem a forma `chave = valor`. As duas chaves marcadas como PENDENTE não podem ficar assim: o programa recusa a emissão enquanto elas não apontarem para arquivos reais.
+Regras que valem para este arquivo:
 
-Nunca deixe `producao_liberada` como `true` neste teste. Ela só muda com a decisão do líder para a Produção.
+- **Não escreva** `ancoras_tls` nem `certificado.ancoras`. Em Produção Restrita, qualquer uma dessas chaves faz o programa parar com código de saída 10. Os certificados de confiança já vêm dentro do programa.
+- **Não escreva** a seção `[xsd]`. Fora de Homologação, o programa também sai com código 10 se ela existir. Os esquemas XSD já vêm instalados no programa, com conferência de SHA-256.
+- **Não deixe nenhuma chave com valor vazio**, por exemplo `algoritmo =` sem nada depois. Chave vazia sai com código 10. A mesma coisa vale para uma chave escrita duas vezes no mesmo arquivo (`configuracao.chave_duplicada`).
+- A chave `certificado.caminho` não entra aqui. O passo 3.7 cria a seção `[certificado]` sozinho. Se faltar essa chave, o programa sai com código 10 (`configuracao.chave_ausente`).
+- A chave `sefin.url` tem de ser exatamente o endereço acima. Se for outro endereço, o programa para com saída 2 e diz qual endereço recebeu.
+- Nunca deixe `producao_liberada` como `true` neste teste. Ela só muda com a decisão do líder para a Produção.
 
 ### 3.7 Gravar o caminho do certificado
 
@@ -165,6 +161,7 @@ Regras que valem para o arquivo:
 - `tpAmb` fica `"2"`, que é o código de Produção Restrita. Não mude.
 - Não acrescente nenhum campo de tomador.
 - O campo `nDps` é o número da DPS. Cada tentativa precisa de um número novo.
+- O campo `serie` tem de ser igual ao `--serie` do comando do passo 3.9, e o `nDps` tem de ser igual ao `--numero`. Se não forem, o programa recusa com saída 2 e não escolhe um dos dois valores.
 - Deixe o arquivo com permissão restrita: `chmod 600 /var/tmp/notalivre-nl210/teste-lider/dps-teste.json`.
 
 ### 3.9 Emitir (tentativa 1)
@@ -178,7 +175,11 @@ flatpak run --command=notalivre-cli io.github.petrinhu.notalivre emitir "<caminh
 Como funciona:
 
 - Quando aparecer `senha do certificado:`, digite a senha e tecle Enter. Nada aparece na tela enquanto você digita, e isso é o esperado.
-- O argumento `--numero` tem de ser o mesmo `nDps` do arquivo. Hoje o programa aceita o `--numero` mas usa só o `nDps` do arquivo para montar a DPS. Mantenha os dois iguais para não confundir o registro.
+- O argumento `--numero` tem de ser igual ao `nDps` do arquivo, e o `--serie` igual ao `serie`. O programa confere os dois contra a DPS: se algum for diferente, ele recusa a emissão com saída 2 e diz qual campo não bate. Ele não escolhe um dos dois valores.
+- Códigos de saída que você pode ver nesta etapa:
+  - **2:** uso errado da linha de comando, `--serie` ou `--numero` diferente da DPS, ou endereço (`sefin.url`) que não é de Produção Restrita. A mensagem diz o que corrigir.
+  - **10:** problema de configuração: chave vazia, chave repetida, chave que não pode existir em Produção Restrita, chave obrigatória ausente, ou certificado ilegível.
+  - Qualquer outro código de erro da Sefin não entra nesta tabela: devolva o log ao agente.
 - Se der certo, a última linha da tela diz `emitida: chave` seguida de um número de 50 caracteres. Esse é o número da nota de teste.
 - O log, com os eventos do programa, fica no arquivo `log-tentativa-1.txt`. A senha não entra nesse arquivo.
 
@@ -262,11 +263,12 @@ Depois que o agente confirmar a análise, apague também as cópias em `/var/tmp
 
 ## 6. Pendências que bloqueiam o teste
 
-Estes três pontos foram encontrados ao preparar o roteiro. Cada um precisa de decisão antes do passo 3.6 ficar completo.
+Os três pontos que bloqueavam o teste antes da NL-2.10b estão resolvidos no código do `cca6d76`. Fica um ponto aberto.
 
-1. **Os XSD de Produção Restrita não vão no bundle.** O programa lê os esquemas XSD de uma pasta indicada no `config.ini` (`xsd.diretorio` e `xsd.manifesto`). O bundle instala só os dois programas e as raízes ICP-Brasil; os XSD são extraídos apenas durante a compilação. Opções para decidir: copiar a pasta de XSD para a pasta de dados do app, com conferência de SHA-256; ou incluir os XSD no bundle, o que depende da revisão de redistribuição (K2) do CLO.
-2. **As raízes da ICP-Brasil estão em arquivos `.der`, e o programa lê um arquivo PEM** em `certificado.ancoras`. O bundle traz as raízes em `/app/share/notalivre/icp-brasil`, mas não traz um PEM único. Falta decidir o formato e o local do arquivo PEM.
-3. **O `--numero` da linha de comando não entra na DPS.** Só o `nDps` do arquivo entra. O roteiro manda manter os dois iguais, mas o comportamento precisa de correção no código ou de decisão de produto.
+1. **Esquemas XSD (resolvido).** O bundle instala os XSD conferidos em `/app/share/notalivre/xsd`, e o programa usa essa pasta sozinho. Por isso o `config.ini` não tem `[xsd]`.
+2. **Raízes da ICP-Brasil (resolvido).** O bundle instala as raízes em `/app/share/notalivre/icp-brasil`, e o programa as usa sozinho para validar o seu certificado. Por isso o `config.ini` não tem `certificado.ancoras`.
+3. **`--serie` e `--numero` (resolvido).** Os dois entram na DPS e são conferidos contra o JSON. Conflito sai com saída 2, sem escolher um valor (seção 3.9).
+4. **Aberto (VERIF-1): confirmar que o programa isolado usa o arquivo de CAs do runtime.** A CLI não recebe o caminho desse arquivo. Ela usa o repositório de CAs que o sistema oferece dentro do programa. Ainda não se mediu, de dentro do programa isolado, de qual arquivo esse repositório vem. Se não houver nenhum repositório de CAs, a CLI recusa antes de conectar e não envia nada. Se houver um repositório diferente do runtime KDE 6.11, a verificação não fecha e o agente registra qual é. Esta verificação é feita pelo agente, antes do seu teste, sem comando novo seu além dos já descritos neste roteiro.
 
 ---
 
@@ -281,4 +283,4 @@ Medido em 31/10/2026, só com o handshake TLS, sem nenhuma requisição HTTP, nu
 - Tipo da raiz: CA pública internacional. **Não é ICP-Brasil.**
 - A raiz `GlobalSign Root R46` está no bundle de CAs do runtime KDE 6.11, arquivo `ca-bundle.crt` (SHA-256 do arquivo `9a9c1b798f6ae057ecb84545704e38c89e10f3db5519b24cd4647a1bb2dbf299`). A cadeia do servidor valida contra esse arquivo.
 
-Ainda não medido: o caminho `/etc/pki/tls/certs/ca-bundle.crt` dentro do programa isolado. Ele é a informação que o passo 3.5 confere.
+Ainda não medido: de qual arquivo o repositório de CAs do programa isolado é lido (seção 6, item 4). O passo 3.5 só confere que o arquivo `/etc/pki/tls/certs/ca-bundle.crt` existe dentro do programa.
