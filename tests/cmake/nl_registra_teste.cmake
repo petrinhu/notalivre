@@ -44,8 +44,12 @@ function(nl_coleta_executaveis_qt diretorio)
 endfunction()
 
 function(nl_grava_manifesto_junit)
+    # O set_property "" acima deixa um elemento vazio na frente da lista (APPEND o mantém): sai aqui, senão o manifesto
+    # ganha uma linha vazia e a contagem do portão fica uma acima (NL-2.14, achado da própria rodada de registro).
     get_property(esperados GLOBAL PROPERTY NL_JUNIT_ESPERADOS)
+    list(FILTER esperados EXCLUDE REGEX "^$")
     get_property(executaveis GLOBAL PROPERTY NL_EXECUTAVEIS_QT)
+    list(FILTER executaveis EXCLUDE REGEX "^$")
     if(NOT executaveis)
         message(FATAL_ERROR "nl_grava_manifesto_junit: nenhum executável Qt Test encontrado: a conferência do registro não teria o que cruzar")
     endif()
