@@ -277,8 +277,7 @@ executar()
     # o diff está indisponível; o build não para por isso.
     gitopts=()
     gitcomum="$(git -C "$NL_REPO" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-    echo "git para o resumo: comum=${gitcomum:-vazio} montagens=${#gitopts[@]} NL_REPO=$NL_REPO" >&2
-    if [ -n "$gitcomum" ] && [ -d "$gitcomum" ]; then
+    if [ -n "$gitcomum" ]; then
         gitopts=(-v "$gitcomum:/gitrepo:ro,z" -e NL_GIT_DIR=/gitrepo -e NL_SHA="$sha")
     fi
     docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" \
