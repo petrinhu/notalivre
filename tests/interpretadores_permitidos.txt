@@ -5,10 +5,14 @@
 # Caminhos medidos nos command do ctest --show-only=json-v1 das quatro imagens (31/10/2026):
 #   fedora44 e manjaro: python3 em /opt/aqt/bin/python3.14, bash em /usr/sbin/bash, cmake em /usr/sbin/cmake
 #   ubuntu26.04 e mint22.3: python3 em /opt/aqt/bin/python3, bash em /usr/bin/bash, cmake em /usr/bin/cmake
-# Flatpak: o caminho do interpretador no SDK não foi medido aqui (só o CI prova); se divergir, o portão reprova com o caminho.
+# Flatpak (SDK KDE 6.11, medido por listagem só de leitura do runtime instalado em ~/.local/share/flatpak): bin/python3 aponta
+# para python3.13 e bin/bash, bin/cmake existem; no sandbox, o runtime fica em /usr. Inferência (só o CI prova): o CMake do SDK
+# resolve o Python3 como /usr/bin/python3; por isso entram /usr/bin/python3 e /usr/bin/python3.13.
 /opt/aqt/bin/python3
 /opt/aqt/bin/python3.14
 /usr/bin/bash
 /usr/sbin/bash
 /usr/bin/cmake
 /usr/sbin/cmake
+/usr/bin/python3
+/usr/bin/python3.13
