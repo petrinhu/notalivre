@@ -18,6 +18,8 @@ class EmissaoNota
 public:
     /// Empresta a credencial: quem chama a mantém viva enquanto a emissão existir.
     explicit EmissaoNota(const nl::foundation::pkcs12::CredencialX509& credencial);
+    /// O assinador vem de fora (DA-2.56): o teste injeta um falso pelo port AssinadorDps. Nunca nulo.
+    explicit EmissaoNota(std::unique_ptr<nl::back::AssinadorDps> assinador);
     EmissaoNota(const EmissaoNota&) = delete;
     EmissaoNota& operator=(const EmissaoNota&) = delete;
     ~EmissaoNota();

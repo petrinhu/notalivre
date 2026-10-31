@@ -6,12 +6,18 @@
 #include <nl/mid/sefin/assinatura/assinador_dps_sefin.h>
 
 #include <memory>
+#include <utility>
 
 namespace nl::mid::composicao {
 
 // A raiz é o único lugar que escolhe o adaptador real. O caso de uso recebe só o port.
 EmissaoNota::EmissaoNota(const nl::foundation::pkcs12::CredencialX509& credencial)
     : assinador_(std::make_unique<nl::mid::sefin::assinatura::AssinadorDpsSefin>(credencial)), emitir_(*assinador_)
+{
+}
+
+EmissaoNota::EmissaoNota(std::unique_ptr<nl::back::AssinadorDps> assinador)
+    : assinador_(std::move(assinador)), emitir_(*assinador_)
 {
 }
 

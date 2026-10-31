@@ -13,6 +13,7 @@
 #include <nl/back/identificacao/inscricao.h>
 #include <nl/back/app/emitir_nota.h>
 #include <nl/foundation/log/log.h>
+#include <nl/mid/sefin/assinatura/assinador_dps_sefin.h>
 #include <nl/mid/composicao/confirmacao_inscricao.h>
 #include <nl/mid/composicao/registro_cli.h>
 #include <nl/foundation/pkcs12/ancoras.h>
@@ -144,18 +145,8 @@ FalhaEmissao recusada(RegistroCli& registro, const bk::IdDps& idDps, FalhaEmissa
 
 } // namespace
 
-// Stub de teste (DA-2.56): o corpo real vem no código; enquanto isso, reprova por asserção no teste.
 std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, fp::SenhaSegura& senha, RegistroCli& registro,
                                                            const FabricaAssinador& fabrica)
-{
-    static_cast<void>(pedido);
-    static_cast<void>(senha);
-    static_cast<void>(registro);
-    static_cast<void>(fabrica);
-    return QString();
-}
-
-std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, fp::SenhaSegura& senha, RegistroCli& registro)
 {
     // 1. DPS de entrada: JSON validado no XSD. Reprovação vem com o primeiro código do validador.
     auto xml = DpsValidar::executar(pedido.dpsJson, pedido.esquema);
@@ -188,15 +179,19 @@ std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedid
         }
     }
     // 5. Assinatura pela raiz de composição: a CLI não conhece o adaptador.
-    EmissaoNota raiz(*credencial);
+    auto assinador = fabrica(*credencial);
+    if (!assinador) {
+        return std::unexpected(recusada(registro, *idDps, falha("assinatura.sem_assinador", "a fábrica não devolveu assinador")));
+    }
+    EmissaoNota raiz(std::move(assinador));
     auto assinado = raiz.emitirNota().executar(*xml, idDps->texto());
     if (!assinado) {
         return std::unexpected(recusada(registro, *idDps, falha(assinado.error().codigo(), assinado.error().mensagem())));
     }
     // 6. O XML assinado é o que vai à Sefin: revalidado no XSD antes do envio (NL-2.9, DA-2.51). Reprovação é código 4 na CLI.
     if (auto revalidado = DpsValidar::validarXml(*assinado, pedido.esquema); !revalidado) {
-        const std::string codigo = revalidado.error().erros.empty() ? std::string("xsd.pos_assinatura") : revalidado.error().erros.front().codigo();
-        return std::unexpected(recusada(registro, *idDps, falha(codigo, "o XML assinado não confere no XSD: nada foi enviado")));
+        // Sempre xsd.pos_assinatura: o código do validador fica no log da validação, e a CLI traduz para 4 (DA-2.56).
+        return std::unexpected(recusada(registro, *idDps, falha("xsd.pos_assinatura", "o XML assinado não confere no XSD: nada foi enviado")));
     }
     // 7. Envio mTLS pelo cliente Sefin, com o Log do cliente (allowlist da Mid sefin, DA-2.54).
     const ft::UrlBase base{QUrl(pedido.urlSefin), QString(), std::chrono::milliseconds{30000}};
@@ -208,6 +203,14 @@ std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedid
     }
     registro.registrarEmissaoAceita(idDps->texto().toStdString(), nota->chave.texto().toStdString());
     return nota->chave.texto();
+}
+
+std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, fp::SenhaSegura& senha, RegistroCli& registro)
+{
+    const FabricaAssinador fabrica = [](const fp::CredencialX509& credencial) -> std::unique_ptr<nl::back::AssinadorDps> {
+        return std::make_unique<nl::mid::sefin::assinatura::AssinadorDpsSefin>(credencial);
+    };
+    return emitirDpsComAssinador(pedido, senha, registro, fabrica);
 }
 
 } // namespace nl::mid::composicao
