@@ -7,12 +7,10 @@
 
 #include <nl/mid/composicao/dps_validar.h>
 #include <nl/mid/composicao/politica_emissao.h>
-#include <nl/foundation/pkcs12/ancoras.h>
 
 #include <optional>
 #include <QByteArray>
 #include <QList>
-#include <QSslCertificate>
 #include <QString>
 
 #include <chrono>
@@ -22,9 +20,12 @@
 #include <string>
 
 namespace nl::foundation::pkcs12 {
+class Ancoras;
 class SenhaSegura;
 class CredencialX509;
 }
+// Forward: a CLI inclui este cabeçalho sem QtNetwork (o nl_mid liga Qt6::Network como PRIVATE). Quem chama as funções inclui o tipo.
+class QSslCertificate;
 namespace nl::back {
 class AssinadorDps;
 }

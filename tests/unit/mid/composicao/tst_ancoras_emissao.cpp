@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Âncoras da emissão (NL-2.10b, emendas 4 e 5): fora de Homologação, o A1 usa as raízes ICP embutidas no bundle, e o servidor
 // TLS usa as CAs do sistema do runtime quando a configuração não traz o PEM.
+#include <nl/foundation/pkcs12/ancoras.h>
 #include <nl/mid/composicao/emissao_cli.h>
 #include <nl/mid/composicao/politica_emissao.h>
 
