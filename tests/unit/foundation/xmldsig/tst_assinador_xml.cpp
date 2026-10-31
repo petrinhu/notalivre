@@ -19,6 +19,7 @@
 #include "parse_xml_privado.h"
 
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QIODevice>
 #include <QProcess>
@@ -833,6 +834,34 @@ private slots:
         QVERIFY2(!comEnt.has_value(), "entidade externa tem de ser recusada");
         QCOMPARE(codigoDe(comEnt.error()), QStringLiteral("assinatura.xml_com_dtd"));
         QCOMPARE(ouvinte.conexoes(), 0);
+    }
+
+    // NL-2.9, DA-2.50 (item 6 da triagem do CISO): entidades em cascata e entidade externa para um arquivo com marcador. A recusa
+    // sai com o código, o marcador não aparece no código devolvido e o tempo é baixo: nada foi expandido nem lido. Mutante L:
+    // sem xmlStopParser no DOCTYPE, o parser processa as declarações e o teste reprova.
+    void dtdComExpansaoDeEntidadesRecusadaSemProcessar() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString caminho = dir.filePath(QStringLiteral("marcador.txt"));
+        QFile arquivo(caminho);
+        QVERIFY(arquivo.open(QIODevice::WriteOnly));
+        arquivo.write("MARCADOR_EXTERNO_NAO_PODE_APARECER");
+        arquivo.close();
+        QByteArray xml = dpsDeReferencia();
+        const QByteArray dtd = "<!DOCTYPE DPS [<!ENTITY d \"x\"><!ENTITY c \"&d;&d;&d;&d;&d;&d;&d;&d;&d;&d;\">"
+                               "<!ENTITY b \"&c;&c;&c;&c;&c;&c;&c;&c;&c;&c;\"><!ENTITY a \"&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;\">"
+                               "<!ENTITY ext SYSTEM \"file://" + caminho.toUtf8() + "\">]>\n";
+        xml.replace("<DPS xmlns=", dtd + "<DPS xmlns=");
+        xml.replace("</DPS>", "&a;&ext;</DPS>");
+        QElapsedTimer relogio;
+        relogio.start();
+        const auto recusado = assinarComCredencial(xml, parametrosDaDistro());
+        const qint64 ms = relogio.elapsed();
+        QVERIFY2(!recusado.has_value(), "DTD com entidades em cascata tem de ser recusado");
+        const QString codigo = codigoDe(recusado.error());
+        QCOMPARE(codigo, QStringLiteral("assinatura.xml_com_dtd"));
+        QVERIFY2(!codigo.contains(QStringLiteral("MARCADOR")), "o marcador do arquivo externo não pode aparecer na saída");
+        QVERIFY2(ms < 2000, "a recusa tem de sair sem expandir as entidades: tempo acima do teto");
     }
 
     // NL-2.9 (CISO, 05:34), camada 1 no átomo: o parser para no DOCTYPE. Subconjunto interno de 1 MiB seguido do corpo: o

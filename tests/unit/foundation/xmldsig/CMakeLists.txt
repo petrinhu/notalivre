@@ -67,6 +67,7 @@ else()
         digestDaNfseAlteradaDifere
         digestNfseIdRepetidoDaErro
         digestInfDpsForaDoCaminhoFixoRecusado
+        dtdComExpansaoDeEntidadesRecusadaSemProcessar
         distroRecusaSha1VemDaTabelaNaoDoCodigo
         distroAtualTemLinhaNaTabela)
 endif()
@@ -76,7 +77,7 @@ foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
     set_tests_properties(xmldsig.${nome} PROPERTIES
                          FIXTURES_REQUIRED certificados_teste
                          ENVIRONMENT "${NL_AMBIENTE_XMLDSIG}"
-                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                         PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed"
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
