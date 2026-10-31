@@ -50,7 +50,7 @@ struct PedidoEmissao
     AlgoritmoAssinatura algoritmo = AlgoritmoAssinatura::RsaSha1;  ///< [assinatura] algoritmo (NL-2.10a); padrão rsa-sha1
     QString prefixoSefin = QString();  ///< prefixo do caminho da API (config [sefin] prefixo, DA-2.5), ex.: /SefinNacional; a CLI sempre o preenche
     QString caminhoAncorasTls = QString();  ///< PEM das âncoras do servidor TLS (config [sefin] ancoras_tls, NL-2.10a); a CLI sempre o preenche
-    std::optional<Ambiente> ambiente;  ///< ambiente que o chamador afirma (NL-2.10b, MÉDIA-1): sem valor padrão; a Mid deriva de urlSefin
+    std::optional<Ambiente> ambiente = std::nullopt;  ///< ambiente que o chamador afirma (NL-2.10b, MÉDIA-1): sem valor padrão; a Mid deriva de urlSefin
     QString diretorioRaizesIcp = QString();     ///< diretório das raízes ICP do bundle, <prefixo>/share/notalivre/icp-brasil (NL-2.10b, emenda 5)
 };
 
