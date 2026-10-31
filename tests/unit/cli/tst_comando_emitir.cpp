@@ -60,8 +60,7 @@ private slots:
 void TstComandoEmitir::producaoBloqueadaSaiAntesDaSenha()
 {
     ConfigTemporaria config;
-    const QStringList argumentos{"emitir", "dps.json", "--serie", "1", "--numero", "1", "--ambiente", "producao",
-                                 "--cnpj-confirmado", "12345678000195"};
+    const QStringList argumentos{"emitir", "dps.json", "--serie", "1", "--numero", "1", "--ambiente", "producao"};
     QCOMPARE(emitirComRegistro(argumentos), 1);
 }
 

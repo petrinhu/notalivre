@@ -30,6 +30,32 @@ const QString kCertificados = QStringLiteral(NL_CERTIFICADOS_EMITIR);
 const QString kEntradas = QStringLiteral(NL_ENTRADAS_EMITIR);
 const QString kXsd = QStringLiteral(NL_XSD_EMITIR);
 const QString kManifesto = QStringLiteral(NL_MANIFESTO_EMITIR);
+const QString kTabelaSha1 = QStringLiteral(NL_TABELA_SHA1_EMITIR);
+
+// Expectativa do assinador para a distro desta máquina (DA-2.38, tabela versionada): "sha1" ou "algoritmo_bloqueado". Vazio
+// quando a distro não está na tabela, e o teste reprova (DA-2.40, item 1).
+QString esperadoDaDistro()
+{
+    QString id;
+    QString versao = QStringLiteral("rolling");
+    for (const QString& linha : QString::fromUtf8(lerArquivo(QStringLiteral("/etc/os-release"))).split(QLatin1Char('\n'))) {
+        if (linha.startsWith(QStringLiteral("ID="))) {
+            id = linha.mid(3).remove(QLatin1Char('"'));
+        } else if (linha.startsWith(QStringLiteral("VERSION_ID="))) {
+            versao = linha.mid(11).remove(QLatin1Char('"'));
+        }
+    }
+    for (const QString& linha : QString::fromUtf8(lerArquivo(kTabelaSha1)).split(QLatin1Char('\n'))) {
+        const QStringList campos = linha.simplified().split(QLatin1Char(' '));
+        if (linha.startsWith(QLatin1Char('#')) || campos.size() != 3) {
+            continue;
+        }
+        if (campos.at(0) == id && campos.at(1) == versao) {
+            return campos.at(2);
+        }
+    }
+    return QString();
+}
 
 QByteArray lerArquivo(const QString& caminho)
 {
@@ -79,7 +105,8 @@ struct Execucao
 };
 
 // Roda a CLI num pseudo-terminal próprio. Quando o prompt da senha aparece, digita a senha e a linha. Limite de espera.
-Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& configDir, const QByteArray& senha)
+Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& configDir, const QByteArray& senha,
+                           const QByteArray& confirmacao = QByteArray())
 {
     std::vector<QByteArray> dados;
     dados.push_back(kCli.toLocal8Bit());
@@ -104,6 +131,7 @@ Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& config
         return execucao;
     }
     bool senhaEnviada = false;
+    bool confirmacaoEnviada = false;
     bool expirou = false;
     char buffer[1024];
     for (;;) {
@@ -117,6 +145,11 @@ Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& config
             break;  // fim do terminal: a CLI saiu
         }
         execucao.saida.append(buffer, static_cast<int>(lidos));
+        if (!confirmacaoEnviada && execucao.saida.contains("confirme o CPF ou CNPJ")) {
+            QByteArray linha = confirmacao + "\n";  // a confirmação digitada; vazia para o caso de recusa
+            static_cast<void>(write(mestre, linha.constData(), static_cast<size_t>(linha.size())));
+            confirmacaoEnviada = true;
+        }
         if (!senhaEnviada && execucao.saida.contains("senha do certificado")) {
             QByteArray linha = senha + "\n";
             static_cast<void>(write(mestre, linha.constData(), static_cast<size_t>(linha.size())));
@@ -167,8 +200,8 @@ private slots:
     void cliRecusaProducaoBloqueada();
     // Produção liberada por configuração, sem o CNPJ digitado: a CLI recusa antes de pedir a senha.
     void cliRecusaProducaoSemCnpjDigitado();
-    // Senha por argumento: a CLI recusa sem pedir a senha no terminal, e o valor não aparece na saída.
-    void senhaPorArgumentoRecusada();
+    // Senha por argumento: a CLI recusa sem pedir a senha no terminal, e o valor não aparece na saída nem no log (DA-2.52).
+    void senhaNaoApareceEmArgvNemLog();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -200,6 +233,10 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
 
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
     QVERIFY2(!senha.isEmpty(), "a senha da fixture sintética tem de existir");
+    // DA-2.49 e DA-2.38: o SHA-1 da assinatura é recusado pelo OpenSSL do fedora 44 (tabela por distro). Ali o caso espera
+    // assinatura.algoritmo_bloqueado e nenhum envio; nas demais distros, a emissão tem de ser aceita.
+    const QString esperado = esperadoDaDistro();
+    QVERIFY2(!esperado.isEmpty(), "a distro desta máquina tem de estar em tabela_sha1_por_distro.txt");
 
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
                                  QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"),
@@ -207,6 +244,11 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
                                  kCertificados + QStringLiteral("/cnpj_ok.pfx")};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
 
+    if (esperado == QStringLiteral("algoritmo_bloqueado")) {
+        QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+        QVERIFY2(execucao.saida.contains("assinatura.algoritmo_bloqueado"), "nesta distro, a assinatura SHA-1 tem de ser recusada pelo código da tabela");
+        return;
+    }
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída do terminal: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
@@ -229,7 +271,6 @@ void TstCliEmitir::cliRecusaProducaoBloqueada()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("producao"),
-                                 QStringLiteral("--cnpj-confirmado"), QStringLiteral("11222333000181"),
                                  QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
@@ -253,7 +294,7 @@ void TstCliEmitir::cliRecusaProducaoSemCnpjDigitado()
     QVERIFY2(!execucao.saida.contains("senha do certificado"), "a senha não pode ser pedida antes da recusa");
 }
 
-void TstCliEmitir::senhaPorArgumentoRecusada()
+void TstCliEmitir::senhaNaoApareceEmArgvNemLog()
 {
     QTemporaryDir configDir;
     QVERIFY(configDir.isValid());

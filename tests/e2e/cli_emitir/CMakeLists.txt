@@ -16,7 +16,8 @@ target_compile_definitions(tst_cli_emitir PRIVATE
     "NL_CERTIFICADOS_EMITIR=\"${CMAKE_BINARY_DIR}/certificados_teste\""
     "NL_ENTRADAS_EMITIR=\"${CMAKE_SOURCE_DIR}/tests/e2e/dps_validar/entradas\""
     "NL_XSD_EMITIR=\"${NL_XSD_PRODREST_DIR}\""
-    "NL_MANIFESTO_EMITIR=\"${NL_XSD_PRODREST_MANIFESTO}\"")
+    "NL_MANIFESTO_EMITIR=\"${NL_XSD_PRODREST_MANIFESTO}\""
+    "NL_TABELA_SHA1_EMITIR=\"${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/tabela_sha1_por_distro.txt\"")
 
 set(NL_AMBIENTE_E2E_EMITIR
     "NL_XMLLINT=${NL_XMLLINT_EMITIR};NL_XMLSEC1=${NL_XMLSEC1_EMITIR};NL_XSD_PRODREST_DIR=${NL_XSD_PRODREST_DIR};NL_LOGS_PII_CLI_DIR=${CMAKE_BINARY_DIR}/logs_pii_cli")
@@ -25,7 +26,7 @@ foreach(nome IN ITEMS
     cliEmiteDpsAceitaPeloServidorFalso
     cliRecusaProducaoBloqueada
     cliRecusaProducaoSemCnpjDigitado
-    senhaPorArgumentoRecusada)
+    senhaNaoApareceEmArgvNemLog)
     add_test(NAME e2e.cliEmitir.${nome} COMMAND tst_cli_emitir ${nome})
     set_tests_properties(e2e.cliEmitir.${nome} PROPERTIES
                          FIXTURES_REQUIRED certificados_teste

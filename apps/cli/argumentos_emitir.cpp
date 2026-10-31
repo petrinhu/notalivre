@@ -8,7 +8,7 @@ namespace {
 
 const QString kUsoEmitir = QStringLiteral(
     "uso: notalivre emitir <entrada.json> --serie <S> --numero <N> --ambiente <homologacao|producao-restrita|producao> "
-    "[--cnpj-confirmado <14 dígitos>]");
+    "");
 
 bool apenasDigitos(const QString& texto, int maximo)
 {
@@ -49,8 +49,6 @@ std::expected<ArgumentosEmitir, QString> lerArgumentosEmitir(const QStringList& 
             lidos.ambiente = valor;
         } else if (opcao == QLatin1String("--certificado")) {
             lidos.certificado = valor;
-        } else if (opcao == QLatin1String("--cnpj-confirmado")) {
-            lidos.cnpjConfirmado = valor;
         } else {
             return std::unexpected(kUsoEmitir);
         }

@@ -13,8 +13,8 @@ class RegistroCli;
 
 namespace nl::cli {
 
-/// Código de saída: 0 emissão concluída (ainda não alcançável nesta fatia WIP); 1 recusa de regra (Produção bloqueada, CNPJ
-/// não digitado); 2 uso, ambiente ou senha ausente; 3 envio ainda não ligado (estado WIP).
+/// Código de saída: 0 emissão aceita; 1 recusa de regra (Produção bloqueada, confirmação não digitada ou não confere, envio
+/// recusado); 2 uso, ambiente, endpoint ou senha ausente; 4 documento reprovado no leiaute (DPS de entrada ou XML assinado).
 int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro);
 
 } // namespace nl::cli

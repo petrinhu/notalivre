@@ -7,6 +7,9 @@
 #include "configuracao_cli.h"
 #include <nl/mid/composicao/terminal_sem_eco.h>
 
+#include <optional>
+#include <string>
+
 #include <nl/mid/composicao/emissao_cli.h>
 #include <nl/mid/composicao/politica_emissao.h>
 #include <nl/mid/composicao/registro_cli.h>
@@ -17,6 +20,25 @@
 
 
 namespace nl::cli {
+
+namespace {
+
+// Código de saída da emissão recusada (NL-2.9, DA-2.51): 4 quando o documento não passa no leiaute (entrada ou XML assinado),
+// 2 quando o ambiente do XSD falha, 1 nos demais casos de recusa.
+int codigoDeSaida(const std::string& codigo)
+{
+    const bool documento = codigo == "xsd.invalido" || codigo == "xsd.pos_assinatura" || codigo.rfind("dps.", 0) == 0 ||
+                           codigo.rfind("entrada.", 0) == 0 || codigo.rfind("cpf.", 0) == 0 || codigo.rfind("cnpj.", 0) == 0;
+    if (documento) {
+        return 4;
+    }
+    if (codigo == "xsd.esquema" || codigo == "xsd.interno") {
+        return 2;
+    }
+    return 1;
+}
+
+} // namespace
 
 int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro)
 {
@@ -54,10 +76,6 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         erro << QString::fromStdString(liberado.error().mensagem()) << Qt::endl;
         return 1;
     }
-    if (*ambiente == nl::mid::composicao::Ambiente::Producao && lidos->cnpjConfirmado.isEmpty()) {
-        erro << QStringLiteral("Produção exige o CNPJ digitado como confirmação (--cnpj-confirmado)") << Qt::endl;
-        return 1;
-    }
     if (lidos->certificado.isEmpty()) {
         erro << QStringLiteral("falta o certificado: informe --certificado <caminho do .pfx>") << Qt::endl;
         return 2;
@@ -66,6 +84,15 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
     if (!arquivoDps.open(QIODevice::ReadOnly)) {
         erro << QStringLiteral("não foi possível ler a DPS de entrada: %1").arg(lidos->entrada) << Qt::endl;
         return 2;
+    }
+    // Produção: o CPF ou CNPJ é digitado no terminal, antes da senha, e confere com o A1 e com o emitente (item 2).
+    std::optional<QString> confirmacao;
+    if (*derivado == nl::mid::composicao::Ambiente::Producao) {
+        confirmacao = nl::mid::composicao::lerConfirmacaoDoTerminal(QStringLiteral("confirme o CPF ou CNPJ do emissor: "));
+        if (!confirmacao || confirmacao->isEmpty()) {
+            erro << QStringLiteral("Produção exige o CPF ou CNPJ digitado no terminal como confirmação") << Qt::endl;
+            return 1;
+        }
     }
     // A senha só entra pelo terminal, sem eco. Sem terminal de controle, a CLI não emite.
     auto senhaSegura = nl::mid::composicao::lerSenhaDoTerminal(QStringLiteral("senha do certificado: "));
@@ -80,13 +107,14 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         lidos->certificado,
         config->urlSefin,
         config->ancoras,
+        confirmacao.value_or(QString()),
     };
     const auto chave = nl::mid::composicao::emitirDpsPelaCli(pedido, *senhaSegura, registro);
     if (!chave) {
         erro << QStringLiteral("emissão recusada (%1): %2")
                     .arg(QString::fromStdString(chave.error().codigo), QString::fromStdString(chave.error().mensagem))
              << Qt::endl;
-        return 1;
+        return codigoDeSaida(chave.error().codigo);
     }
     saida << QStringLiteral("emitida: chave ") << *chave << Qt::endl;
     return 0;

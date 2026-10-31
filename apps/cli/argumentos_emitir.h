@@ -18,12 +18,11 @@ struct ArgumentosEmitir
     QString serie;
     QString numero;
     QString ambiente;
-    QString cnpjConfirmado; ///< opcional; exigido para Produção (confirmação digitada, spec 4.12)
     QString certificado;    ///< caminho do .pfx (--certificado); só o caminho, a senha vem do terminal
 };
 
 /// Espera a lista inteira da linha de comando, começando por "emitir".
-/// Uso: notalivre emitir <entrada.json> --serie <S> --numero <N> --ambiente <A> [--cnpj-confirmado <14 dígitos>].
+/// Uso: notalivre emitir <entrada.json> --serie <S> --numero <N> --ambiente <A>. A confirmação de Produção é digitada no terminal.
 /// Qualquer opção com "senha" no nome é recusada: a senha é lida do terminal, sem eco.
 std::expected<ArgumentosEmitir, QString> lerArgumentosEmitir(const QStringList& argumentos);
 
