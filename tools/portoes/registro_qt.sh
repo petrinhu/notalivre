@@ -41,13 +41,20 @@ fi
 
 # Pares "NOME BASE" do CTest: NOME é o nome do teste, BASE o nome do executável (última pasta do caminho).
 CT_PARES="$J/.ctest_pares.txt"
-find "$BUILD" -name CTestTestfile.cmake -exec grep -h '^add_test(\[=\[' {} + \
-    | sed -n 's/^add_test(\[=\[\(.*\)\]=\] "\([^"]*\)".*/\1 \2/p' \
+# Dois formatos, porque a versão do CMake muda a escrita: add_test([=[NOME]=] "EXE" ...) (fedora44, ubuntu26.04, mint22.3) e
+# add_test("NOME" "EXE" ...) (manjaro, rodada de 31/10 06:57). Qualquer outra linha add_test fica sem leitura e reprova.
+find "$BUILD" -name CTestTestfile.cmake -exec grep -h '^add_test(' {} + > "$J/.ctest_linhas.txt"
+n_linhas=$(wc -l < "$J/.ctest_linhas.txt" | tr -d ' ')
+sed -n -e 's/^add_test(\[=\[\(.*\)\]=\] "\([^"]*\)".*/\1 \2/p' \
+       -e 's/^add_test("\([^"]*\)" "\([^"]*\)".*/\1 \2/p' "$J/.ctest_linhas.txt" \
     | sed 's|^\([^ ]*\) \(.*\)/\([^/ ]*\)$|\1 \3|' > "$CT_PARES"
 cut -d' ' -f1 "$CT_PARES" > "$J/.ctest_nomes.txt"
 n_ctest=$(wc -l < "$CT_PARES" | tr -d ' ')
 n_manifesto=$(wc -l < "$J/esperados.txt" | tr -d ' ')
 n_executaveis=$(wc -l < "$J/executaveis_qt.txt" | tr -d ' ')
+if [ "$n_linhas" -ne "$n_ctest" ]; then
+    parada "formato do CTestTestfile.cmake não reconhecido: $n_linhas linhas add_test, $n_ctest lidas (o portão lê [=[NOME]=] e \"NOME\")"
+fi
 if [ "$n_ctest" -eq 0 ]; then
     parada "CTest sem testes registrados em $BUILD (zero testes não é varredura)"
 fi
