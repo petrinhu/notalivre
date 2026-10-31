@@ -24,6 +24,8 @@ def main():
                         metavar=("METODO", "CAMINHO", "FALHA"))
     parser.add_argument("--tls-maximo", choices=["1.2"], default=None,
                         help="versão máxima de TLS do cenário (rodada 4, DA-2.41); sem a opção, TLS 1.3 é o máximo")
+    parser.add_argument("--prefixo", default="",
+                        help="prefixo do caminho da API (DA-2.5, p.ex. /SefinNacional); sem a opção, a API fica na raiz")
     parser.add_argument("--com-oraculo", action="store_true",
                         help="liga o oráculo (xmllint e xmlsec1 de NL_XMLLINT e NL_XMLSEC1, XSD de NL_XSD_PRODREST_DIR)")
     args = parser.parse_args()
@@ -46,7 +48,7 @@ def main():
         oraculo = oraculo_mod.Oraculo(os.environ["NL_XMLLINT"], os.environ["NL_XMLSEC1"],
                                       os.path.join(os.environ["NL_XSD_PRODREST_DIR"], "DPS_v1.01.xsd"),
                                       certs.ca, os.path.join(base, "lancador-oraculo-%d" % os.getpid()))
-    srv = servidor.ServidorFalso(certs, oraculo, rota, tls_maximo=args.tls_maximo)
+    srv = servidor.ServidorFalso(certs, oraculo, rota, tls_maximo=args.tls_maximo, prefixo=args.prefixo)
     srv.iniciar()
     print(f"PORTA {srv.porta}", flush=True)
     sys.stdin.read()  # fica no ar até o dono fechar o stdin

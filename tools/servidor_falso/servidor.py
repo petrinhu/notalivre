@@ -87,7 +87,9 @@ def corpo_nfse_defeituosa(chave, falha):
 class ServidorFalso(http.server.HTTPServer):
     allow_reuse_address = True
 
-    def __init__(self, certs, oraculo, roteiro=None, tls_maximo=None):
+    def __init__(self, certs, oraculo, roteiro=None, tls_maximo=None, prefixo=""):
+        # NL-2.10a (stub): o prefixo ainda não é usado; a fatia o aplica em _tratar.
+        self.prefixo = prefixo
         self.contexto = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self.contexto.load_cert_chain(certs.servidor_cert, certs.servidor_key)
         self.contexto.minimum_version = ssl.TLSVersion.TLSv1_2  # explícito: nada abaixo de TLS 1.2 (rodada 2, item 4)
