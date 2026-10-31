@@ -1,12 +1,35 @@
 # Roteiro: emissão de teste em Produção Restrita (NL-2.10)
 
-**Situação:** pronto para o líder, com uma verificação aberta antes do teste: a seção 6, item 4 (o Qt usa o arquivo de CAs do runtime dentro do programa isolado).
+**Situação:** pronto para o líder. Uma verificação fica aberta e declarada (seção 6, item 4): o seu teste é a prova.
 **Data:** 31/10/2026.
-**Código:** branch `onda-2`, commit `cca6d76` (merge da NL-2.10b, com bundle, âncoras por ambiente e `--numero` conferido contra a DPS). Esta fatia está sobre ele.
-**Bundle (programa instalável):** `/var/tmp/notalivre-nl210/bundle/run-41251698052/extraido/notalivre.flatpak`, 619896 bytes, gerado pelo CI do run `41251698052`, verde nos 10 jobs, commit `cca6d76`.
-**SHA-256 do bundle:** `261eb964902215ca0e8b5a01ea65ad146c8835d706ffcf96f7418794db3350c2` (calculado pelo agente sobre o arquivo extraído do artefato `notalivre-bundle`). O digest do ZIP do artefato, dado pela API do GitHub, é `01dab6a02066c0f71c46171f4a995e087240a267329180f917f4d9f41b97e953`. O job não imprime o SHA-256 do `.flatpak`; por isso a conferência é a do ZIP contra a API e a do `.flatpak` contra este valor.
+**Código:** branch `onda-2`, commit `cca6d76` (merge da NL-2.10b). Esta fatia está sobre ele.
+**Pacote a instalar:** veja a seção "Pacote a instalar", logo abaixo.
 
 Nos comandos abaixo, o que está entre `< >` é um texto que você troca pelo seu valor. O caminho do seu certificado nunca aparece neste roteiro: use sempre `<caminho do seu .pfx>`.
+
+---
+
+## Pacote a instalar
+
+Um registro só. Confira antes de instalar.
+
+- **Run do CI:** `41251698052` (verde, 10 jobs)
+- **Commit:** `cca6d76` (merge da NL-2.10b na onda-2)
+- **Artefato:** `notalivre-bundle`
+- **Digest do ZIP do artefato, pela API do GitHub:** `sha256:01dab6a02066c0f71c46171f4a995e087240a267329180f917f4d9f41b97e953`
+- **SHA-256 completo do arquivo `notalivre.flatpak`:** `261eb964902215ca0e8b5a01ea65ad146c8835d706ffcf96f7418794db3350c2`
+- **Caminho do arquivo:** `/var/tmp/notalivre-nl210/bundle/run-41251698052/extraido/notalivre.flatpak`
+- **Tamanho:** 619896 bytes
+
+Antes de instalar, rode:
+
+```
+sha256sum /var/tmp/notalivre-nl210/bundle/run-41251698052/extraido/notalivre.flatpak
+```
+
+O resultado tem de ser exatamente `261eb964902215ca0e8b5a01ea65ad146c8835d706ffcf96f7418794db3350c2`. Se for outro, não instale e avise o agente. O job do CI ainda não imprime esse SHA-256 no resumo; o valor acima foi calculado pelo agente sobre o arquivo extraído do artefato, e o digest do ZIP confere com a API.
+
+**Nota:** este pacote é provisório. Ele será substituído pelo run do merge da NL-2.10c, que terá um SHA novo. Os valores desta seção serão trocados por esse run antes de qualquer instalação.
 
 ---
 
@@ -108,7 +131,7 @@ Regras que valem para este arquivo:
 - **Não escreva** a seção `[xsd]`. Fora de Homologação, o programa também sai com código 10 se ela existir. Os esquemas XSD já vêm instalados no programa, com conferência de SHA-256.
 - **Não deixe nenhuma chave com valor vazio**, por exemplo `algoritmo =` sem nada depois. Chave vazia sai com código 10. A mesma coisa vale para uma chave escrita duas vezes no mesmo arquivo (`configuracao.chave_duplicada`).
 - A chave `certificado.caminho` não entra aqui. O passo 3.7 cria a seção `[certificado]` sozinho. Se faltar essa chave, o programa sai com código 10 (`configuracao.chave_ausente`).
-- A chave `sefin.url` tem de ser exatamente o endereço acima. Se for outro endereço, o programa para com saída 2 e diz qual endereço recebeu.
+- A chave `sefin.url` tem de ser `https` e ter o host `sefin.producaorestrita.nfse.gov.br`. Só o host é conferido. Se o host for outro, o programa para com saída 2 e mostra a mensagem fixa `o endpoint não é de Produção, de Produção Restrita nem do servidor local de teste`. Ele não repete o endereço que você digitou.
 - Nunca deixe `producao_liberada` como `true` neste teste. Ela só muda com a decisão do líder para a Produção.
 
 ### 3.7 Gravar o caminho do certificado
@@ -169,21 +192,27 @@ Regras que valem para o arquivo:
 Antes, faça o passo 3.4 com o arquivo pronto. Depois rode:
 
 ```
-flatpak run --command=notalivre-cli io.github.petrinhu.notalivre emitir "<caminho da DPS no app>" --serie 1 --numero 1 --ambiente producao-restrita 2> /var/tmp/notalivre-nl210/teste-lider/log-tentativa-1.txt
+flatpak run --command=notalivre-cli io.github.petrinhu.notalivre emitir "<caminho da DPS no app>" --serie 1 --numero 1 --ambiente producao-restrita > /var/tmp/notalivre-nl210/teste-lider/saida-tentativa-1.txt 2>&1; echo "saida=$?"; cat /var/tmp/notalivre-nl210/teste-lider/saida-tentativa-1.txt
 ```
 
 Como funciona:
 
-- Quando aparecer `senha do certificado:`, digite a senha e tecle Enter. Nada aparece na tela enquanto você digita, e isso é o esperado.
+- O comando grava tudo o que o programa escreve (a linha `emitida`, os erros e as mensagens) no arquivo `saida-tentativa-1.txt`. Os erros não aparecem na tela sozinhos, por isso o comando mostra o código de saída (`saida=...`) e depois o conteúdo do arquivo. Olhe sempre as duas coisas antes de fazer outra tentativa.
+- Quando aparecer `senha do certificado:`, digite a senha e tecle Enter. Esse prompt aparece direto no terminal, não no arquivo. Nada aparece na tela enquanto você digita, e isso é o esperado.
 - O argumento `--numero` tem de ser igual ao `nDps` do arquivo, e o `--serie` igual ao `serie`. O programa confere os dois contra a DPS: se algum for diferente, ele recusa a emissão com saída 2 e diz qual campo não bate. Ele não escolhe um dos dois valores.
-- Códigos de saída que você pode ver nesta etapa:
-  - **2:** uso errado da linha de comando, `--serie` ou `--numero` diferente da DPS, ou endereço (`sefin.url`) que não é de Produção Restrita. A mensagem diz o que corrigir.
+- **Nunca repita um `nDps` depois de uma saída diferente de 0 sem ler o arquivo.** Uma recusa pode já ter registrado o número na Sefin.
+- Códigos de saída:
+  - **0:** emissão aceita. O arquivo tem a linha `emitida: chave` seguida de um número de 50 caracteres. Esse é o número da nota de teste.
+  - **1:** recusa de credencial, ou recusa da Sefin. A credencial cobre senha errada e certificado que não carrega (`credencial.nao_carregou`). A recusa da Sefin aparece como `emissão recusada (sefin.<código>)`, e é aí que você distingue a rota não encontrada (404) do E0714: leia o texto no arquivo, porque ambos saem com 1.
+  - **2:** uso errado da linha de comando, `--serie` ou `--numero` diferente da DPS, host de `sefin.url` que não é o de Produção Restrita, esquema XSD instalado com problema, ou senha não digitada (sem terminal).
+  - **4:** documento reprovado: a DPS não passou na validação do esquema XSD, ou um campo (CPF, CNPJ, série ou entrada) está errado. Corrija o arquivo, use um número novo e tente de novo.
+  - **5:** a DPS já existe na Sefin com outro conteúdo (`sefin.dps_duplicada`). Não reenvie o mesmo `nDps`. Use o próximo número livre e avise o agente.
+  - **7:** a Sefin não conseguiu comparar a DPS com a nota já existente (`sefin.comparacao_indisponivel`). Devolva o arquivo ao agente.
   - **10:** problema de configuração: chave vazia, chave repetida, chave que não pode existir em Produção Restrita, chave obrigatória ausente, ou certificado ilegível.
-  - Qualquer outro código de erro da Sefin não entra nesta tabela: devolva o log ao agente.
-- Se der certo, a última linha da tela diz `emitida: chave` seguida de um número de 50 caracteres. Esse é o número da nota de teste.
-- O log, com os eventos do programa, fica no arquivo `log-tentativa-1.txt`. A senha não entra nesse arquivo.
+  - **70:** erro interno do programa. Devolva o arquivo ao agente.
+  - Qualquer outro código de erro da Sefin não está nesta tabela: devolva o arquivo ao agente.
 
-Se a tela mostrar uma mensagem de erro, copie o código que aparece entre parênteses e o texto dele. Veja a seção 4 para devolver o log.
+Se a saída não for `saida=0`, não faça outra tentativa antes de devolver o arquivo ao agente.
 
 ### 3.10 Tentativa 2: segunda base
 
@@ -195,7 +224,7 @@ Faça esta tentativa só se a Sefin responder que a rota não existe (um erro 40
 4. Rode de novo, com o número novo:
 
 ```
-flatpak run --command=notalivre-cli io.github.petrinhu.notalivre emitir "<caminho da DPS no app>" --serie 1 --numero 2 --ambiente producao-restrita 2> /var/tmp/notalivre-nl210/teste-lider/log-tentativa-2.txt
+flatpak run --command=notalivre-cli io.github.petrinhu.notalivre emitir "<caminho da DPS no app>" --serie 1 --numero 2 --ambiente producao-restrita > /var/tmp/notalivre-nl210/teste-lider/saida-tentativa-2.txt 2>&1; echo "saida=$?"; cat /var/tmp/notalivre-nl210/teste-lider/saida-tentativa-2.txt
 ```
 
 Se a tentativa 1 já tiver ido para o endereço certo e a Sefin tiver recusado por outro motivo, não faça a tentativa 2. Essa decisão é do agente, com o log na mão.
@@ -210,7 +239,7 @@ Faça esta tentativa só se a Sefin responder com o código `E0714` (assinatura 
 4. Rode com o número novo:
 
 ```
-flatpak run --command=notalivre-cli io.github.petrinhu.notalivre emitir "<caminho da DPS no app>" --serie 1 --numero 3 --ambiente producao-restrita 2> /var/tmp/notalivre-nl210/teste-lider/log-tentativa-3.txt
+flatpak run --command=notalivre-cli io.github.petrinhu.notalivre emitir "<caminho da DPS no app>" --serie 1 --numero 3 --ambiente producao-restrita > /var/tmp/notalivre-nl210/teste-lider/saida-tentativa-3.txt 2>&1; echo "saida=$?"; cat /var/tmp/notalivre-nl210/teste-lider/saida-tentativa-3.txt
 ```
 
 Se vier qualquer outro código de erro, que não seja 404 ou E0714, pare. Não tente de novo às cegas: devolva o log ao agente.
@@ -219,15 +248,15 @@ Se vier qualquer outro código de erro, que não seja 404 ou E0714, pare. Não t
 
 ## 4. Onde ficam o log e as respostas, como devolver e como apagar
 
-**O log do programa** é o texto que a CLI imprime enquanto roda. Com o `2>` dos comandos acima, ele vai para `/var/tmp/notalivre-nl210/teste-lider/log-tentativa-N.txt`, fora de qualquer pasta sincronizada.
+**A saída do programa** é o que a CLI escreve durante a emissão: a linha `emitida`, os erros e as mensagens. Os comandos das seções 3.9 a 3.11 a gravam em `/var/tmp/notalivre-nl210/teste-lider/saida-tentativa-N.txt`, fora de qualquer pasta sincronizada. Esse arquivo é o log que você devolve ao agente.
 
-**As respostas cruas da Sefin** são gravadas pelo próprio programa, em um arquivo por DPS, dentro de uma pasta chamada `respostas`. Essa pasta fica na pasta de dados do app, que está dentro de `~/.var/app/io.github.petrinhu.notalivre`. Para achar a pasta:
+**As respostas cruas da Sefin** são gravadas pelo próprio programa, em um arquivo por DPS, dentro de uma pasta chamada `respostas`. **A confirmar após a NL-2.10c:** quais emissões gravam essa resposta. O CTO decidiu que a recusa da Sefin também passa a gravá-la, mascarada. Essa pasta fica na pasta de dados do app, que está dentro de `~/.var/app/io.github.petrinhu.notalivre`. Para achar a pasta:
 
 ```
 find ~/.var/app/io.github.petrinhu.notalivre -type d -name respostas
 ```
 
-Cada arquivo sai com permissão só para você (0600). O conteúdo é mascarado pelo programa, mas continua sendo a resposta da Sefin para a sua nota, então trate como dado pessoal.
+**A confirmar após a NL-2.10c** (quais emissões gravam o arquivo). Cada arquivo sai com permissão só para você (0600). O conteúdo é mascarado pelo programa, mas continua sendo a resposta da Sefin para a sua nota, então trate como dado pessoal.
 
 **Como devolver ao agente.** Copie os arquivos para a pasta de devolução, sem alterar o nome, e avise no chat:
 
@@ -268,7 +297,7 @@ Os três pontos que bloqueavam o teste antes da NL-2.10b estão resolvidos no c�
 1. **Esquemas XSD (resolvido).** O bundle instala os XSD conferidos em `/app/share/notalivre/xsd`, e o programa usa essa pasta sozinho. Por isso o `config.ini` não tem `[xsd]`.
 2. **Raízes da ICP-Brasil (resolvido).** O bundle instala as raízes em `/app/share/notalivre/icp-brasil`, e o programa as usa sozinho para validar o seu certificado. Por isso o `config.ini` não tem `certificado.ancoras`.
 3. **`--serie` e `--numero` (resolvido).** Os dois entram na DPS e são conferidos contra o JSON. Conflito sai com saída 2, sem escolher um valor (seção 3.9).
-4. **Aberto (VERIF-1): confirmar que o programa isolado usa o arquivo de CAs do runtime.** A CLI não recebe o caminho desse arquivo. Ela usa o repositório de CAs que o sistema oferece dentro do programa. Ainda não se mediu, de dentro do programa isolado, de qual arquivo esse repositório vem. Se não houver nenhum repositório de CAs, a CLI recusa antes de conectar e não envia nada. Se houver um repositório diferente do runtime KDE 6.11, a verificação não fecha e o agente registra qual é. Esta verificação é feita pelo agente, antes do seu teste, sem comando novo seu além dos já descritos neste roteiro.
+4. **Aberto (VERIF-1): confirmar que o programa isolado usa o arquivo de CAs do runtime.** A CLI não recebe o caminho desse arquivo. Ela usa o repositório de CAs que o sistema oferece dentro do programa. Ainda não se mediu, de dentro do programa isolado, de qual arquivo esse repositório vem. Se não houver nenhum repositório de CAs, a CLI recusa antes de conectar e não envia nada. Se houver um repositório diferente do runtime KDE 6.11, a verificação não fecha e o agente registra qual é. Decisão do CISO, 31/10/2026 (20:31:27): esta verificação fica aberta e declarada. O seu teste é a prova. A sonda que confere isso entra na NL-9.2.
 
 ---
 
