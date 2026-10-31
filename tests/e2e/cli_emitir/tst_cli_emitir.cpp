@@ -375,12 +375,18 @@ void TstCliEmitir::cliRecusaDpsInvalidaSemPost()
     QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
     escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
-    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/cpf_invalido.json"),
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/xdescserv_2001.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
                                  QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    // Fixture xdescserv_2001.json: xDescServ com 2001 caracteres. O domínio (Back) não limita o texto; o XSD limita em 2000
+    // (third_party, cache do XSD: tiposSimples_v1.01.xsd, linha 1442, TSDesc2000, maxLength 2000). Sem dado real.
+    // A entrada passa no domínio (Back) e reprova no XSD ANTES da assinatura: o código tem de ser xsd.invalido. Se a validação de
+    // entrada for pulada (mutante H), a reprovação vem só depois de assinar, como xsd.pos_assinatura, e o teste reprova.
+    QVERIFY2(execucao.saida.contains("xsd.invalido"), "a DPS tem de sair reprovada pela validação de entrada, antes da assinatura");
+    QVERIFY2(!execucao.saida.contains("xsd.pos_assinatura"), "a reprovação não pode vir da revalidação depois de assinar");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
 }
