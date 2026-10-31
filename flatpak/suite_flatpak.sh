@@ -53,6 +53,11 @@ resumo="$(grep 'tests passed' "$BUILD/suite-executados.txt" | tail -n 1)"
 analisados="$(printf '%s\n' "$resumo" | sed -n 's/.*out of \([0-9]*\).*/\1/p')"
 falharam="$(printf '%s\n' "$resumo" | sed -n 's/.*, \([0-9]*\) tests failed.*/\1/p')"
 [ -n "$analisados" ] || analisados=0
+# O ctest do SDK KDE 6.11 omite ", 0 tests failed" quando não há falha: "100% tests passed out of N" é zero falha.
+# Qualquer outro resumo sem a contagem de falhas continua sendo falha (padrão 1, fechado).
+if [ -z "$falharam" ] && printf '%s\n' "$resumo" | grep -q -E '^100% tests passed out of [0-9]+$'; then
+    falharam=0
+fi
 [ -n "$falharam" ] || falharam=1
 
 echo "suite_flatpak: analisados=$analisados falharam=$falharam ctest_rc=$rc"

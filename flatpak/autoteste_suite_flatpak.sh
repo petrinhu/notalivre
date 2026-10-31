@@ -59,6 +59,9 @@ FALHA3="67% tests passed, 1 tests failed out of 3"
 
 # Controle positivo: contagem exata, tudo passa.
 caso verde 3 "" 3 "$OK3" 0 0 "VERDE, 3 de 3 testes passaram, piso 3"
+# Formato curto do ctest do SDK (run 41182301920): "100% tests passed out of 3", sem a parte ", 0 tests failed". Zero falha
+# é verde, não falharam=1 por omissão (o job flatpak reprovou um run inteiro de 236 testes verdes por isso).
+caso verde_formato_curto 3 "" 3 "100% tests passed out of 3" 0 0 "VERDE, 3 de 3 testes passaram, piso 3"
 # Ramo do piso +1 (manifesto): piso 4, o CTest lista 3.
 caso piso_mais_mais1 3 1 3 "$OK3" 0 1 "o CTest registrou 3 testes, abaixo do piso 4"
 # Contagem exata para CIMA: teste novo registrado sem atualizar o piso (era o buraco do -lt).
