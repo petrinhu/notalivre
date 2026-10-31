@@ -13,6 +13,8 @@
 #include <nl/back/identificacao/inscricao.h>
 #include <nl/back/app/emitir_nota.h>
 #include <nl/foundation/log/log.h>
+#include <nl/mid/composicao/confirmacao_inscricao.h>
+#include <nl/mid/composicao/registro_cli.h>
 #include <nl/foundation/pkcs12/ancoras.h>
 #include <nl/foundation/pkcs12/carregador_pkcs12.h>
 #include <nl/foundation/pkcs12/credencial_x509.h>
@@ -36,6 +38,8 @@
 #include <chrono>
 #include <iostream>
 #include <optional>
+#include <string>
+#include <vector>
 
 namespace nl::mid::composicao {
 namespace {
@@ -96,7 +100,8 @@ std::expected<bk::IdDps, FalhaEmissao> idDoXml(const QByteArray& xml)
     return *idDps;
 }
 
-// TLS de cliente a partir da credencial: certificado DER e chave PKCS#8 PEM; autoridades do arquivo de âncoras.
+// TLS de cliente a partir da credencial: certificado DER; chave PKCS#8 em DER (NL-2.9, item 11). A chave sai do OpenSSL num
+// buffer de memória do BIO, entregue ao QSslKey sem cópia (fromRawData), e o buffer é zerado logo depois.
 ft::ConfiguracaoTls configuracaoTls(const fp::CredencialX509& credencial, const QByteArray& ancorasPem)
 {
     ft::ConfiguracaoTls tls;
@@ -107,11 +112,13 @@ ft::ConfiguracaoTls configuracaoTls(const fp::CredencialX509& credencial, const 
     }
     OPENSSL_free(der);
     BIO* saida = BIO_new(BIO_s_mem());
-    if (saida != nullptr && PEM_write_bio_PKCS8PrivateKey(saida, credencial.chavePrivada(), nullptr, nullptr, 0, nullptr,
-                                                          nullptr) == 1) {
+    if (saida != nullptr && i2d_PKCS8PrivateKey_bio(saida, credencial.chavePrivada(), nullptr, nullptr, 0, nullptr, nullptr) == 1) {
         char* dados = nullptr;
         const long n = BIO_get_mem_data(saida, &dados);
-        tls.chaveCliente = QSslKey(QByteArray(dados, static_cast<qsizetype>(n)), QSsl::Rsa, QSsl::Pem);
+        if (n > 0 && dados != nullptr) {
+            tls.chaveCliente = QSslKey(QByteArray::fromRawData(dados, static_cast<qsizetype>(n)), QSsl::Rsa, QSsl::Der);
+            OPENSSL_cleanse(dados, static_cast<std::size_t>(n));
+        }
     }
     BIO_free(saida);
     tls.autoridades = QSslCertificate::fromData(ancorasPem, QSsl::Pem);
@@ -126,7 +133,18 @@ FalhaEmissao falhaDoEnvio(const nl::back::FalhaSefin& falhaSefin)
 
 } // namespace
 
-std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, const QByteArray& senha)
+namespace {
+
+// Recusa da emissão: o registro recebe o evento com o Id e o código estável; o Id só entra depois que existe.
+FalhaEmissao recusada(RegistroCli& registro, const bk::IdDps& idDps, FalhaEmissao falhaEmissao)
+{
+    registro.registrarEmissaoRecusada(idDps.texto().toStdString(), falhaEmissao.codigo);
+    return falhaEmissao;
+}
+
+} // namespace
+
+std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, fp::SenhaSegura& senha, RegistroCli& registro)
 {
     // 1. DPS de entrada: JSON validado no XSD. Reprovação vem com o primeiro código do validador.
     auto xml = DpsValidar::executar(pedido.dpsJson, pedido.esquema);
@@ -139,7 +157,7 @@ std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedid
     if (!idDps) {
         return std::unexpected(idDps.error());
     }
-    // 3. Âncoras e credencial do A1 (a senha vem do terminal, nunca por argumento).
+    // 3. Âncoras e credencial do A1 (a senha é consumida aqui: o carregador a zera).
     const QByteArray ancorasPem = lerArquivo(pedido.caminhoAncoras);
     auto ancoras = fp::Ancoras::dePem(ancorasPem);
     if (!ancoras) {
@@ -147,26 +165,37 @@ std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedid
     }
     const QByteArray pfx = lerArquivo(pedido.caminhoCertificado);
     fp::CarregadorPkcs12 carregador;
-    fp::SenhaSegura senhaSegura = fp::SenhaSegura::de(senha);
-    auto credencial = carregador.carregar(pfx, senhaSegura, *ancoras);
+    auto credencial = carregador.carregar(pfx, senha, *ancoras);
     if (!credencial) {
-        return std::unexpected(falha("credencial.nao_carregou", "o certificado não carregou com a senha informada"));
+        return std::unexpected(recusada(registro, *idDps, falha("credencial.nao_carregou", "o certificado não carregou com a senha informada")));
     }
-    // 4. Assinatura pela raiz de composição: a CLI não conhece o adaptador.
+    // 4. Confirmação digitada: tem de bater com o A1 e com o emitente da DPS, antes de assinar e de enviar (NL-2.9, item 2).
+    if (!pedido.confirmacao.isEmpty()) {
+        const QString chaveDoEmitente = idDps->texto().mid(11, 14);
+        if (auto conferido = conferirConfirmacao(pedido.confirmacao, credencial->inscricao(), chaveDoEmitente); !conferido) {
+            return std::unexpected(recusada(registro, *idDps, falha(conferido.error().codigo(), conferido.error().mensagem())));
+        }
+    }
+    // 5. Assinatura pela raiz de composição: a CLI não conhece o adaptador.
     EmissaoNota raiz(*credencial);
     auto assinado = raiz.emitirNota().executar(*xml, idDps->texto());
     if (!assinado) {
-        return std::unexpected(falha(assinado.error().codigo(), assinado.error().mensagem()));
+        return std::unexpected(recusada(registro, *idDps, falha(assinado.error().codigo(), assinado.error().mensagem())));
     }
-    // 5. Envio mTLS pelo cliente Sefin.
+    // 6. O XML assinado é o que vai à Sefin: revalidado no XSD antes do envio (NL-2.9, DA-2.51). Reprovação é código 4 na CLI.
+    if (auto revalidado = DpsValidar::validarXml(*assinado, pedido.esquema); !revalidado) {
+        const std::string codigo = revalidado.error().erros.empty() ? std::string("xsd.pos_assinatura") : revalidado.error().erros.front().codigo();
+        return std::unexpected(recusada(registro, *idDps, falha(codigo, "o XML assinado não confere no XSD: nada foi enviado")));
+    }
+    // 7. Envio mTLS pelo cliente Sefin, com o Log do cliente (allowlist da Mid sefin, DA-2.54).
     const ft::UrlBase base{QUrl(pedido.urlSefin), QString(), std::chrono::milliseconds{30000}};
-    nl::foundation::log::Log registro{std::cerr, "notalivre-cli", {}, {"sefin.requisicao", "sefin.erro"}};
     ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasPem));
-    nl::mid::sefin::cliente::ClienteSefin cliente(transporte, registro, nl::mid::sefin::cliente::PoliticaRetry{});
+    nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{});
     auto nota = cliente.emitir(bk::DpsAssinada{*idDps, *assinado});
     if (!nota) {
-        return std::unexpected(falhaDoEnvio(nota.error()));
+        return std::unexpected(recusada(registro, *idDps, falhaDoEnvio(nota.error())));
     }
+    registro.registrarEmissaoAceita(idDps->texto().toStdString(), nota->chave.texto().toStdString());
     return nota->chave.texto();
 }
 

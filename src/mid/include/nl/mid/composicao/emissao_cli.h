@@ -13,14 +13,13 @@
 #include <expected>
 #include <string>
 
-namespace nl::foundation::log {
-class Log;
-}
 namespace nl::foundation::pkcs12 {
 class SenhaSegura;
 }
 
 namespace nl::mid::composicao {
+
+class RegistroCli;
 
 /// Tudo o que a emissão precisa, já lido pela CLI. A senha não entra aqui: vai à parte, do terminal.
 struct PedidoEmissao
@@ -30,6 +29,7 @@ struct PedidoEmissao
     QString caminhoCertificado;     ///< .pfx do certificado (argumento --certificado)
     QString urlSefin;               ///< base da API (config [sefin] url)
     QString caminhoAncoras;         ///< PEM das âncoras do A1 e do servidor TLS (config [sefin] ancoras)
+    QString confirmacao;            ///< CPF ou CNPJ digitado no terminal; vazio se não foi digitado (DA-2.14: em Produção, obrigatório)
 };
 
 /// Falha da emissão: o código é estável; a mensagem vem do catálogo, nunca do texto livre da API.
@@ -40,7 +40,9 @@ struct FalhaEmissao
 };
 
 /// Emite a DPS e devolve a chave da NFS-e. Erro de entrada, de credencial ou de envio volta com código estável e sem dado de titular.
-std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, const QByteArray& senha);
+/// A senha é consumida: o carregador a zera (NL-2.9, item 3). O registro recebe o evento da emissão (DA-2.54).
+std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, nl::foundation::pkcs12::SenhaSegura& senha,
+                                                      RegistroCli& registro);
 
 } // namespace nl::mid::composicao
 

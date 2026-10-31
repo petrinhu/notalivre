@@ -9,6 +9,7 @@
 
 #include <nl/mid/composicao/emissao_cli.h>
 #include <nl/mid/composicao/politica_emissao.h>
+#include <nl/foundation/pkcs12/senha_segura.h>
 #include <nl/mid/composicao/registro_cli.h>
 
 #include <QFile>
@@ -20,8 +21,7 @@ namespace nl::cli {
 
 int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro)
 {
-    static_cast<void>(registro);  // a emissão grava o evento no registro na tarefa seguinte (DA-2.54)
-    QTextStream erro{stderr};
+        QTextStream erro{stderr};
     QTextStream saida{stdout};
     const auto lidos = lerArgumentosEmitir(argumentos);
     if (!lidos) {
@@ -82,7 +82,8 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         config->urlSefin,
         config->ancoras,
     };
-    const auto chave = nl::mid::composicao::emitirDpsPelaCli(pedido, *senhaTerminal);
+    auto senhaSegura = nl::foundation::pkcs12::SenhaSegura::de(*senhaTerminal);
+    const auto chave = nl::mid::composicao::emitirDpsPelaCli(pedido, senhaSegura, registro);
     if (!chave) {
         erro << QStringLiteral("emissão recusada (%1): %2")
                     .arg(QString::fromStdString(chave.error().codigo), QString::fromStdString(chave.error().mensagem))
