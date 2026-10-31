@@ -6,6 +6,7 @@
 
 ## INBOX (descobertas não priorizadas)
 
+- (sem ID): NL-2.10a-ci, rev qa: um mutante que confere a legibilidade só pelos bits de permissão (isReadable) passa a não ser pego, porque o caso chmod saiu do teste por causa do root no CI. Caminho: um teste de unidade com um verificador de legibilidade injetável.
 - (sem ID): NL-2.10a, rev seg MÉDIA-1, ratificada pelo CISO às 16:38: loopback vira Homologação para qualquer serviço local (politica_emissao.cpp:42-44). Teste `loopbackComCertificadoDeOutroNomeNaoConecta` antes da NL-12. Relatório: /var/tmp/notalivre-logs/NL-2.10a-rev-seg.md.
 - (sem ID): NL-2.10a, rev seg BAIXA-2: nomes de chave da resposta crua saem sem máscara (resposta_crua.cpp:59). Os valores aninhados, de array e numéricos já foram cobertos na rodada 2.
 - (sem ID): NL-2.10a, rev seg BAIXA-3: não há teste de `?`, `#`, `..` e `//` no [sefin] prefixo; o host e o esquema não mudam (transporte_https.cpp:138-139).
