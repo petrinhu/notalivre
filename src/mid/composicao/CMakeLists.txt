@@ -27,3 +27,6 @@ target_sources(nl_mid PRIVATE
     ler_tribmun.cpp
     ler_valor.cpp
     ler_valores.cpp)
+
+# Pin do manifesto do XSD (NL-2.10b, BAIXA-4): só dps_validar.cpp lê a definição; o hash é o do SHA256SUMS de third_party.
+set_source_files_properties(dps_validar.cpp PROPERTIES COMPILE_DEFINITIONS "NL_XSD_MANIFESTO_SHA256=\"${NL_XSD_PRODREST_MANIFESTO_SHA256}\"")

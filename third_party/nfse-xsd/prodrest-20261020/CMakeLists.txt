@@ -106,3 +106,7 @@ set(NL_XSD_PRODREST_MANIFESTO "${_nl_xsd_manifesto}" CACHE INTERNAL "SHA256SUMS 
 set(NL_XSD_PRODREST_RAIZ "DPS_v1.01.xsd" CACHE INTERNAL "Esquema raiz da DPS")
 set(NL_XSD_PRODREST_ZIP "${_nl_xsd_zip}" CACHE INTERNAL "ZIP baixado e conferido (usado pelo teste de hash)")
 message(STATUS "NL-1.6a: XSD conferidos (${_nl_xsd_n_entradas} arquivos, ZIP ${_nl_xsd_zip_sha}) em ${_nl_xsd_extraido}")
+
+# Pin do SHA256SUMS do XSD (NL-2.10b, BAIXA-4): o hash do manifesto instalado é embutido na Mid, e a validação recusa outro hash.
+file(SHA256 "${_nl_xsd_manifesto}" _nl_xsd_manifesto_sha)
+set(NL_XSD_PRODREST_MANIFESTO_SHA256 "${_nl_xsd_manifesto_sha}" CACHE INTERNAL "SHA-256 do SHA256SUMS do leiaute, embutido na Mid")
