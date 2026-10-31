@@ -294,7 +294,7 @@ Desfecho reconciliarPorInfDps(ft::TransporteHttps& transporte, fl::Log& registro
     case ResultadoComparacaoInfDps::Diferente:
         return std::unexpected(falha(bk::MotivoFalhaSefin::DpsDuplicada));
     case ResultadoComparacaoInfDps::Indisponivel:
-        break;
+        return std::unexpected(falha(bk::MotivoFalhaSefin::ComparacaoIndisponivel));
     }
     return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
 }

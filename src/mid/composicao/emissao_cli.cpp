@@ -14,6 +14,7 @@
 #include <nl/back/app/emitir_nota.h>
 #include <nl/foundation/log/log.h>
 #include <nl/mid/sefin/assinatura/assinador_dps_sefin.h>
+#include <nl/mid/sefin/cliente/comparador_infdps_c14n.h>
 #include <nl/mid/composicao/confirmacao_inscricao.h>
 #include <nl/mid/composicao/registro_cli.h>
 #include <nl/mid/cofre/senha_do_terminal.h>
@@ -129,6 +130,14 @@ ft::ConfiguracaoTls configuracaoTls(const fp::CredencialX509& credencial, const 
 
 FalhaEmissao falhaDoEnvio(const nl::back::FalhaSefin& falhaSefin)
 {
+    // E0014 (DA-2.58): DPS duplicada com outro conteúdo sai como sefin.dps_duplicada (código 5); sem comparação, como
+    // sefin.comparacao_indisponivel (código 7). Nunca como sucesso, nunca como reenvio.
+    if (falhaSefin.motivo == nl::back::MotivoFalhaSefin::DpsDuplicada) {
+        return falha("sefin.dps_duplicada", "a DPS já existe na Sefin com outro conteúdo: nada foi renumerado");
+    }
+    if (falhaSefin.motivo == nl::back::MotivoFalhaSefin::ComparacaoIndisponivel) {
+        return falha("sefin.comparacao_indisponivel", "não foi possível comparar a DPS com a nota já existente");
+    }
     std::string codigo = falhaSefin.codigoE.empty() ? std::string("sefin.falha") : std::string("sefin.") + falhaSefin.codigoE;
     return falha(std::move(codigo), falhaSefin.mensagem);
 }
@@ -197,7 +206,8 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     // 7. Envio mTLS pelo cliente Sefin, com o Log do cliente (allowlist da Mid sefin, DA-2.54).
     const ft::UrlBase base{QUrl(pedido.urlSefin), QString(), std::chrono::milliseconds{30000}};
     ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasPem));
-    nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{});
+    nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{},
+                                                  std::make_shared<nl::mid::sefin::cliente::ComparadorInfDpsC14n>());
     auto nota = cliente.emitir(bk::DpsAssinada{*idDps, *assinado});
     if (!nota) {
         return std::unexpected(recusada(registro, *idDps, falhaDoEnvio(nota.error())));

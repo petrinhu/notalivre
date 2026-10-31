@@ -25,6 +25,7 @@ enum class MotivoFalhaSefin {
     Definitiva,    ///< Resposta que o cliente não consegue ler, ou configuração inválida.
     Indeterminado, ///< Os bytes do POST podem ter chegado e a consulta GET /dps não disse o que aconteceu. Nunca vira
                    ///< Definitiva nem Rejeitada: o chamador não sabe se a nota existe e não pode reenviar (DA-2.41).
+    ComparacaoIndisponivel, ///< E0014 com a nota buscada, mas o infDPS não se compara (DA-2.59): a DPS não se confirma nem se reenvia.
 };
 
 struct FalhaSefin {
