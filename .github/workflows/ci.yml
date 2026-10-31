@@ -295,6 +295,26 @@ jobs:
           { echo "## Autoteste de camadas"; echo '```'; tail -n 3 "$RUNNER_TEMP/autoteste.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
 
+  # Autotestes de estreia da NL-2.11 (DA-2.61; L-36): só shell, sem contêiner. Um trava nova só vale com autoteste que roda.
+  # O autoteste de limites usa um docker de mentira no PATH, por isso roda no runner e não num contêiner.
+  autotestes:
+    name: autotestes (piso dos portões, suíte Flatpak, limites de contêiner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Autoteste do piso dos portões (NL-2.11, A1)
+        run: bash tools/conteiner/autoteste_piso_portoes.sh
+
+      - name: Autoteste da suíte Flatpak (NL-2.11, A4 e A9)
+        run: bash flatpak/autoteste_suite_flatpak.sh
+
+      - name: Autoteste dos limites de contêiner (NL-2.11, A2 e A3)
+        run: bash tools/conteiner/autoteste_build_limites.sh
+
   # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
   # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.
   flatpak:
