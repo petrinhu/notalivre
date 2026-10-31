@@ -55,6 +55,8 @@ def main():
     srv.encerrar()
     # Ao sair, diz quantas requisições chegaram (DA-2.51): o e2e confere zero quando a CLI recusa antes do envio.
     print(f"REQUISICOES {srv.requisicoes}", flush=True)
+    # NL-2.10a: o caminho de cada POST /nfse que chegou, para o e2e provar a rota (sem corpo, sem PII).
+    print("CAMINHOS " + ",".join(p["caminho"] for p in srv.posts_recebidos if "caminho" in p), flush=True)
     return 0
 
 

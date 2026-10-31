@@ -27,6 +27,7 @@ const QString kCompleta = QStringLiteral(
     "# configuração de teste\n"
     "[sefin]\n"
     "url = https://127.0.0.1:9443\n"
+    "prefixo = /SefinNacional\n"
     "ancoras = /tmp/ancoras.pem\n"
     "[xsd]\n"
     "diretorio = /tmp/xsd\n"

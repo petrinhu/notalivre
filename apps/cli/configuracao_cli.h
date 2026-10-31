@@ -25,6 +25,7 @@ struct ErroConfiguracao
 struct ConfiguracaoCli
 {
     QString urlSefin;              ///< [sefin] url
+    QString prefixo;               ///< [sefin] prefixo: caminho da API (DA-2.5), ex.: /SefinNacional; obrigatório (NL-2.10a)
     QString ancoras;               ///< [sefin] ancoras: arquivo PEM das âncoras (A1 e servidor TLS)
     QString xsdDiretorio;          ///< [xsd] diretorio
     QString xsdManifesto;          ///< [xsd] manifesto

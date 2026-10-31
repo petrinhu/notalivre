@@ -87,6 +87,7 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         config->ancoras,
         confirmacao.value_or(QString()),
         algoritmo,
+        config->prefixo,
     };
     // A senha só entra pelo terminal, sem eco, dentro da fachada: a CLI nunca a vê (DA-2.57b).
     const auto chave = nl::mid::composicao::emitirDpsPeloTerminal(pedido, registro, QStringLiteral("senha do certificado: "));

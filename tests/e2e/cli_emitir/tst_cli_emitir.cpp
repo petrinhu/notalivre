@@ -58,7 +58,7 @@ class ServidorFalso
 public:
     /// falhaPost, se vier, é o roteiro do POST /nfse (ex.: rejeicao_gerada:E0014, DA-2.58). prefixo, se vier, é o caminho da API
     /// (DA-2.5, NL-2.10a): o servidor responde só nele.
-    explicit ServidorFalso(const QString& falhaPost = QString(), const QString& prefixo = QString())
+    explicit ServidorFalso(const QString& falhaPost = QString(), const QString& prefixo = QStringLiteral("/SefinNacional"))
     {
         QStringList argumentos{QStringLiteral("-I"), kLancador, kCertificados, QStringLiteral("--com-oraculo")};
         if (!falhaPost.isEmpty()) {
@@ -97,11 +97,17 @@ public:
         }
         return -1;
     }
-    /// Fecha o stdin e devolve os caminhos dos POST /nfse que chegaram (NL-2.10a, passo 3). Stub: ainda não lê o servidor.
+    /// Fecha o stdin e devolve os caminhos dos POST /nfse que chegaram (NL-2.10a, passo 3): o lancador os imprime ao sair.
     QStringList caminhosAoFechar()
     {
         processo_.closeWriteChannel();
         processo_.waitForFinished(5000);
+        const QString resto = QString::fromUtf8(processo_.readAllStandardOutput());
+        for (const QString& linha : resto.split(QLatin1Char('\n'))) {
+            if (linha.startsWith(QStringLiteral("CAMINHOS "))) {
+                return linha.mid(9).trimmed().split(QLatin1Char(','), Qt::SkipEmptyParts);
+            }
+        }
         return {};
     }
     int porta() const { return porta_; }
@@ -198,7 +204,7 @@ void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada, con
         return;
     }
     const QString texto = QStringLiteral(
-        "[sefin]\nurl = %5\nancoras = %1/ac.pem\n"
+        "[sefin]\nurl = %5\nprefixo = /SefinNacional\nancoras = %1/ac.pem\n"
         "[xsd]\ndiretorio = %2\nmanifesto = %3\n"
         "[emissao]\nproducao_liberada = %4\n")
                               .arg(kCertificados, kXsd, kManifesto, producaoLiberada ? QStringLiteral("true") : QStringLiteral("false"), url);
@@ -284,6 +290,7 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
     const QString config = QStringLiteral(
         "[sefin]\n"
         "url = https://127.0.0.1:%1\n"
+        "prefixo = /SefinNacional\n"
         "ancoras = %2/ac.pem\n"
         "[xsd]\n"
         "diretorio = %3\n"

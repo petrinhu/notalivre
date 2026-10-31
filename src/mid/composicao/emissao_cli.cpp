@@ -208,7 +208,7 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
         return std::unexpected(recusada(registro, *idDps, falha("xsd.pos_assinatura", "o XML assinado não confere no XSD: nada foi enviado")));
     }
     // 7. Envio mTLS pelo cliente Sefin, com o Log do cliente (allowlist da Mid sefin, DA-2.54).
-    const ft::UrlBase base{QUrl(pedido.urlSefin), QString(), std::chrono::milliseconds{30000}};
+    const ft::UrlBase base{QUrl(pedido.urlSefin), pedido.prefixoSefin, std::chrono::milliseconds{30000}};
     ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasPem));
     nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{},
                                                   std::make_shared<nl::mid::sefin::cliente::ComparadorInfDpsC14n>());

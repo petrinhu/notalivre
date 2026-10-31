@@ -63,6 +63,10 @@ std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& 
     if (!url) {
         return std::unexpected(url.error());
     }
+    auto prefixo = obrigatoria(valores, QStringLiteral("sefin.prefixo"));
+    if (!prefixo) {
+        return std::unexpected(prefixo.error());
+    }
     auto ancoras = obrigatoria(valores, QStringLiteral("sefin.ancoras"));
     if (!ancoras) {
         return std::unexpected(ancoras.error());
@@ -76,6 +80,7 @@ std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& 
         return std::unexpected(manifesto.error());
     }
     cfg.urlSefin = *url;
+    cfg.prefixo = *prefixo;
     cfg.ancoras = *ancoras;
     cfg.xsdDiretorio = *diretorio;
     cfg.xsdManifesto = *manifesto;

@@ -42,6 +42,7 @@ struct PedidoEmissao
     QString caminhoAncoras;         ///< PEM das âncoras do A1 e do servidor TLS (config [sefin] ancoras)
     QString confirmacao;            ///< CPF ou CNPJ digitado no terminal; vazio se não foi digitado (DA-2.14: em Produção, obrigatório)
     AlgoritmoAssinatura algoritmo = AlgoritmoAssinatura::RsaSha1;  ///< [assinatura] algoritmo (NL-2.10a); padrão rsa-sha1
+    QString prefixoSefin;           ///< prefixo do caminho da API (config [sefin] prefixo, DA-2.5), ex.: /SefinNacional
 };
 
 /// Falha da emissão: o código é estável; a mensagem vem do catálogo, nunca do texto livre da API.
