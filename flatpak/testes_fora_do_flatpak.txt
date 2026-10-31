@@ -1,0 +1,3 @@
+# Testes registrados no build nativo e fora do build Flatpak (NL_FLATPAK_BUILD=ON), NL-2.15, DA-2.65.
+# Formato: <nome do teste> | <motivo> | coberto no build nativo
+# Conferido por tools/portoes/fora_do_flatpak.sh por igualdade exata com os testes ausentes no configure ON.
