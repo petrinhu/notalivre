@@ -20,3 +20,15 @@ add_executable(tst_registro_cli tst_registro_cli.cpp)
 target_link_libraries(tst_registro_cli PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_foundation_base nl_warnings)
 add_test(NAME mid.composicao.registroCli COMMAND tst_registro_cli)
 set_tests_properties(mid.composicao.registroCli PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 2 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+# Revalidação no XSD depois de assinar (NL-2.9, DA-2.51). Só fixtures sintéticas; o XSD vem do build (NL_XSD_PRODREST_DIR).
+add_executable(tst_validar_xml tst_validar_xml.cpp)
+target_compile_definitions(tst_validar_xml PRIVATE
+    "NL_XSD_PRODREST_DIR=\"${NL_XSD_PRODREST_DIR}\""
+    "NL_XSD_PRODREST_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\""
+    "NL_ENTRADA_MEI=\"${CMAKE_SOURCE_DIR}/tests/e2e/dps_validar/entradas/mei_minima.json\"")
+target_link_libraries(tst_validar_xml PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_xml nl_foundation_base nl_warnings)
+add_test(NAME mid.composicao.validarXmlAceitaDpsValida COMMAND tst_validar_xml validarXmlAceitaDpsValida)
+set_tests_properties(mid.composicao.validarXmlAceitaDpsValida PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+add_test(NAME mid.composicao.validarXmlRecusaXmlQueNaoConfereNoXsd COMMAND tst_validar_xml validarXmlRecusaXmlQueNaoConfereNoXsd)
+set_tests_properties(mid.composicao.validarXmlRecusaXmlQueNaoConfereNoXsd PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")

@@ -77,4 +77,11 @@ std::expected<QByteArray, FalhaDpsValidar> DpsValidar::executar(QByteArrayView e
     return xml;
 }
 
+std::expected<void, FalhaDpsValidar> DpsValidar::validarXml(QByteArrayView xml, const LocalizacaoEsquemaDps& localizacao)
+{
+    static_cast<void>(xml);
+    static_cast<void>(localizacao);
+    return {};
+}
+
 } // namespace nl::mid::composicao
