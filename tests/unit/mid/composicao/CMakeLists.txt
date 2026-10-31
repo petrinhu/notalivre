@@ -4,7 +4,7 @@
 add_executable(tst_politica_emissao tst_politica_emissao.cpp)
 target_link_libraries(tst_politica_emissao PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_base nl_warnings)
 add_test(NAME mid.composicao.politicaEmissao COMMAND tst_politica_emissao)
-set_tests_properties(mid.composicao.politicaEmissao PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 4 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+set_tests_properties(mid.composicao.politicaEmissao PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 6 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 add_executable(tst_manipulador_qt tst_manipulador_qt.cpp ${CMAKE_SOURCE_DIR}/src/mid/composicao/guarda_manipulador_qt.cpp)
 target_link_libraries(tst_manipulador_qt PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_warnings)

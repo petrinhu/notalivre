@@ -22,6 +22,10 @@ private slots:
     void ambienteDesconhecidoRecusado();
     // O endpoint decide o ambiente, não a flag (NL-2.9, item 1): host de Produção é Produção, e flag divergente é recusada.
     void ambienteVemDoEndpointNaoDaFlag();
+    // Host parecido com o de Produção (sufixo, prefixo ou subdomínio) não é Produção: comparação exata do host (CISO, 22:48).
+    void hostParecidoComProducaoRecusado();
+    // Endpoint sem https é recusado antes de qualquer envio, mesmo com host conhecido (CISO, 22:48).
+    void endpointSemTlsRecusado();
 };
 
 void TstPoliticaEmissao::producaoBloqueadaPorPadrao()
@@ -57,6 +61,23 @@ void TstPoliticaEmissao::ambienteVemDoEndpointNaoDaFlag()
     const auto divergente = nl::mid::composicao::conferirFlagDoAmbiente(Ambiente::Homologacao, Ambiente::Producao);
     QVERIFY2(!divergente.has_value(), "flag que diverge do endpoint tem de ser recusada");
     QCOMPARE(QString::fromStdString(divergente.error().codigo()), QStringLiteral("emissao.ambiente_divergente"));
+}
+
+void TstPoliticaEmissao::hostParecidoComProducaoRecusado()
+{
+    const auto sufixo = nl::mid::composicao::ambienteDoEndpoint(QStringLiteral("https://sefin.nfse.gov.br.exemplo.com/SefinNacional"));
+    QVERIFY2(!sufixo.has_value(), "host com sufixo do de Produção não pode ser Produção");
+    QCOMPARE(QString::fromStdString(sufixo.error().codigo()), QStringLiteral("emissao.endpoint_desconhecido"));
+    const auto prefixo = nl::mid::composicao::ambienteDoEndpoint(QStringLiteral("https://xsefin.nfse.gov.br/SefinNacional"));
+    QVERIFY2(!prefixo.has_value(), "host com prefixo do de Produção não pode ser Produção");
+    QCOMPARE(QString::fromStdString(prefixo.error().codigo()), QStringLiteral("emissao.endpoint_desconhecido"));
+}
+
+void TstPoliticaEmissao::endpointSemTlsRecusado()
+{
+    const auto semTls = nl::mid::composicao::ambienteDoEndpoint(QStringLiteral("http://sefin.nfse.gov.br/SefinNacional"));
+    QVERIFY2(!semTls.has_value(), "endpoint http tem de ser recusado");
+    QCOMPARE(QString::fromStdString(semTls.error().codigo()), QStringLiteral("emissao.endpoint_inseguro"));
 }
 
 QTEST_APPLESS_MAIN(TstPoliticaEmissao)
