@@ -11,6 +11,7 @@
 #include <string>
 
 #include <nl/mid/composicao/emissao_cli.h>
+#include <nl/mid/composicao/codigo_saida.h>
 #include <nl/mid/composicao/politica_emissao.h>
 #include <nl/mid/composicao/registro_cli.h>
 
@@ -21,24 +22,6 @@
 
 namespace nl::cli {
 
-namespace {
-
-// Código de saída da emissão recusada (NL-2.9, DA-2.51): 4 quando o documento não passa no leiaute (entrada ou XML assinado),
-// 2 quando o ambiente do XSD falha, 1 nos demais casos de recusa.
-int codigoDeSaida(const std::string& codigo)
-{
-    const bool documento = codigo == "xsd.invalido" || codigo == "xsd.pos_assinatura" || codigo.rfind("dps.", 0) == 0 ||
-                           codigo.rfind("entrada.", 0) == 0 || codigo.rfind("cpf.", 0) == 0 || codigo.rfind("cnpj.", 0) == 0;
-    if (documento) {
-        return 4;
-    }
-    if (codigo == "xsd.esquema" || codigo == "xsd.interno") {
-        return 2;
-    }
-    return 1;
-}
-
-} // namespace
 
 int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro)
 {
@@ -114,7 +97,7 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         erro << QStringLiteral("emissão recusada (%1): %2")
                     .arg(QString::fromStdString(chave.error().codigo), QString::fromStdString(chave.error().mensagem))
              << Qt::endl;
-        return codigoDeSaida(chave.error().codigo);
+        return nl::mid::composicao::codigoDeSaidaDaEmissao(chave.error().codigo);
     }
     saida << QStringLiteral("emitida: chave ") << *chave << Qt::endl;
     return 0;
