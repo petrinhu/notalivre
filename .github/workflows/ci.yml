@@ -146,7 +146,7 @@ jobs:
         id: ctest
         run: ctest --preset debug --output-on-failure
 
-      # DA-2.60 (item 2, NL-2.11): mutante CERT_OPTIONAL no servidor falso, a cada push. Roda numa cópia do SHA fora do
+      # DA-2.60 (item 2, NL-2.11): mutante CERT_OPTIONAL no servidor falso, em onda-*, main e PR (não em fatia/*). Roda numa cópia do SHA fora do
       # workspace; o slot transporte.semCertificadoDeClienteHandshakeRecusado tem de morrer. A contagem vai para o resumo
       # deste job (o job mutacao tem o próprio resumo).
       - name: Mutante CERT_OPTIONAL no servidor falso (DA-2.60, cópia fora do workspace)
