@@ -11,14 +11,26 @@
 #   DESTINO  pasta NOVA, fora do repositório; recebe o clone do SHA (gitleaks git e os portões de git exigem histórico)
 # Variável: NL_HIGIENE_IMAGEM (padrão notalivre-higiene:ci, a mesma imagem do job higiene do CI)
 # Cota desta máquina (ordem do líder de 30/10/2026, dividida com outra sessão): cada contêiner tem 7 núcleos e 12 GiB.
-# Saída: uma linha "portao=<nome> rc=<rc>" por portão e o total "portoes=N falharam=K".
-# Sai com 1 se algum portão reprovar, ou se a lista não rodar inteira (piso: N tem de ser o número de portões).
+# Saída: uma linha "portao=<nome> rc=<rc>" por portão e o total "portoes=N falharam=K (piso P)".
+# Piso versionado em tools/conteiner/piso_portoes.txt (1ª linha). Reprova (rc 1) se a lista de PORTOES não tiver
+# exatamente P itens ou se o laço não rodar P portões. Piso 0 ou ilegível sai com rc 2 (zero portões é varredura
+# quebrada, L-36). Autoteste de estreia: autoteste_piso_portoes.sh.
 set -u
 
 REPO="${1:?uso: portoes_estaticos.sh REPO SHA DESTINO}"
 SHA="${2:?uso: portoes_estaticos.sh REPO SHA DESTINO}"
 DESTINO="${3:?uso: portoes_estaticos.sh REPO SHA DESTINO}"
 IMG="${NL_HIGIENE_IMAGEM:-notalivre-higiene:ci}"
+
+PISO_ARQ="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/piso_portoes.txt"
+piso="$(sed -n '1p' "$PISO_ARQ" 2>/dev/null)"
+case "$piso" in
+    ''|*[!0-9]*) echo "PARADA: piso ilegível em $PISO_ARQ ('$piso')"; exit 2 ;;
+esac
+if [ "$piso" -eq 0 ]; then
+    echo "PARADA: piso 0 recusado em $PISO_ARQ (zero portões é varredura quebrada, L-36)"
+    exit 2
+fi
 
 case "$SHA" in
     [0-9a-f]*) [ "${#SHA}" = 40 ] || { echo "PARADA: SHA com ${#SHA} caracteres, esperado 40"; exit 2; } ;;
@@ -48,7 +60,11 @@ PORTOES=(
     "sha1_env|git config --global --add safe.directory /src && python3 -I /src/tools/portoes/portao_sha1_env.py /src"
     "fixacao_ci|python3 -I /src/tools/portoes/fixacao_ci.py /src && python3 -I /src/tools/portoes/fixacao_ci.py --autoteste"
 )
-ESPERADO=${#PORTOES[@]}
+lista=${#PORTOES[@]}
+if [[ "$lista" == "$piso" ]]; then :; else
+    echo "PARADA: a lista de PORTOES tem $lista portões, o piso é $piso ($PISO_ARQ)"
+    exit 1
+fi
 
 rodados=0
 falharam=0
@@ -66,7 +82,10 @@ for item in "${PORTOES[@]}"; do
     fi
 done
 
-echo "portoes=$rodados falharam=$falharam (esperado $ESPERADO)"
-[ "$rodados" = "$ESPERADO" ] || { echo "PARADA: piso de portões não rodou inteiro"; exit 1; }
+echo "portoes=$rodados falharam=$falharam (piso $piso)"
+if [[ "$rodados" != "$piso" ]]; then
+    echo "PARADA: piso de portões não rodou inteiro (rodados=$rodados, piso=$piso)"
+    exit 1
+fi
 [ "$falharam" = 0 ] || exit 1
 exit 0
