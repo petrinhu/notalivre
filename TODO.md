@@ -6,6 +6,7 @@
 
 ## INBOX (descobertas não priorizadas)
 
+- (sem ID): NL-2.13, teste fraco do ManifestoAusente: manifestoAusenteRecusa confere só o rótulo do erro, e o mutante A4 (manifesto ausente vira vazio) continua recusando por outro motivo (tst_carga_raizes_icp.cpp:324; revisão r4, NL-2.13-r4-mutacao-R7-fedora44.log). Reforçar para provar a recusa pelo motivo certo. Também a ratificar pelo líder: v4, v6, v7 e v13 com o ITI como fonte única (triagem do CISO, 20:20, item 6).
 - (sem ID): NL-2.8: trocar o xmlsec1 do tst_cliente_sefin pelo AssinadorXml::assinarEnveloped (tst:110) e religar os slots no Flatpak. Fonte: CI vermelho da onda-2 (run 41016354025), cliente sem guarda NL_FLATPAK_BUILD (DA-2.28).
 - (sem ID): NL-2.6, correção curta decidida na DA-2.28 (CTO, a ratificar): o --lax-key-search do oráculo só vale com chaves_publicas (oraculo.py:99), a docstring de oraculo.py:5-6 passa a trazer só o medido, e a sonda do caminho padrão é repetida no manjaro (1.3.12); executor da NL-2.6, depois da NL-2.2 liberar o contêiner.
 - (sem ID): NL-2.6, controle 1 do ADR 0007 (assinaSha1NoSdkKdeSemVariavel no job Flatpak) pendente e atrelado à NL-2.3 (DA-2.27); ADR em PROPOSTO até lá.
