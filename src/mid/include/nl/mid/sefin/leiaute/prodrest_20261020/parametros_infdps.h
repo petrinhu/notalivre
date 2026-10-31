@@ -20,19 +20,13 @@ inline constexpr std::string_view kUriSha256Leiaute = "http://www.w3.org/2001/04
 inline constexpr std::string_view kUriRsaSha256Leiaute = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256";
 inline constexpr std::string_view kNamespaceLeiauteNfse = "http://www.sped.fazenda.gov.br/nfse";
 
-/// Parâmetros da assinatura da DPS (SHA-1 e rsa-sha1, DA-2.2). Stub de teste (DA-2.49): o corpo real vem no código.
+/// Parâmetros da assinatura da DPS: SHA-1 e rsa-sha1 (DA-2.2). Se a NL-2.10 mostrar E0714 com SHA-1, troca-se só esta função.
 inline nl::foundation::xmldsig::ParametrosAssinatura parametrosDaAssinaturaDps() {
-    return {kUriC14nLeiaute, kUriEnvelopedLeiaute, kUriSha256Leiaute, kUriRsaSha256Leiaute, "infDPS", "DPS",
+    return {kUriC14nLeiaute, kUriEnvelopedLeiaute, kUriSha1Leiaute, kUriRsaSha1Leiaute, "infDPS", "DPS",
             kNamespaceLeiauteNfse, "NFSe", "infNFSe"};
 }
 
-/// Forma antiga, ainda usada pelo assinador e pelo comparador até o commit de código (DA-2.49).
-inline nl::foundation::xmldsig::ParametrosAssinatura parametrosDoInfDps() {
-    return {kUriC14nLeiaute, kUriEnvelopedLeiaute, kUriSha256Leiaute, kUriRsaSha256Leiaute, "infDPS", "DPS",
-            kNamespaceLeiauteNfse, "NFSe", "infNFSe"};
-}
-
-/// Parâmetros do digest de comparação do E0014 (SHA-256, DA-2.41). Stub de teste (DA-2.49).
+/// Parâmetros do digest de comparação do E0014: SHA-256 (DA-2.41), só uso interno do comparador.
 inline nl::foundation::xmldsig::ParametrosAssinatura parametrosDoDigestDeComparacao() {
     return {kUriC14nLeiaute, kUriEnvelopedLeiaute, kUriSha256Leiaute, kUriRsaSha256Leiaute, "infDPS", "DPS",
             kNamespaceLeiauteNfse, "NFSe", "infNFSe"};

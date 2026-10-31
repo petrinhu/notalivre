@@ -13,7 +13,7 @@ ResultadoComparacaoInfDps ComparadorInfDpsC14n::comparar(const nl::back::IdDps& 
                                                          const QByteArray& nfseXml) const {
     namespace xd = nl::foundation::xmldsig;
     const QString idTexto = id.texto();
-    const auto parametros = nl::mid::sefin::prodrest_20261020::parametrosDoInfDps();
+    const auto parametros = nl::mid::sefin::prodrest_20261020::parametrosDoDigestDeComparacao();
     const auto digestDps = xd::digestCanonicoDaReferencia(dpsXml, idTexto, parametros);
     const auto digestNfse = xd::digestCanonicoDaReferencia(nfseXml, idTexto, parametros);
     // Sem o infDPS numa das pontas, na forma que o motor aceita, não há comparação: Indisponivel (estado seguro).

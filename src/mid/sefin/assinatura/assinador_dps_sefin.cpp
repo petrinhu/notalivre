@@ -16,7 +16,7 @@ namespace nl::mid::sefin::assinatura {
 AssinadorDpsSefin::AssinadorDpsSefin(const nl::foundation::pkcs12::CredencialX509& credencial) noexcept
     : credencial_(credencial) {}
 
-// Os parâmetros vêm da pasta do leiaute (parametrosDoInfDps), sem cópia aqui (DA-2.42, L-34). O material é emprestado
+// Os parâmetros vêm da pasta do leiaute (parametrosDaAssinaturaDps), sem cópia aqui (DA-2.42, L-34). O material é emprestado
 // do cofre na chamada, e o xmldsig não guarda nada entre chamadas.
 std::expected<QByteArray, nl::base::Erro> AssinadorDpsSefin::assinar(QByteArrayView xml, QStringView idReferencia) {
     auto material = nl::mid::cofre::materialParaAssinatura(credencial_);
@@ -25,7 +25,7 @@ std::expected<QByteArray, nl::base::Erro> AssinadorDpsSefin::assinar(QByteArrayV
                                               "a credencial está descartada: o material de assinatura não está disponível"));
     }
     auto assinado = nl::foundation::xmldsig::AssinadorXml::assinarEnveloped(
-        xml, idReferencia, nl::mid::sefin::prodrest_20261020::parametrosDoInfDps(), *material);
+        xml, idReferencia, nl::mid::sefin::prodrest_20261020::parametrosDaAssinaturaDps(), *material);
     if (!assinado) {
         const auto codigo = nl::foundation::xmldsig::codigo(assinado.error());
         return std::unexpected(nl::base::Erro(std::string(codigo), std::nullopt, "falha ao assinar a DPS"));

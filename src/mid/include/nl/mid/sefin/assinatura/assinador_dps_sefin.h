@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Adaptador AssinadorDpsSefin (NL-2.9, DA-2.42): implementa o port AssinadorDps com o assinador XMLDSIG e os parâmetros da
-// pasta do leiaute prodrest_20261020 (parametrosDoInfDps, sem segunda cópia). O material vem do cofre (DA-2.36).
+// pasta do leiaute prodrest_20261020 (parametrosDaAssinaturaDps, sem segunda cópia). O material vem do cofre (DA-2.36).
 #ifndef NL_MID_SEFIN_ASSINATURA_ASSINADOR_DPS_SEFIN_H
 #define NL_MID_SEFIN_ASSINATURA_ASSINADOR_DPS_SEFIN_H
 
