@@ -3,6 +3,7 @@
 // Teste do manipulador de mensagens do Qt ligado ao Log (NL-2.9, ADR-0005 a): mensagem com CPF não sai pelo Log, e desligar o
 // manipulador não devolve o padrão do Qt (que escreveria a mensagem crua na saída de erro).
 #include <nl/foundation/log/log.h>
+#include <nl/mid/composicao/guarda_manipulador_qt.h>
 #include <nl/mid/composicao/manipulador_qt.h>
 
 #include <QtTest>
@@ -48,6 +49,8 @@ private slots:
     void qWarningComCpfNaoVaiAoLog();
     // Depois de desligar o manipulador, o Qt não escreve a mensagem na saída de erro: nem o padrão, nem o texto cru.
     void mensagemDoQtNaSaidaDoProcessoNaoUsaLogDestruido();
+    // A guarda ligada ao Log descarta ao sair do escopo: depois dela, o Qt não escreve na saída de erro (NL-2.9, item 4).
+    void guardaDescartaAoSairDoEscopo();
 };
 
 void TstManipuladorQt::qWarningComCpfNaoVaiAoLog()
@@ -62,6 +65,11 @@ void TstManipuladorQt::qWarningComCpfNaoVaiAoLog()
 }
 
 namespace {
+
+void trechoDepoisDaGuarda()
+{
+    qWarning("CPF 12345678901 depois da guarda");
+}
 
 void trechoComManipuladorDesligado()
 {
@@ -82,6 +90,19 @@ void TstManipuladorQt::mensagemDoQtNaSaidaDoProcessoNaoUsaLogDestruido()
     const std::string saida = capturarStderr(trechoComManipuladorDesligado);
     QVERIFY2(saida.find("12345678901") == std::string::npos, "o CPF não pode sair pela saída de erro do processo");
     QVERIFY2(saida.empty(), "com o manipulador desligado, o Qt não pode escrever na saída de erro (padrão do Qt)");
+}
+
+void TstManipuladorQt::guardaDescartaAoSairDoEscopo()
+{
+    std::ostringstream destino;
+    nl::foundation::log::Log registro{destino, "notalivre-cli", {}, {"qt.mensagem"}};
+    {
+        nl::mid::composicao::GuardaManipuladorQt guarda(&registro);
+        qWarning("CPF 12345678901 dentro da guarda");
+    }
+    const std::string saida = capturarStderr(trechoDepoisDaGuarda);
+    QVERIFY2(saida.empty(), "depois de sair da guarda, o Qt não pode escrever na saída de erro");
+    QVERIFY2(destino.str().find("12345678901") == std::string::npos, "o CPF da guarda não pode ir ao Log");
 }
 
 QTEST_APPLESS_MAIN(TstManipuladorQt)
