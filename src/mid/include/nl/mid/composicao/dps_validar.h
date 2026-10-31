@@ -44,7 +44,7 @@ public:
     static std::expected<QByteArray, FalhaDpsValidar> executar(QByteArrayView entradaJson, const LocalizacaoEsquemaDps& localizacao);
 
     /// Revalida um XML já pronto no XSD (NL-2.9, DA-2.51): o XML assinado é o que vai à Sefin, então é validado de novo antes do
-    /// envio. Reprovação sai com NaturezaFalha::reprovada. Stub de teste: o corpo real vem no commit de código.
+    /// envio. Reprovação sai com NaturezaFalha::reprovada.
     static std::expected<void, FalhaDpsValidar> validarXml(QByteArrayView xml, const LocalizacaoEsquemaDps& localizacao);
 };
 

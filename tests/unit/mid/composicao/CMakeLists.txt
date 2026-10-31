@@ -27,7 +27,7 @@ target_compile_definitions(tst_validar_xml PRIVATE
     "NL_XSD_PRODREST_DIR=\"${NL_XSD_PRODREST_DIR}\""
     "NL_XSD_PRODREST_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\""
     "NL_ENTRADA_MEI=\"${CMAKE_SOURCE_DIR}/tests/e2e/dps_validar/entradas/mei_minima.json\"")
-target_link_libraries(tst_validar_xml PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_xml nl_foundation_base nl_warnings)
+target_link_libraries(tst_validar_xml PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation nl_foundation_base nl_warnings)
 add_test(NAME mid.composicao.validarXmlAceitaDpsValida COMMAND tst_validar_xml validarXmlAceitaDpsValida)
 set_tests_properties(mid.composicao.validarXmlAceitaDpsValida PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 add_test(NAME mid.composicao.validarXmlRecusaXmlQueNaoConfereNoXsd COMMAND tst_validar_xml validarXmlRecusaXmlQueNaoConfereNoXsd)
