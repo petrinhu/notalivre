@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Allowlist de interpretadores para a lista de exceções (NL-2.14, adendo 4 da DA-2.61). Uma linha por padrão de nome do
+# primeiro item do command do ctest (basename do executável), em glob de sh: python3, python3.14 (fedora44), python3.12 etc.
+# Só entra interpretador de script ou comando externo. Executável compilado do projeto (EXECUTABLE) não entra aqui: um Qt
+# Test na lista de exceções reprova com o nome. Mudar esta lista é ato visível no diff.
+python3
+python3.[0-9]*
+bash
+sh
+cmake
