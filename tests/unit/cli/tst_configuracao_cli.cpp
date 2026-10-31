@@ -69,6 +69,7 @@ void TstConfiguracaoCli::arquivoCompletoLido()
     QVERIFY2(lida.has_value(), "a configuração completa tem de ser lida");
     QCOMPARE(lida->urlSefin, QStringLiteral("https://127.0.0.1:9443"));
     QCOMPARE(lida->ancorasCertificado, QStringLiteral("/tmp/ancoras.pem"));
+    QCOMPARE(lida->caminhoCertificado, QStringLiteral("/tmp/cert.pfx"));
     QCOMPARE(lida->ancorasTls, QStringLiteral("/tmp/tls.pem"));
     QCOMPARE(lida->xsdDiretorio, QStringLiteral("/tmp/xsd"));
     QCOMPARE(lida->xsdManifesto, QStringLiteral("/tmp/xsd/MANIFESTO.sha256"));
@@ -113,7 +114,7 @@ void TstConfiguracaoCli::ancorasDoA1EDoServidorSeparadas()
     QVERIFY2(lida.has_value(), "as âncoras do A1 e do servidor têm de ser lidas de chaves separadas, sem sefin.ancoras");
     QCOMPARE(lida->ancorasCertificado, QStringLiteral("/tmp/a1.pem"));
     QCOMPARE(lida->ancorasTls, QStringLiteral("/tmp/tls.pem"));
-    QCOMPARE(lida->caminhoCertificado, QStringLiteral("/tmp/cert.pfx"));
+    QCOMPARE(lida->caminhoCertificado, QStringLiteral("/tmp/a1.pfx"));
 }
 
 void TstConfiguracaoCli::algoritmoForaDaListaSaiComDez()
