@@ -14,6 +14,7 @@
 #include <nl/mid/composicao/politica_emissao.h>
 #include <nl/mid/composicao/registro_cli.h>
 
+#include <QCoreApplication>
 #include <QFile>
 #include <QIODevice>
 #include <QTextStream>
@@ -21,6 +22,11 @@
 
 namespace nl::cli {
 
+// STUB NL-2.10b (vermelho por asserção): ainda não aplica serie e nDps na DPS.
+std::expected<QByteArray, QString> aplicarSerieENumero(const QByteArray& dpsJson, const ArgumentosEmitir&)
+{
+    return dpsJson;
+}
 
 int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro)
 {
@@ -37,7 +43,7 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         return 2;
     }
     // A configuração de Produção vem do arquivo XDG e nasce falsa: a liberação chega com o go/no-go do líder (Onda 12).
-    const auto config = lerConfiguracao(caminhoConfiguracao());
+    const auto config = lerConfiguracao(caminhoConfiguracao(), QCoreApplication::applicationDirPath());
     if (!config) {
         // Configuração ou banco (NL-3.8, código 10): a tabela de códigos de saída classifica o código da configuração.
         erro << config.error().mensagem << Qt::endl;

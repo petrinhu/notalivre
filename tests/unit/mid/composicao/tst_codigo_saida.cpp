@@ -66,8 +66,10 @@ void TstCodigoSaida::comparacaoIndisponivelSaiComSete()
 
 void TstCodigoSaida::configuracaoSaiComDez()
 {
+    // NL-2.10b (condição do CISO, 31/10/2026, emenda 2): âncora definida fora de Homologação sai com 10 também.
     for (const char* codigo : {"configuracao.chave_ausente", "configuracao.arquivo_ilegivel", "certificado.caminho_ilegivel",
-                               "assinatura.algoritmo_invalido"}) {
+                               "assinatura.algoritmo_invalido", "configuracao.ancoras_a1_fora_de_homologacao",
+                               "configuracao.ancoras_tls_fora_de_homologacao"}) {
         QCOMPARE(codigoDeSaidaDaEmissao(codigo), 10);
     }
 }

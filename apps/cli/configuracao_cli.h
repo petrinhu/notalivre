@@ -39,8 +39,13 @@ struct ConfiguracaoCli
 QString caminhoConfiguracao();
 
 /// Lê o arquivo. Chave obrigatória ausente vem com o código configuracao.chave_ausente e o nome dela na mensagem; sem arquivo,
-/// o código é configuracao.arquivo_ilegivel e a mensagem diz qual caminho.
-std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& caminho);
+/// o código é configuracao.arquivo_ilegivel e a mensagem diz qual caminho. dirExecutavel é o diretório do executável: sem
+/// [xsd], o padrão é <dir>/../share/notalivre/xsd (NL-2.10b, bundle Flatpak em /app/bin dá /app/share/notalivre/xsd).
+std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& caminho, const QString& dirExecutavel);
+
+/// Âncoras de produção (condição do CISO, 31/10/2026, NL-2.10b): [certificado] ancoras e [sefin] ancoras_tls só valem em
+/// Homologação. Fora dela, qualquer uma definida é erro de configuração (configuracao.ancoras_*_fora_de_homologacao).
+std::expected<void, ErroConfiguracao> conferirAncorasDeAmbiente(const ConfiguracaoCli& cfg, bool homologacao);
 
 } // namespace nl::cli
 

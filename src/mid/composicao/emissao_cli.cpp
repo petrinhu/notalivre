@@ -227,6 +227,17 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     return nota->chave.texto();
 }
 
+// STUBS NL-2.10b (vermelhos por asserção): ainda não resolvem as âncoras.
+std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao&, std::chrono::system_clock::time_point)
+{
+    return std::unexpected(falha("stub.ancoras_a1", "stub NL-2.10b: não implementado"));
+}
+
+QList<QSslCertificate> ancorasTlsDoPedido(const PedidoEmissao&)
+{
+    return {};
+}
+
 std::optional<QString> lerConfirmacaoPeloTerminal(const QString& prompt)
 {
     return nl::mid::cofre::lerConfirmacaoDoTerminal(prompt);

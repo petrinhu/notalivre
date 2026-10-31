@@ -6,11 +6,16 @@
 #define NL_MID_COMPOSICAO_EMISSAO_CLI_H
 
 #include <nl/mid/composicao/dps_validar.h>
+#include <nl/mid/composicao/politica_emissao.h>
+#include <nl/foundation/pkcs12/ancoras.h>
 
 #include <optional>
 #include <QByteArray>
+#include <QList>
+#include <QSslCertificate>
 #include <QString>
 
+#include <chrono>
 #include <expected>
 #include <functional>
 #include <memory>
@@ -44,6 +49,8 @@ struct PedidoEmissao
     AlgoritmoAssinatura algoritmo = AlgoritmoAssinatura::RsaSha1;  ///< [assinatura] algoritmo (NL-2.10a); padrão rsa-sha1
     QString prefixoSefin = QString();  ///< prefixo do caminho da API (config [sefin] prefixo, DA-2.5), ex.: /SefinNacional; a CLI sempre o preenche
     QString caminhoAncorasTls = QString();  ///< PEM das âncoras do servidor TLS (config [sefin] ancoras_tls, NL-2.10a); a CLI sempre o preenche
+    Ambiente ambiente = Ambiente::Homologacao;  ///< ambiente derivado do host (NL-2.10b): decide de onde vêm as âncoras do A1
+    QString diretorioRaizesIcp = QString();     ///< diretório das raízes ICP do bundle, <prefixo>/share/notalivre/icp-brasil (NL-2.10b, emenda 5)
 };
 
 /// Falha da emissão: o código é estável; a mensagem vem do catálogo, nunca do texto livre da API.
@@ -52,6 +59,14 @@ struct FalhaEmissao
     std::string codigo;
     std::string mensagem;
 };
+
+/// Âncoras do A1 para a emissão (NL-2.10b, emenda 5). Em Homologação, o PEM de caminhoAncoras; fora dela, sempre as raízes ICP
+/// embutidas (carregarRaizesDeProducao em diretorioRaizesIcp), e caminhoAncoras é ignorado.
+std::expected<nl::foundation::pkcs12::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao& pedido,
+                                                                          std::chrono::system_clock::time_point agora);
+
+/// Âncoras do servidor TLS (NL-2.10b, emenda 4): o PEM de caminhoAncorasTls; sem ele, as CAs do sistema do runtime.
+QList<QSslCertificate> ancorasTlsDoPedido(const PedidoEmissao& pedido);
 
 /// Emite a DPS e devolve a chave da NFS-e. Erro de entrada, de credencial ou de envio volta com código estável e sem dado de titular.
 /// Fábrica do assinador da DPS, dada a credencial já carregada. A emissão real usa AssinadorDpsSefin; o teste injeta outro

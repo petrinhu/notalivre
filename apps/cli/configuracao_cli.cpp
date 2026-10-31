@@ -32,7 +32,13 @@ QString caminhoConfiguracao()
     return base + QStringLiteral("/notalivre/config.ini");
 }
 
-std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& caminho)
+// STUB NL-2.10b (vermelho por asserção): ainda não usa dirExecutavel nem conferirAncorasDeAmbiente.
+std::expected<void, ErroConfiguracao> conferirAncorasDeAmbiente(const ConfiguracaoCli&, bool)
+{
+    return {};
+}
+
+std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& caminho, [[maybe_unused]] const QString& dirExecutavel)
 {
     QFile arquivo(caminho);
     if (!arquivo.open(QIODevice::ReadOnly | QIODevice::Text)) {

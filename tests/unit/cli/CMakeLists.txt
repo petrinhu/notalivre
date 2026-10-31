@@ -15,7 +15,7 @@ add_executable(tst_comando_emitir tst_comando_emitir.cpp ${NL_FONTES_CLI})
 target_include_directories(tst_comando_emitir PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
 target_link_libraries(tst_comando_emitir PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_warnings)
 nl_registra_teste_qt(NAME cli.comandoEmitir COMMAND tst_comando_emitir)
-set_tests_properties(cli.comandoEmitir PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 4 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+set_tests_properties(cli.comandoEmitir PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 6 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 add_executable(tst_excecao_topo tst_excecao_topo.cpp)
 target_link_libraries(tst_excecao_topo PRIVATE Qt6::Core Qt6::Test nl_mid nl_warnings)
@@ -50,7 +50,7 @@ add_executable(tst_configuracao_cli tst_configuracao_cli.cpp ${CMAKE_SOURCE_DIR}
 target_include_directories(tst_configuracao_cli PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
 target_link_libraries(tst_configuracao_cli PRIVATE Qt6::Core Qt6::Test nl_warnings)
 nl_registra_teste_qt(NAME cli.configuracao COMMAND tst_configuracao_cli)
-set_tests_properties(cli.configuracao PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 9 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+set_tests_properties(cli.configuracao PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 12 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 # Subcomando `notalivre config certificado <caminho>` (NL-2.10a, passo 6): grava [certificado] caminho no config.ini.
 add_executable(tst_comando_config tst_comando_config.cpp ${CMAKE_SOURCE_DIR}/apps/cli/comando_config.cpp ${CMAKE_SOURCE_DIR}/apps/cli/configuracao_cli.cpp)
