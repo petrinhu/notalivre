@@ -211,9 +211,8 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     }
     // 7. Envio mTLS pelo cliente Sefin, com o Log do cliente (allowlist da Mid sefin, DA-2.54).
     const ft::UrlBase base{QUrl(pedido.urlSefin), pedido.prefixoSefin, std::chrono::milliseconds{30000}};
-    // Âncoras do servidor TLS (config [sefin] ancoras_tls), separadas das do A1 (NL-2.10a, passo 4).
-    const QByteArray ancorasTlsPem = lerArquivo(pedido.caminhoAncorasTls);
-    ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasTlsPem));
+    // Âncoras do servidor TLS: o PEM de [sefin] ancoras_tls em Homologação, senão as CAs do sistema (NL-2.10b, passo 4).
+    ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasTlsDoPedido(pedido)));
     nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{},
                                                   std::make_shared<nl::mid::sefin::cliente::ComparadorInfDpsC14n>());
     auto nota = cliente.emitir(bk::DpsAssinada{*idDps, *assinado});
