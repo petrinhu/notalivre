@@ -33,7 +33,7 @@ set_tests_properties(cli.excecaoTopo PROPERTIES DEPENDS cli.limpaLogsPii ENVIRON
 add_test(NAME cli.portaoPiiVarreLogsDaCli
     COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tests/unit/foundation/log/varredura_logs.py"
         --dir "${NL_LOGS_PII_CLI_DIR}" --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt")
-set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS cli.excecaoTopo)
+set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS "cli.excecaoTopo;e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso")
 
 # Configuração da CLI (NL-2.9, DA-2.44): arquivo XDG, chaves obrigatórias, Produção nasce falsa.
 add_executable(tst_configuracao_cli tst_configuracao_cli.cpp ${CMAKE_SOURCE_DIR}/apps/cli/configuracao_cli.cpp)

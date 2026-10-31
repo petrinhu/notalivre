@@ -210,6 +210,14 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída do terminal: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+
+    // ADR-0005 e: a saída da CLI no e2e vai para a pasta que o portão de PII varre (cli.portaoPiiVarreLogsDaCli).
+    const QString pastaPii = qEnvironmentVariable("NL_LOGS_PII_CLI_DIR");
+    QVERIFY2(!pastaPii.isEmpty(), "NL_LOGS_PII_CLI_DIR tem de estar definido pelo CTest");
+    QVERIFY2(QDir().mkpath(pastaPii), "a pasta de logs da CLI tem de existir");
+    QFile logPii(pastaPii + QStringLiteral("/emitir_e2e.log"));
+    QVERIFY2(logPii.open(QIODevice::WriteOnly), "o log do e2e tem de abrir na pasta de logs da CLI");
+    logPii.write(execucao.saida);
 }
 
 void TstCliEmitir::cliRecusaProducaoBloqueada()
