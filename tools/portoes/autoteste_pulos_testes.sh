@@ -172,6 +172,22 @@ D="$(pasta_build lista_real)"; echo tst_a >> "$D/junit/esperados.txt"
 verdes3 | xml "$D/junit/tst_a.xml" 3
 caso lista_real_do_repo_zero_pulos_passa 0 "pulou=0" "$D" fedora44 "$LISTA_REAL"
 
+# 13b. Formato de CTestTestfile.cmake com aspas (o CMake do manjaro grava assim; o das outras imagens grava [=[NOME]=]).
+# Os dois têm de ser lidos: o portão de registro não pode depender da versão do CMake (rodada de 31/10 06:57, manjaro).
+D="$(pasta_build formato_aspas)"; echo tst_a >> "$D/junit/esperados.txt"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+printf '%s\n' 'add_test("tst_a" "/x/tst_a" "-o" "-,txt")' > "$D/junit/ctest_manual.txt"
+printf '%s\n' tst_a > "$D/junit/executaveis_manual.txt"
+caso formato_ctest_com_aspas_passa 0 "registro_qt: VERDE" "$D" fedora44 "$LISTA_VAZIA"
+
+# 13c. Formato de CTestTestfile.cmake que o portão não reconhece reprova (fechado: linha de add_test sem leitura é varredura
+# falsa), com o motivo de formato, e não com "zero testes".
+D="$(pasta_build formato_desconhecido)"; echo tst_a >> "$D/junit/esperados.txt"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+printf '%s\n' 'add_test(tst_a)' > "$D/junit/ctest_manual.txt"
+printf '%s\n' tst_a > "$D/junit/executaveis_manual.txt"
+caso formato_ctest_desconhecido_reprova 1 "formato do CTestTestfile.cmake não reconhecido" "$D" fedora44 "$LISTA_VAZIA"
+
 # 14. (revisão devops ALTA-1, M1c) Qt Test que sai do registro único e entra por add_test direto: está no CTest, não está
 # no manifesto. O CTest conta o pulo como passou; só a conferência CTest × manifesto pega. Reprova com o nome.
 D="$(pasta_build qt_fora_do_registro)"; echo tst_a >> "$D/junit/esperados.txt"
