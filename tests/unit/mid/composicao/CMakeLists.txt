@@ -32,3 +32,10 @@ add_test(NAME mid.composicao.validarXmlAceitaDpsValida COMMAND tst_validar_xml v
 set_tests_properties(mid.composicao.validarXmlAceitaDpsValida PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 add_test(NAME mid.composicao.validarXmlRecusaXmlQueNaoConfereNoXsd COMMAND tst_validar_xml validarXmlRecusaXmlQueNaoConfereNoXsd)
 set_tests_properties(mid.composicao.validarXmlRecusaXmlQueNaoConfereNoXsd PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+add_executable(tst_codigo_saida tst_codigo_saida.cpp)
+target_link_libraries(tst_codigo_saida PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_base nl_warnings)
+foreach(nome IN ITEMS codigosDeDocumentoSaemComQuatro codigosDeAmbienteXsdSaemComDois codigosDeRecusaSaemComUm dpsDuplicadaSaiComCinco comparacaoIndisponivelSaiComSete codigoDesconhecidoSaiComSetenta)
+    add_test(NAME mid.composicao.codigoSaida.${nome} COMMAND tst_codigo_saida ${nome})
+    set_tests_properties(mid.composicao.codigoSaida.${nome} PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()

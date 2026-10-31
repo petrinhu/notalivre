@@ -11,6 +11,7 @@ target_sources(nl_mid PRIVATE
     guarda_manipulador_qt.cpp
     registro_cli.cpp
     terminal_sem_eco.cpp
+    codigo_saida.cpp
     politica_emissao.cpp
     emissao_cli.cpp
     ler_dados_dps.cpp
