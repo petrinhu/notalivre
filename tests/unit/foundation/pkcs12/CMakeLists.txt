@@ -55,7 +55,7 @@ foreach(nome IN ITEMS
     pfxComChaveSemCifraRecusado
     chaveNaoConfereRecusada
     conferenciaDeChaveDistingueParesDeFixtures)
-  add_test(NAME pkcs12.${nome} COMMAND tst_carregador_pkcs12 ${nome})
+  nl_registra_teste_qt(NAME pkcs12.${nome} COMMAND tst_carregador_pkcs12 ${nome})
   set_tests_properties(pkcs12.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
@@ -64,7 +64,7 @@ foreach(nome IN ITEMS
 endforeach()
 
 foreach(nome IN ITEMS cifraLegadaIndisponivelSemProvider modernoNaoPrecisaDeLegadoSemProvider senhaErradaSemProvedorNaoTentaLegado)
-  add_test(NAME pkcs12.${nome} COMMAND tst_carregador_pkcs12 ${nome})
+  nl_registra_teste_qt(NAME pkcs12.${nome} COMMAND tst_carregador_pkcs12 ${nome})
   set_tests_properties(pkcs12.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};OPENSSL_MODULES=${NL_PROVEDORES_VAZIOS}"
@@ -94,7 +94,7 @@ foreach(nome IN ITEMS
     nenhumaRaizAceitaRecusa
     raizAindaNaoValidaNaoEntraComoAncora
     derComCaixaAltaNaoDeclaradoRecusado)
-  add_test(NAME pkcs12.raizes.${nome} COMMAND tst_carga_raizes_icp ${nome})
+  nl_registra_teste_qt(NAME pkcs12.raizes.${nome} COMMAND tst_carga_raizes_icp ${nome})
   set_tests_properties(pkcs12.raizes.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_ICP_RAIZES_DIR=${NL_ICP_RAIZES_DIR};NL_ICP_RAIZES_MANIFESTO=${NL_ICP_RAIZES_MANIFESTO}"

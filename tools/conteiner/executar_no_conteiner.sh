@@ -23,4 +23,12 @@ if [ "$modo" = "diagnostico" ]; then
 fi
 
 : "${NL_TMP_BASE:?defina NL_TMP_BASE (no contêiner, /var/tmp)}"
-cmake --preset "$modo" && cmake --build --preset "$modo" && ctest --preset "$modo" --output-on-failure
+cmake --preset "$modo" && cmake --build --preset "$modo" || exit $?
+ctest_rc=0
+ctest --preset "$modo" --output-on-failure --no-tests=error || ctest_rc=$?
+# NL-2.14 (DA-2.61): o pulo é lido função a função no junitxml, e o portão sai com as três contagens sempre. NL_DISTRO vazio
+# reprova (fechado). O portão roda mesmo com ctest vermelho, para o log mostrar as contagens.
+pulos_rc=0
+sh tools/portoes/pulos_testes.sh "$NL_TMP_BASE/notalivre-build/$modo" "${NL_DISTRO:-}" tests/pulos_esperados_por_distro.txt || pulos_rc=$?
+[ "$ctest_rc" -eq 0 ] || exit "$ctest_rc"
+exit "$pulos_rc"

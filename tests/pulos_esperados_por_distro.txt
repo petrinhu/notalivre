@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Pulos esperados por distro (NL-2.14, DA-2.61). Uma linha por pulo: distro, teste e motivo, separados por espaço.
+# distro: fedora44, ubuntu26.04, manjaro, mint22.3 ou flatpak. teste: Classe.funcao, como o junitxml grava.
+# motivo: texto livre e obrigatório; é documentação e não é comparado.
+# Comparação por igualdade exata, por distro: um pulo fora desta lista reprova, e uma linha desta lista que não ocorre
+# também reprova. Esta lista nasce vazia: nenhum pulo é esperado em nenhuma distro.

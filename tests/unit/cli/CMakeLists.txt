@@ -8,18 +8,18 @@ set(NL_FONTES_CLI ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp ${CMAKE_SOU
 add_executable(tst_argumentos_emitir tst_argumentos_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp)
 target_include_directories(tst_argumentos_emitir PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
 target_link_libraries(tst_argumentos_emitir PRIVATE Qt6::Core Qt6::Test nl_warnings)
-add_test(NAME cli.argumentosEmitir COMMAND tst_argumentos_emitir)
+nl_registra_teste_qt(NAME cli.argumentosEmitir COMMAND tst_argumentos_emitir)
 set_tests_properties(cli.argumentosEmitir PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 5 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 add_executable(tst_comando_emitir tst_comando_emitir.cpp ${NL_FONTES_CLI})
 target_include_directories(tst_comando_emitir PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
 target_link_libraries(tst_comando_emitir PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_warnings)
-add_test(NAME cli.comandoEmitir COMMAND tst_comando_emitir)
+nl_registra_teste_qt(NAME cli.comandoEmitir COMMAND tst_comando_emitir)
 set_tests_properties(cli.comandoEmitir PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 4 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 add_executable(tst_excecao_topo tst_excecao_topo.cpp)
 target_link_libraries(tst_excecao_topo PRIVATE Qt6::Core Qt6::Test nl_mid nl_warnings)
-add_test(NAME cli.excecaoTopo COMMAND tst_excecao_topo)
+nl_registra_teste_qt(NAME cli.excecaoTopo COMMAND tst_excecao_topo)
 set_tests_properties(cli.excecaoTopo PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 # Portão de PII nos logs da CLI (NL-2.9, ADR-0005 e): os testes da CLI gravam os logs deles na pasta própria, e o mesmo
@@ -29,7 +29,8 @@ find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
 set(NL_LOGS_PII_CLI_DIR "${CMAKE_BINARY_DIR}/logs_pii_cli")
 # Segredos desta execução (item 10): o e2e grava o arquivo; o portão lê junto da lista fixa, e reprova se a lista vier vazia.
 set(NL_SEGREDOS_PII_REF "${CMAKE_BINARY_DIR}/segredos_pii_execucao.txt")
-add_test(NAME cli.limpaLogsPii COMMAND ${CMAKE_COMMAND} -E rm -rf "${NL_LOGS_PII_CLI_DIR}")
+add_test(NAME cli.limpaLogsPii COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/limpa_logs_pii.cmake")
+set_tests_properties(cli.limpaLogsPii PROPERTIES ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${NL_LOGS_PII_CLI_DIR}")
 set_tests_properties(cli.excecaoTopo PROPERTIES DEPENDS cli.limpaLogsPii ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${NL_LOGS_PII_CLI_DIR}")
 # Build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28, DA-2.60): o portão de PII da CLI lê o segredo de referência que o e2e cli_emitir
 # gera, e o e2e fica fora do Flatpak. Sem o e2e, o portão não tem o que varrer; por isso também sai desse build.
@@ -38,14 +39,15 @@ if(NL_FLATPAK_BUILD)
 else()
     add_test(NAME cli.portaoPiiVarreLogsDaCli
         COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tests/unit/foundation/log/varredura_logs.py"
-            --dir "${NL_LOGS_PII_CLI_DIR}" --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt"
-            --termos "${NL_SEGREDOS_PII_REF}")
-    set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS "cli.excecaoTopo;e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso")
+            --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt")
+    # NL-2.14 (adendo 5): os caminhos do build vão pelo ambiente, não como argumento depois do script.
+    set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS "cli.excecaoTopo;e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso"
+        ENVIRONMENT "NL_VARREDURA_DIR=${NL_LOGS_PII_CLI_DIR};NL_VARREDURA_TERMOS_EXTRA=${NL_SEGREDOS_PII_REF}")
 endif()
 
 # Configuração da CLI (NL-2.9, DA-2.44): arquivo XDG, chaves obrigatórias, Produção nasce falsa.
 add_executable(tst_configuracao_cli tst_configuracao_cli.cpp ${CMAKE_SOURCE_DIR}/apps/cli/configuracao_cli.cpp)
 target_include_directories(tst_configuracao_cli PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
 target_link_libraries(tst_configuracao_cli PRIVATE Qt6::Core Qt6::Test nl_warnings)
-add_test(NAME cli.configuracao COMMAND tst_configuracao_cli)
+nl_registra_teste_qt(NAME cli.configuracao COMMAND tst_configuracao_cli)
 set_tests_properties(cli.configuracao PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 6 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")

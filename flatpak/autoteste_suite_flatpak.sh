@@ -34,13 +34,29 @@ caso() {
     local nome="$1" piso="$2" mais="$3" total="$4" resumo="$5" rc="$6" esperado="$7" texto="$8"
     local dir="$BASE/c-$nome" saida rc_suite
     CASOS=$((CASOS + 1))
-    mkdir -p "$dir/flatpak" "$dir/_build"
+    mkdir -p "$dir/flatpak" "$dir/_build" "$dir/tools/portoes" "$dir/tests" "$dir/_build/junit"
+    # NL-2.14: o suite chama o portão de pulos depois das checagens acima. O caso verde precisa de um junitxml válido
+    # (um teste, sem pulo) e da lista real, senão o portão reprova um caso que só quer testar a contagem.
+    cp "$RAIZ/tools/portoes/pulos_testes.sh" "$dir/tools/portoes/"
+    cp "$RAIZ/tests/pulos_esperados_por_distro.txt" "$dir/tests/"
+    # Listas de mentira, sem linhas de dados: a lista real de exceções e de obrigatórios cita testes que o CTest de mentira
+    # não tem. A lista real é conferida pelo build de verdade, não por este autoteste.
+    printf '%s\n' '# sem linhas (fixture do autoteste do suite)' > "$dir/tests/testes_sem_saida_por_funcao.txt"
+    printf '%s\n' '# sem linhas (fixture do autoteste do suite)' > "$dir/tests/testes_obrigatorios_por_distro.txt"
+    # Contagem de funções e allowlist (NL-2.14, adendo 4): o stub tem um testcase (junitxml abaixo), e a allowlist é a real.
+    printf '%s\n' '# contagem de funções (fixture do autoteste do suite)' 'flatpak 1' > "$dir/tests/funcoes_esperadas_por_distro.txt"
+    cp "$RAIZ/tests/interpretadores_permitidos.txt" "$dir/tests/interpretadores_permitidos.txt"
+    # CTest de mentira (JSON do ctest --show-only=json-v1, NL_CTEST_JSON_ARQ) com um teste, e o junitxml dele (NL-2.14).
+    printf '%s\n' '{' '  "kind" : "ctestInfo",' '  "tests" :' '  [' '    {' '      "command" :' '      [' '        "/x/stub"' '      ],' \
+        '      "name" : "stub"' '    }' '  ]' '}' > "$dir/_build/junit/ctest.json"
+    printf '%s\n' '<?xml version="1.0" encoding="UTF-8" ?>' '<testsuite name="TstStub" tests="1" failures="0" errors="0" skipped="0" time="0.001">' \
+        '<testcase name="stub" classname="TstStub" time="0.000"/>' '</testsuite>' > "$dir/_build/junit/stub.xml"
     cp "$RAIZ/flatpak/suite_flatpak.sh" "$dir/flatpak/suite_flatpak.sh"
     printf '%s\n' "$piso" > "$dir/flatpak/piso_suite.txt"
     if [ -n "$mais" ]; then
         printf '%s\n' "$mais" > "$dir/flatpak/piso_mais.txt"
     fi
-    saida="$(cd "$dir" && STUB_TOTAL="$total" STUB_RESUMO="$resumo" STUB_RC="$rc" timeout 120 sh flatpak/suite_flatpak.sh _build 2>&1)"
+    saida="$(cd "$dir" && NL_CTEST_JSON_ARQ="$dir/_build/junit/ctest.json" STUB_TOTAL="$total" STUB_RESUMO="$resumo" STUB_RC="$rc" timeout 120 sh flatpak/suite_flatpak.sh _build 2>&1)"
     rc_suite=$?
     echo "--- caso $nome: rc=$rc_suite (esperado $esperado)"
     echo "$saida" | grep -E '^(PARADA|suite_flatpak)' | tail -n 2

@@ -13,19 +13,21 @@ target_compile_definitions(tst_codec_dps PRIVATE
     "NL_XSD_PRODREST_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\""
     "NL_XSD_PRODREST_RAIZ=\"${NL_XSD_PRODREST_RAIZ}\""
     "NL_FIXTURES_DPS=\"${CMAKE_SOURCE_DIR}/tests/fixtures/dps\"")
-add_test(NAME tst_codec_dps COMMAND tst_codec_dps)
+nl_registra_teste_qt(NAME tst_codec_dps COMMAND tst_codec_dps)
 
 # Envelope da DPS (NL-2.4, DA-2.4): INFERÊNCIA até a NL-2.10. Só codifica o GZip que o chamador entrega; o GZip fica
 # na fatia própria dele. O teste lê a chave e o Content-Type da pasta do leiaute, pelo include público de nl_mid.
 add_executable(tst_envelope_dps tst_envelope_dps.cpp)
 target_link_libraries(tst_envelope_dps PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_base nl_warnings)
-add_test(NAME tst_envelope_dps COMMAND tst_envelope_dps)
+nl_registra_teste_qt(NAME tst_envelope_dps COMMAND tst_envelope_dps)
 
 # Oráculo independente: xmllint --schema sobre as mesmas fixtures; o mesmo script do validador da NL-1.6a (régua por nome).
 find_program(NL_XMLLINT_DPS xmllint REQUIRED)
+find_program(NL_BASH_SEFIN bash REQUIRED)
 add_test(NAME oraculo_xmllint_dps
-    COMMAND bash "${CMAKE_SOURCE_DIR}/tests/unit/foundation/xml/oraculo_xmllint.sh"
-        "${NL_XMLLINT_DPS}" "${NL_XSD_PRODREST_DIR}" "${CMAKE_SOURCE_DIR}/tests/fixtures/dps")
+    COMMAND "${NL_BASH_SEFIN}" "${CMAKE_SOURCE_DIR}/tests/unit/foundation/xml/oraculo_xmllint.sh" "${NL_XMLLINT_DPS}")
+set_tests_properties(oraculo_xmllint_dps PROPERTIES
+    ENVIRONMENT "NL_XSD_DIR=${NL_XSD_PRODREST_DIR};NL_FIXTURES_ORACULO=${CMAKE_SOURCE_DIR}/tests/fixtures/dps")
 
 # Cliente Sefin e política de retry (NL-2.8): subpasta própria.
 add_subdirectory(cliente)

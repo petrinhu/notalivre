@@ -47,7 +47,7 @@ if [ "$encontrados" -ne "$piso" ]; then
     exit 1
 fi
 
-ctest --test-dir "$BUILD" -j 4 --output-on-failure > "$BUILD/suite-executados.txt" 2>&1
+ctest --test-dir "$BUILD" -j 4 --output-on-failure --no-tests=error > "$BUILD/suite-executados.txt" 2>&1
 rc=$?
 resumo="$(grep 'tests passed' "$BUILD/suite-executados.txt" | tail -n 1)"
 analisados="$(printf '%s\n' "$resumo" | sed -n 's/.*out of \([0-9]*\).*/\1/p')"
@@ -75,6 +75,12 @@ if [ "$analisados" -ne "$encontrados" ]; then
 fi
 if [ "$rc" -ne 0 ] || [ "$falharam" -ne 0 ]; then
     echo "PARADA: $falharam teste(s) falharam (ctest rc=$rc)"
+    exit 1
+fi
+# NL-2.14 (DA-2.61): o SDK não mostra pulo no resumo do ctest (QSKIP conta como passou). O pulo sai do junitxml por função,
+# comparado por igualdade exata com a lista da distro "flatpak" (vazia). Reprova se houver pulo fora da lista ou linha morta.
+if ! sh tools/portoes/pulos_testes.sh "$BUILD" flatpak tests/pulos_esperados_por_distro.txt; then
+    echo "PARADA: pulos de teste fora da lista de pulos esperados (NL-2.14, DA-2.61)"
     exit 1
 fi
 echo "suite_flatpak: VERDE, $analisados de $encontrados testes passaram, piso $piso"

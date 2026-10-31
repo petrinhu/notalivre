@@ -15,11 +15,12 @@ target_compile_definitions(tst_log PRIVATE
     "NL_FIXTURES_PII=\"${CMAKE_SOURCE_DIR}/tests/fixtures/pii\""
     "NL_PYTHON3=\"${Python3_EXECUTABLE}\""
     "NL_VARREDURA_LOGS=\"${NL_VARREDURA_LOGS}\"")
-add_test(NAME tst_log COMMAND tst_log)
+nl_registra_teste_qt(NAME tst_log COMMAND tst_log)
 
 add_test(NAME portao_pii_logs
-    COMMAND ${Python3_EXECUTABLE} -I "${NL_VARREDURA_LOGS}" --dir "${NL_LOGS_PII_DIR}" --termos "${NL_TERMOS_PII}")
-set_tests_properties(portao_pii_logs PROPERTIES DEPENDS tst_log)
+    COMMAND ${Python3_EXECUTABLE} -I "${NL_VARREDURA_LOGS}" --termos "${NL_TERMOS_PII}")
+set_tests_properties(portao_pii_logs PROPERTIES DEPENDS tst_log
+    ENVIRONMENT "NL_VARREDURA_DIR=${NL_LOGS_PII_DIR}")
 
 # Máscara da chave e do Id da NFS-e (NL-2.8, DA-2.21): slots foundation.log.<nome>, sem vírgula no nome (L-45).
 add_executable(tst_mascara_chave tst_mascara_chave.cpp)
@@ -28,7 +29,7 @@ foreach(nome IN ITEMS
     chaveDeAcessoLogadaComInscricaoMascarada
     idNfseLogadoComInscricaoMascarada
     chaveForaDoLeiauteDescartada)
-  add_test(NAME foundation.log.${nome} COMMAND tst_mascara_chave ${nome})
+  nl_registra_teste_qt(NAME foundation.log.${nome} COMMAND tst_mascara_chave ${nome})
   set_tests_properties(foundation.log.${nome} PROPERTIES
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")

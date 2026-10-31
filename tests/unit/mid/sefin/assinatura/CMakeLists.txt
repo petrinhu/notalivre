@@ -9,18 +9,18 @@ target_link_libraries(tst_assinatura_dps PRIVATE Qt6::Core Qt6::Test nl_mid nl_b
                       nl_foundation_xmldsig ${LIBXML2_LIBRARY} nl_warnings nl_teste_apoio)
 
 set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
-add_test(NAME mid.sefin.assinatura.parametrosDaAssinaturaVemDaPastaDoLeiaute
+nl_registra_teste_qt(NAME mid.sefin.assinatura.parametrosDaAssinaturaVemDaPastaDoLeiaute
          COMMAND tst_assinatura_dps parametrosDaAssinaturaVemDaPastaDoLeiaute)
-add_test(NAME mid.sefin.assinatura.tabelaCobreRuntimeKdeFlatpak
+nl_registra_teste_qt(NAME mid.sefin.assinatura.tabelaCobreRuntimeKdeFlatpak
          COMMAND tst_assinatura_dps tabelaCobreRuntimeKdeFlatpak)
 set_tests_properties(mid.sefin.assinatura.tabelaCobreRuntimeKdeFlatpak PROPERTIES
                     ENVIRONMENT "NL_TABELA_SHA1_ASSINATURA=${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/tabela_sha1_por_distro.txt"
                     PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed, 0 skipped"
                     FAIL_REGULAR_EXPRESSION "FAIL!")
-add_test(NAME mid.sefin.assinatura.digestDeComparacaoEhSha256
+nl_registra_teste_qt(NAME mid.sefin.assinatura.digestDeComparacaoEhSha256
          COMMAND tst_assinatura_dps digestDeComparacaoEhSha256)
 set_tests_properties(mid.sefin.assinatura.digestDeComparacaoEhSha256 PROPERTIES PASS_REGULAR_EXPRESSION "Totals: [0-9]+ passed, 0 failed, 0 skipped" FAIL_REGULAR_EXPRESSION "FAIL!")
-add_test(NAME mid.sefin.assinatura.emissaoLigaAdaptadorRealPelaRaiz
+nl_registra_teste_qt(NAME mid.sefin.assinatura.emissaoLigaAdaptadorRealPelaRaiz
          COMMAND tst_assinatura_dps emissaoLigaAdaptadorRealPelaRaiz)
 set_tests_properties(mid.sefin.assinatura.emissaoLigaAdaptadorRealPelaRaiz PROPERTIES
                     FIXTURES_REQUIRED certificados_teste

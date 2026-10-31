@@ -72,12 +72,20 @@ def varrer(diretorio, termos):
 
 def main(argv):
     parser = argparse.ArgumentParser(description="Varredura de PII nos logs (NL-2.7).")
-    parser.add_argument("--dir", required=True)
-    parser.add_argument("--termos", required=True, action="append")
+    parser.add_argument("--dir", required=False)
+    parser.add_argument("--termos", required=False, action="append")
     args = parser.parse_args(argv)
+    # NL-2.14 (adendo 5): caminhos do build chegam pelo ambiente (NL_VARREDURA_DIR, NL_VARREDURA_TERMOS_EXTRA), nunca como
+    # argumento depois do script. --dir e --termos continuam aceitos (os chamadores de fonte não mudam).
+    dir_alvo = args.dir or os.environ.get("NL_VARREDURA_DIR", "")
+    termos_alvo = list(args.termos or [])
+    if os.environ.get("NL_VARREDURA_TERMOS_EXTRA"):
+        termos_alvo.append(os.environ["NL_VARREDURA_TERMOS_EXTRA"])
+    if not dir_alvo:
+        parser.error("--dir ausente (e NL_VARREDURA_DIR no ambiente)")
     try:
         termos = []
-        for caminho_termos in args.termos:
+        for caminho_termos in termos_alvo:
             termos.extend(carregar_termos(caminho_termos))
     except (OSError, ValueError) as erro:
         print("encontrados=0 analisados=0 falharam=0 linhas=0 ocorrencias=0")
@@ -88,7 +96,7 @@ def main(argv):
         print("REPROVA: lista de termos vazia (portão sem nada para procurar)")
         return 1
     try:
-        encontrados, analisados, falharam, linhas, ocorrencias = varrer(args.dir, termos)
+        encontrados, analisados, falharam, linhas, ocorrencias = varrer(dir_alvo, termos)
     except OSError as erro:
         print("encontrados=0 analisados=0 falharam=0 linhas=0 ocorrencias=0")
         print(f"REPROVA: diretório ilegível: {erro.strerror}")

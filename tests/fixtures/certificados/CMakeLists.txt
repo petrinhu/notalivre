@@ -9,8 +9,9 @@ set(NL_CERT_GERADOR "${CMAKE_CURRENT_SOURCE_DIR}/gerar_certificados.py")
 set(NL_CERT_TESTES "${CMAKE_CURRENT_SOURCE_DIR}/test_certificados.py")
 
 add_test(NAME certificados.gerar
-         COMMAND Python3::Interpreter -I "${NL_CERT_GERADOR}" "${NL_CERT_DIR}")
-set_tests_properties(certificados.gerar PROPERTIES FIXTURES_SETUP certificados_teste)
+         COMMAND Python3::Interpreter -I "${NL_CERT_GERADOR}")
+set_tests_properties(certificados.gerar PROPERTIES FIXTURES_SETUP certificados_teste
+                     ENVIRONMENT "NL_CERT_DIR=${NL_CERT_DIR}")
 
 foreach(nome IN ITEMS
     fixturesGeradasSaoLidasPeloOpenssl
