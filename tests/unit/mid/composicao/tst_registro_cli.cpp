@@ -11,8 +11,47 @@
 
 #include <sstream>
 #include <stdexcept>
+#include <string>
+
+#include <unistd.h>
 
 namespace {
+
+// Captura o que o processo escreve na saída de erro durante o trecho (descritor 2 redirecionado para um canal).
+std::string capturarStderr(void (*trecho)())
+{
+    int canal[2];
+    if (pipe(canal) != 0) {
+        return "pipe-falhou";
+    }
+    const int salvo = dup(STDERR_FILENO);
+    dup2(canal[1], STDERR_FILENO);
+    trecho();
+    dup2(salvo, STDERR_FILENO);
+    close(salvo);
+    close(canal[1]);
+    std::string saida;
+    char buffer[256];
+    ssize_t lidos = 0;
+    while ((lidos = read(canal[0], buffer, sizeof buffer)) > 0) {
+        saida.append(buffer, static_cast<std::size_t>(lidos));
+    }
+    close(canal[0]);
+    return saida;
+}
+
+nl::mid::composicao::RegistroCli* registroDoTrecho = nullptr;
+
+// Aviso do Qt com CPF, dentro da guarda ligada ao registro, e depois dela: nada pode sair pela saída de erro (DA-2.52).
+void trechoDoAvisoComCpf()
+{
+    {
+        nl::mid::composicao::GuardaManipuladorQt guarda(registroDoTrecho->logDoCliente());
+        qWarning("CPF 52998224725 no aviso do Qt, dentro da guarda");
+    }
+    qWarning("CPF 52998224725 no aviso do Qt, depois da guarda");
+}
+
 
 constexpr const char* kCpfFixture = "52998224725";
 constexpr const char* kIdDps = "DPS430510821122233300018100001000000000000001";
@@ -33,6 +72,8 @@ private slots:
     void allowlistDaCliNaoAceitaWhat();
     // Mutante J (revisor): a mensagem do Qt, mesmo ligada ao registro da CLI, não pode sair como campo tipo nem texto.
     void qWarningComCpfPeloRegistroNaoVaiAoLog();
+    // DA-2.52: o aviso do Qt com CPF não sai pela saída de erro do processo, nem dentro nem depois da guarda, e não vai ao registro.
+    void qWarningComCpfNaoVaiAoStderrNemAoLog();
 };
 
 void TstRegistroCli::excecaoNoTopoLogaSoTipoEPosicao()
@@ -80,6 +121,18 @@ void TstRegistroCli::qWarningComCpfPeloRegistroNaoVaiAoLog()
     const std::string saida = destino.str();
     QVERIFY2(saida.find(kCpfFixture) == std::string::npos, "a mensagem do Qt com CPF não pode sair pelo registro da CLI");
     QVERIFY2(saida.find("qt.mensagem") != std::string::npos, "o evento qt.mensagem tem de existir, mas sem o texto");
+}
+
+void TstRegistroCli::qWarningComCpfNaoVaiAoStderrNemAoLog()
+{
+    std::ostringstream destino;
+    auto registro = nl::mid::composicao::criarLogDaCli(destino);
+    registroDoTrecho = registro.get();
+    const std::string stderrDoProcesso = capturarStderr(trechoDoAvisoComCpf);
+    registroDoTrecho = nullptr;
+    QVERIFY2(stderrDoProcesso.find(kCpfFixture) == std::string::npos, "o CPF do aviso do Qt não pode sair pela saída de erro");
+    QVERIFY2(stderrDoProcesso.empty(), "com a guarda ativa ou depois dela, a saída de erro do processo tem de ficar vazia");
+    QVERIFY2(destino.str().find(kCpfFixture) == std::string::npos, "o CPF do aviso do Qt não pode ir ao registro");
 }
 
 QTEST_APPLESS_MAIN(TstRegistroCli)

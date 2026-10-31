@@ -26,12 +26,13 @@ foreach(nome IN ITEMS
     cliEmiteDpsAceitaPeloServidorFalso
     cliRecusaProducaoBloqueada
     cliRecusaProducaoSemCnpjDigitado
-    senhaNaoApareceEmArgvNemLog)
+    senhaNaoApareceEmArgvNemLog
+    cliRecusaDpsInvalidaSemPost)
     add_test(NAME e2e.cliEmitir.${nome} COMMAND tst_cli_emitir ${nome})
     set_tests_properties(e2e.cliEmitir.${nome} PROPERTIES
                          FIXTURES_REQUIRED certificados_teste
                          DEPENDS cli.limpaLogsPii
                          ENVIRONMENT "${NL_AMBIENTE_E2E_EMITIR}"
-                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                         PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed"
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()

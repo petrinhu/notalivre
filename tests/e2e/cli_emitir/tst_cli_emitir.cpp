@@ -89,6 +89,19 @@ public:
         processo_.closeWriteChannel();
         processo_.waitForFinished(5000);
     }
+    /// Fecha o stdin, espera o servidor sair e devolve quantas requisições ele recebeu (DA-2.51). -1 se o servidor não disse.
+    int requisicoesAoFechar()
+    {
+        processo_.closeWriteChannel();
+        processo_.waitForFinished(5000);
+        const QString resto = QString::fromUtf8(processo_.readAllStandardOutput());
+        for (const QString& linha : resto.split(QLatin1Char('\n'))) {
+            if (linha.startsWith(QStringLiteral("REQUISICOES "))) {
+                return linha.mid(12).trimmed().toInt();
+            }
+        }
+        return -1;
+    }
     int porta() const { return porta_; }
     QString diagnostico() const { return diagnostico_; }
 
@@ -202,6 +215,8 @@ private slots:
     void cliRecusaProducaoSemCnpjDigitado();
     // Senha por argumento: a CLI recusa sem pedir a senha no terminal, e o valor não aparece na saída nem no log (DA-2.52).
     void senhaNaoApareceEmArgvNemLog();
+    // DPS de entrada que não confere no leiaute: sai com 4, e o servidor falso recebe zero requisições (DA-2.51, mutante H).
+    void cliRecusaDpsInvalidaSemPost();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -310,6 +325,24 @@ void TstCliEmitir::senhaNaoApareceEmArgvNemLog()
     QVERIFY2(execucao.saida.contains("linha de comando"), "a recusa tem de dizer que a senha não vai pela linha de comando");
     QVERIFY2(!execucao.saida.contains("senha do certificado"), "a CLI não pode pedir a senha depois de recusar --senha");
     QVERIFY2(!execucao.saida.contains(senha), "a senha por argumento não pode aparecer na saída");
+}
+
+void TstCliEmitir::cliRecusaDpsInvalidaSemPost()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/cpf_invalido.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+    QCOMPARE(servidor.requisicoesAoFechar(), 0);
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)
