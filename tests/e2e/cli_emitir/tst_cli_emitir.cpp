@@ -276,6 +276,13 @@ private slots:
     void prefixoDaConfiguracaoVaiNaUrl();
     // NL-2.10a, passo 3: sem [sefin] prefixo, a CLI recusa com 10 e nomeia a chave, antes de pedir a senha.
     void prefixoAusenteSaiComDez();
+    // NL-2.10a, passo 5: o caminho do .pfx vem de [certificado] caminho, sem o argumento --certificado.
+    void caminhoDoCertificadoVemDaConfiguracao();
+    // NL-2.10a, passo 5: arquivo ilegível ou inexistente sai com 10, código certificado.caminho_ilegivel, e a mensagem diz como dar
+    // acesso ao arquivo no Flatpak (ordem do passo 4).
+    void certificadoIlegivelSaiComDezEInstrucao();
+    // NL-2.10a, passo 5: o caminho do certificado não aparece na saída da CLI (pode conter nome de pessoa).
+    void caminhoDoCertificadoNuncaVaiAoLog();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -502,7 +509,8 @@ void TstCliEmitir::respostaCruaGravadaParaAnalise()
 }
 
 // Configuração XDG com [sefin] url, prefixo e algoritmo (NL-2.10a, passo 3). Sem prefixo ou algoritmo, a linha não é escrita.
-void escreverConfigPrefixo(const QTemporaryDir& pasta, const QString& url, const QString& prefixo, const QString& algoritmo)
+void escreverConfigPrefixo(const QTemporaryDir& pasta, const QString& url, const QString& prefixo, const QString& algoritmo,
+                           const QString& caminhoCertificado = QString())
 {
     QDir().mkpath(pasta.filePath(QStringLiteral("notalivre")));
     QFile arquivo(pasta.filePath(QStringLiteral("notalivre/config.ini")));
@@ -515,6 +523,9 @@ void escreverConfigPrefixo(const QTemporaryDir& pasta, const QString& url, const
         texto += QStringLiteral("prefixo = %1\n").arg(prefixo);
     }
     texto += QStringLiteral("ancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\n").arg(kCertificados);
+    if (!caminhoCertificado.isEmpty()) {
+        texto += QStringLiteral("caminho = %1\n").arg(caminhoCertificado);
+    }
     texto += QStringLiteral("[xsd]\ndiretorio = %1\nmanifesto = %2\n[emissao]\nproducao_liberada = false\n").arg(kXsd, kManifesto);
     if (!algoritmo.isEmpty()) {
         texto += QStringLiteral("[assinatura]\nalgoritmo = %1\n").arg(algoritmo);
@@ -557,6 +568,58 @@ void TstCliEmitir::prefixoAusenteSaiComDez()
     QVERIFY2(execucao.codigo == 10, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("sefin.prefixo"), "a mensagem tem de nomear a chave que falta");
     QVERIFY2(!execucao.saida.contains("senha do certificado"), "a senha não pode ser pedida antes da recusa");
+}
+
+// Argumentos sem --certificado (NL-2.10a, passo 5): o .pfx só entra pela configuração.
+QStringList argumentosSemCertificado()
+{
+    return {QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+            QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+}
+
+void TstCliEmitir::caminhoDoCertificadoVemDaConfiguracao()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"), kCertificados + QStringLiteral("/cnpj_ok.pfx"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
+    QVERIFY2(servidor.caminhosAoFechar().contains(QStringLiteral("/SefinNacional/nfse")), "o POST tem de sair com o .pfx da configuração");
+}
+
+void TstCliEmitir::certificadoIlegivelSaiComDezEInstrucao()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:9443"), QStringLiteral("/SefinNacional"), QString(),
+                          kCertificados + QStringLiteral("/inexistente.pfx"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 10, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("certificado.caminho_ilegivel"), "a saída tem de trazer o código estável");
+    QVERIFY2(execucao.saida.contains("Flatpak"), "a mensagem tem de dizer que, no Flatpak, o arquivo precisa estar acessível ao app");
+    QVERIFY2(!execucao.saida.contains("senha do certificado"), "a senha não pode ser pedida antes da recusa");
+}
+
+void TstCliEmitir::caminhoDoCertificadoNuncaVaiAoLog()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const QString caminho = kCertificados + QStringLiteral("/cnpj_ok.pfx");
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"), caminho);
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(!execucao.saida.contains(caminho.toUtf8()), "o caminho do .pfx não pode aparecer na saída da CLI");
+    QVERIFY2(!execucao.saida.contains("cnpj_ok.pfx"), "nem o nome do arquivo");
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)
