@@ -29,7 +29,11 @@ using nl::mid::composicao::codigoDeSaidaDaEmissao;
 
 void TstCodigoSaida::codigosDeDocumentoSaemComQuatro()
 {
-    for (const char* codigo : {"xsd.invalido", "xsd.pos_assinatura", "cpf.dv", "cnpj.dv", "dps.dcompet", "entrada.campo_ausente"}) {
+    // Todo código de documento que o validador de entrada, o XSD e a identificação emitem (levantado no código em 30/10/2026).
+    for (const char* codigo : {"xsd.invalido", "xsd.pos_assinatura", "cpf.dv", "cpf.formato", "cpf.repetido", "cpf.tamanho",
+                               "cnpj.dv", "cnpj.formato", "cnpj.tamanho", "cnpj.zerado", "dps.dcompet", "dps.invalida",
+                               "dps.nao_suportado_v1", "entrada.campo_ausente", "entrada.campos_conflitantes", "entrada.json_invalido",
+                               "entrada.tipo_invalido", "entrada.xml"}) {
         QCOMPARE(codigoDeSaidaDaEmissao(codigo), 4);
     }
 }
@@ -60,6 +64,7 @@ void TstCodigoSaida::comparacaoIndisponivelSaiComSete()
 void TstCodigoSaida::codigoDesconhecidoSaiComSetenta()
 {
     QCOMPARE(codigoDeSaidaDaEmissao("emissao.id_dps_invalido"), 70);
+    QCOMPARE(codigoDeSaidaDaEmissao("emissao.id_vazio"), 70);
     QCOMPARE(codigoDeSaidaDaEmissao("codigo_que_nao_existe"), 70);
 }
 
