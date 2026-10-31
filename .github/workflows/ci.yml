@@ -12,6 +12,14 @@ on:
   push:
     branches: ['onda-*', main]
   pull_request:
+  # DA-2.60 (NL-2.11): disparo manual para provar a suíte do Flatpak com o piso acrescido. Só funciona com o arquivo no
+  # branch padrão. piso_mais soma ao piso de flatpak/piso_suite.txt; com 1 o job flatpak tem de sair vermelho.
+  workflow_dispatch:
+    inputs:
+      piso_mais:
+        description: 'Soma ao piso da suíte do Flatpak (DA-2.60). Com 1, o job flatpak tem de reprovar.'
+        required: false
+        default: '0'
 
 permissions:
   contents: read
@@ -302,6 +310,12 @@ jobs:
       options: --privileged
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # DA-2.60: o piso extra do disparo manual vai para o arquivo que o suite_flatpak.sh lê. Nos pushes, vale 0.
+      - name: Piso extra da suíte Flatpak (0 nos pushes; disparo manual soma)
+        env:
+          PISO_MAIS_IN: ${{ github.event.inputs.piso_mais || '0' }}
+        run: printf '%s\n' "$PISO_MAIS_IN" > flatpak/piso_mais.txt
 
       - name: Build do manifesto e bundle (flatpak-builder)
         id: builder
