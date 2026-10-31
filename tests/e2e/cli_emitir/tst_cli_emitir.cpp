@@ -139,6 +139,22 @@ Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& config
 
 } // namespace
 
+// Configuração XDG para os casos de recusa: a CLI recusa antes do envio, então nenhum servidor é necessário.
+void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada)
+{
+    QDir().mkpath(pasta.filePath(QStringLiteral("notalivre")));
+    QFile arquivo(pasta.filePath(QStringLiteral("notalivre/config.ini")));
+    if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return;
+    }
+    const QString texto = QStringLiteral(
+        "[sefin]\nurl = https://127.0.0.1:9443\nancoras = %1/ac.pem\n"
+        "[xsd]\ndiretorio = %2\nmanifesto = %3\n"
+        "[emissao]\nproducao_liberada = %4\n")
+                              .arg(kCertificados, kXsd, kManifesto, producaoLiberada ? QStringLiteral("true") : QStringLiteral("false"));
+    arquivo.write(texto.toUtf8());
+}
+
 class TstCliEmitir : public QObject
 {
     Q_OBJECT
@@ -147,6 +163,12 @@ private slots:
     // A DPS de entrada sai pela CLI, é assinada, aceita pelo servidor falso e a chave volta na saída. A senha é digitada no
     // prompt e não aparece na saída do terminal.
     void cliEmiteDpsAceitaPeloServidorFalso();
+    // Produção sem liberação por configuração: a CLI recusa antes de pedir a senha.
+    void cliRecusaProducaoBloqueada();
+    // Produção liberada por configuração, sem o CNPJ digitado: a CLI recusa antes de pedir a senha.
+    void cliRecusaProducaoSemCnpjDigitado();
+    // Senha por argumento: a CLI recusa sem pedir a senha no terminal, e o valor não aparece na saída.
+    void senhaPorArgumentoRecusada();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -188,6 +210,57 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída do terminal: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+}
+
+void TstCliEmitir::cliRecusaProducaoBloqueada()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigRecusa(configDir, false);
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("producao"),
+                                 QStringLiteral("--cnpj-confirmado"), QStringLiteral("11222333000181"),
+                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("bloqueada"), "a recusa tem de dizer que Produção está bloqueada");
+    QVERIFY2(!execucao.saida.contains("senha do certificado"), "a senha não pode ser pedida antes da recusa");
+}
+
+void TstCliEmitir::cliRecusaProducaoSemCnpjDigitado()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigRecusa(configDir, true);
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("producao"),
+                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("CNPJ"), "a recusa tem de exigir o CNPJ digitado");
+    QVERIFY2(!execucao.saida.contains("senha do certificado"), "a senha não pode ser pedida antes da recusa");
+}
+
+void TstCliEmitir::senhaPorArgumentoRecusada()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigRecusa(configDir, false);
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx"),
+                                 QStringLiteral("--senha"), QString::fromUtf8(senha)};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("linha de comando"), "a recusa tem de dizer que a senha não vai pela linha de comando");
+    QVERIFY2(!execucao.saida.contains("senha do certificado"), "a CLI não pode pedir a senha depois de recusar --senha");
+    QVERIFY2(!execucao.saida.contains(senha), "a senha por argumento não pode aparecer na saída");
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)
