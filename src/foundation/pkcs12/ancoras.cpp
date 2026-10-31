@@ -36,6 +36,13 @@ std::expected<Ancoras, ErroAncora> Ancoras::dePem(QByteArrayView pem) {
     return Ancoras(std::move(certificados));
 }
 
+std::expected<Ancoras, ErroAncora> Ancoras::deCertificados(std::vector<CertificadoX509> certificados) {
+    if (certificados.empty()) {
+        return std::unexpected(ErroAncora::SemCertificado);
+    }
+    return Ancoras(std::move(certificados));
+}
+
 Ancoras::Ancoras(std::vector<CertificadoX509> certificados) noexcept
     : certificados_(std::move(certificados)) {}
 
