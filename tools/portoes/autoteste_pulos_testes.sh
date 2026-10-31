@@ -217,6 +217,81 @@ json "$BASE/n6.json" tst_a
 verdes3 | xml "$D/junit/tst_a.xml" 3
 caso distro_sem_contagem_versionada_reprova 1 "sem contagem de funções versionada" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/n6.json" "$FOUTRA"
 
+# Adendo 5 (estreia): uma exceção só vale com command exato: interpretador absoluto fora do build, -I opcional, script
+# versionado em tests/ ou tools/, sem -c, -E, env, sem ENVIRONMENT PATH/LD_, e sem argumento que aponte para o build.
+# jsonc ARQUIVO < linhas NOME|ENV|ELEM1|ELEM2... (ENV "-" = sem propriedade ENVIRONMENT). Grava JSON no formato do ctest.
+jsonc() {
+    local arq="$1" nome env rest e n i
+    {
+        printf '%s\n' '{' '  "kind" : "ctestInfo",' '  "tests" :' '  ['
+        while IFS='|' read -r nome env rest; do
+            [ -n "$nome" ] || continue
+            printf '%s\n' '    {' '      "backtrace" : 2,' '      "command" :' '      ['
+            set -f
+            set -- $(printf '%s' "$rest" | tr '|' ' ')
+            set +f
+            n=$#
+            i=0
+            for e in "$@"; do
+                i=$((i + 1))
+                if [ "$i" -lt "$n" ]; then printf '%s\n' "        \"$e\","; else printf '%s\n' "        \"$e\""; fi
+            done
+            printf '%s\n' '      ],' "      \"name\" : \"$nome\""
+            if [ "$env" != "-" ]; then
+                printf '%s\n' '      ,"properties" :' '      [' '        {' '          "name" : "ENVIRONMENT",' '          "value" :' '          [' "            \"$env\"" '          ]' '        }' '      ]'
+            fi
+            printf '%s\n' '    },'
+        done
+        printf '%s\n' '  ]' '}'
+    } > "$arq"
+}
+
+# Escapes da revisão rodada 4 (estreia vermelha): cada um tem de reprovar pela forma do command.
+S_OK="$RAIZ/tests/unit/foundation/log/varredura_logs.py"
+T_OK="$RAIZ/tests/fixtures/pii/referencia.txt"
+D="$(pasta a5_bash_c)"
+printf '%s\n' 'tst_a5a|-|/usr/bin/bash|-c|/x/tst_suite' | jsonc "$BASE/a5a.json"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+caso a5_bash_c_escape_reprova 1 "exceção fora do formato permitido: tst_a5a (argumento proibido: -c)" "$D" fedora44 "$VAZIA" \
+    "$(arquivo_com a5a 'fedora44 tst_a5a wrapper bash')" "$BASE/a5a.json" "$F3"
+
+D="$(pasta a5_cmake_e_env)"
+printf '%s\n' 'tst_a5b|-|/usr/bin/cmake|-E|env|R4=1|/x/tst_suite' | jsonc "$BASE/a5b.json"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+caso a5_cmake_E_env_escape_reprova 1 "exceção fora do formato permitido: tst_a5b (argumento proibido: -E)" "$D" fedora44 "$VAZIA" \
+    "$(arquivo_com a5b 'fedora44 tst_a5b cmake env')" "$BASE/a5b.json" "$F3"
+
+D="$(pasta a5_python3_no_build)"
+printf '%s\n' "tst_a5c|-|$D/tests/python3" | jsonc "$BASE/a5c.json"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+caso a5_python3_dentro_do_build_reprova 1 "exceção fora do formato permitido: tst_a5c (interpretador dentro do build)" "$D" fedora44 "$VAZIA" \
+    "$(arquivo_com a5c 'fedora44 tst_a5c executavel chamado python3')" "$BASE/a5c.json" "$F3"
+
+D="$(pasta a5_path_no_environment)"
+printf '%s\n' "tst_a5d|PATH=$D/tests|/usr/bin/python3|-I|$S_OK" | jsonc "$BASE/a5d.json"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+caso a5_PATH_no_ENVIRONMENT_reprova 1 "exceção fora do formato permitido: tst_a5d (ENVIRONMENT com PATH ou LD_)" "$D" fedora44 "$VAZIA" \
+    "$(arquivo_com a5d 'fedora44 tst_a5d python3 com PATH')" "$BASE/a5d.json" "$F3"
+
+D="$(pasta a5_python3_c)"
+printf '%s\n' 'tst_a5e|-|/usr/bin/python3|-c|print(1)' | jsonc "$BASE/a5e.json"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+caso a5_python3_c_reprova 1 "exceção fora do formato permitido: tst_a5e (argumento proibido: -c)" "$D" fedora44 "$VAZIA" \
+    "$(arquivo_com a5e 'fedora44 tst_a5e python3 -c')" "$BASE/a5e.json" "$F3"
+
+D="$(pasta a5_argumento_aponta_build)"
+printf '%s\n' "tst_a5f|-|/usr/bin/python3|-I|$S_OK|--dir|$D/junit" | jsonc "$BASE/a5f.json"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+caso a5_argumento_depois_do_script_no_build_reprova 1 "exceção fora do formato permitido: tst_a5f (argumento aponta para o build)" "$D" fedora44 "$VAZIA" \
+    "$(arquivo_com a5f 'fedora44 tst_a5f script com caminho do build')" "$BASE/a5f.json" "$F3"
+
+# Controle: interpretador absoluto, -I, script versionado e argumento fora do build passa.
+D="$(pasta a5_controle_valido)"
+printf '%s\n' "tst_a5g|-|/usr/bin/python3|-I|$S_OK|--termos|$T_OK" | jsonc "$BASE/a5g.json"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+caso a5_controle_comando_valido_passa 0 "pulos_testes: VERDE" "$D" fedora44 "$VAZIA" \
+    "$(arquivo_com a5g 'fedora44 tst_a5g script versionado')" "$BASE/a5g.json" "$F3"
+
 echo "CASOS=$CASOS FALHAS=$FALHAS"
 if [ "$FALHAS" -ne 0 ]; then
     echo "AUTOTESTE: FALHOU"
