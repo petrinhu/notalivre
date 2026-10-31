@@ -39,10 +39,11 @@ struct PedidoEmissao
     LocalizacaoEsquemaDps esquema;  ///< XSD e manifesto de Produção Restrita (config)
     QString caminhoCertificado;     ///< .pfx do certificado (argumento --certificado)
     QString urlSefin;               ///< base da API (config [sefin] url)
-    QString caminhoAncoras;         ///< PEM das âncoras do A1 e do servidor TLS (config [sefin] ancoras)
+    QString caminhoAncoras;         ///< PEM das âncoras do A1 (config [certificado] ancoras, NL-2.10a)
     QString confirmacao;            ///< CPF ou CNPJ digitado no terminal; vazio se não foi digitado (DA-2.14: em Produção, obrigatório)
     AlgoritmoAssinatura algoritmo = AlgoritmoAssinatura::RsaSha1;  ///< [assinatura] algoritmo (NL-2.10a); padrão rsa-sha1
     QString prefixoSefin = QString();  ///< prefixo do caminho da API (config [sefin] prefixo, DA-2.5), ex.: /SefinNacional; a CLI sempre o preenche
+    QString caminhoAncorasTls = QString();  ///< PEM das âncoras do servidor TLS (config [sefin] ancoras_tls, NL-2.10a); a CLI sempre o preenche
 };
 
 /// Falha da emissão: o código é estável; a mensagem vem do catálogo, nunca do texto livre da API.

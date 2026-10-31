@@ -28,6 +28,8 @@ const QString kCompleta = QStringLiteral(
     "[sefin]\n"
     "url = https://127.0.0.1:9443\n"
     "prefixo = /SefinNacional\n"
+    "ancoras_tls = /tmp/tls.pem\n"
+    "[certificado]\n"
     "ancoras = /tmp/ancoras.pem\n"
     "[xsd]\n"
     "diretorio = /tmp/xsd\n"
@@ -65,7 +67,8 @@ void TstConfiguracaoCli::arquivoCompletoLido()
     const auto lida = nl::cli::lerConfiguracao(escrever(pasta, kCompleta));
     QVERIFY2(lida.has_value(), "a configuração completa tem de ser lida");
     QCOMPARE(lida->urlSefin, QStringLiteral("https://127.0.0.1:9443"));
-    QCOMPARE(lida->ancoras, QStringLiteral("/tmp/ancoras.pem"));
+    QCOMPARE(lida->ancorasCertificado, QStringLiteral("/tmp/ancoras.pem"));
+    QCOMPARE(lida->ancorasTls, QStringLiteral("/tmp/tls.pem"));
     QCOMPARE(lida->xsdDiretorio, QStringLiteral("/tmp/xsd"));
     QCOMPARE(lida->xsdManifesto, QStringLiteral("/tmp/xsd/MANIFESTO.sha256"));
     QVERIFY(!lida->producaoLiberada);

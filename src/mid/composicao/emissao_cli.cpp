@@ -174,8 +174,8 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
         return std::unexpected(idDps.error());
     }
     // 3. Âncoras e credencial do A1 (a senha é consumida aqui: o carregador a zera).
-    const QByteArray ancorasPem = lerArquivo(pedido.caminhoAncoras);
-    auto ancoras = fp::Ancoras::dePem(ancorasPem);
+    const QByteArray ancorasA1Pem = lerArquivo(pedido.caminhoAncoras);
+    auto ancoras = fp::Ancoras::dePem(ancorasA1Pem);
     if (!ancoras) {
         return std::unexpected(falha("credencial.ancoras_invalidas", "o arquivo de âncoras não pode ser lido"));
     }
@@ -209,7 +209,9 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     }
     // 7. Envio mTLS pelo cliente Sefin, com o Log do cliente (allowlist da Mid sefin, DA-2.54).
     const ft::UrlBase base{QUrl(pedido.urlSefin), pedido.prefixoSefin, std::chrono::milliseconds{30000}};
-    ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasPem));
+    // Âncoras do servidor TLS (config [sefin] ancoras_tls), separadas das do A1 (NL-2.10a, passo 4).
+    const QByteArray ancorasTlsPem = lerArquivo(pedido.caminhoAncorasTls);
+    ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasTlsPem));
     nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{},
                                                   std::make_shared<nl::mid::sefin::cliente::ComparadorInfDpsC14n>());
     auto nota = cliente.emitir(bk::DpsAssinada{*idDps, *assinado});

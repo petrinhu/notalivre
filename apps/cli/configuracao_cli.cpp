@@ -67,9 +67,13 @@ std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& 
     if (!prefixo) {
         return std::unexpected(prefixo.error());
     }
-    auto ancoras = obrigatoria(valores, QStringLiteral("sefin.ancoras"));
-    if (!ancoras) {
-        return std::unexpected(ancoras.error());
+    auto ancorasTls = obrigatoria(valores, QStringLiteral("sefin.ancoras_tls"));
+    if (!ancorasTls) {
+        return std::unexpected(ancorasTls.error());
+    }
+    auto ancorasCertificado = obrigatoria(valores, QStringLiteral("certificado.ancoras"));
+    if (!ancorasCertificado) {
+        return std::unexpected(ancorasCertificado.error());
     }
     auto diretorio = obrigatoria(valores, QStringLiteral("xsd.diretorio"));
     if (!diretorio) {
@@ -81,7 +85,8 @@ std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& 
     }
     cfg.urlSefin = *url;
     cfg.prefixo = *prefixo;
-    cfg.ancoras = *ancoras;
+    cfg.ancorasTls = *ancorasTls;
+    cfg.ancorasCertificado = *ancorasCertificado;
     cfg.xsdDiretorio = *diretorio;
     cfg.xsdManifesto = *manifesto;
     // Produção só liga com a chave em "true" (go/no-go do líder). Qualquer outro valor, ou ausência, fica bloqueada.

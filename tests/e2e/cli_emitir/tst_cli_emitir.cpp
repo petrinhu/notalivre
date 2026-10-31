@@ -204,7 +204,7 @@ void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada, con
         return;
     }
     const QString texto = QStringLiteral(
-        "[sefin]\nurl = %5\nprefixo = /SefinNacional\nancoras = %1/ac.pem\n"
+        "[sefin]\nurl = %5\nprefixo = /SefinNacional\nancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\n"
         "[xsd]\ndiretorio = %2\nmanifesto = %3\n"
         "[emissao]\nproducao_liberada = %4\n")
                               .arg(kCertificados, kXsd, kManifesto, producaoLiberada ? QStringLiteral("true") : QStringLiteral("false"), url);
@@ -291,6 +291,8 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
         "[sefin]\n"
         "url = https://127.0.0.1:%1\n"
         "prefixo = /SefinNacional\n"
+        "ancoras_tls = %2/ac.pem\n"
+        "[certificado]\n"
         "ancoras = %2/ac.pem\n"
         "[xsd]\n"
         "diretorio = %3\n"
@@ -507,10 +509,12 @@ void escreverConfigPrefixo(const QTemporaryDir& pasta, const QString& url, const
     if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Text)) {
         return;
     }
-    QString texto = QStringLiteral("[sefin]\nurl = %1\nancoras = %2/ac.pem\n").arg(url, kCertificados);
+    // [sefin] com prefixo e âncoras do servidor; [certificado] com as do A1, na ordem em que o INI as lê por seção.
+    QString texto = QStringLiteral("[sefin]\nurl = %1\n").arg(url);
     if (!prefixo.isEmpty()) {
         texto += QStringLiteral("prefixo = %1\n").arg(prefixo);
     }
+    texto += QStringLiteral("ancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\n").arg(kCertificados);
     texto += QStringLiteral("[xsd]\ndiretorio = %1\nmanifesto = %2\n[emissao]\nproducao_liberada = false\n").arg(kXsd, kManifesto);
     if (!algoritmo.isEmpty()) {
         texto += QStringLiteral("[assinatura]\nalgoritmo = %1\n").arg(algoritmo);
