@@ -6,10 +6,12 @@
 # (tests/tools/servidor_falso, precisa de python, xmlsec1 e do arnês), o cliente Sefin (tests/unit/mid/sefin/cliente, precisa
 # do servidor com oráculo) e os slots de xmldsig que chamam xmlsec1. Essas exclusões estão no próprio CMake, por NL_FLATPAK_BUILD.
 #
-# Piso versionado em flatpak/piso_suite.txt (1ª linha). Reprova se:
-#   - o CTest registrar menos testes que o piso (teste perdido ou não registrado);
+# Piso versionado em flatpak/piso_suite.txt (1ª linha). A contagem é EXATA (DA-2.61, achado A4). Reprova se:
+#   - o CTest listar número de testes diferente do piso: para menos (teste perdido) ou para mais (teste novo sem
+#     atualizar o piso). A checagem roda ANTES do ctest que executa os testes, então sai sem rodar nenhum;
+#   - o piso for 0 ou ilegível (zero testes não é varredura);
 #   - algum teste falhar, ou o CTest não executar todos os que listou (varredura incompleta).
-# Disparo manual do ci.yml: flatpak/piso_mais.txt soma ao piso (o disparo com +1 tem de sair vermelho).
+# Sabotagem de estreia do manifesto: flatpak/piso_mais.txt soma +1 ao piso; o disparo tem de sair pelo motivo do piso.
 #
 # Uso: suite_flatpak.sh BUILD      (cwd: raiz do código; BUILD é o diretório do CMake, _build no manifesto)
 set -u
@@ -22,6 +24,10 @@ piso_base="$(sed -n '1p' "$PISO_ARQ" 2>/dev/null)"
 case "$piso_base" in
     ''|*[!0-9]*) echo "PARADA: piso ilegível em $PISO_ARQ ('$piso_base')"; exit 1 ;;
 esac
+if [ "$piso_base" -eq 0 ]; then
+    echo "PARADA: piso 0 recusado em $PISO_ARQ (zero testes não é varredura)"
+    exit 1
+fi
 mais="$(sed -n '1p' "$MAIS_ARQ" 2>/dev/null)"
 case "$mais" in
     ''|*[!0-9]*) mais=0 ;;
@@ -34,6 +40,13 @@ case "$encontrados" in
     ''|*[!0-9]*) echo "PARADA: ctest -N não deu a contagem ('$encontrados')"; exit 1 ;;
 esac
 
+echo "suite_flatpak: piso=$piso (base $piso_base + mais $mais) encontrados=$encontrados"
+if [ "$encontrados" -ne "$piso" ]; then
+    if [ "$encontrados" -lt "$piso" ]; then sentido="abaixo do piso"; else sentido="acima do piso"; fi
+    echo "PARADA: o CTest registrou $encontrados testes, $sentido $piso (teste perdido ou não registrado; teste novo pede atualizar $PISO_ARQ)"
+    exit 1
+fi
+
 ctest --test-dir "$BUILD" -j 4 --output-on-failure > "$BUILD/suite-executados.txt" 2>&1
 rc=$?
 resumo="$(grep 'tests passed' "$BUILD/suite-executados.txt" | tail -n 1)"
@@ -42,13 +55,9 @@ falharam="$(printf '%s\n' "$resumo" | sed -n 's/.*, \([0-9]*\) tests failed.*/\1
 [ -n "$analisados" ] || analisados=0
 [ -n "$falharam" ] || falharam=1
 
-echo "suite_flatpak: piso=$piso (base $piso_base + mais $mais) encontrados=$encontrados analisados=$analisados falharam=$falharam ctest_rc=$rc"
+echo "suite_flatpak: analisados=$analisados falharam=$falharam ctest_rc=$rc"
 cat "$BUILD/suite-executados.txt" | tail -n 3
 
-if [ "$encontrados" -lt "$piso" ]; then
-    echo "PARADA: o CTest registrou $encontrados testes, abaixo do piso $piso (teste perdido ou não registrado)"
-    exit 1
-fi
 if [ "$analisados" -ne "$encontrados" ]; then
     echo "PARADA: varredura incompleta: executou $analisados de $encontrados testes listados"
     exit 1
