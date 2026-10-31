@@ -52,3 +52,9 @@ add_test(NAME mid.composicao.emissaoRevalida.xmlInvalidoAposAssinarSaiComXsdPosA
 set_tests_properties(mid.composicao.emissaoRevalida.xmlInvalidoAposAssinarSaiComXsdPosAssinatura PROPERTIES
                      FIXTURES_REQUIRED certificados_teste
                      PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+# Resposta crua para análise (NL-2.9, DA-2.59 item 4): mascaragem e gravação 0600. Sem fixture real.
+add_executable(tst_resposta_crua tst_resposta_crua.cpp)
+target_link_libraries(tst_resposta_crua PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_base nl_warnings)
+add_test(NAME mid.composicao.respostaCrua COMMAND tst_resposta_crua)
+set_tests_properties(mid.composicao.respostaCrua PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 5 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
