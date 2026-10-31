@@ -47,8 +47,6 @@ void TstRegistroCli::eventoDeEmissaoMascaraIdDaDps()
     auto registro = nl::mid::composicao::criarLogDaCli(destino);
     registro->registrarEmissaoAceita(kIdDps, "");
     const std::string saida = destino.str();
-    QVERIFY2(saida.find("sefin") == std::string::npos || saida.find("emissao") != std::string::npos,
-             "o evento de emissão tem de existir no registro");
     QVERIFY2(saida.find(kInscricaoDoId) == std::string::npos, "a inscrição do Id da DPS não pode sair sem máscara");
     QVERIFY2(saida.find("emissao.aceita") != std::string::npos, "o evento de emissão aceita tem de sair no registro");
 }
