@@ -45,6 +45,10 @@ private slots:
     void arquivoCompletoLido();
     // Chave obrigatória ausente recusa, com o nome da chave na mensagem.
     void chaveObrigatoriaAusenteRecusada();
+    // [assinatura] algoritmo = rsa-sha256 chega à configuração; sem a seção, o padrão é rsa-sha1 (NL-2.10a, passo 2).
+    void algoritmoRsaSha256PelaConfiguracao();
+    // Algoritmo fora de rsa-sha1 e rsa-sha256 é recusado com assinatura.algoritmo_invalido, código que sai com 10 (emenda 4).
+    void algoritmoForaDaListaSaiComDez();
     // Sem a seção de emissão, Produção nasce bloqueada.
     void producaoNasceFalsaSemSecao();
     // Sem XDG_CONFIG_HOME, o caminho é o de XDG_CONFIG_HOME quando definido.
@@ -72,7 +76,30 @@ void TstConfiguracaoCli::chaveObrigatoriaAusenteRecusada()
                            + kCompleta.mid(kCompleta.indexOf(QStringLiteral("ancoras =")));
     const auto lida = nl::cli::lerConfiguracao(escrever(pasta, semUrl));
     QVERIFY2(!lida.has_value(), "configuração sem sefin.url tem de ser recusada");
-    QVERIFY2(lida.error().contains(QStringLiteral("sefin.url")), "a mensagem tem de citar sefin.url");
+    QVERIFY2(lida.error().mensagem.contains(QStringLiteral("sefin.url")), "a mensagem tem de citar sefin.url");
+    QCOMPARE(QString::fromStdString(lida.error().codigo), QStringLiteral("configuracao.chave_ausente"));
+}
+
+void TstConfiguracaoCli::algoritmoRsaSha256PelaConfiguracao()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    const auto comSha256 = nl::cli::lerConfiguracao(escrever(pasta, kCompleta + QStringLiteral("[assinatura]\nalgoritmo = rsa-sha256\n")));
+    QVERIFY2(comSha256.has_value(), "a configuração com rsa-sha256 tem de ser lida");
+    QVERIFY2(comSha256->algoritmoAssinatura == nl::cli::AlgoritmoConfigurado::RsaSha256, "rsa-sha256 tem de chegar à configuração");
+    // Sem a seção, o padrão é rsa-sha1 (DA-2.2): a emissão de hoje não muda.
+    const auto semSecao = nl::cli::lerConfiguracao(escrever(pasta, kCompleta));
+    QVERIFY2(semSecao.has_value(), "a configuração sem a seção de assinatura tem de ser lida");
+    QVERIFY2(semSecao->algoritmoAssinatura == nl::cli::AlgoritmoConfigurado::RsaSha1, "sem a seção, o padrão tem de ser rsa-sha1");
+}
+
+void TstConfiguracaoCli::algoritmoForaDaListaSaiComDez()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    const auto lida = nl::cli::lerConfiguracao(escrever(pasta, kCompleta + QStringLiteral("[assinatura]\nalgoritmo = md5\n")));
+    QVERIFY2(!lida.has_value(), "algoritmo fora de rsa-sha1 e rsa-sha256 tem de ser recusado");
+    QCOMPARE(QString::fromStdString(lida.error().codigo), QStringLiteral("assinatura.algoritmo_invalido"));
 }
 
 void TstConfiguracaoCli::producaoNasceFalsaSemSecao()

@@ -39,7 +39,7 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
     // A configuração de Produção vem do arquivo XDG e nasce falsa: a liberação chega com o go/no-go do líder (Onda 12).
     const auto config = lerConfiguracao(caminhoConfiguracao());
     if (!config) {
-        erro << config.error() << Qt::endl;
+        erro << config.error().mensagem << Qt::endl;
         return 2;
     }
     // O endpoint decide o ambiente (NL-2.9, item 1 da triagem do CISO): a flag só pode confirmar, nunca trocar.

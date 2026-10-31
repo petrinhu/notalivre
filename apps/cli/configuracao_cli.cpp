@@ -12,12 +12,13 @@
 namespace nl::cli {
 namespace {
 
-// Valor de uma chave obrigatória, ou a mensagem com o nome completo secao.chave.
-std::expected<QString, QString> obrigatoria(const QMap<QString, QString>& valores, const QString& chave)
+// Valor de uma chave obrigatória, ou o erro com o código configuracao.chave_ausente e o nome completo secao.chave.
+std::expected<QString, ErroConfiguracao> obrigatoria(const QMap<QString, QString>& valores, const QString& chave)
 {
     const QString valor = valores.value(chave);
     if (valor.isEmpty()) {
-        return std::unexpected(QStringLiteral("configuração sem a chave obrigatória %1").arg(chave));
+        return std::unexpected(ErroConfiguracao{"configuracao.chave_ausente",
+                                                 QStringLiteral("configuração sem a chave obrigatória %1").arg(chave)});
     }
     return valor;
 }
@@ -31,11 +32,12 @@ QString caminhoConfiguracao()
     return base + QStringLiteral("/notalivre/config.ini");
 }
 
-std::expected<ConfiguracaoCli, QString> lerConfiguracao(const QString& caminho)
+std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& caminho)
 {
     QFile arquivo(caminho);
     if (!arquivo.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return std::unexpected(QStringLiteral("não foi possível ler a configuração em %1").arg(caminho));
+        return std::unexpected(ErroConfiguracao{"configuracao.arquivo_ilegivel",
+                                                 QStringLiteral("não foi possível ler a configuração em %1").arg(caminho)});
     }
     QMap<QString, QString> valores;  // chave "secao.nome" -> valor
     QString secao;
