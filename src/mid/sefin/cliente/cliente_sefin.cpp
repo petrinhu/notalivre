@@ -152,7 +152,7 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> notaDoCorpo(const QByteArray& corpo
     }
     auto xml = xmlDoCampo(doc.object().value(QStringLiteral("nfseXmlGZipB64")).toString());
     if (!xml) {
-        return bk::NotaSefin{*chave, {}, true};
+        return bk::NotaSefin{*chave, {}, true, {}};
     }
     return bk::NotaSefin{*chave, *xml, false, corpo};
 }
@@ -246,7 +246,7 @@ Desfecho notaDaChave(ft::TransporteHttps& transporte, fl::Log& registro, const P
     if (nota) {
         return *nota;
     }
-    return bk::NotaSefin{chave, {}, true};
+    return bk::NotaSefin{chave, {}, true, {}};
 }
 
 // Estado depois de um envio que pode ter chegado à Sefin. A consulta GET /dps/{id} decide (DA-2.41, a). Devolve o
