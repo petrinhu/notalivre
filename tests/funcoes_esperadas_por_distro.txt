@@ -7,3 +7,4 @@ fedora44 1073
 ubuntu26.04 1073
 manjaro 1073
 mint22.3 1073
+flatpak 809
