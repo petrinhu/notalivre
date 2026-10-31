@@ -243,14 +243,15 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
 
 namespace {
 
-// Ambiente que manda nas âncoras (NL-2.10b, MÉDIA-1): o derivado do endpoint. Sem endpoint reconhecido, vale o afirmado, ou
-// Produção, que é o lado seguro (nada de PEM local fora de Homologação).
-Ambiente ambienteDoPedido(const PedidoEmissao& pedido)
+// Ambiente que manda nas âncoras (NL-2.10b, BAIXA-9, emenda 3): o endpoint decide. Endpoint não reconhecido é erro, com o mesmo
+// código que a emissão devolve (emissao.endpoint_desconhecido); nunca cai em um padrão, nem no ambiente afirmado.
+std::expected<Ambiente, FalhaEmissao> ambienteDoPedido(const PedidoEmissao& pedido)
 {
-    if (const auto derivado = ambienteDoEndpoint(pedido.urlSefin)) {
-        return *derivado;
+    const auto derivado = ambienteDoEndpoint(pedido.urlSefin);
+    if (!derivado) {
+        return std::unexpected(falha(derivado.error().codigo(), derivado.error().mensagem()));
     }
-    return pedido.ambiente.value_or(Ambiente::Producao);
+    return *derivado;
 }
 
 } // namespace
@@ -259,7 +260,11 @@ Ambiente ambienteDoPedido(const PedidoEmissao& pedido)
 // embutidas no bundle. Fora de Homologação o caminho nem é lido (a CLI já recusou a chave com código 10).
 std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao& pedido, std::chrono::system_clock::time_point agora)
 {
-    if (ambienteDoPedido(pedido) != Ambiente::Homologacao || pedido.caminhoAncoras.isEmpty()) {
+    const auto ambiente = ambienteDoPedido(pedido);
+    if (!ambiente) {
+        return std::unexpected(ambiente.error());
+    }
+    if (*ambiente != Ambiente::Homologacao || pedido.caminhoAncoras.isEmpty()) {
         if (pedido.diretorioRaizesIcp.isEmpty()) {
             return std::unexpected(falha("configuracao.raizes_diretorio_vazio", "o diretório das raízes ICP do bundle não foi informado"));
         }
@@ -280,7 +285,11 @@ std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao& pedido
 // do sistema do runtime, sem pin e sem bundle próprio (condição do CISO, 31/10/2026).
 std::expected<QList<QSslCertificate>, FalhaEmissao> ancorasTlsDoPedido(const PedidoEmissao& pedido)
 {
-    if (ambienteDoPedido(pedido) != Ambiente::Homologacao || pedido.caminhoAncorasTls.isEmpty()) {
+    const auto ambiente = ambienteDoPedido(pedido);
+    if (!ambiente) {
+        return std::unexpected(ambiente.error());
+    }
+    if (*ambiente != Ambiente::Homologacao || pedido.caminhoAncorasTls.isEmpty()) {
         return QSslConfiguration::systemCaCertificates();
     }
     return QSslCertificate::fromData(lerArquivo(pedido.caminhoAncorasTls), QSsl::Pem);
