@@ -88,5 +88,5 @@ void TstEmissaoRevalida::xmlInvalidoAposAssinarSaiComXsdPosAssinatura()
     QCOMPARE(senha.tamanho(), std::size_t{0});
 }
 
-QTEST_APPLESS_MAIN(TstEmissaoRevalida)
+QTEST_MAIN(TstEmissaoRevalida)  // QTEST_MAIN cria a QCoreApplication: o envio (caminho do revisor) usa QEventLoop
 #include "tst_emissao_revalida.moc"
