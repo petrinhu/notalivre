@@ -144,6 +144,17 @@ FalhaEmissao recusada(RegistroCli& registro, const bk::IdDps& idDps, FalhaEmissa
 
 } // namespace
 
+// Stub de teste (DA-2.56): o corpo real vem no código; enquanto isso, reprova por asserção no teste.
+std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, fp::SenhaSegura& senha, RegistroCli& registro,
+                                                           const FabricaAssinador& fabrica)
+{
+    static_cast<void>(pedido);
+    static_cast<void>(senha);
+    static_cast<void>(registro);
+    static_cast<void>(fabrica);
+    return QString();
+}
+
 std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, fp::SenhaSegura& senha, RegistroCli& registro)
 {
     // 1. DPS de entrada: JSON validado no XSD. Reprovação vem com o primeiro código do validador.

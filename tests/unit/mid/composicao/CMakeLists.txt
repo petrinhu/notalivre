@@ -39,3 +39,16 @@ foreach(nome IN ITEMS codigosDeDocumentoSaemComQuatro codigosDeAmbienteXsdSaemCo
     add_test(NAME mid.composicao.codigoSaida.${nome} COMMAND tst_codigo_saida ${nome})
     set_tests_properties(mid.composicao.codigoSaida.${nome} PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
+
+# Revalidação do XML depois de assinar, com assinador falso pela fábrica da fachada (NL-2.9, DA-2.56). Fixtures sintéticas.
+add_executable(tst_emissao_revalida tst_emissao_revalida.cpp)
+target_compile_definitions(tst_emissao_revalida PRIVATE
+    "NL_CERTIFICADOS_EMISSAO=\"${CMAKE_BINARY_DIR}/certificados_teste\""
+    "NL_XSD_PRODREST_DIR=\"${NL_XSD_PRODREST_DIR}\""
+    "NL_XSD_PRODREST_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\""
+    "NL_ENTRADA_MEI=\"${CMAKE_SOURCE_DIR}/tests/e2e/dps_validar/entradas/mei_minima.json\"")
+target_link_libraries(tst_emissao_revalida PRIVATE Qt6::Core Qt6::Test nl_mid nl_back nl_foundation nl_foundation_pkcs12 nl_foundation_base nl_warnings)
+add_test(NAME mid.composicao.emissaoRevalida.xmlInvalidoAposAssinarSaiComXsdPosAssinatura COMMAND tst_emissao_revalida xmlInvalidoAposAssinarSaiComXsdPosAssinatura)
+set_tests_properties(mid.composicao.emissaoRevalida.xmlInvalidoAposAssinarSaiComXsdPosAssinatura PROPERTIES
+                     FIXTURES_REQUIRED certificados_teste
+                     PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
