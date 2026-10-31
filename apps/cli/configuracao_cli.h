@@ -31,6 +31,7 @@ struct ConfiguracaoCli
     QString caminhoCertificado;    ///< [certificado] caminho: o .pfx do A1 (NL-2.10a, passo 5); a senha vem do terminal
     QString xsdDiretorio;          ///< [xsd] diretorio
     QString xsdManifesto;          ///< [xsd] manifesto
+    bool xsdDefinido = false;      ///< [xsd] diretorio ou manifesto estão no arquivo (NL-2.10b, BAIXA-4): definido fora de Homologação é erro
     bool producaoLiberada = false; ///< [emissao] producao_liberada: nasce falso (go/no-go, Onda 12)
     AlgoritmoConfigurado algoritmoAssinatura = AlgoritmoConfigurado::RsaSha1; ///< [assinatura] algoritmo
 };

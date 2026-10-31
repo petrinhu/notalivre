@@ -39,16 +39,18 @@ QString caminhoConfiguracao()
     return base + QStringLiteral("/notalivre/config.ini");
 }
 
-// STUB NL-2.10b (vermelho por asserção): ainda não recusa [xsd] fora de Homologação.
-std::expected<void, ErroConfiguracao> conferirXsdDeAmbiente(const ConfiguracaoCli&, bool)
+std::expected<void, ErroConfiguracao> conferirXsdDeAmbiente(const ConfiguracaoCli& cfg, bool homologacao)
 {
+    if (!homologacao && cfg.xsdDefinido) {
+        return std::unexpected(ErroConfiguracao{"configuracao.xsd_fora_de_homologacao",
+                                                 QStringLiteral("[xsd] não se define fora de Homologação: o XSD vem do bundle, com o pin embutido")});
+    }
     return {};
 }
 
-// STUB NL-2.10b (vermelho por asserção): ainda não tem o diretório padrão das raízes ICP.
-QString diretorioPadraoDasRaizesIcp(const QString&)
+QString diretorioPadraoDasRaizesIcp(const QString& dirExecutavel)
 {
-    return QString();
+    return QDir::cleanPath(shareDoBundle(dirExecutavel) + QStringLiteral("/icp-brasil"));
 }
 
 std::expected<void, ErroConfiguracao> conferirAncorasDeAmbiente(const ConfiguracaoCli& cfg, bool homologacao)
@@ -91,7 +93,16 @@ std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& 
         if (igual <= 0) {
             continue;
         }
-        valores.insert(secao + QLatin1Char('.') + linha.left(igual).trimmed(), linha.mid(igual + 1).trimmed());
+        const QString chave = secao + QLatin1Char('.') + linha.left(igual).trimmed();
+        const QString valor = linha.mid(igual + 1).trimmed();
+        // NL-2.10b, BAIXA-5: chave repetida não escolhe uma das ocorrências, e chave sem valor não contorna a guarda de ambiente.
+        if (valores.contains(chave)) {
+            return std::unexpected(ErroConfiguracao{"configuracao.chave_duplicada", QStringLiteral("chave repetida na configuração: %1").arg(chave)});
+        }
+        if (valor.isEmpty()) {
+            return std::unexpected(ErroConfiguracao{"configuracao.chave_vazia", QStringLiteral("chave sem valor na configuração: %1").arg(chave)});
+        }
+        valores.insert(chave, valor);
     }
 
     ConfiguracaoCli cfg;
@@ -117,6 +128,7 @@ std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& 
     const QString manifesto = valores.value(QStringLiteral("xsd.manifesto"));
     cfg.xsdDiretorio = diretorio.isEmpty() ? shareDoBundle(dirExecutavel) + QStringLiteral("/xsd") : diretorio;
     cfg.xsdManifesto = manifesto.isEmpty() ? cfg.xsdDiretorio + QStringLiteral("/SHA256SUMS") : manifesto;
+    cfg.xsdDefinido = valores.contains(QStringLiteral("xsd.diretorio")) || valores.contains(QStringLiteral("xsd.manifesto"));
     // Produção só liga com a chave em "true" (go/no-go do líder). Qualquer outro valor, ou ausência, fica bloqueada.
     cfg.producaoLiberada = valores.value(QStringLiteral("emissao.producao_liberada")) == QStringLiteral("true");
     // [assinatura] algoritmo: ausente ou rsa-sha1 é o padrão (DA-2.2); rsa-sha256 é a alternativa. Qualquer outro valor sai com 10.
