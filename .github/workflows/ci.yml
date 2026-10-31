@@ -146,6 +146,14 @@ jobs:
         id: ctest
         run: ctest --preset debug --output-on-failure
 
+      # DA-2.60 (item 2, NL-2.11): mutante CERT_OPTIONAL no servidor falso, em onda-*, main e PR (não em fatia/*). Roda numa cópia do SHA fora do
+      # workspace; o slot transporte.semCertificadoDeClienteHandshakeRecusado tem de morrer. A contagem vai para o resumo
+      # deste job (o job mutacao tem o próprio resumo).
+      - name: Mutante CERT_OPTIONAL no servidor falso (DA-2.60, cópia fora do workspace)
+        id: mutante_mtls
+        if: matrix.distro == 'ubuntu26.04'
+        run: bash tools/mutacao/mutante_mtls.sh "$GITHUB_WORKSPACE" "$GITHUB_SHA" "$RUNNER_TEMP/mutante-mtls"
+
       # A0-05 (L-36): o build nativo tem de REPROVAR uma sabotagem do próprio tst_sanidade, pelo motivo esperado.
       # Roda no mesmo contêiner, sobre uma cópia em NL_TMP_BASE. Este step passa só se a sabotagem reprovar.
       - name: Sabotagem de estreia do tst_sanidade (deve reprovar)
@@ -287,6 +295,26 @@ jobs:
           { echo "## Autoteste de camadas"; echo '```'; tail -n 3 "$RUNNER_TEMP/autoteste.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
 
+  # Autotestes de estreia da NL-2.11 (DA-2.61; L-36): só shell, sem contêiner. Um trava nova só vale com autoteste que roda.
+  # O autoteste de limites usa um docker de mentira no PATH, por isso roda no runner e não num contêiner.
+  autotestes:
+    name: autotestes (piso dos portões, suíte Flatpak, limites de contêiner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Autoteste do piso dos portões (NL-2.11, A1)
+        run: bash tools/conteiner/autoteste_piso_portoes.sh
+
+      - name: Autoteste da suíte Flatpak (NL-2.11, A4 e A9)
+        run: bash flatpak/autoteste_suite_flatpak.sh
+
+      - name: Autoteste dos limites de contêiner (NL-2.11, A2 e A3)
+        run: bash tools/conteiner/autoteste_build_limites.sh
+
   # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
   # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.
   flatpak:
@@ -416,3 +444,8 @@ jobs:
           bash tools/mutacao/sabotar_portoes.sh "$GITHUB_SHA" "$RUNNER_TEMP/mutacao-controle" docker || rc=$?
           echo "rc do controle do harness: $rc (esperado 1)"
           test "$rc" -eq 1
+
+      # DA-2.60: linha fixa do resumo. Os mutantes do servidor falso rodam no job nativo ubuntu26.04, a cada push.
+      - name: Nota dos mutantes do servidor falso (fixa)
+        run: |
+          printf '%s\n' '- Mutantes do servidor falso (CERT_OPTIONAL): rodam no job nativo ubuntu26.04 a cada push (DA-2.60), não aqui.' >> "$GITHUB_STEP_SUMMARY"

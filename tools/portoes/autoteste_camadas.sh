@@ -183,11 +183,18 @@ controle_inclusao F05 apps/cli/main.cpp 1 '#include <libxml/parser.h>' "$viol_cl
 controle_inclusao F06 apps/cli/main.cpp 1 '#include <xmlsec/xmlsec.h>' "$viol_cli"
 controle_inclusao F07 apps/gui/main.cpp 1 '#include <QNetworkAccessManager>' "$viol_gui"
 
+# --- Foundation de motor (nl/foundation/log) não é permitida ao Front; só nl/base/ (DA-2.55, 85b24e4) ---
+viol_foundation_cli='^VIOLACAO apps/cli/main\.cpp:[0-9]+: front:cli inclui nl/foundation/log/log\.h \(foundation\) proibido pela matriz 1\.1'
+viol_foundation_gui='^VIOLACAO apps/gui/main\.cpp:[0-9]+: front:gui inclui nl/foundation/log/log\.h \(foundation\) proibido pela matriz 1\.1'
+controle_inclusao G01 apps/cli/main.cpp 1 '#include <nl/foundation/log/log.h>' "$viol_foundation_cli"
+controle_inclusao G02 apps/gui/main.cpp 1 '#include <nl/foundation/log/log.h>' "$viol_foundation_gui"
+
 # --- Negativos: o que a matriz permite não reprova ---
 controle_inclusao N01 apps/gui/main.cpp 0 '#include <QtQuick/QQuickView>' 'violacoes=0$'
 controle_inclusao N02 src/back/camada.cpp 0 '#include <QtCore/QString>' 'violacoes=0$'
 controle_inclusao N03 src/foundation/base/camada.cpp 0 '#include <openssl/evp.h>' 'violacoes=0$'
 controle_inclusao N04 apps/cli/main.cpp 0 '#include <nl/mid/composicao/fachada.h>' 'violacoes=0$'
+controle_inclusao N05 apps/cli/main.cpp 0 '#include <nl/base/camada.h>' 'violacoes=0$'
 
 echo "autoteste_camadas: $APROVADOS/$TOTAL controles verdes"
 [ "$APROVADOS" = "$TOTAL" ] || exit 1

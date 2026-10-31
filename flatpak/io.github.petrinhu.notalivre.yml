@@ -34,6 +34,16 @@ modules:
         sh -c 'ctest --test-dir _build -N -R "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" > _build/nl-slot-listado.txt 2>&1; n=$(grep -c "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" _build/nl-slot-listado.txt || true); echo "slot listado pelo ctest: $n"; [ "$n" = 1 ] || { echo "PARADA: o ctest tem de listar exatamente 1 slot assinaSha1NoSdkKdeSemVariavel, achei $n"; exit 1; }'
       - |
         sh -c 'ctest --test-dir _build -R "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" --output-on-failure > _build/nl-slot-rodou.txt 2>&1; rc=$?; cat _build/nl-slot-rodou.txt; n=$(grep -c "Test *#[0-9]*: xmldsig[.]assinaSha1NoSdkKdeSemVariavel .* Passed" _build/nl-slot-rodou.txt || true); echo "slot aprovado: $n"; [ "$rc" = 0 ] && [ "$n" = 1 ] || { echo "PARADA: o slot nao passou exatamente 1 vez"; exit 1; }'
+      # DA-2.60 (revisão) e DA-2.61 (A5): sabotagem de estreia do piso, no sandbox onde a árvore compilada existe. A checagem
+      # do piso roda ANTES do ctest que executa os testes (suite_flatpak.sh), então a sabotagem sai sem rodar nenhum teste.
+      # O gate exige o MOTIVO do piso (a linha "abaixo do piso" e nenhum "tests passed"), não só rc diferente de zero: uma
+      # falha de outra causa também daria rc diferente de zero (L-36).
+      - |
+        sh -c 'printf "1\n" > flatpak/piso_mais.txt; sh flatpak/suite_flatpak.sh _build > _build/sabotagem-piso.txt 2>&1; rc=$?; rm -f flatpak/piso_mais.txt; tail -n 2 _build/sabotagem-piso.txt; [ "$rc" -ne 0 ] && grep -q "PARADA: o CTest registrou .* abaixo do piso " _build/sabotagem-piso.txt && ! grep -q "tests passed" _build/sabotagem-piso.txt || { echo "PARADA: a sabotagem do piso +1 não reprovou pelo motivo do piso"; exit 1; }'
+      # DA-2.60 (item 1, NL-2.11): suíte de unidade do Flatpak com contagem e piso versionado. Exclusão escrita no próprio
+      # script: servidor falso, cliente Sefin e slots de xmlsec1 ficam fora por NL_FLATPAK_BUILD (DA-2.28).
+      - |
+        sh flatpak/suite_flatpak.sh _build
     sources:
       - type: dir
         path: ..
