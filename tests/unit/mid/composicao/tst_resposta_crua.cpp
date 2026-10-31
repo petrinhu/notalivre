@@ -23,8 +23,8 @@ bool permissaoSoDoDono(const QString& caminho)
 {
     const QFileDevice::Permissions p = QFile::permissions(caminho);
     const QFileDevice::Permissions dono = QFileDevice::ReadOwner | QFileDevice::WriteOwner;
-    const QFileDevice::Permissions outros = QFileDevice::GroupRead | QFileDevice::GroupWrite | QFileDevice::GroupExec |
-                                            QFileDevice::OtherRead | QFileDevice::OtherWrite | QFileDevice::OtherExec;
+    const QFileDevice::Permissions outros = QFileDevice::ReadGroup | QFileDevice::WriteGroup | QFileDevice::ExeGroup |
+                                            QFileDevice::ReadOther | QFileDevice::WriteOther | QFileDevice::ExeOther;
     return (p & dono) == dono && (p & outros) == 0;
 }
 
