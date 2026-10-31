@@ -438,7 +438,7 @@ void TstCliEmitir::respostaCruaGravadaParaAnalise()
     const QString caminho = pasta.filePath(arquivos.first());
     QVERIFY2(QFile::permissions(caminho) == (QFileDevice::ReadOwner | QFileDevice::WriteOwner), "o arquivo da resposta tem de ser 0600");
     const QByteArray conteudo = lerArquivo(caminho);
-    QVERIFY2(!conteudo.contains("nfseXmlGZipB64":"H4s"), "o XML da NFS-e (GZip em Base64) não pode ir ao arquivo");
+    QVERIFY2(!conteudo.contains("nfseXmlGZipB64\":\"H4s"), "o XML da NFS-e (GZip em Base64) não pode ir ao arquivo");
     QVERIFY2(!conteudo.contains(senha), "a senha não pode ir ao arquivo");
     QVERIFY2(!conteudo.contains("11222333000181"), "o CNPJ do certificado não pode ir ao arquivo sem máscara");
 }
