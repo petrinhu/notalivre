@@ -112,17 +112,17 @@ construir_imagem()
 # Instala Qt 6.12 no volume, uma única vez. Se o volume já tem o Qt, não reinstala (aqt reinstalaria tudo).
 qt_instalar()
 {
-    if pesado docker run --rm --user 1000:1000 -v "$VOLUME_QT:/opt/qt:ro" "$(imagem_de fedora44)" \
+    if pesado docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 1000:1000 -v "$VOLUME_QT:/opt/qt:ro" "$(imagem_de fedora44)" \
         test -f "$QT_PREFIXO/lib/cmake/Qt6/Qt6Config.cmake"; then
         echo "Qt 6.12 já presente no volume $VOLUME_QT: nada a instalar"
         return 0
     fi
     docker volume create "$VOLUME_QT" > /dev/null
     # O volume nasce com dono root; ajusta uma única vez para o usuário 1000 (dono do host).
-    pesado docker run --rm -u 0:0 -v "$VOLUME_QT:/opt/qt" "$(imagem_de fedora44)" chown 1000:1000 /opt/qt
+    pesado docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" -u 0:0 -v "$VOLUME_QT:/opt/qt" "$(imagem_de fedora44)" chown 1000:1000 /opt/qt
     # HOME em /tmp/home (gravável pelo uid 1000 no contêiner; /var/tmp da imagem é do root e aqt falha ali).
     # aqt pode terminar com status 0 mesmo após erro: a conferência final mede o artefato no volume.
-    pesado docker run --rm --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
+    pesado docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
         -v "$VOLUME_QT:/opt/qt" "$(imagem_de fedora44)" \
         sh -c 'mkdir -p "$HOME" && cd "$HOME" && aqt install-qt -O /opt/qt linux desktop 6.12.0 linux_gcc_64 -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets && test -f /opt/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake'
 }
@@ -250,7 +250,7 @@ executar()
     fi
 
     # Etapa 1, como root e só de leitura do Qt: tabela de versões e pré-cheque (o índice do gerenciador exige root).
-    if ! docker run --rm --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" \
+    if ! docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" \
         -v "$fonte:/src:ro,z" -v "$VOLUME_QT:/opt/qt:ro" \
         -w /src "$imagem" bash tools/conteiner/executar_no_conteiner.sh diagnostico; then
         echo "PARADA: diagnóstico do contêiner reprovou (pré-cheque do Qt ou ambiente); build não iniciado"
