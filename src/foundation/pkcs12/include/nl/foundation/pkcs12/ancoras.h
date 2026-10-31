@@ -21,6 +21,9 @@ public:
     /// Lê todos os certificados PEM do texto. Nenhum certificado lido: PemSemCertificado.
     [[nodiscard]] static std::expected<Ancoras, ErroAncora> dePem(QByteArrayView pem);
 
+    /// Toma a posse dos certificados já lidos (raízes conferidas pela carga, NL-2.13). Lista vazia: SemCertificado.
+    [[nodiscard]] static std::expected<Ancoras, ErroAncora> deCertificados(std::vector<CertificadoX509> certificados);
+
     Ancoras(Ancoras&& outra) noexcept = default;
     Ancoras& operator=(Ancoras&& outra) noexcept = default;
     Ancoras(const Ancoras&) = delete;
