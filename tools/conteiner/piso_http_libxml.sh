@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Piso do teste xmldsig.contextoDoParserBloqueiaRede (L-36, CISO 10:02). A libxml2 2.15 não tem cliente HTTP (NEWS 2.15.0),
-# então o teste pula ali. A rodada reprova se nenhuma imagem rodou o teste: zero é sinal de piso quebrado, não de código limpo.
+# Piso do teste xmldsig.contextoDoParserBloqueiaRede (L-36, CISO 10:02). A libxml2 2.15 não tem cliente HTTP (NEWS 2.15.0);
+# desde a NL-2.14 o teste afirma isso (sem_http) em vez de pular, e a tabela tests/fixtures/xmldsig/tabela_http_por_distro.txt manda.
+# A rodada reprova se nenhuma imagem rodou o teste: zero é sinal de piso quebrado, não de código limpo.
 #
 # Uso:
 #   piso_http_libxml.sh <arquivo_piso>...

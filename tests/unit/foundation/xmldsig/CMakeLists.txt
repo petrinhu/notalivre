@@ -72,22 +72,24 @@ else()
         distroAtualTemLinhaNaTabela)
 endif()
 
+# NL-2.14 (adendo 2 da DA-2.61): piso da tabela de HTTP por distro. Roda nos dois builds (a tabela é um arquivo do repositório).
+list(APPEND NL_SLOTS_XMLDSIG tabelaHttpTemLinhaQueBloqueiaRede)
+
+# PASS exige zero falha e zero pulo (NL-2.9b, NL-2.14): um QSKIP reprova o slot, mesmo com o resto verde.
 foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
     nl_registra_teste_qt(NAME xmldsig.${nome} COMMAND tst_assinador_xml ${nome})
     set_tests_properties(xmldsig.${nome} PROPERTIES
                          FIXTURES_REQUIRED certificados_teste
                          ENVIRONMENT "${NL_AMBIENTE_XMLDSIG}"
-                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed, 0 skipped"
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
-# Piso de HTTP (CISO, 10:02): onde a libxml2 não tem cliente HTTP (2.15), o teste pula com QSKIP; a passagem aceita o pulo
-# (Totals com skipped), e a situação vai para o arquivo do piso na pasta de build, lido por tools/conteiner/piso_http_libxml.sh.
+# Marca do piso de HTTP (CISO, 10:02): o slot contextoDoParserBloqueiaRede grava a situação (afirmou ou rodou, com a versão
+# da libxml2) no arquivo do piso na pasta de build, lido por tools/conteiner/piso_http_libxml.sh. Não pula mais (NL-2.14).
 if(NOT NL_FLATPAK_BUILD)
     set_property(TEST xmldsig.contextoDoParserBloqueiaRede APPEND PROPERTY ENVIRONMENT
                  "NL_PISO_HTTP_ARQ=${CMAKE_BINARY_DIR}/piso_http_contextoDoParser.txt")
-    set_property(TEST xmldsig.contextoDoParserBloqueiaRede PROPERTY PASS_REGULAR_EXPRESSION
-                 "Totals: [1-9][0-9]* passed, 0 failed")
 endif()
 
 # DA-2.40 (adendo): o contexto próprio ignora a configuração global. Processo próprio do CTest, com OPENSSL_CONF do arquivo
@@ -97,6 +99,6 @@ if(NOT NL_FLATPAK_BUILD)
     set_tests_properties(xmldsig.contextoProprioIgnoraConfiguracaoGlobal PROPERTIES
                          FIXTURES_REQUIRED certificados_teste
                          ENVIRONMENT "${NL_AMBIENTE_XMLDSIG};OPENSSL_CONF=${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/openssl_global_restrito.cnf"
-                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed, 0 skipped"
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endif()

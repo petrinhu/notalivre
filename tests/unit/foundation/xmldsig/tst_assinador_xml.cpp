@@ -10,6 +10,7 @@
 #include <nl/foundation/pkcs12/credencial_x509.h>
 #include <nl/foundation/pkcs12/senha_segura.h>
 #include <nl/foundation/xmldsig/assinador_xml.h>
+#include <nl/teste/tabela_por_distro.h>
 #include <nl/teste/tabela_sha1_distro.h>
 
 #include <libxml/SAX2.h>
@@ -67,6 +68,13 @@ pk::SenhaSegura senhaDeTeste() {
 
 // Campo de /etc/os-release: o leitor é o auxiliar único de teste (DA-2.61), e aqui só o nome.
 using nl::teste::campoDoOsRelease;
+using nl::teste::valorDaDistroAtual;
+using nl::teste::valoresDaTabela;
+
+// Tabela de cliente HTTP por distro (NL-2.14, adendo 2 da DA-2.61): na pasta de fixtures do xmldsig, como a do SHA-1.
+QString caminhoTabelaHttp() {
+    return qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/tabela_http_por_distro.txt");
+}
 
 // Piso de HTTP (CISO, 10:02): grava a situação do teste (rodou ou pulou, com o motivo) no arquivo que a variável
 // NL_PISO_HTTP_ARQ aponta, na pasta de build da imagem. Sobrescreve a cada execução. Sem a variável, não grava nada.
@@ -847,19 +855,27 @@ private slots:
     // NL-2.9 (CISO, 05:34), camada 2 no átomo: o contexto do átomo, com a carga do DTD externo acrescentada por campo (sem
     // apagar as opções) e sem o tratador da parada, não abre conexão para um DOCTYPE SYSTEM. Mutante sem NONET no átomo: o
     // ouvinte em 127.0.0.1 conta a conexão e o teste reprova.
-    // Piso de HTTP (CISO, 10:02): o teste só tem prova onde a libxml2 tem cliente HTTP. A 2.15 removeu o cliente
-    // (NEWS 2.15.0), e então o teste pula com o motivo. Onde roda, a marca vai para o arquivo do piso, lido pelo
-    // tools/conteiner/piso_http_libxml.sh; a rodada reprova se nenhuma imagem rodar o teste.
+    // NL-2.14 (adendo 2 da DA-2.61; CISO, 31/10/2026): a expectativa sai da tabela tests/fixtures/xmldsig/tabela_http_por_distro.txt,
+    // nunca de nome de distro no código, e o teste nunca pula. Onde a tabela diz sem_http, afirma que a libxml2 não tem cliente
+    // HTTP (xmlHasFeature(XML_WITH_HTTP) == 0): a propriedade que o CISO protege, o parser não acessar a rede, fica provada pela
+    // ausência do cliente. Onde diz com_http, prova o bloqueio de rede com o ouvinte local. Sem linha para a distro, ou com a
+    // linha contrária à libxml2 da imagem, reprova. O piso (CISO, 10:02) fica em tabelaHttpTemLinhaQueBloqueiaRede, e a marca
+    // deste teste vai para o arquivo do piso, lido por tools/conteiner/piso_http_libxml.sh.
     void contextoDoParserBloqueiaRede() {
-        if (xmlHasFeature(XML_WITH_HTTP) == 0) {
-            registrarPisoHttp(QStringLiteral("pulou libxml2 %1: sem cliente HTTP, NEWS 2.15.0 removeu o cliente HTTP embutido")
+        const QByteArray expectativa = valorDaDistroAtual(caminhoTabelaHttp()).toUtf8();
+        const QByteArray aviso = "a distro atual não tem linha com_http ou sem_http em tests/fixtures/xmldsig/tabela_http_por_distro.txt";
+        QVERIFY2(expectativa == "com_http" || expectativa == "sem_http", aviso.constData());
+        const bool temHttp = xmlHasFeature(XML_WITH_HTTP) != 0;
+        if (expectativa == "sem_http") {
+            QVERIFY2(!temHttp, "a tabela diz sem_http, mas a libxml2 desta imagem tem cliente HTTP: a tabela está errada");
+            registrarPisoHttp(QStringLiteral("afirmou libxml2 %1 sem cliente HTTP: xmlHasFeature(XML_WITH_HTTP) == 0")
                                   .arg(QStringLiteral(LIBXML_DOTTED_VERSION)));
-            QSKIP("libxml2 sem cliente HTTP (NEWS 2.15.0: The built-in HTTP client was removed): sem prova de rede nesta imagem");
+            return;
         }
+        QVERIFY2(temHttp, "a tabela diz com_http, mas a libxml2 desta imagem não tem cliente HTTP: a tabela está errada");
 #if LIBXML_VERSION >= 21300
-        // Com HTTP, mas em 2.13/2.14: a API aditiva de opções não foi medida nesta suíte. Pula com o motivo, sem fingir prova.
-        registrarPisoHttp(QStringLiteral("pulou libxml2 %1: API de opções não medida nesta versão").arg(QStringLiteral(LIBXML_DOTTED_VERSION)));
-        QSKIP("libxml2 2.13/2.14 com HTTP: API de opções aditiva não medida nesta suíte");
+        // Com HTTP, mas em 2.13/2.14: a API aditiva de opções não foi medida nesta suíte. Falha com o motivo, sem pular.
+        QFAIL("libxml2 2.13/2.14 com HTTP: a API de opções aditiva não foi medida nesta suíte; medir antes de marcar com_http");
 #else
         registrarPisoHttp(QStringLiteral("rodou libxml2 %1 em %2 %3")
                               .arg(QStringLiteral(LIBXML_DOTTED_VERSION), campoDoOsRelease(QStringLiteral("ID")),
@@ -877,6 +893,19 @@ private slots:
         ouvinte.parar();
         QCOMPARE(ouvinte.conexoes(), 0);
 #endif
+    }
+
+    // NL-2.14 (adendo 2 da DA-2.61): o piso da tabela de HTTP. Sem ao menos uma linha com_http, nenhuma imagem prova o
+    // bloqueio de rede, e a suíte passaria com todas as imagens no "sem HTTP". Roda em qualquer distro, inclusive no Flatpak.
+    void tabelaHttpTemLinhaQueBloqueiaRede() {
+        const QStringList valores = valoresDaTabela(caminhoTabelaHttp());
+        QVERIFY2(!valores.isEmpty(), "a tabela de HTTP por distro tem de abrir e ter ao menos uma linha de dados");
+        for (const QString& valor : valores) {
+            QVERIFY2(valor == QStringLiteral("com_http") || valor == QStringLiteral("sem_http"),
+                     "valor fora de com_http e sem_http na tabela de HTTP por distro");
+        }
+        QVERIFY2(valores.contains(QStringLiteral("com_http")),
+                 "a tabela de HTTP por distro não tem nenhuma linha com_http: nenhuma imagem prova o bloqueio de rede");
     }
 
     void variavelDoFedoraValeNoContextoProprio() {

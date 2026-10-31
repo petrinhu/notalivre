@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Cliente HTTP da libxml2 por distro (NL-2.14, adendo 2 da DA-2.61). Colunas: ID VERSION_ID HTTP.
+# HTTP = com_http (a libxml2 tem cliente HTTP: o teste prova o bloqueio de rede) ou sem_http (a libxml2 não tem cliente
+# HTTP: o teste afirma xmlHasFeature(XML_WITH_HTTP) == 0). O teste reprova se o valor não bater com a libxml2 da imagem.
+# Medido no NL-2.9b: fedora 44 = libxml2 2.12.10 (com_http); ubuntu 26.04 = 2.15.2 (sem_http); manjaro rolling = 2.15.4
+# (sem_http); a imagem linuxmintd/mint22.3 declara ubuntu 24.04 e tem libxml2 2.9.14 (com_http).
+# Regra do piso (CISO, 31/10/2026): tem de haver ao menos uma linha com_http, senão nenhuma imagem prova o bloqueio.
+fedora 44 com_http
+ubuntu 26.04 sem_http
+manjaro rolling sem_http
+linuxmint 22.3 com_http
+ubuntu 24.04 com_http
