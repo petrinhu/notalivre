@@ -37,7 +37,18 @@ int executarEmitir(const QStringList& argumentos)
         erro << config.error() << Qt::endl;
         return 2;
     }
-    const auto liberado = nl::mid::composicao::liberarAmbiente(nl::mid::composicao::ConfigEmissao{*ambiente, config->producaoLiberada});
+    // O endpoint decide o ambiente (NL-2.9, item 1 da triagem do CISO): a flag só pode confirmar, nunca trocar.
+    const auto derivado = nl::mid::composicao::ambienteDoEndpoint(config->urlSefin);
+    if (!derivado) {
+        erro << QString::fromStdString(derivado.error().mensagem()) << Qt::endl;
+        return 2;
+    }
+    const auto conferido = nl::mid::composicao::conferirFlagDoAmbiente(*ambiente, *derivado);
+    if (!conferido) {
+        erro << QString::fromStdString(conferido.error().mensagem()) << Qt::endl;
+        return 2;
+    }
+    const auto liberado = nl::mid::composicao::liberarAmbiente(nl::mid::composicao::ConfigEmissao{*derivado, config->producaoLiberada});
     if (!liberado) {
         erro << QString::fromStdString(liberado.error().mensagem()) << Qt::endl;
         return 1;

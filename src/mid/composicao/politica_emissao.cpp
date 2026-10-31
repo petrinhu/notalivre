@@ -23,17 +23,29 @@ std::expected<Ambiente, nl::base::Erro> ambienteDeTexto(std::string_view texto)
     return std::unexpected(nl::base::Erro("emissao.ambiente_invalido", std::nullopt, "ambiente desconhecido"));
 }
 
-// Ambiente que o endpoint diz ser. Stub de teste (NL-2.9, item 1): a implementação real vem no código.
+// Ambiente que o endpoint diz ser (NL-2.9, item 1): o host decide. Ver politica_emissao.h.
 std::expected<Ambiente, nl::base::Erro> ambienteDoEndpoint(QStringView url)
 {
-    static_cast<void>(url);
-    return Ambiente::Homologacao;
+    const QString host = QUrl(url.toString()).host().toLower();
+    if (host == QStringLiteral("sefin.nfse.gov.br")) {
+        return Ambiente::Producao;
+    }
+    if (host == QStringLiteral("sefin.producaorestrita.nfse.gov.br")) {
+        return Ambiente::ProducaoRestrita;
+    }
+    if (host == QStringLiteral("127.0.0.1") || host == QStringLiteral("localhost")) {
+        return Ambiente::Homologacao;
+    }
+    return std::unexpected(nl::base::Erro("emissao.endpoint_desconhecido", std::nullopt,
+                                          "o endpoint não é de Produção, de Produção Restrita nem do servidor local de teste"));
 }
 
 std::expected<void, nl::base::Erro> conferirFlagDoAmbiente(Ambiente flag, Ambiente derivado)
 {
-    static_cast<void>(flag);
-    static_cast<void>(derivado);
+    if (flag != derivado) {
+        return std::unexpected(nl::base::Erro("emissao.ambiente_divergente", std::nullopt,
+                                              "a flag --ambiente diverge do endpoint configurado; o endpoint decide"));
+    }
     return {};
 }
 

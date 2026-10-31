@@ -140,7 +140,7 @@ Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& config
 } // namespace
 
 // Configuração XDG para os casos de recusa: a CLI recusa antes do envio, então nenhum servidor é necessário.
-void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada)
+void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada, const QString& url = QStringLiteral("https://127.0.0.1:9443"))
 {
     QDir().mkpath(pasta.filePath(QStringLiteral("notalivre")));
     QFile arquivo(pasta.filePath(QStringLiteral("notalivre/config.ini")));
@@ -148,7 +148,7 @@ void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada)
         return;
     }
     const QString texto = QStringLiteral(
-        "[sefin]\nurl = https://127.0.0.1:9443\nancoras = %1/ac.pem\n"
+        "[sefin]\nurl = %5\nancoras = %1/ac.pem\n"
         "[xsd]\ndiretorio = %2\nmanifesto = %3\n"
         "[emissao]\nproducao_liberada = %4\n")
                               .arg(kCertificados, kXsd, kManifesto, producaoLiberada ? QStringLiteral("true") : QStringLiteral("false"));
@@ -224,7 +224,7 @@ void TstCliEmitir::cliRecusaProducaoBloqueada()
 {
     QTemporaryDir configDir;
     QVERIFY(configDir.isValid());
-    escreverConfigRecusa(configDir, false);
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://sefin.nfse.gov.br/SefinNacional"));
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
@@ -241,7 +241,7 @@ void TstCliEmitir::cliRecusaProducaoSemCnpjDigitado()
 {
     QTemporaryDir configDir;
     QVERIFY(configDir.isValid());
-    escreverConfigRecusa(configDir, true);
+    escreverConfigRecusa(configDir, true, QStringLiteral("https://sefin.nfse.gov.br/SefinNacional"));
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
