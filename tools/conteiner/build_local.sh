@@ -272,10 +272,19 @@ executar()
     fi
     # Etapa 2, como 1000:1000: configure, build e ctest. Arquivos do build ficam com o dono do host.
     # NL_XSD_ZIP_CACHE (gêmeo da INBOX): o ZIP do XSD vem do cache do host, como no CI, e não do gov.br.
+    # NL-2.14 (adendo 5, item 2): o diretório git comum do repositório entra só para leitura, para o resumo de revisão
+    # (tools/portoes/resumo_listas.sh) imprimir o diff das listas contra o merge-base com a onda-2. Sem git, o resumo diz que
+    # o diff está indisponível; o build não para por isso.
+    gitopts=()
+    gitcomum="$(git -C "$NL_REPO" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    if [ -n "$gitcomum" ] && [ -d "$gitcomum" ]; then
+        gitopts=(-v "$gitcomum:/gitrepo:ro,z" -e GIT_DIR=/gitrepo -e NL_SHA="$sha")
+    fi
     docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" \
         --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp -e NL_DISTRO="$distro" \
         -e CMAKE_PREFIX_PATH="$QT_PREFIXO" -e CMAKE_BUILD_PARALLEL_LEVEL="$THREADS" \
         -e NL_XSD_ZIP_CACHE=/xsd-cache \
+        "${gitopts[@]}" \
         -v "$fonte:/src:ro,z" -v "$build_host:/var/tmp/notalivre-build:z" -v "$VOLUME_QT:/opt/qt:ro" \
         -v "$xsd_host:/xsd-cache:ro,z" \
         -w /src "$imagem" \

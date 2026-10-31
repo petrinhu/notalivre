@@ -11,11 +11,11 @@
 # que não existe nas imagens sem make (ubuntu26.04 e manjaro, medido em 25/10 e 26/10/2026).
 set -u
 
-MODO="${1:?uso: teste_hash_zip.sh <adulterado|controle> <raiz_fonte> <zip_certo> <dir_trabalho>}"
+MODO="${1:?uso: teste_hash_zip.sh <adulterado|controle> <raiz_fonte> <gerador>}"
 FONTE="${2:?raiz da fonte}"
-ZIP_CERTO="${3:?ZIP certo}"
-TRABALHO="${4:?dir de trabalho}"
-GERADOR="${5:?gerador do CMake pai (CMAKE_GENERATOR)}"
+GERADOR="${3:?gerador do CMake pai (CMAKE_GENERATOR)}"
+TRABALHO="${NL_HASH_ZIP_TRABALHO:?dir de trabalho no ambiente (NL_HASH_ZIP_TRABALHO, NL-2.14 adendo 5)}"
+ZIP_CERTO="${NL_XSD_ZIP_CERTO:?ZIP certo no ambiente (NL_XSD_ZIP_CERTO, NL-2.14 adendo 5)}"
 PROJETO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 rm -rf -- "$TRABALHO"

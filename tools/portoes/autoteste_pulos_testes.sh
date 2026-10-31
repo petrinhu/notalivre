@@ -13,6 +13,7 @@ set -u
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PORTAO="$RAIZ/tools/portoes/pulos_testes.sh"
 ALLOW="$RAIZ/tests/interpretadores_permitidos.txt"
+S_OK="$RAIZ/tests/unit/foundation/log/varredura_logs.py"
 BASE="$(mktemp -d "${TMPDIR:-/var/tmp}/notalivre-autoteste-pulos.XXXXXX")" || exit 1
 trap 'rm -rf -- "$BASE"' EXIT
 CASOS=0
@@ -52,6 +53,32 @@ json() {
             nome="${item%%=*}"
             if [ "$nome" = "$item" ]; then cmd="/x/$nome"; else cmd="${item#*=}"; fi
             printf '%s\n' '    {' '      "backtrace" : 2,' '      "command" :' '      [' "        \"$cmd\"," '        "-o"' '      ],' "      \"name\" : \"$nome\"" '    },'
+        done
+        printf '%s\n' '  ]' '}'
+    } > "$arq"
+}
+
+jsonc() {
+    local arq="$1" nome env rest e n i
+    {
+        printf '%s\n' '{' '  "kind" : "ctestInfo",' '  "tests" :' '  ['
+        while IFS='|' read -r nome env rest; do
+            [ -n "$nome" ] || continue
+            printf '%s\n' '    {' '      "backtrace" : 2,' '      "command" :' '      ['
+            set -f
+            set -- $(printf '%s' "$rest" | tr '|' ' ')
+            set +f
+            n=$#
+            i=0
+            for e in "$@"; do
+                i=$((i + 1))
+                if [ "$i" -lt "$n" ]; then printf '%s\n' "        \"$e\","; else printf '%s\n' "        \"$e\""; fi
+            done
+            printf '%s\n' '      ],' "      \"name\" : \"$nome\""
+            if [ "$env" != "-" ]; then
+                printf '%s\n' '      ,"properties" :' '      [' '        {' '          "name" : "ENVIRONMENT",' '          "value" :' '          [' "            \"$env\"" '          ]' '        }' '      ]'
+            fi
+            printf '%s\n' '    },'
         done
         printf '%s\n' '  ]' '}'
     } > "$arq"
@@ -106,7 +133,7 @@ arquivo_com() {
 
 # Controles (têm de passar).
 D="$(pasta controle_tudo_certo)"
-json "$BASE/j1.json" tst_a tst_b=/usr/bin/python3.14
+printf "%s\n" "tst_a|-|/x/tst_a" "tst_b|-|/usr/bin/python3|-I|$S_OK" | jsonc "$BASE/j1.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
 caso controle_script_na_excecao_e_contagem_exata_passa 0 "pulos_testes: VERDE" "$D" fedora44 "$VAZIA" \
     "$(arquivo_com ex1 'fedora44 tst_b script de teste sem junitxml por função')" "$BASE/j1.json" "$F3"
@@ -182,7 +209,7 @@ caso formato_json_desconhecido_reprova 1 "formato do JSON do ctest" "$D" fedora4
 D="$(pasta n1_qt_na_excecao)"
 json "$BASE/n1.json" tst_a tst_qt=/x/tst_qt
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso qt_test_na_lista_de_excecoes_reprova 1 "executável sem interpretador permitido" "$D" fedora44 "$VAZIA" \
+caso qt_test_na_lista_de_excecoes_reprova 1 "exceção fora do formato permitido: tst_qt" "$D" fedora44 "$VAZIA" \
     "$(arquivo_com n1ex 'fedora44 tst_qt script de teste sem junitxml')" "$BASE/n1.json" "$F3"
 
 # N2. Qt Test embrulhado em bash: o teste saiu do junitxml para um bash, e a contagem cai. Reprova pela contagem exata.
@@ -196,7 +223,7 @@ caso qt_test_embrulhado_em_bash_reprova 1 "contagem de funções: esperadas 6, o
 D="$(pasta n3_xml_perdido_listado)"
 json "$BASE/n3.json" tst_a tst_x=/x/tst_x
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso junitxml_perdido_de_listado_reprova 1 "executável sem interpretador permitido: tst_x" "$D" fedora44 "$VAZIA" \
+caso junitxml_perdido_de_listado_reprova 1 "exceção fora do formato permitido: tst_x" "$D" fedora44 "$VAZIA" \
     "$(arquivo_com n3ex 'fedora44 tst_x teste que perdeu o junitxml')" "$BASE/n3.json" "$F3"
 
 # N4. contagem com um a mais.
@@ -217,34 +244,6 @@ json "$BASE/n6.json" tst_a
 verdes3 | xml "$D/junit/tst_a.xml" 3
 caso distro_sem_contagem_versionada_reprova 1 "sem contagem de funções versionada" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/n6.json" "$FOUTRA"
 
-# Adendo 5 (estreia): uma exceção só vale com command exato: interpretador absoluto fora do build, -I opcional, script
-# versionado em tests/ ou tools/, sem -c, -E, env, sem ENVIRONMENT PATH/LD_, e sem argumento que aponte para o build.
-# jsonc ARQUIVO < linhas NOME|ENV|ELEM1|ELEM2... (ENV "-" = sem propriedade ENVIRONMENT). Grava JSON no formato do ctest.
-jsonc() {
-    local arq="$1" nome env rest e n i
-    {
-        printf '%s\n' '{' '  "kind" : "ctestInfo",' '  "tests" :' '  ['
-        while IFS='|' read -r nome env rest; do
-            [ -n "$nome" ] || continue
-            printf '%s\n' '    {' '      "backtrace" : 2,' '      "command" :' '      ['
-            set -f
-            set -- $(printf '%s' "$rest" | tr '|' ' ')
-            set +f
-            n=$#
-            i=0
-            for e in "$@"; do
-                i=$((i + 1))
-                if [ "$i" -lt "$n" ]; then printf '%s\n' "        \"$e\","; else printf '%s\n' "        \"$e\""; fi
-            done
-            printf '%s\n' '      ],' "      \"name\" : \"$nome\""
-            if [ "$env" != "-" ]; then
-                printf '%s\n' '      ,"properties" :' '      [' '        {' '          "name" : "ENVIRONMENT",' '          "value" :' '          [' "            \"$env\"" '          ]' '        }' '      ]'
-            fi
-            printf '%s\n' '    },'
-        done
-        printf '%s\n' '  ]' '}'
-    } > "$arq"
-}
 
 # Escapes da revisão rodada 4 (estreia vermelha): cada um tem de reprovar pela forma do command.
 S_OK="$RAIZ/tests/unit/foundation/log/varredura_logs.py"
@@ -287,7 +286,7 @@ caso a5_argumento_depois_do_script_no_build_reprova 1 "exceção fora do formato
 
 # Controle: interpretador absoluto, -I, script versionado e argumento fora do build passa.
 D="$(pasta a5_controle_valido)"
-printf '%s\n' "tst_a5g|-|/usr/bin/python3|-I|$S_OK|--termos|$T_OK" | jsonc "$BASE/a5g.json"
+printf '%s\n' 'tst_a|-|/x/tst_a' "tst_a5g|-|/usr/bin/python3|-I|$S_OK|--termos|$T_OK" | jsonc "$BASE/a5g.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
 caso a5_controle_comando_valido_passa 0 "pulos_testes: VERDE" "$D" fedora44 "$VAZIA" \
     "$(arquivo_com a5g 'fedora44 tst_a5g script versionado')" "$BASE/a5g.json" "$F3"

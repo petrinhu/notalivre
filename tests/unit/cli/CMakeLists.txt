@@ -29,7 +29,8 @@ find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
 set(NL_LOGS_PII_CLI_DIR "${CMAKE_BINARY_DIR}/logs_pii_cli")
 # Segredos desta execução (item 10): o e2e grava o arquivo; o portão lê junto da lista fixa, e reprova se a lista vier vazia.
 set(NL_SEGREDOS_PII_REF "${CMAKE_BINARY_DIR}/segredos_pii_execucao.txt")
-add_test(NAME cli.limpaLogsPii COMMAND ${CMAKE_COMMAND} -E rm -rf "${NL_LOGS_PII_CLI_DIR}")
+add_test(NAME cli.limpaLogsPii COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/limpa_logs_pii.cmake")
+set_tests_properties(cli.limpaLogsPii PROPERTIES ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${NL_LOGS_PII_CLI_DIR}")
 set_tests_properties(cli.excecaoTopo PROPERTIES DEPENDS cli.limpaLogsPii ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${NL_LOGS_PII_CLI_DIR}")
 # Build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28, DA-2.60): o portão de PII da CLI lê o segredo de referência que o e2e cli_emitir
 # gera, e o e2e fica fora do Flatpak. Sem o e2e, o portão não tem o que varrer; por isso também sai desse build.
@@ -38,9 +39,10 @@ if(NL_FLATPAK_BUILD)
 else()
     add_test(NAME cli.portaoPiiVarreLogsDaCli
         COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tests/unit/foundation/log/varredura_logs.py"
-            --dir "${NL_LOGS_PII_CLI_DIR}" --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt"
-            --termos "${NL_SEGREDOS_PII_REF}")
-    set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS "cli.excecaoTopo;e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso")
+            --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt")
+    # NL-2.14 (adendo 5): os caminhos do build vão pelo ambiente, não como argumento depois do script.
+    set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS "cli.excecaoTopo;e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso"
+        ENVIRONMENT "NL_VARREDURA_DIR=${NL_LOGS_PII_CLI_DIR};NL_VARREDURA_TERMOS_EXTRA=${NL_SEGREDOS_PII_REF}")
 endif()
 
 # Configuração da CLI (NL-2.9, DA-2.44): arquivo XDG, chaves obrigatórias, Produção nasce falsa.

@@ -23,9 +23,11 @@ nl_registra_teste_qt(NAME tst_envelope_dps COMMAND tst_envelope_dps)
 
 # Oráculo independente: xmllint --schema sobre as mesmas fixtures; o mesmo script do validador da NL-1.6a (régua por nome).
 find_program(NL_XMLLINT_DPS xmllint REQUIRED)
+find_program(NL_BASH_SEFIN bash REQUIRED)
 add_test(NAME oraculo_xmllint_dps
-    COMMAND bash "${CMAKE_SOURCE_DIR}/tests/unit/foundation/xml/oraculo_xmllint.sh"
-        "${NL_XMLLINT_DPS}" "${NL_XSD_PRODREST_DIR}" "${CMAKE_SOURCE_DIR}/tests/fixtures/dps")
+    COMMAND "${NL_BASH_SEFIN}" "${CMAKE_SOURCE_DIR}/tests/unit/foundation/xml/oraculo_xmllint.sh" "${NL_XMLLINT_DPS}")
+set_tests_properties(oraculo_xmllint_dps PROPERTIES
+    ENVIRONMENT "NL_XSD_DIR=${NL_XSD_PRODREST_DIR};NL_FIXTURES_ORACULO=${CMAKE_SOURCE_DIR}/tests/fixtures/dps")
 
 # Cliente Sefin e política de retry (NL-2.8): subpasta própria.
 add_subdirectory(cliente)

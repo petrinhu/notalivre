@@ -369,6 +369,7 @@ def gerar(saida):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.exit("uso: gerar_certificados.py DIR_SAIDA")
-    sys.exit(gerar(Path(sys.argv[1])))
+    destino = sys.argv[1] if len(sys.argv) == 2 else os.environ.get("NL_CERT_DIR", "")
+    if not destino:
+        sys.exit("uso: gerar_certificados.py DIR_SAIDA (ou NL_CERT_DIR no ambiente, NL-2.14 adendo 5)")
+    sys.exit(gerar(Path(destino)))
