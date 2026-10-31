@@ -15,17 +15,50 @@
 #include <nl/mid/composicao/registro_cli.h>
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QIODevice>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QTextStream>
 
 
 namespace nl::cli {
 
-// STUB NL-2.10b (vermelho por asserção): ainda não aplica serie e nDps na DPS.
-std::expected<QByteArray, QString> aplicarSerieENumero(const QByteArray& dpsJson, const ArgumentosEmitir&)
+// Confere um campo inteiro da DPS contra o valor da linha de comando. Campo ausente recebe o valor; campo diferente é conflito.
+std::expected<void, QString> conferirCampoDaDps(const QJsonObject& objeto, const QString& campo, qint64 valor)
 {
-    return dpsJson;
+    const QJsonValue atual = objeto.value(campo);
+    if (!atual.isUndefined() && atual.toInteger() != valor) {
+        return std::unexpected(QStringLiteral("%1 da DPS diferente da linha de comando: a DPS traz %2 e a linha de comando pede %3")
+                                   .arg(campo)
+                                   .arg(atual.toInteger())
+                                   .arg(valor));
+    }
+    return {};
+}
+
+std::expected<QByteArray, QString> aplicarSerieENumero(const QByteArray& dpsJson, const ArgumentosEmitir& argumentos)
+{
+    QJsonParseError erroJson;
+    const QJsonDocument documento = QJsonDocument::fromJson(dpsJson, &erroJson);
+    if (erroJson.error != QJsonParseError::NoError || !documento.isObject()) {
+        return std::unexpected(QStringLiteral("a DPS de entrada não é um objeto JSON"));
+    }
+    QJsonObject objeto = documento.object();
+    const qint64 serie = argumentos.serie.toLongLong();
+    const qint64 numero = argumentos.numero.toLongLong();
+    // Conflito recusa a emissão (código 2): não se escolhe um dos dois valores (NL-2.10b, emenda 3).
+    if (auto conferido = conferirCampoDaDps(objeto, QStringLiteral("serie"), serie); !conferido) {
+        return std::unexpected(conferido.error());
+    }
+    if (auto conferido = conferirCampoDaDps(objeto, QStringLiteral("nDps"), numero); !conferido) {
+        return std::unexpected(conferido.error());
+    }
+    objeto.insert(QStringLiteral("serie"), QJsonValue(serie));
+    objeto.insert(QStringLiteral("nDps"), QJsonValue(numero));
+    return QJsonDocument(objeto).toJson(QJsonDocument::Compact);
 }
 
 int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro)
@@ -55,6 +88,12 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         erro << QString::fromStdString(derivado.error().mensagem()) << Qt::endl;
         return 2;
     }
+    // Âncoras definidas fora de Homologação são erro de configuração, código 10 (condição do CISO, 31/10/2026).
+    const auto ancorasConferidas = conferirAncorasDeAmbiente(*config, *derivado == nl::mid::composicao::Ambiente::Homologacao);
+    if (!ancorasConferidas) {
+        erro << QString::fromStdString(ancorasConferidas.error().codigo) << ": " << ancorasConferidas.error().mensagem << Qt::endl;
+        return nl::mid::composicao::codigoDeSaidaDaEmissao(ancorasConferidas.error().codigo);
+    }
     const auto conferido = nl::mid::composicao::conferirFlagDoAmbiente(*ambiente, *derivado);
     if (!conferido) {
         erro << QString::fromStdString(conferido.error().mensagem()) << Qt::endl;
@@ -68,6 +107,12 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
     QFile arquivoDps(lidos->entrada);
     if (!arquivoDps.open(QIODevice::ReadOnly)) {
         erro << QStringLiteral("não foi possível ler a DPS de entrada: %1").arg(lidos->entrada) << Qt::endl;
+        return 2;
+    }
+    // --serie e --numero entram na DPS (NL-2.10b, emenda 3); conflito com o que a DPS traz sai com 2, sem escolher um dos dois.
+    const auto dpsAplicada = aplicarSerieENumero(arquivoDps.readAll(), *lidos);
+    if (!dpsAplicada) {
+        erro << dpsAplicada.error() << Qt::endl;
         return 2;
     }
     // Produção: o CPF ou CNPJ é digitado no terminal, antes da senha, e confere com o A1 e com o emitente (item 2).
@@ -95,7 +140,7 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
     const auto algoritmo = config->algoritmoAssinatura == AlgoritmoConfigurado::RsaSha256 ? nl::mid::composicao::AlgoritmoAssinatura::RsaSha256
                                                                                        : nl::mid::composicao::AlgoritmoAssinatura::RsaSha1;
     nl::mid::composicao::PedidoEmissao pedido{
-        arquivoDps.readAll(),
+        *dpsAplicada,
         nl::mid::composicao::LocalizacaoEsquemaDps{config->xsdDiretorio, config->xsdManifesto},
         config->caminhoCertificado,
         config->urlSefin,
@@ -104,6 +149,8 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         algoritmo,
         config->prefixo,
         config->ancorasTls,
+        *derivado,
+        QDir::cleanPath(QCoreApplication::applicationDirPath() + QStringLiteral("/../share/notalivre/icp-brasil")),
     };
     // A senha só entra pelo terminal, sem eco, dentro da fachada: a CLI nunca a vê (DA-2.57b).
     const auto chave = nl::mid::composicao::emitirDpsPeloTerminal(pedido, registro, QStringLiteral("senha do certificado: "));
