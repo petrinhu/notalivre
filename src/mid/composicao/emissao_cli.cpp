@@ -17,8 +17,10 @@
 #include <nl/mid/sefin/cliente/comparador_infdps_c14n.h>
 #include <nl/mid/composicao/confirmacao_inscricao.h>
 #include <nl/mid/composicao/registro_cli.h>
+#include <nl/mid/cofre/raizes_producao.h>
 #include <nl/mid/cofre/senha_do_terminal.h>
 #include <nl/mid/cofre/terminal_sem_eco.h>
+#include <nl/foundation/pkcs12/carga_raizes_icp.h>
 #include <nl/mid/composicao/resposta_crua.h>
 
 #include <QDir>
@@ -34,6 +36,7 @@
 #include <QFile>
 #include <QIODevice>
 #include <QSslCertificate>
+#include <QSslConfiguration>
 #include <QSslKey>
 #include <QUrl>
 #include <QXmlStreamReader>
@@ -109,7 +112,7 @@ std::expected<bk::IdDps, FalhaEmissao> idDoXml(const QByteArray& xml)
 
 // TLS de cliente a partir da credencial: certificado DER; chave PKCS#8 em DER (NL-2.9, item 11). A chave sai do OpenSSL num
 // buffer de memória do BIO, entregue ao QSslKey sem cópia (fromRawData), e o buffer é zerado logo depois.
-ft::ConfiguracaoTls configuracaoTls(const fp::CredencialX509& credencial, const QByteArray& ancorasPem)
+ft::ConfiguracaoTls configuracaoTls(const fp::CredencialX509& credencial, const QList<QSslCertificate>& autoridades)
 {
     ft::ConfiguracaoTls tls;
     unsigned char* der = nullptr;
@@ -128,7 +131,7 @@ ft::ConfiguracaoTls configuracaoTls(const fp::CredencialX509& credencial, const 
         }
     }
     BIO_free(saida);
-    tls.autoridades = QSslCertificate::fromData(ancorasPem, QSsl::Pem);
+    tls.autoridades = autoridades;
     return tls;
 }
 
@@ -174,10 +177,9 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
         return std::unexpected(idDps.error());
     }
     // 3. Âncoras e credencial do A1 (a senha é consumida aqui: o carregador a zera).
-    const QByteArray ancorasA1Pem = lerArquivo(pedido.caminhoAncoras);
-    auto ancoras = fp::Ancoras::dePem(ancorasA1Pem);
+    auto ancoras = ancorasDoA1(pedido, std::chrono::system_clock::now());
     if (!ancoras) {
-        return std::unexpected(falha("credencial.ancoras_invalidas", "o arquivo de âncoras não pode ser lido"));
+        return std::unexpected(ancoras.error());
     }
     const QByteArray pfx = lerArquivo(pedido.caminhoCertificado);
     fp::CarregadorPkcs12 carregador;
@@ -227,15 +229,32 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     return nota->chave.texto();
 }
 
-// STUBS NL-2.10b (vermelhos por asserção): ainda não resolvem as âncoras.
-std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao&, std::chrono::system_clock::time_point)
+// Âncoras do A1 (NL-2.10b, emenda 5): em Homologação com [certificado] ancoras, o PEM; em qualquer outro caso, as raízes ICP
+// embutidas no bundle. Fora de Homologação o caminho nem é lido (a CLI já recusou a chave com código 10).
+std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao& pedido, std::chrono::system_clock::time_point agora)
 {
-    return std::unexpected(falha("stub.ancoras_a1", "stub NL-2.10b: não implementado"));
+    if (pedido.ambiente != Ambiente::Homologacao || pedido.caminhoAncoras.isEmpty()) {
+        auto carga = nl::mid::cofre::carregarRaizesDeProducao(pedido.diretorioRaizesIcp, agora);
+        if (!carga) {
+            return std::unexpected(falha("credencial.ancoras_icp_invalidas", "as raízes ICP do bundle não conferem com o hash embutido"));
+        }
+        return std::move(carga->ancoras);
+    }
+    auto ancoras = fp::Ancoras::dePem(lerArquivo(pedido.caminhoAncoras));
+    if (!ancoras) {
+        return std::unexpected(falha("credencial.ancoras_invalidas", "o arquivo de âncoras não pode ser lido"));
+    }
+    return std::move(*ancoras);
 }
 
-QList<QSslCertificate> ancorasTlsDoPedido(const PedidoEmissao&)
+// Âncoras do servidor TLS (NL-2.10b, emenda 4): o PEM de [sefin] ancoras_tls só em Homologação; o resto é o repositório de CAs
+// do sistema do runtime, sem pin e sem bundle próprio (condição do CISO, 31/10/2026).
+QList<QSslCertificate> ancorasTlsDoPedido(const PedidoEmissao& pedido)
 {
-    return {};
+    if (pedido.ambiente != Ambiente::Homologacao || pedido.caminhoAncorasTls.isEmpty()) {
+        return QSslConfiguration::systemCaCertificates();
+    }
+    return QSslCertificate::fromData(lerArquivo(pedido.caminhoAncorasTls), QSsl::Pem);
 }
 
 std::optional<QString> lerConfirmacaoPeloTerminal(const QString& prompt)
