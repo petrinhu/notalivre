@@ -27,6 +27,8 @@ struct ConfiguracaoCli
     QString urlSefin;              ///< [sefin] url
     QString prefixo;               ///< [sefin] prefixo: caminho da API (DA-2.5), ex.: /SefinNacional; obrigatório (NL-2.10a)
     QString ancoras;               ///< [sefin] ancoras: arquivo PEM das âncoras (A1 e servidor TLS)
+    QString ancorasCertificado;    ///< [certificado] ancoras: âncoras do A1 (NL-2.10a, passo 4). Stub: ainda não é lido.
+    QString ancorasTls;            ///< [sefin] ancoras_tls: âncoras do servidor TLS (NL-2.10a, passo 4). Stub: ainda não é lido.
     QString xsdDiretorio;          ///< [xsd] diretorio
     QString xsdManifesto;          ///< [xsd] manifesto
     bool producaoLiberada = false; ///< [emissao] producao_liberada: nasce falso (go/no-go, Onda 12)

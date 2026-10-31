@@ -50,4 +50,4 @@ add_executable(tst_configuracao_cli tst_configuracao_cli.cpp ${CMAKE_SOURCE_DIR}
 target_include_directories(tst_configuracao_cli PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
 target_link_libraries(tst_configuracao_cli PRIVATE Qt6::Core Qt6::Test nl_warnings)
 nl_registra_teste_qt(NAME cli.configuracao COMMAND tst_configuracao_cli)
-set_tests_properties(cli.configuracao PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 8 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+set_tests_properties(cli.configuracao PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 9 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")

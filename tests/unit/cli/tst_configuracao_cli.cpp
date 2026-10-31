@@ -50,6 +50,8 @@ private slots:
     void algoritmoRsaSha256PelaConfiguracao();
     // Algoritmo fora de rsa-sha1 e rsa-sha256 é recusado com assinatura.algoritmo_invalido, código que sai com 10 (emenda 4).
     void algoritmoForaDaListaSaiComDez();
+    // NL-2.10a, passo 4: [certificado] ancoras (A1) e [sefin] ancoras_tls (servidor) são chaves separadas; sefin.ancoras sai.
+    void ancorasDoA1EDoServidorSeparadas();
     // Sem a seção de emissão, Produção nasce bloqueada.
     void producaoNasceFalsaSemSecao();
     // Sem XDG_CONFIG_HOME, o caminho é o de XDG_CONFIG_HOME quando definido.
@@ -92,6 +94,21 @@ void TstConfiguracaoCli::algoritmoRsaSha256PelaConfiguracao()
     const auto semSecao = nl::cli::lerConfiguracao(escrever(pasta, kCompleta));
     QVERIFY2(semSecao.has_value(), "a configuração sem a seção de assinatura tem de ser lida");
     QVERIFY2(semSecao->algoritmoAssinatura == nl::cli::AlgoritmoConfigurado::RsaSha1, "sem a seção, o padrão tem de ser rsa-sha1");
+}
+
+void TstConfiguracaoCli::ancorasDoA1EDoServidorSeparadas()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    const QString separadas = QStringLiteral(
+        "[sefin]\nurl = https://127.0.0.1:9443\nprefixo = /SefinNacional\nancoras_tls = /tmp/tls.pem\n"
+        "[certificado]\nancoras = /tmp/a1.pem\n"
+        "[xsd]\ndiretorio = /tmp/xsd\nmanifesto = /tmp/xsd/MANIFESTO.sha256\n"
+        "[emissao]\nproducao_liberada = false\n");
+    const auto lida = nl::cli::lerConfiguracao(escrever(pasta, separadas));
+    QVERIFY2(lida.has_value(), "as âncoras do A1 e do servidor têm de ser lidas de chaves separadas, sem sefin.ancoras");
+    QCOMPARE(lida->ancorasCertificado, QStringLiteral("/tmp/a1.pem"));
+    QCOMPARE(lida->ancorasTls, QStringLiteral("/tmp/tls.pem"));
 }
 
 void TstConfiguracaoCli::algoritmoForaDaListaSaiComDez()
