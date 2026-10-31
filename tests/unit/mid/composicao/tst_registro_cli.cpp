@@ -102,9 +102,9 @@ void TstRegistroCli::allowlistDaCliNaoAceitaWhat()
 {
     std::ostringstream destino;
     auto registro = nl::mid::composicao::criarLogDaCli(destino);
-    registro->logDoCliente()->registrar(nl::foundation::log::Nivel::Erro, "cli.excecao",
+    static_cast<void>(registro->logDoCliente()->registrar(nl::foundation::log::Nivel::Erro, "cli.excecao",
                                         {nl::foundation::log::Campo{"what", std::string("falha com o CPF ") + kCpfFixture},
-                                         nl::foundation::log::Campo{"tipo", "std::runtime_error"}});
+                                         nl::foundation::log::Campo{"tipo", "std::runtime_error"}}));
     const std::string saida = destino.str();
     QVERIFY2(saida.find(kCpfFixture) == std::string::npos, "o texto de what() não pode sair pelo registro da CLI");
     QVERIFY2(saida.find("what") == std::string::npos, "o campo what não está na allowlist da CLI");
