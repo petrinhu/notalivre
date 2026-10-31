@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Testes do assinador XMLDSIG (NL-2.3). Um slot por CTest (xmldsig.<slot>), sem vírgula no nome (L-45), com a linha
-# "Totals: 1 passed, 0 failed" do QTest. Os slots que pedem xmlsec1 (ferramenta de teste, DA-2.1) são desligados no
+# "Totals: N passed, 0 failed" do QTest, com N = slots + 2 (initTestCase e cleanupTestCase contam como passes; Totals: 1 num slot só, sem o que conta o QTest, nunca aparece). Os slots que pedem xmlsec1 (ferramenta de teste, DA-2.1) são desligados no
 # build Flatpak (NL_FLATPAK_BUILD, DA-2.28): o SDK não traz a ferramenta, e isso aparece no log do configure.
 # O slot assinaSha1NoSdkKdeSemVariavel só existe no Flatpak: é a prova de que o SDK assina sem a variável.
 find_package(OpenSSL 3.0 REQUIRED)
@@ -77,7 +77,7 @@ foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
     set_tests_properties(xmldsig.${nome} PROPERTIES
                          FIXTURES_REQUIRED certificados_teste
                          ENVIRONMENT "${NL_AMBIENTE_XMLDSIG}"
-                         PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed"
+                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
@@ -97,6 +97,6 @@ if(NOT NL_FLATPAK_BUILD)
     set_tests_properties(xmldsig.contextoProprioIgnoraConfiguracaoGlobal PROPERTIES
                          FIXTURES_REQUIRED certificados_teste
                          ENVIRONMENT "${NL_AMBIENTE_XMLDSIG};OPENSSL_CONF=${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/openssl_global_restrito.cnf"
-                         PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed"
+                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endif()

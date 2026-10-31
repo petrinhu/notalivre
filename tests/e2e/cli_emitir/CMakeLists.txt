@@ -37,6 +37,6 @@ foreach(nome IN ITEMS
                          FIXTURES_REQUIRED certificados_teste
                          DEPENDS cli.limpaLogsPii
                          ENVIRONMENT "${NL_AMBIENTE_E2E_EMITIR}"
-                         PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed"
+                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                          FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()

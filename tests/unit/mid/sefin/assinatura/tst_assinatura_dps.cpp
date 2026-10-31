@@ -18,6 +18,7 @@
 #include <QFile>
 #include <QIODevice>
 #include <QString>
+#include <QStringList>
 #include <QtTest>
 
 #include <expected>
@@ -27,6 +28,38 @@ namespace pk = nl::foundation::pkcs12;
 namespace sefin = nl::mid::sefin;
 
 namespace {
+
+// DA-2.38 e DA-2.49: a tabela por distro diz se o OpenSSL desta distro recusa o SHA-1 da assinatura. Onde recusa, o assinador
+// devolve assinatura.algoritmo_bloqueado, e estes slots (que assinam pelo adaptador) pulam com a razão, em vez de falhar.
+bool sha1BloqueadoNestaDistro()
+{
+    QString id;
+    QString versao = QStringLiteral("rolling");
+    QFile os(QStringLiteral("/etc/os-release"));
+    if (os.open(QIODevice::ReadOnly)) {
+        for (const QString& linha : QString::fromUtf8(os.readAll()).split(QLatin1Char('\n'))) {
+            if (linha.startsWith(QStringLiteral("ID="))) {
+                id = linha.mid(3).remove(QLatin1Char('"'));
+            } else if (linha.startsWith(QStringLiteral("VERSION_ID="))) {
+                versao = linha.mid(11).remove(QLatin1Char('"'));
+            }
+        }
+    }
+    QFile tabela(qEnvironmentVariable("NL_TABELA_SHA1_ASSINATURA"));
+    if (!tabela.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+    for (const QString& linha : QString::fromUtf8(tabela.readAll()).split(QLatin1Char('\n'))) {
+        const QStringList campos = linha.simplified().split(QLatin1Char(' '));
+        if (linha.startsWith(QLatin1Char('#')) || campos.size() != 3) {
+            continue;
+        }
+        if (campos.at(0) == id && campos.at(1) == versao) {
+            return campos.at(2) == QStringLiteral("algoritmo_bloqueado");
+        }
+    }
+    return false;
+}
 
 const char kIdDps[] = "DPS430510821122233300018100001000000000000001";
 const char kDsig[] = "http://www.w3.org/2000/09/xmldsig#";
@@ -103,6 +136,9 @@ private slots:
 
 void TesteAssinaturaDps::parametrosDaAssinaturaVemDaPastaDoLeiaute()
 {
+    if (sha1BloqueadoNestaDistro()) {
+        QSKIP("distro com SHA-1 bloqueado (DA-2.38): o adaptador não assina aqui, e a tabela cobre a recusa");
+    }
     const QByteArray dps = lerFixtureDps();
     QVERIFY2(!dps.isEmpty(), "a fixture da DPS tem de existir (NL_FIXTURES_DPS)");
     auto credencial = credencialDeTeste();
@@ -139,6 +175,9 @@ void TesteAssinaturaDps::digestDeComparacaoEhSha256()
 
 void TesteAssinaturaDps::emissaoLigaAdaptadorRealPelaRaiz()
 {
+    if (sha1BloqueadoNestaDistro()) {
+        QSKIP("distro com SHA-1 bloqueado (DA-2.38): o adaptador não assina aqui, e a tabela cobre a recusa");
+    }
     const QByteArray dps = lerFixtureDps();
     QVERIFY2(!dps.isEmpty(), "a fixture da DPS tem de existir (NL_FIXTURES_DPS)");
     auto credencial = credencialDeTeste();
