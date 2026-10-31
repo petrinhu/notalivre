@@ -74,6 +74,8 @@ void TstAncorasEmissao::ancorasTlsPadraoDoSistema()
 
     QTemporaryDir pasta;
     QVERIFY(pasta.isValid());
+    // O PEM só vale em Homologação (condição do CISO): o endpoint de loopback é o que a torna Homologação.
+    pedido.urlSefin = QStringLiteral("https://127.0.0.1:9443");
     pedido.caminhoAncorasTls = escreverPem(pasta, QStringLiteral("tls.pem"), padrao.first());
     const QList<QSslCertificate> doPem = nl::mid::composicao::ancorasTlsDoPedido(pedido);
     QCOMPARE(doPem.size(), qsizetype(1));
