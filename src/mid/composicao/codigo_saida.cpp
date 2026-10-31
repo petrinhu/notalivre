@@ -15,6 +15,8 @@ constexpr int kSaidaDuplicada = 5;
 constexpr int kSaidaComparacaoIndisponivel = 7;
 constexpr int kSaidaRecusa = 1;
 constexpr int kSaidaInterna = 70;
+// Configuração ou banco (NL-3.8, código 10): chave ausente, arquivo ou caminho ilegível, algoritmo fora da lista.
+constexpr int kSaidaConfiguracao = 10;
 
 bool comecaCom(std::string_view texto, std::string_view prefixo)
 {
@@ -29,6 +31,15 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
     constexpr std::array<std::string_view, 4> documentoPrefixo{"cpf.", "cnpj.", "dps.", "entrada."};
     constexpr std::array<std::string_view, 2> ambienteXsd{"xsd.esquema", "xsd.interno"};
     constexpr std::array<std::string_view, 5> recusaPrefixo{"credencial.", "assinatura.", "confirmacao.", "cofre.", "sefin."};
+    // Configuração (NL-2.10a, emenda 4): saída 10 por entrada explícita, antes de qualquer prefixo, porque "assinatura." e
+    // "certificado." não podem cair na recusa comum.
+    constexpr std::array<std::string_view, 4> configuracaoExato{"configuracao.chave_ausente", "configuracao.arquivo_ilegivel",
+                                                                "certificado.caminho_ilegivel", "assinatura.algoritmo_invalido"};
+    for (auto exato : configuracaoExato) {
+        if (codigo == exato) {
+            return kSaidaConfiguracao;
+        }
+    }
     // Falhas internas com código próprio (DA-2.59, item 3): não são recusa de regra nem documento, e saem como 70 por entrada explícita.
     constexpr std::array<std::string_view, 2> internoExato{"emissao.id_dps_invalido", "emissao.id_vazio"};
     for (auto exato : internoExato) {
