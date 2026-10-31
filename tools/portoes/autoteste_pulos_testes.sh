@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Autoteste do portão de pulos (NL-2.14, DA-2.61; L-36). Cada caso monta uma pasta de build de mentira (junitxml
-# sintético, no formato que o QTest grava) e chama tools/portoes/pulos_testes.sh. O caso diz o rc esperado e um trecho
-# da saída. Sem prova de vermelho o portão não conta: rodar este autoteste contra um portão que sempre passa tem de
-# reprovar os casos que esperam rc 1 (sabotagem de estreia).
+# Autoteste do portão de pulos e do registro Qt Test (NL-2.14, DA-2.61, revisão devops ALTA-1; L-36). Cada caso monta uma
+# pasta de build de mentira (junitxml sintético, CTestTestfile.cmake e executaveis_qt.txt) e chama tools/portoes/pulos_testes.sh.
+# O caso diz o rc esperado e um trecho da saída. Sem prova de vermelho o portão não conta: rodar este autoteste contra um
+# portão que sempre passa tem de reprovar os casos que esperam rc 1 (sabotagem de estreia).
 #
 # Uso: autoteste_pulos_testes.sh     (usa o portão da árvore onde este arquivo está)
 set -u
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PORTAO="$RAIZ/tools/portoes/pulos_testes.sh"
+ESTATICO="$RAIZ/tools/portoes/registro_qt_estatico.sh"
 LISTA_REAL="$RAIZ/tests/pulos_esperados_por_distro.txt"
+# O portão lê a árvore de testes do cwd (checagem estática do registro): o autoteste usa a árvore real.
+export PULOS_RAIZ="$RAIZ"
 BASE="$(mktemp -d "${TMPDIR:-/var/tmp}/notalivre-autoteste-pulos.XXXXXX")" || exit 1
 trap 'rm -rf -- "$BASE"' EXIT
 CASOS=0
@@ -35,7 +38,28 @@ pasta_build() {
     echo "$BASE/$1"
 }
 
-# Três registros verdes (init, uma função, cleanup), usados por vários casos.
+# Monta o CTest e a lista de executáveis Qt de mentira. Por padrão: um add_test por nome do manifesto, e os mesmos nomes
+# como executáveis Qt. Um caso pode trazer junit/ctest_manual.txt ou junit/executaveis_manual.txt para substituir cada um.
+gera_ctest() {
+    local d="$1" n
+    mkdir -p "$d/tests"
+    if [ -r "$d/junit/ctest_manual.txt" ]; then
+        cp "$d/junit/ctest_manual.txt" "$d/tests/CTestTestfile.cmake"
+    else
+        : > "$d/tests/CTestTestfile.cmake"
+        while IFS= read -r n; do
+            [ -n "$n" ] || continue
+            printf 'add_test([=[%s]=] "/x/%s" "-o" "-,txt")\n' "$n" "$n" >> "$d/tests/CTestTestfile.cmake"
+        done < "$d/junit/esperados.txt"
+    fi
+    if [ -r "$d/junit/executaveis_manual.txt" ]; then
+        cp "$d/junit/executaveis_manual.txt" "$d/junit/executaveis_qt.txt"
+    else
+        cp "$d/junit/esperados.txt" "$d/junit/executaveis_qt.txt"
+    fi
+}
+
+# Registro de um teste de mentira: verdes3 (init, uma função, cleanup) e o registro de pulo.
 verdes3() {
     printf '%s\n' \
         '  <testcase name="initTestCase" classname="TstX" time="0.000"/>' \
@@ -48,11 +72,16 @@ pulada_registro() {
     printf '%s\n' "  <testcase name=\"$1\" classname=\"TstX\" time=\"0.000\">" "    <skipped message=\"$2\"/>" "  </testcase>"
 }
 
-# caso NOME RC_ESPERADO TRECHO DIR DISTRO LISTA: roda o portão e confere rc e trecho da saída.
+OBRIG_VAZIO="$BASE/obrig_vazio.txt"
+printf '%s\n' '# obrigatórios vazios' > "$OBRIG_VAZIO"
+
+# caso NOME RC_ESPERADO TRECHO DIR DISTRO LISTA [OBRIG]: monta o CTest de mentira, roda o portão e confere rc e trecho.
 caso() {
-    local nome="$1" esperado="$2" trecho="$3" dir="$4" distro="$5" lista="$6" saida rc
+    local nome="$1" esperado="$2" trecho="$3" dir="$4" distro="$5" lista="$6" obrig="${7:-$OBRIG_VAZIO}"
+    local saida rc
     CASOS=$((CASOS + 1))
-    saida="$(sh "$PORTAO" "$dir" "$distro" "$lista" 2>&1)"
+    gera_ctest "$dir"
+    saida="$(sh "$PORTAO" "$dir" "$distro" "$lista" "$obrig" 2>&1)"
     rc=$?
     echo "--- caso $nome: rc=$rc (esperado $esperado)"
     printf '%s\n' "$saida" | tail -n 3
@@ -142,6 +171,65 @@ caso manifesto_vazio_reprova 1 "manifesto vazio" "$D" fedora44 "$LISTA_VAZIA"
 D="$(pasta_build lista_real)"; echo tst_a >> "$D/junit/esperados.txt"
 verdes3 | xml "$D/junit/tst_a.xml" 3
 caso lista_real_do_repo_zero_pulos_passa 0 "pulou=0" "$D" fedora44 "$LISTA_REAL"
+
+# 14. (revisão devops ALTA-1, M1c) Qt Test que sai do registro único e entra por add_test direto: está no CTest, não está
+# no manifesto. O CTest conta o pulo como passou; só a conferência CTest × manifesto pega. Reprova com o nome.
+D="$(pasta_build qt_fora_do_registro)"; echo tst_a >> "$D/junit/esperados.txt"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+printf '%s\n' 'add_test([=[tst_a]=] "/x/tst_a" "-o" "-,txt")' 'add_test([=[tst_raw]=] "/x/tst_raw")' > "$D/junit/ctest_manual.txt"
+printf '%s\n' tst_a tst_raw > "$D/junit/executaveis_manual.txt"
+caso qt_fora_do_registro_reprova 1 "fora do registro" "$D" fedora44 "$LISTA_VAZIA"
+
+# 15. Registrado no manifesto e ausente do CTest reprova (teste removido do CTest com xml antigo).
+D="$(pasta_build registrado_fora_do_ctest)"; echo tst_a >> "$D/junit/esperados.txt"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+printf '%s\n' 'add_test([=[outro]=] "/x/outro")' > "$D/junit/ctest_manual.txt"
+printf '%s\n' tst_a > "$D/junit/executaveis_manual.txt"
+caso registrado_fora_do_ctest_reprova 1 "fora do CTest" "$D" fedora44 "$LISTA_VAZIA"
+
+# 16. Lista de executáveis Qt vazia reprova (zero executáveis conferidos não é varredura).
+D="$(pasta_build exec_vazio)"; echo tst_a >> "$D/junit/esperados.txt"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+: > "$D/junit/executaveis_manual.txt"
+caso executaveis_qt_vazio_reprova 1 "nenhum executável Qt Test" "$D" fedora44 "$LISTA_VAZIA"
+
+# 17. Teste obrigatório da distro ausente do CTest reprova (a prova de rede não pode sumir em silêncio).
+D="$(pasta_build obrigatorio_ausente)"; echo tst_a >> "$D/junit/esperados.txt"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+O="$BASE/obrig_ausente.txt"; printf '%s\n' '# obrigatórios' 'fedora44 tst_b prova obrigatória de uma distro' > "$O"
+caso obrigatorio_ausente_reprova 1 "teste obrigatório ausente" "$D" fedora44 "$LISTA_VAZIA" "$O"
+
+# 18. Teste obrigatório presente e passando passa.
+D="$(pasta_build obrigatorio_presente)"; echo tst_a >> "$D/junit/esperados.txt"
+verdes3 | xml "$D/junit/tst_a.xml" 3
+O="$BASE/obrig_presente.txt"; printf '%s\n' '# obrigatórios' 'fedora44 tst_a prova obrigatória de uma distro' > "$O"
+caso obrigatorio_presente_passa 0 "VERDE" "$D" fedora44 "$LISTA_VAZIA" "$O"
+
+# 19. Checagem estática: add_test de Qt Test fora da função reprova (reforço da conferência, revisão devops ALTA-1).
+F="$BASE/fonte_ruim"; mkdir -p "$F/tests/x"
+printf '%s\n' 'add_test(NAME tst_raw' '         COMMAND tst_raw)' > "$F/tests/x/CMakeLists.txt"
+saida="$(sh "$ESTATICO" "$F" 2>&1)"; rc=$?
+CASOS=$((CASOS + 1))
+echo "--- caso estatico_add_test_qt_reprova: rc=$rc (esperado 1)"
+if [ "$rc" -eq 1 ] && printf '%s\n' "$saida" | grep -q -F -- "add_test de Qt Test fora da função"; then
+    echo "[VERDE] estatico_add_test_qt_reprova"
+else
+    echo "[VERMELHO] estatico_add_test_qt_reprova: rc=$rc, esperava rc=1 com 'add_test de Qt Test fora da função'"
+    FALHAS=$((FALHAS + 1))
+fi
+
+# 20. Checagem estática sobre a árvore limpa passa (nenhum add_test de tst_ fora da função).
+F="$BASE/fonte_limpa"; mkdir -p "$F/tests/x"
+printf '%s\n' 'nl_registra_teste_qt(NAME tst_ok COMMAND tst_ok)' 'add_test(NAME python.ok COMMAND python3 -I x.py)' > "$F/tests/x/CMakeLists.txt"
+saida="$(sh "$ESTATICO" "$F" 2>&1)"; rc=$?
+CASOS=$((CASOS + 1))
+echo "--- caso estatico_fonte_limpa_passa: rc=$rc (esperado 0)"
+if [ "$rc" -eq 0 ]; then
+    echo "[VERDE] estatico_fonte_limpa_passa"
+else
+    echo "[VERMELHO] estatico_fonte_limpa_passa: rc=$rc, esperava rc=0"
+    FALHAS=$((FALHAS + 1))
+fi
 
 echo "CASOS=$CASOS FALHAS=$FALHAS"
 if [ "$FALHAS" -ne 0 ]; then
