@@ -20,6 +20,8 @@ private slots:
     void producaoPassaSoComLiberacao();
     // Texto desconhecido de ambiente é recusado.
     void ambienteDesconhecidoRecusado();
+    // O endpoint decide o ambiente, não a flag (NL-2.9, item 1): host de Produção é Produção, e flag divergente é recusada.
+    void ambienteVemDoEndpointNaoDaFlag();
 };
 
 void TstPoliticaEmissao::producaoBloqueadaPorPadrao()
@@ -41,6 +43,20 @@ void TstPoliticaEmissao::ambienteDesconhecidoRecusado()
     const auto resultado = nl::mid::composicao::ambienteDeTexto("producao2");
     QVERIFY2(!resultado.has_value(), "ambiente fora da lista tem de ser recusado");
     QCOMPARE(QString::fromStdString(resultado.error().codigo()), QStringLiteral("emissao.ambiente_invalido"));
+}
+
+void TstPoliticaEmissao::ambienteVemDoEndpointNaoDaFlag()
+{
+    QCOMPARE(nl::mid::composicao::ambienteDoEndpoint(QStringLiteral("https://sefin.nfse.gov.br/SefinNacional")).value(), Ambiente::Producao);
+    QCOMPARE(nl::mid::composicao::ambienteDoEndpoint(QStringLiteral("https://sefin.producaorestrita.nfse.gov.br/SefinNacional")).value(), Ambiente::ProducaoRestrita);
+    QCOMPARE(nl::mid::composicao::ambienteDoEndpoint(QStringLiteral("https://127.0.0.1:9443")).value(), Ambiente::Homologacao);
+    const auto desconhecido = nl::mid::composicao::ambienteDoEndpoint(QStringLiteral("https://exemplo.com.br/api"));
+    QVERIFY2(!desconhecido.has_value(), "host fora da lista tem de ser recusado");
+    QCOMPARE(QString::fromStdString(desconhecido.error().codigo()), QStringLiteral("emissao.endpoint_desconhecido"));
+    // Flag homologacao com URL de Produção: recusa antes de assinar (o caso da triagem).
+    const auto divergente = nl::mid::composicao::conferirFlagDoAmbiente(Ambiente::Homologacao, Ambiente::Producao);
+    QVERIFY2(!divergente.has_value(), "flag que diverge do endpoint tem de ser recusada");
+    QCOMPARE(QString::fromStdString(divergente.error().codigo()), QStringLiteral("emissao.ambiente_divergente"));
 }
 
 QTEST_APPLESS_MAIN(TstPoliticaEmissao)

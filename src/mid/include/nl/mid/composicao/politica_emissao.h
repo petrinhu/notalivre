@@ -7,6 +7,8 @@
 
 #include <nl/base/erro.h>
 
+#include <QStringView>
+
 #include <expected>
 #include <string_view>
 
@@ -23,6 +25,14 @@ struct ConfigEmissao
 
 /// Texto do ambiente na linha de comando: "homologacao", "producao-restrita" ou "producao". Outro texto é vazio.
 std::expected<Ambiente, nl::base::Erro> ambienteDeTexto(std::string_view texto);
+
+/// Ambiente que o endpoint configurado diz ser (NL-2.9, item 1 da triagem do CISO): o host decide, nunca a flag. Host de
+/// Produção é Producao; host de Produção Restrita é ProducaoRestrita; loopback é Homologacao (só o servidor falso). Outro host
+/// é "emissao.endpoint_desconhecido".
+std::expected<Ambiente, nl::base::Erro> ambienteDoEndpoint(QStringView url);
+
+/// Flag --ambiente que diverge do ambiente derivado do endpoint é recusada ("emissao.ambiente_divergente") antes de assinar.
+std::expected<void, nl::base::Erro> conferirFlagDoAmbiente(Ambiente flag, Ambiente derivado);
 
 /// Recusa Producao sem liberação ("emissao.producao_bloqueada"). Homologação e Produção Restrita passam.
 std::expected<void, nl::base::Erro> liberarAmbiente(const ConfigEmissao& config);

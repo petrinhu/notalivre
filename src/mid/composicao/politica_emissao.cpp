@@ -5,6 +5,8 @@
 
 #include <optional>
 
+#include <QUrl>
+
 namespace nl::mid::composicao {
 
 std::expected<Ambiente, nl::base::Erro> ambienteDeTexto(std::string_view texto)
@@ -19,6 +21,20 @@ std::expected<Ambiente, nl::base::Erro> ambienteDeTexto(std::string_view texto)
         return Ambiente::Producao;
     }
     return std::unexpected(nl::base::Erro("emissao.ambiente_invalido", std::nullopt, "ambiente desconhecido"));
+}
+
+// Ambiente que o endpoint diz ser. Stub de teste (NL-2.9, item 1): a implementação real vem no código.
+std::expected<Ambiente, nl::base::Erro> ambienteDoEndpoint(QStringView url)
+{
+    static_cast<void>(url);
+    return Ambiente::Homologacao;
+}
+
+std::expected<void, nl::base::Erro> conferirFlagDoAmbiente(Ambiente flag, Ambiente derivado)
+{
+    static_cast<void>(flag);
+    static_cast<void>(derivado);
+    return {};
 }
 
 std::expected<void, nl::base::Erro> liberarAmbiente(const ConfigEmissao& config)
