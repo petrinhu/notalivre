@@ -37,12 +37,23 @@ class TestePortaoSha1(unittest.TestCase):
             subprocess.run(["git", "-C", raiz, "add", "--", rel], check=True)
         return raiz
 
-    def _rodar(self, raiz):
-        r = subprocess.run([sys.executable, "-I", str(PORTAO), raiz], capture_output=True, text=True)
+    def _rodar(self, raiz, *extra):
+        r = subprocess.run([sys.executable, "-I", str(PORTAO), raiz, *extra], capture_output=True, text=True)
         return r.returncode, r.stdout + r.stderr
 
+    def _build_com_cache(self, raiz, sub, declarado=None):
+        """Pasta de build com CMakeCache.txt. Por padrão declara a própria pasta, como o CMake faz."""
+        pasta = os.path.join(raiz, sub)
+        os.makedirs(pasta, exist_ok=True)
+        alvo = declarado if declarado is not None else os.path.realpath(pasta)
+        with open(os.path.join(pasta, "CMakeCache.txt"), "w", encoding="utf-8") as f:
+            f.write(f"CMAKE_CACHEFILE_DIR:INTERNAL={alvo}\n")
+        return pasta
+
     def test_portaoSha1ArvoreRealLimpa(self):
-        rc, saida = self._rodar(str(RAIZ))
+        # O CTest passa o CMAKE_BINARY_DIR por NL_BUILD_DIR só quando o build está dentro da árvore (Flatpak).
+        build = os.environ.get("NL_BUILD_DIR")
+        rc, saida = self._rodar(str(RAIZ), *([build] if build else []))
         m = LINHA_CONTAGEM.search(saida)
         self.assertIsNotNone(m, saida)
         self.assertGreaterEqual(int(m.group(1)), 1, "varredura vazia não é árvore limpa")
@@ -229,36 +240,64 @@ class TestePortaoSha1(unittest.TestCase):
         self.assertEqual(rc, 1, saida)
         self.assertIn("tests/unit/foundation/xmldsig/outro_teste.cpp", saida)
 
-    def test_portaoSha1BuildComCacheNaRaizNaoReprova(self):
-        # Exceção 5 do portão: _build na raiz com CMakeCache.txt é saída do build; o objeto do teste permitido não reprova.
+    def test_portaoSha1BuildDeclaradoComArgumentoNaoReprova(self):
+        # Exceção 5: com o CMAKE_BINARY_DIR por argumento, e o cache dele declarando a própria pasta, o build sai da varredura.
         raiz = self._arvore({
             "src/codigo.cpp": "int x = 1;\n",
-            "_build/CMakeCache.txt": "CMAKE_BUILD_TYPE:STRING=Release\n",
-            "_build/tests/unit/foundation/xmldsig/CMakeFiles/tst.dir/tst.cpp.o": "OPENSSL_ENABLE_SHA1_SIGNATURES",
+            "_build/tests/unit/foundation/xmldsig/tst.cpp.o": "OPENSSL_ENABLE_SHA1_SIGNATURES",
         })
-        rc, saida = self._rodar(raiz)
+        self._build_com_cache(raiz, "_build")
+        rc, saida = self._rodar(raiz, os.path.join(raiz, "_build"))
         self.assertEqual(rc, 0, saida)
         self.assertIn("violacoes=0", saida)
 
-    def test_portaoSha1BuildSemCacheNaRaizReprova(self):
-        # Sem CMakeCache.txt, _build na raiz não é build do CMake: é arquivo comum e tem de ser varrido.
+    def test_portaoSha1BuildVersionadoSemArgumentoReprova(self):
+        # Higiene (sem argumento): nada é excluído. _build com CMakeCache.txt versionado tem de reprovar.
         raiz = self._arvore({
             "src/codigo.cpp": "int x = 1;\n",
-            "_build/saida.o": "OPENSSL_ENABLE_SHA1_SIGNATURES",
+            "_build/tests/unit/foundation/xmldsig/tst.cpp.o": "OPENSSL_ENABLE_SHA1_SIGNATURES",
         })
+        self._build_com_cache(raiz, "_build")
         rc, saida = self._rodar(raiz)
         self.assertEqual(rc, 1, saida)
-        self.assertIn("VIOLACAO _build/saida.o", saida)
+        self.assertIn("VIOLACAO _build/tests/unit/foundation/xmldsig/tst.cpp.o", saida)
 
-    def test_portaoSha1BuildAninhadoComCacheReprova(self):
-        # Só a raiz é podada: um _build dentro de src/ com CMakeCache.txt continua sendo varrido.
+    def test_portaoSha1BuildDeclaradoNaoCegaSrcBuild(self):
+        # Só a pasta passada sai: src/_build com CMakeCache.txt próprio continua sendo varrido.
         raiz = self._arvore({
-            "src/_build/CMakeCache.txt": "CMAKE_BUILD_TYPE:STRING=Release\n",
+            "src/codigo.cpp": "int x = 1;\n",
             "src/_build/saida.o": "OPENSSL_ENABLE_SHA1_SIGNATURES",
+            "_build/saida.o": "x",
         })
-        rc, saida = self._rodar(raiz)
+        self._build_com_cache(raiz, "src/_build")
+        self._build_com_cache(raiz, "_build")
+        rc, saida = self._rodar(raiz, os.path.join(raiz, "_build"))
         self.assertEqual(rc, 1, saida)
         self.assertIn("VIOLACAO src/_build/saida.o", saida)
+
+    def test_portaoSha1ArgumentoSemCacheProprioRecusado(self):
+        # Pasta sem CMakeCache.txt próprio não pode ser excluída por argumento: a execução falha com rc 2.
+        raiz = self._arvore({"src/codigo.cpp": "int x = 1;\n", "outra/saida.o": "OPENSSL_ENABLE_SHA1_SIGNATURES"})
+        rc, saida = self._rodar(raiz, os.path.join(raiz, "outra"))
+        self.assertEqual(rc, 2, saida)
+        self.assertIn("PARADA: argumento BUILD recusado", saida)
+
+    def test_portaoSha1ArgumentoCacheDeOutraPastaRecusado(self):
+        # Cache de outra pasta (declara CMAKE_CACHEFILE_DIR diferente): não é o build desta pasta, rc 2.
+        raiz = self._arvore({"src/codigo.cpp": "int x = 1;\n"})
+        self._build_com_cache(raiz, "_build", declarado=os.path.join(raiz, "_outro_build"))
+        rc, saida = self._rodar(raiz, os.path.join(raiz, "_build"))
+        self.assertEqual(rc, 2, saida)
+        self.assertIn("não declara esta pasta", saida)
+
+    def test_portaoSha1ArgumentoForaDaRaizRecusado(self):
+        # Pasta de build fora da raiz da varredura não é excluída, mesmo com cache próprio: rc 2.
+        raiz = self._arvore({"src/codigo.cpp": "int x = 1;\n"})
+        externa = self._arvore({"CMakeCache.txt": "x\n"})
+        self._build_com_cache(os.path.dirname(externa), os.path.basename(externa))
+        rc, saida = self._rodar(raiz, externa)
+        self.assertEqual(rc, 2, saida)
+        self.assertIn("fora da raiz", saida)
 
     def test_ciHigieneLigaPortaoSha1(self):
         # Job higiene do ci.yml (fronteira: o job seguinte, camadas). O portão tem de rodar sobre o workspace inteiro.
