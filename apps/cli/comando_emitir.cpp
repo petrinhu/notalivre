@@ -39,8 +39,9 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
     // A configuração de Produção vem do arquivo XDG e nasce falsa: a liberação chega com o go/no-go do líder (Onda 12).
     const auto config = lerConfiguracao(caminhoConfiguracao());
     if (!config) {
+        // Configuração ou banco (NL-3.8, código 10): a tabela de códigos de saída classifica o código da configuração.
         erro << config.error().mensagem << Qt::endl;
-        return 2;
+        return nl::mid::composicao::codigoDeSaidaDaEmissao(config.error().codigo);
     }
     // O endpoint decide o ambiente (NL-2.9, item 1 da triagem do CISO): a flag só pode confirmar, nunca trocar.
     const auto derivado = nl::mid::composicao::ambienteDoEndpoint(config->urlSefin);
@@ -76,6 +77,8 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
             return 1;
         }
     }
+    const auto algoritmo = config->algoritmoAssinatura == AlgoritmoConfigurado::RsaSha256 ? nl::mid::composicao::AlgoritmoAssinatura::RsaSha256
+                                                                                       : nl::mid::composicao::AlgoritmoAssinatura::RsaSha1;
     nl::mid::composicao::PedidoEmissao pedido{
         arquivoDps.readAll(),
         nl::mid::composicao::LocalizacaoEsquemaDps{config->xsdDiretorio, config->xsdManifesto},
@@ -83,6 +86,7 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         config->urlSefin,
         config->ancoras,
         confirmacao.value_or(QString()),
+        algoritmo,
     };
     // A senha só entra pelo terminal, sem eco, dentro da fachada: a CLI nunca a vê (DA-2.57b).
     const auto chave = nl::mid::composicao::emitirDpsPeloTerminal(pedido, registro, QStringLiteral("senha do certificado: "));

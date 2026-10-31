@@ -17,16 +17,22 @@
 
 namespace nl::mid::sefin::assinatura {
 
+/// Algoritmo da assinatura da DPS (NL-2.10a, [assinatura] algoritmo). RsaSha1 é o padrão (DA-2.2); RsaSha256 é a alternativa de SHA-256.
+enum class AlgoritmoAssinatura { RsaSha1, RsaSha256 };
+
 class AssinadorDpsSefin final : public nl::back::AssinadorDps
 {
 public:
-    /// Empresta a credencial: quem chama a mantém viva enquanto o adaptador existir.
-    explicit AssinadorDpsSefin(const nl::foundation::pkcs12::CredencialX509& credencial) noexcept;
+    /// Empresta a credencial: quem chama a mantém viva enquanto o adaptador existir. O algoritmo escolhe a função de parâmetros
+    /// da pasta do leiaute (parametros_infdps.h); o padrão é rsa-sha1, como antes desta fatia.
+    explicit AssinadorDpsSefin(const nl::foundation::pkcs12::CredencialX509& credencial,
+                               AlgoritmoAssinatura algoritmo = AlgoritmoAssinatura::RsaSha1) noexcept;
 
     std::expected<QByteArray, nl::base::Erro> assinar(QByteArrayView xml, QStringView idReferencia) override;
 
 private:
     const nl::foundation::pkcs12::CredencialX509& credencial_;
+    AlgoritmoAssinatura algoritmo_;
 };
 
 } // namespace nl::mid::sefin::assinatura

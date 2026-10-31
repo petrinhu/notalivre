@@ -13,10 +13,23 @@
 
 namespace nl::mid::sefin::assinatura {
 
-AssinadorDpsSefin::AssinadorDpsSefin(const nl::foundation::pkcs12::CredencialX509& credencial) noexcept
-    : credencial_(credencial) {}
+AssinadorDpsSefin::AssinadorDpsSefin(const nl::foundation::pkcs12::CredencialX509& credencial, AlgoritmoAssinatura algoritmo) noexcept
+    : credencial_(credencial), algoritmo_(algoritmo) {}
 
-// Os parâmetros vêm da pasta do leiaute (parametrosDaAssinaturaDps), sem cópia aqui (DA-2.42, L-34). O material é emprestado
+namespace {
+
+// Só a pasta do leiaute conhece as URIs: o adaptador escolhe a função pelo algoritmo, sem URI aqui (DA-2.42, L-34).
+nl::foundation::xmldsig::ParametrosAssinatura parametrosPara(AlgoritmoAssinatura algoritmo)
+{
+    if (algoritmo == AlgoritmoAssinatura::RsaSha256) {
+        return nl::mid::sefin::prodrest_20261020::parametrosDaAssinaturaDpsSha256();
+    }
+    return nl::mid::sefin::prodrest_20261020::parametrosDaAssinaturaDps();
+}
+
+} // namespace
+
+// Os parâmetros vêm da pasta do leiaute, pela escolha do algoritmo, sem cópia aqui (DA-2.42, L-34). O material é emprestado
 // do cofre na chamada, e o xmldsig não guarda nada entre chamadas.
 std::expected<QByteArray, nl::base::Erro> AssinadorDpsSefin::assinar(QByteArrayView xml, QStringView idReferencia) {
     auto material = nl::mid::cofre::materialParaAssinatura(credencial_);
@@ -25,7 +38,7 @@ std::expected<QByteArray, nl::base::Erro> AssinadorDpsSefin::assinar(QByteArrayV
                                               "a credencial está descartada: o material de assinatura não está disponível"));
     }
     auto assinado = nl::foundation::xmldsig::AssinadorXml::assinarEnveloped(
-        xml, idReferencia, nl::mid::sefin::prodrest_20261020::parametrosDaAssinaturaDps(), *material);
+        xml, idReferencia, parametrosPara(algoritmo_), *material);
     if (!assinado) {
         const auto codigo = nl::foundation::xmldsig::codigo(assinado.error());
         return std::unexpected(nl::base::Erro(std::string(codigo), std::nullopt, "falha ao assinar a DPS"));

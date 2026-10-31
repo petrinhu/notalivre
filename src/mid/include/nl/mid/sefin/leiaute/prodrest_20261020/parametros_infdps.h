@@ -26,6 +26,13 @@ inline nl::foundation::xmldsig::ParametrosAssinatura parametrosDaAssinaturaDps()
             kNamespaceLeiauteNfse, "NFSe", "infNFSe"};
 }
 
+/// Parâmetros da assinatura da DPS com rsa-sha256 (NL-2.10a, [assinatura] algoritmo = rsa-sha256): digest SHA-256 e assinatura
+/// rsa-sha256, pelas constantes desta pasta. A escolha entre esta e parametrosDaAssinaturaDps() é do adaptador, pela configuração.
+inline nl::foundation::xmldsig::ParametrosAssinatura parametrosDaAssinaturaDpsSha256() {
+    return {kUriC14nLeiaute, kUriEnvelopedLeiaute, kUriSha256Leiaute, kUriRsaSha256Leiaute, "infDPS", "DPS",
+            kNamespaceLeiauteNfse, "NFSe", "infNFSe"};
+}
+
 /// Parâmetros do digest de comparação do E0014: SHA-256 (DA-2.41), só uso interno do comparador.
 inline nl::foundation::xmldsig::ParametrosAssinatura parametrosDoDigestDeComparacao() {
     return {kUriC14nLeiaute, kUriEnvelopedLeiaute, kUriSha256Leiaute, kUriRsaSha256Leiaute, "infDPS", "DPS",

@@ -241,8 +241,9 @@ std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& 
 
 std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, fp::SenhaSegura&& senha, RegistroCli& registro)
 {
-    const FabricaAssinador fabrica = [](const fp::CredencialX509& credencial) -> std::unique_ptr<nl::back::AssinadorDps> {
-        return std::make_unique<nl::mid::sefin::assinatura::AssinadorDpsSefin>(credencial);
+    const FabricaAssinador fabrica = [algoritmo = pedido.algoritmo](const fp::CredencialX509& credencial)
+                                         -> std::unique_ptr<nl::back::AssinadorDps> {
+        return std::make_unique<nl::mid::sefin::assinatura::AssinadorDpsSefin>(credencial, algoritmo);
     };
     return emitirDpsComAssinador(pedido, std::move(senha), registro, fabrica);
 }

@@ -81,6 +81,16 @@ std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& 
     cfg.xsdManifesto = *manifesto;
     // Produção só liga com a chave em "true" (go/no-go do líder). Qualquer outro valor, ou ausência, fica bloqueada.
     cfg.producaoLiberada = valores.value(QStringLiteral("emissao.producao_liberada")) == QStringLiteral("true");
+    // [assinatura] algoritmo: ausente ou rsa-sha1 é o padrão (DA-2.2); rsa-sha256 é a alternativa. Qualquer outro valor sai com 10.
+    const QString algoritmo = valores.value(QStringLiteral("assinatura.algoritmo"));
+    if (algoritmo.isEmpty() || algoritmo == QStringLiteral("rsa-sha1")) {
+        cfg.algoritmoAssinatura = AlgoritmoConfigurado::RsaSha1;
+    } else if (algoritmo == QStringLiteral("rsa-sha256")) {
+        cfg.algoritmoAssinatura = AlgoritmoConfigurado::RsaSha256;
+    } else {
+        return std::unexpected(ErroConfiguracao{"assinatura.algoritmo_invalido",
+                                                 QStringLiteral("algoritmo de assinatura fora da lista (rsa-sha1 ou rsa-sha256): %1").arg(algoritmo)});
+    }
     return cfg;
 }
 

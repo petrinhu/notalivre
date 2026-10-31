@@ -6,6 +6,7 @@
 #define NL_MID_COMPOSICAO_EMISSAO_CLI_H
 
 #include <nl/mid/composicao/dps_validar.h>
+#include <nl/mid/sefin/assinatura/assinador_dps_sefin.h>
 
 #include <optional>
 #include <QByteArray>
@@ -28,6 +29,9 @@ namespace nl::mid::composicao {
 
 class RegistroCli;
 
+/// Algoritmo da assinatura da DPS, escolhido na configuração pela CLI (NL-2.10a). A CLI só vê este nome, nunca o adaptador.
+using AlgoritmoAssinatura = nl::mid::sefin::assinatura::AlgoritmoAssinatura;
+
 /// Tudo o que a emissão precisa, já lido pela CLI. A senha não entra aqui: vai à parte, do terminal.
 struct PedidoEmissao
 {
@@ -37,6 +41,7 @@ struct PedidoEmissao
     QString urlSefin;               ///< base da API (config [sefin] url)
     QString caminhoAncoras;         ///< PEM das âncoras do A1 e do servidor TLS (config [sefin] ancoras)
     QString confirmacao;            ///< CPF ou CNPJ digitado no terminal; vazio se não foi digitado (DA-2.14: em Produção, obrigatório)
+    AlgoritmoAssinatura algoritmo = AlgoritmoAssinatura::RsaSha1;  ///< [assinatura] algoritmo (NL-2.10a); padrão rsa-sha1
 };
 
 /// Falha da emissão: o código é estável; a mensagem vem do catálogo, nunca do texto livre da API.
