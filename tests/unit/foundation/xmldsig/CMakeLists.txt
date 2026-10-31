@@ -10,7 +10,7 @@ find_package(LibXml2 REQUIRED)
 add_executable(tst_assinador_xml tst_assinador_xml.cpp)
 target_include_directories(tst_assinador_xml PRIVATE ${LIBXML2_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/src/foundation/xmldsig)
 target_link_libraries(tst_assinador_xml PRIVATE Qt6::Core Qt6::Test nl_foundation_xmldsig nl_foundation_pkcs12
-                      ${LIBXML2_LIBRARY} OpenSSL::Crypto nl_warnings)
+                      ${LIBXML2_LIBRARY} OpenSSL::Crypto nl_warnings nl_teste_apoio)
 
 set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
 set(NL_AMBIENTE_XMLDSIG

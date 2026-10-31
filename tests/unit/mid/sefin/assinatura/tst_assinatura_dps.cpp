@@ -9,6 +9,7 @@
 #include <nl/mid/composicao/emissao_nota.h>
 #include <nl/mid/sefin/assinatura/assinador_dps_sefin.h>
 #include <nl/mid/sefin/leiaute/prodrest_20261020/parametros_infdps.h>
+#include <nl/teste/tabela_sha1_distro.h>
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
@@ -34,32 +35,7 @@ namespace {
 // Devolve "sha1", "algoritmo_bloqueado" ou vazio (distro fora da tabela, ou tabela que não abre). Vazio reprova o teste.
 QString esperadoDaDistro()
 {
-    QString id;
-    QString versao = QStringLiteral("rolling");
-    QFile os(QStringLiteral("/etc/os-release"));
-    if (os.open(QIODevice::ReadOnly)) {
-        for (const QString& linha : QString::fromUtf8(os.readAll()).split(QLatin1Char('\n'))) {
-            if (linha.startsWith(QStringLiteral("ID="))) {
-                id = linha.mid(3).remove(QLatin1Char('"'));
-            } else if (linha.startsWith(QStringLiteral("VERSION_ID="))) {
-                versao = linha.mid(11).remove(QLatin1Char('"'));
-            }
-        }
-    }
-    QFile tabela(qEnvironmentVariable("NL_TABELA_SHA1_ASSINATURA"));
-    if (!tabela.open(QIODevice::ReadOnly)) {
-        return {};
-    }
-    for (const QString& linha : QString::fromUtf8(tabela.readAll()).split(QLatin1Char('\n'))) {
-        const QStringList campos = linha.simplified().split(QLatin1Char(' '));
-        if (linha.startsWith(QLatin1Char('#')) || campos.size() != 3) {
-            continue;
-        }
-        if (campos.at(0) == id && campos.at(1) == versao) {
-            return campos.at(2);
-        }
-    }
-    return {};
+    return nl::teste::expectativaSha1DaDistroAtual(qEnvironmentVariable("NL_TABELA_SHA1_ASSINATURA"));
 }
 
 // Distro que recusa o SHA-1 (DA-2.38): o erro tem de ser o código da tabela, e nenhuma assinatura pode sair.

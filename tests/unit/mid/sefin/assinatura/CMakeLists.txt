@@ -6,7 +6,7 @@ find_package(LibXml2 REQUIRED)
 add_executable(tst_assinatura_dps tst_assinatura_dps.cpp)
 target_include_directories(tst_assinatura_dps PRIVATE ${LIBXML2_INCLUDE_DIR})
 target_link_libraries(tst_assinatura_dps PRIVATE Qt6::Core Qt6::Test nl_mid nl_back nl_foundation_pkcs12
-                      nl_foundation_xmldsig ${LIBXML2_LIBRARY} nl_warnings)
+                      nl_foundation_xmldsig ${LIBXML2_LIBRARY} nl_warnings nl_teste_apoio)
 
 set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
 add_test(NAME mid.sefin.assinatura.parametrosDaAssinaturaVemDaPastaDoLeiaute

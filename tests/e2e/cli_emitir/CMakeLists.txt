@@ -15,7 +15,7 @@ find_program(NL_XMLSEC1_EMITIR xmlsec1 REQUIRED)
 
 add_executable(tst_cli_emitir tst_cli_emitir.cpp)
 add_dependencies(tst_cli_emitir notalivre-cli)
-target_link_libraries(tst_cli_emitir PRIVATE Qt6::Core Qt6::Test util nl_warnings)
+target_link_libraries(tst_cli_emitir PRIVATE Qt6::Core Qt6::Test util nl_warnings nl_teste_apoio)
 target_compile_definitions(tst_cli_emitir PRIVATE
     "NL_CLI_EMITIR=\"$<TARGET_FILE:notalivre-cli>\""
     "NL_LANCADOR_EMITIR=\"${CMAKE_SOURCE_DIR}/tools/servidor_falso/lancador.py\""

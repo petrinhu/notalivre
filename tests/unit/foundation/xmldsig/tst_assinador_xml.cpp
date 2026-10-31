@@ -10,6 +10,7 @@
 #include <nl/foundation/pkcs12/credencial_x509.h>
 #include <nl/foundation/pkcs12/senha_segura.h>
 #include <nl/foundation/xmldsig/assinador_xml.h>
+#include <nl/teste/tabela_sha1_distro.h>
 
 #include <libxml/SAX2.h>
 #include <libxml/parser.h>
@@ -64,19 +65,8 @@ pk::SenhaSegura senhaDeTeste() {
     return pk::SenhaSegura::de(senhaArquivo.readLine().trimmed());
 }
 
-// Campo de /etc/os-release (sem aspas). Sem VERSION_ID (ex.: manjaro, rolling) devolve "rolling".
-QString campoDoOsRelease(const QString& campo) {
-    QFile arquivo(QStringLiteral("/etc/os-release"));
-    if (!arquivo.open(QIODevice::ReadOnly)) {
-        return {};
-    }
-    for (const QString& linha : QString::fromUtf8(arquivo.readAll()).split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
-        if (linha.startsWith(campo + QLatin1Char('='))) {
-            return linha.mid(campo.size() + 1).remove(QLatin1Char('"'));
-        }
-    }
-    return campo == QStringLiteral("VERSION_ID") ? QStringLiteral("rolling") : QString();
-}
+// Campo de /etc/os-release: o leitor é o auxiliar único de teste (DA-2.61), e aqui só o nome.
+using nl::teste::campoDoOsRelease;
 
 // Piso de HTTP (CISO, 10:02): grava a situação do teste (rodou ou pulou, com o motivo) no arquivo que a variável
 // NL_PISO_HTTP_ARQ aponta, na pasta de build da imagem. Sobrescreve a cada execução. Sem a variável, não grava nada.
@@ -199,22 +189,12 @@ QByteArray lerArquivo(const QString& caminho);
 // Expectativa de SHA-1 de uma distro, lida da tabela versionada (NL-2.9, condição (a) da re-revisão da NL-2.3). Sem linha
 // para a distro, devolve nullopt, e a suíte reprova (distroAtualTemLinhaNaTabela).
 std::optional<bool> recusaSha1SegundoTabela(const QString& id, const QString& versao) {
-    const QByteArray tabela =
-        lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/tabela_sha1_por_distro.txt"));
-    std::optional<QString> esperado;
-    for (const QString& linha : QString::fromUtf8(tabela).split(QLatin1Char('\n'))) {
-        if (linha.startsWith(QLatin1Char('#')) || linha.trimmed().isEmpty()) {
-            continue;
-        }
-        const QStringList colunas = linha.split(QLatin1Char(' '), Qt::SkipEmptyParts);
-        if (colunas.size() == 3 && colunas[0] == id && colunas[1] == versao) {
-            esperado = colunas[2];
-        }
-    }
-    if (!esperado) {
+    const QString esperado = nl::teste::expectativaSha1(
+        qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/tabela_sha1_por_distro.txt"), id, versao);
+    if (esperado.isEmpty()) {
         return std::nullopt;
     }
-    return *esperado == QStringLiteral("algoritmo_bloqueado");
+    return esperado == QStringLiteral("algoritmo_bloqueado");
 }
 
 // DA-2.38: a distro que recusa rsa-sha1 (linha algoritmo_bloqueado da tabela) usa rsa-sha256 na suíte. A tabela é a fonte;
@@ -599,16 +579,7 @@ private slots:
         const QString versao = campoDoOsRelease(QStringLiteral("VERSION_ID"));
         QVERIFY2(!id.isEmpty(), "/etc/os-release sem ID");
         const QString tabela = qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/tabela_sha1_por_distro.txt");
-        QString esperado;
-        for (const QString& linha : QString::fromUtf8(lerArquivo(tabela)).split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
-            if (linha.startsWith(QLatin1Char('#'))) {
-                continue;
-            }
-            const QStringList colunas = linha.simplified().split(QLatin1Char(' '));
-            if (colunas.size() == 3 && colunas[0] == id && colunas[1] == versao) {
-                esperado = colunas[2];
-            }
-        }
+        const QString esperado = nl::teste::expectativaSha1(tabela, id, versao);
         QVERIFY2(!esperado.isEmpty(), "distro sem linha em tests/fixtures/xmldsig/tabela_sha1_por_distro.txt");
         QVERIFY2(esperado == QStringLiteral("sha1") || esperado == QStringLiteral("algoritmo_bloqueado"),
                  "expectativa da tabela ainda não medida (PENDENTE): medir e gravar antes do verde");
@@ -990,20 +961,11 @@ private slots:
 
     void tabelaPorDistroVemDoArquivo() {
         // DA-2.40 (adendo): a expectativa de SHA-1 da distro vem da tabela versionada, não de código. Este slot amarra as duas.
-        const QByteArray tabela = lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/tabela_sha1_por_distro.txt"));
-        QVERIFY2(!tabela.isEmpty(), "a tabela de expectativa por distro tem de existir");
+        const QString caminho = qEnvironmentVariable("NL_FIXTURES_XMLDSIG") + QStringLiteral("/tabela_sha1_por_distro.txt");
+        QVERIFY2(!lerArquivo(caminho).isEmpty(), "a tabela de expectativa por distro tem de existir");
         const QString id = campoDoOsRelease(QStringLiteral("ID"));
         const QString versao = campoDoOsRelease(QStringLiteral("VERSION_ID"));
-        QString esperado;
-        for (const QString& linha : QString::fromUtf8(tabela).split(QLatin1Char('\n'))) {
-            if (linha.startsWith(QLatin1Char('#')) || linha.trimmed().isEmpty()) {
-                continue;
-            }
-            const QStringList colunas = linha.split(QLatin1Char(' '), Qt::SkipEmptyParts);
-            if (colunas.size() == 3 && colunas[0] == id && colunas[1] == versao) {
-                esperado = colunas[2];
-            }
-        }
+        const QString esperado = nl::teste::expectativaSha1(caminho, id, versao);
         QVERIFY2(!esperado.isEmpty(), "a distro atual tem de ter linha na tabela de expectativa");
         QCOMPARE(distroRecusaSha1(), esperado == QStringLiteral("algoritmo_bloqueado"));
     }

@@ -3,6 +3,8 @@
 // E2E de `notalivre emitir` contra o servidor falso (NL-2.9, DA-2.44 e DA-2.45). A CLI roda como o usuário a roda, num
 // pseudo-terminal que este teste cria: a senha é digitada no prompt e nunca vai por argv nem por ambiente. Só fixtures
 // sintéticas (NL_CERTIFICADOS_DIR, certificados de teste da NL-2.1). Nenhum .pfx do líder.
+#include <nl/teste/tabela_sha1_distro.h>
+
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
@@ -32,31 +34,13 @@ const QString kXsd = QStringLiteral(NL_XSD_EMITIR);
 const QString kManifesto = QStringLiteral(NL_MANIFESTO_EMITIR);
 const QString kTabelaSha1 = QStringLiteral(NL_TABELA_SHA1_EMITIR);
 
-// Expectativa do assinador para a distro desta máquina (DA-2.38, tabela versionada): "sha1" ou "algoritmo_bloqueado". Vazio
-// quando a distro não está na tabela, e o teste reprova (DA-2.40, item 1).
 QByteArray lerArquivo(const QString& caminho);
 
+// Expectativa do assinador para a distro desta máquina (DA-2.38), lida da tabela versionada pelo auxiliar único (DA-2.61):
+// "sha1" ou "algoritmo_bloqueado". Vazio quando a distro não está na tabela, e o teste reprova (DA-2.40, item 1).
 QString esperadoDaDistro()
 {
-    QString id;
-    QString versao = QStringLiteral("rolling");
-    for (const QString& linha : QString::fromUtf8(lerArquivo(QStringLiteral("/etc/os-release"))).split(QLatin1Char('\n'))) {
-        if (linha.startsWith(QStringLiteral("ID="))) {
-            id = linha.mid(3).remove(QLatin1Char('"'));
-        } else if (linha.startsWith(QStringLiteral("VERSION_ID="))) {
-            versao = linha.mid(11).remove(QLatin1Char('"'));
-        }
-    }
-    for (const QString& linha : QString::fromUtf8(lerArquivo(kTabelaSha1)).split(QLatin1Char('\n'))) {
-        const QStringList campos = linha.simplified().split(QLatin1Char(' '));
-        if (linha.startsWith(QLatin1Char('#')) || campos.size() != 3) {
-            continue;
-        }
-        if (campos.at(0) == id && campos.at(1) == versao) {
-            return campos.at(2);
-        }
-    }
-    return QString();
+    return nl::teste::expectativaSha1DaDistroAtual(kTabelaSha1);
 }
 
 QByteArray lerArquivo(const QString& caminho)
