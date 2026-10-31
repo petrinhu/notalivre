@@ -7,6 +7,7 @@
 
 #include <nl/mid/composicao/dps_validar.h>
 
+#include <optional>
 #include <QByteArray>
 #include <QString>
 
@@ -53,6 +54,9 @@ using FabricaAssinador = std::function<std::unique_ptr<nl::back::AssinadorDps>(c
 /// A senha é consumida: o carregador a zera (NL-2.9, item 3). O registro recebe o evento da emissão (DA-2.54).
 std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, nl::foundation::pkcs12::SenhaSegura& senha,
                                                       RegistroCli& registro);
+
+/// Lê a confirmação (CPF ou CNPJ) no terminal sem eco. A CLI usa só esta fachada, não o cofre (matriz 1.1, DA-2.59).
+std::optional<QString> lerConfirmacaoPeloTerminal(const QString& prompt);
 
 /// Lê a senha do terminal sem eco e emite (NL-2.9, item 3): a senha nunca sai desta fachada. Sem terminal de controle, sai com
 /// cofre.senha_ausente, que a CLI traduz para o código 2.

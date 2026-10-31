@@ -18,6 +18,7 @@
 #include <nl/mid/composicao/confirmacao_inscricao.h>
 #include <nl/mid/composicao/registro_cli.h>
 #include <nl/mid/cofre/senha_do_terminal.h>
+#include <nl/mid/cofre/terminal_sem_eco.h>
 #include <nl/foundation/pkcs12/ancoras.h>
 #include <nl/foundation/pkcs12/carregador_pkcs12.h>
 #include <nl/foundation/pkcs12/credencial_x509.h>
@@ -214,6 +215,11 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     }
     registro.registrarEmissaoAceita(idDps->texto().toStdString(), nota->chave.texto().toStdString());
     return nota->chave.texto();
+}
+
+std::optional<QString> lerConfirmacaoPeloTerminal(const QString& prompt)
+{
+    return nl::mid::cofre::lerConfirmacaoDoTerminal(prompt);
 }
 
 std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& pedido, RegistroCli& registro, const QString& promptSenha)
