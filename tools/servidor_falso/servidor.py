@@ -88,8 +88,8 @@ class ServidorFalso(http.server.HTTPServer):
     allow_reuse_address = True
 
     def __init__(self, certs, oraculo, roteiro=None, tls_maximo=None, prefixo=""):
-        # NL-2.10a (stub): o prefixo ainda não é usado; a fatia o aplica em _tratar.
-        self.prefixo = prefixo
+        # NL-2.10a: prefixo do caminho da API (DA-2.5, p.ex. /SefinNacional), sem barra final. "" quer dizer API na raiz.
+        self.prefixo = prefixo.rstrip("/")
         self.contexto = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self.contexto.load_cert_chain(certs.servidor_cert, certs.servidor_key)
         self.contexto.minimum_version = ssl.TLSVersion.TLSv1_2  # explícito: nada abaixo de TLS 1.2 (rodada 2, item 4)
@@ -123,6 +123,14 @@ class ServidorFalso(http.server.HTTPServer):
             sock.close()
             raise
 
+    def sem_prefixo(self, caminho):
+        """Caminho sem o prefixo configurado, ou None quando ele não começa por esse prefixo (então não é rota: 404)."""
+        if not self.prefixo:
+            return caminho
+        if not caminho.startswith(self.prefixo + "/"):
+            return None
+        return caminho[len(self.prefixo):]
+
     def iniciar(self):
         self._thread = threading.Thread(target=self.serve_forever, daemon=True)
         self._thread.start()
@@ -152,12 +160,17 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
     def _tratar(self):
         srv = self.server
         srv.requisicoes += 1
-        caminho = self.path.split("?", 1)[0]
+        bruto = self.path.split("?", 1)[0]
         corpo = self._ler_corpo()
+        if self.command == "GET" and bruto == "/_teste/posts":
+            return self._json(200, srv.posts_recebidos)  # registro para o teste, fora da API da Sefin e fora do prefixo
+        # NL-2.10a: o prefixo sai antes de casar as rotas; caminho sem o prefixo configurado é 404 e não entra no registro
+        caminho = srv.sem_prefixo(bruto)
+        if caminho is None:
+            return self._json(404, {"Codigo": "ROTA_INEXISTENTE", "Descricao": bruto})
         if self.command == "POST" and caminho == "/nfse":
-            srv.posts_recebidos.append(registro_do_post(corpo))  # antes de qualquer falha: o que a Sefin recebeu
-        if self.command == "GET" and caminho == "/_teste/posts":
-            return self._json(200, srv.posts_recebidos)  # registro para o teste, fora da API da Sefin
+            # antes de qualquer falha: o que a Sefin recebeu, com o caminho em que chegou (NL-2.10a, teste do prefixo)
+            srv.posts_recebidos.append({**registro_do_post(corpo), "caminho": bruto})
         falha = srv.roteiro.consumir(self.command, caminho)
         if falha == "erro5xx":
             return self._json(503, {"Codigo": "INDISPONIVEL", "Descricao": "falha roteirizada"})
