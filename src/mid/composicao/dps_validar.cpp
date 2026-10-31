@@ -37,6 +37,7 @@ const QString kRaizEsquema = QStringLiteral("DPS_v1.01.xsd");
 
 /// SHA-256 do SHA256SUMS do XSD, embutido pelo CMake (NL-2.10b, BAIXA-4). Nenhuma configuração troca este valor.
 constexpr std::string_view kShaManifestoXsdFixado = NL_XSD_MANIFESTO_SHA256;
+static_assert(std::string_view(NL_XSD_MANIFESTO_SHA256).size() == 64, "NL-2.10b, BAIXA-11: NL_XSD_MANIFESTO_SHA256 tem de ter 64 caracteres (SHA-256 em hexadecimal)");
 
 /// Pin do manifesto: o SHA-256 do arquivo tem de ser o embutido. Divergente é erro de configuração, código 10, recusado antes de
 /// abrir o esquema. Manifesto ausente não é aqui: a abertura do esquema devolve xsd.esquema, como antes.

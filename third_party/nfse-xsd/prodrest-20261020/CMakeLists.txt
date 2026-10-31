@@ -109,4 +109,8 @@ message(STATUS "NL-1.6a: XSD conferidos (${_nl_xsd_n_entradas} arquivos, ZIP ${_
 
 # Pin do SHA256SUMS do XSD (NL-2.10b, BAIXA-4): o hash do manifesto instalado é embutido na Mid, e a validação recusa outro hash.
 file(SHA256 "${_nl_xsd_manifesto}" _nl_xsd_manifesto_sha)
+string(LENGTH "${_nl_xsd_manifesto_sha}" _nl_xsd_manifesto_sha_len)
+if(NOT _nl_xsd_manifesto_sha_len EQUAL 64)
+    message(FATAL_ERROR "NL-2.10b, BAIXA-11: SHA-256 do SHA256SUMS do XSD com ${_nl_xsd_manifesto_sha_len} caracteres, esperado 64. Sem pin valido a Mid nao compila; o pin vazio aborta aqui.")
+endif()
 set(NL_XSD_PRODREST_MANIFESTO_SHA256 "${_nl_xsd_manifesto_sha}" CACHE INTERNAL "SHA-256 do SHA256SUMS do leiaute, embutido na Mid")
