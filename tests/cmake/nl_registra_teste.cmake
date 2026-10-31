@@ -6,9 +6,12 @@
 # Testes que não são Qt Test (python, cmake, shell) continuam com add_test direto e ficam fora do manifesto.
 #
 # Uso:  nl_registra_teste_qt(NAME <nome> COMMAND <executavel> [argumentos...])
-# O manifesto <build>/junit/esperados.txt é gravado por nl_grava_manifesto_junit() no fim de tests/CMakeLists.txt.
+# Manifesto: <build>/junit/esperados.txt, gravado por nl_grava_manifesto_junit() no fim de tests/CMakeLists.txt.
+# Executáveis Qt: <build>/junit/executaveis_qt.txt, com todo alvo EXECUTABLE que linka Qt6::Test (NL-2.14, revisão devops
+# ALTA-1). O portão cruza essa lista com o CTest: um Qt Test que sai do registro único aparece como fora do manifesto.
 
 set_property(GLOBAL PROPERTY NL_JUNIT_ESPERADOS "")
+set_property(GLOBAL PROPERTY NL_EXECUTAVEIS_QT "")
 
 function(nl_registra_teste_qt)
     cmake_parse_arguments(NL_TESTE "" "NAME" "COMMAND" ${ARGN})
@@ -22,9 +25,33 @@ function(nl_registra_teste_qt)
     set_property(GLOBAL APPEND PROPERTY NL_JUNIT_ESPERADOS ${NL_TESTE_NAME})
 endfunction()
 
+# Anda a árvore de diretórios a partir de <diretorio> e guarda os executáveis que linkam Qt6::Test (alvo direto).
+function(nl_coleta_executaveis_qt diretorio)
+    get_property(alvos DIRECTORY "${diretorio}" PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(alvo IN LISTS alvos)
+        get_target_property(tipo ${alvo} TYPE)
+        if(tipo STREQUAL "EXECUTABLE")
+            get_target_property(libs ${alvo} LINK_LIBRARIES)
+            if(libs AND ("Qt6::Test" IN_LIST libs))
+                set_property(GLOBAL APPEND PROPERTY NL_EXECUTAVEIS_QT ${alvo})
+            endif()
+        endif()
+    endforeach()
+    get_property(subdiretorios DIRECTORY "${diretorio}" PROPERTY SUBDIRECTORIES)
+    foreach(sub IN LISTS subdiretorios)
+        nl_coleta_executaveis_qt("${sub}")
+    endforeach()
+endfunction()
+
 function(nl_grava_manifesto_junit)
     get_property(esperados GLOBAL PROPERTY NL_JUNIT_ESPERADOS)
+    get_property(executaveis GLOBAL PROPERTY NL_EXECUTAVEIS_QT)
+    if(NOT executaveis)
+        message(FATAL_ERROR "nl_grava_manifesto_junit: nenhum executável Qt Test encontrado: a conferência do registro não teria o que cruzar")
+    endif()
     file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/junit")
     list(JOIN esperados "\n" texto)
     file(WRITE "${CMAKE_BINARY_DIR}/junit/esperados.txt" "${texto}\n")
+    list(JOIN executaveis "\n" texto_exec)
+    file(WRITE "${CMAKE_BINARY_DIR}/junit/executaveis_qt.txt" "${texto_exec}\n")
 endfunction()

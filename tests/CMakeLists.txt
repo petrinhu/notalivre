@@ -18,4 +18,6 @@ add_subdirectory(qml)
 add_subdirectory(tools)
 
 # Manifesto do que o junitxml deve trazer, lido pelo portão de pulos. Gravado depois de todos os subdiretórios.
+# Os executáveis Qt Test são coletados da própria árvore (NL-2.14, revisão devops ALTA-1): o portão cruza com o CTest.
+nl_coleta_executaveis_qt("${CMAKE_CURRENT_SOURCE_DIR}")
 nl_grava_manifesto_junit()

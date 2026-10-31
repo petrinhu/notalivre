@@ -22,10 +22,14 @@ set -u
 BUILD="${1:-}"
 DISTRO="${2:-}"
 LISTA="${3:-}"
+# Quarto argumento, opcional: lista de testes obrigatórios por distro (padrão: a do repositório, NL-2.14 MÉDIA-2).
+OBRIG="${4:-tests/testes_obrigatorios_por_distro.txt}"
 if [ -z "$BUILD" ] || [ -z "$LISTA" ]; then
-    echo "uso: pulos_testes.sh <dir_build> <distro> <lista>"
+    echo "uso: pulos_testes.sh <dir_build> <distro> <lista> [obrigatorios]"
     exit 2
 fi
+# Os portões de registro (NL-2.14, revisão devops ALTA-1) ficam ao lado deste script.
+PORTOES_DIR="$(dirname "$0")"
 
 JUNIT="$BUILD/junit"
 MANIFESTO="$JUNIT/esperados.txt"
@@ -148,6 +152,13 @@ done < "$ESPERADOS"
 echo "pulos_testes: distro=$DISTRO funcoes=$total passou=$passou falhou=$falhou pulou=$pulou (lista: $nesp esperados, $nobt obtidos)"
 if [ "$falhou" -gt 0 ]; then
     parada "$falhou funcao(oes) falharam"
+fi
+# Registro Qt Test: todo Qt Test do CTest no manifesto, obrigatórios presentes, e a checagem estática (reforço).
+if ! sh "$PORTOES_DIR/registro_qt.sh" "$BUILD" "$DISTRO" "$OBRIG"; then
+    parada "registro Qt Test reprovou (linhas acima)"
+fi
+if ! sh "$PORTOES_DIR/registro_qt_estatico.sh" "${PULOS_RAIZ:-.}"; then
+    parada "checagem estática do registro Qt Test reprovou (linhas acima)"
 fi
 if [ "$ruins" -ne 0 ]; then
     echo "pulos_testes: REPROVADO ($ruins motivo(s))"
