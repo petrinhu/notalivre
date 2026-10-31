@@ -117,6 +117,9 @@ private slots:
     // DA-2.49: o digest de comparação do E0014 é SHA-256, separado da assinatura (SHA-1, DA-2.2).
     void digestDeComparacaoEhSha256();
     void emissaoLigaAdaptadorRealPelaRaiz();
+    // DA-2.61 (MÉDIA-1 da revisão): a guarda reprova distro fora da tabela, e o job Flatpak roda este teste no runtime
+    // org.kde.Platform 6.11. A tabela tem de cobrir esse ID, com sha1 (NL-2.3 passo 0: o OpenSSL do runtime assina SHA-1).
+    void tabelaCobreRuntimeKdeFlatpak();
 };
 
 void TesteAssinaturaDps::parametrosDaAssinaturaVemDaPastaDoLeiaute()
@@ -182,6 +185,13 @@ void TesteAssinaturaDps::emissaoLigaAdaptadorRealPelaRaiz()
     const QByteArray xml = *assinado;
     QCOMPARE(contarNos(xml, "//*[local-name()='SignatureMethod'][@Algorithm='http://www.w3.org/2000/09/xmldsig#rsa-sha1']"), 1);
     QCOMPARE(contarNos(xml, "//*[local-name()='Reference'][@URI='#DPS430510821122233300018100001000000000000001']"), 1);
+}
+
+void TesteAssinaturaDps::tabelaCobreRuntimeKdeFlatpak()
+{
+    const QString tabela = qEnvironmentVariable("NL_TABELA_SHA1_ASSINATURA");
+    QVERIFY2(!tabela.isEmpty(), "NL_TABELA_SHA1_ASSINATURA tem de apontar para a tabela de expectativa por distro");
+    QCOMPARE(nl::teste::expectativaSha1(tabela, QStringLiteral("org.kde.Platform"), QStringLiteral("6.11")), QStringLiteral("sha1"));
 }
 
 QTEST_APPLESS_MAIN(TesteAssinaturaDps)
