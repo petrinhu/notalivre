@@ -76,6 +76,7 @@
 - (sem ID): NL-2.8, a contagem de bytes do envio vem só do uploadProgress; verificar na NL-2.10 (item C da INBOX da rodada 5).
 - (sem ID): NL-2.8, 4xx sem código E válido vira Definitiva mesmo com bytes escritos (item E da INBOX da rodada 5).
 - (sem ID): NL-2.10, medir na Produção Restrita se a Sefin devolve o infDPS sem alteração antes de DpsDuplicada chegar ao usuário (INFERÊNCIA do revisor, condição da NL-2.8).
+- (sem ID): NL-2.11, mutante_mtls.sh conta encontradas por ${#MUTANTES[@]}, mas só aplica MUTANTES[0]; antes de entrar um segundo mutante, precisa de laço ou de PARADA se encontradas != aplicadas (MÉDIA-4 residual da revisão de segurança, rodada 2).
 
 ## Backlog
 
