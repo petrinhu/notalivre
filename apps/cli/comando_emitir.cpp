@@ -59,10 +59,6 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         erro << QString::fromStdString(liberado.error().mensagem()) << Qt::endl;
         return 1;
     }
-    if (lidos->certificado.isEmpty()) {
-        erro << QStringLiteral("falta o certificado: informe --certificado <caminho do .pfx>") << Qt::endl;
-        return 2;
-    }
     QFile arquivoDps(lidos->entrada);
     if (!arquivoDps.open(QIODevice::ReadOnly)) {
         erro << QStringLiteral("não foi possível ler a DPS de entrada: %1").arg(lidos->entrada) << Qt::endl;
@@ -77,12 +73,25 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
             return 1;
         }
     }
+    // O .pfx vem da configuração (NL-2.10a, passo 5). Ilegível ou inexistente sai com 10 e a instrução do Flatpak; o caminho não
+    // vai à saída nem ao log: só o evento certificado.caminho_configurado, sem campo.
+    {
+        QFile certificado(config->caminhoCertificado);
+        if (!certificado.open(QIODevice::ReadOnly)) {
+            erro << QStringLiteral("certificado.caminho_ilegivel: o arquivo do certificado não existe ou o app não consegue lê-lo. "
+                                   "No Flatpak, o arquivo precisa estar acessível ao app: rode flatpak document-export e grave o "
+                                   "caminho impresso em [certificado] caminho.")
+                 << Qt::endl;
+            return nl::mid::composicao::codigoDeSaidaDaEmissao("certificado.caminho_ilegivel");
+        }
+    }
+    registro.registrarCertificadoConfigurado();
     const auto algoritmo = config->algoritmoAssinatura == AlgoritmoConfigurado::RsaSha256 ? nl::mid::composicao::AlgoritmoAssinatura::RsaSha256
                                                                                        : nl::mid::composicao::AlgoritmoAssinatura::RsaSha1;
     nl::mid::composicao::PedidoEmissao pedido{
         arquivoDps.readAll(),
         nl::mid::composicao::LocalizacaoEsquemaDps{config->xsdDiretorio, config->xsdManifesto},
-        lidos->certificado,
+        config->caminhoCertificado,
         config->urlSefin,
         config->ancorasCertificado,
         confirmacao.value_or(QString()),

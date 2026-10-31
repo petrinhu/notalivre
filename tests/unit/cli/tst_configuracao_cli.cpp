@@ -31,6 +31,7 @@ const QString kCompleta = QStringLiteral(
     "ancoras_tls = /tmp/tls.pem\n"
     "[certificado]\n"
     "ancoras = /tmp/ancoras.pem\n"
+    "caminho = /tmp/cert.pfx\n"
     "[xsd]\n"
     "diretorio = /tmp/xsd\n"
     "manifesto = /tmp/xsd/MANIFESTO.sha256\n"
@@ -105,13 +106,14 @@ void TstConfiguracaoCli::ancorasDoA1EDoServidorSeparadas()
     QVERIFY(pasta.isValid());
     const QString separadas = QStringLiteral(
         "[sefin]\nurl = https://127.0.0.1:9443\nprefixo = /SefinNacional\nancoras_tls = /tmp/tls.pem\n"
-        "[certificado]\nancoras = /tmp/a1.pem\n"
+        "[certificado]\nancoras = /tmp/a1.pem\ncaminho = /tmp/a1.pfx\n"
         "[xsd]\ndiretorio = /tmp/xsd\nmanifesto = /tmp/xsd/MANIFESTO.sha256\n"
         "[emissao]\nproducao_liberada = false\n");
     const auto lida = nl::cli::lerConfiguracao(escrever(pasta, separadas));
     QVERIFY2(lida.has_value(), "as âncoras do A1 e do servidor têm de ser lidas de chaves separadas, sem sefin.ancoras");
     QCOMPARE(lida->ancorasCertificado, QStringLiteral("/tmp/a1.pem"));
     QCOMPARE(lida->ancorasTls, QStringLiteral("/tmp/tls.pem"));
+    QCOMPARE(lida->caminhoCertificado, QStringLiteral("/tmp/cert.pfx"));
 }
 
 void TstConfiguracaoCli::algoritmoForaDaListaSaiComDez()

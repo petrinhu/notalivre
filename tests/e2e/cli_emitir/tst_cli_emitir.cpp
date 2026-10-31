@@ -204,7 +204,7 @@ void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada, con
         return;
     }
     const QString texto = QStringLiteral(
-        "[sefin]\nurl = %5\nprefixo = /SefinNacional\nancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\n"
+        "[sefin]\nurl = %5\nprefixo = /SefinNacional\nancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\ncaminho = %1/cnpj_ok.pfx\n"
         "[xsd]\ndiretorio = %2\nmanifesto = %3\n"
         "[emissao]\nproducao_liberada = %4\n")
                               .arg(kCertificados, kXsd, kManifesto, producaoLiberada ? QStringLiteral("true") : QStringLiteral("false"), url);
@@ -226,7 +226,7 @@ Execucao emitirContraServidorComFalhaNoPost(const QString& falha, int* requisico
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     if (requisicoes != nullptr) {
         *requisicoes = servidor.requisicoesAoFechar();
@@ -301,6 +301,7 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
         "ancoras_tls = %2/ac.pem\n"
         "[certificado]\n"
         "ancoras = %2/ac.pem\n"
+        "caminho = %2/cnpj_ok.pfx\n"
         "[xsd]\n"
         "diretorio = %3\n"
         "manifesto = %4\n"
@@ -330,8 +331,7 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
 
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
                                  QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"),
-                                 QStringLiteral("homologacao"), QStringLiteral("--certificado"),
-                                 kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 QStringLiteral("homologacao")};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
 
     // ADR-0005 e: a saída da CLI no e2e vai para a pasta que o portão de PII varre (cli.portaoPiiVarreLogsDaCli).
@@ -361,7 +361,7 @@ void TstCliEmitir::cliRecusaProducaoBloqueada()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("producao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("bloqueada"), "a recusa tem de dizer que Produção está bloqueada");
@@ -377,7 +377,7 @@ void TstCliEmitir::cliRecusaProducaoSemCnpjDigitado()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("producao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("CNPJ"), "a recusa tem de exigir o CNPJ digitado");
@@ -393,7 +393,7 @@ void TstCliEmitir::senhaNaoApareceEmArgvNemLog()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx"),
+                                 
                                  QStringLiteral("--senha"), QString::fromUtf8(senha)};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
@@ -413,7 +413,7 @@ void TstCliEmitir::cliRecusaDpsInvalidaSemPost()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/xdescserv_2001.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     // Fixture xdescserv_2001.json: xDescServ com 2001 caracteres. O domínio (Back) não limita o texto; o XSD limita em 2000
@@ -488,7 +488,7 @@ void TstCliEmitir::respostaCruaGravadaParaAnalise()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
         exigeRecusaSha1SemEnvio(execucao, servidor.requisicoesAoFechar());
@@ -523,9 +523,8 @@ void escreverConfigPrefixo(const QTemporaryDir& pasta, const QString& url, const
         texto += QStringLiteral("prefixo = %1\n").arg(prefixo);
     }
     texto += QStringLiteral("ancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\n").arg(kCertificados);
-    if (!caminhoCertificado.isEmpty()) {
-        texto += QStringLiteral("caminho = %1\n").arg(caminhoCertificado);
-    }
+    const QString caminho = caminhoCertificado.isEmpty() ? kCertificados + QStringLiteral("/cnpj_ok.pfx") : caminhoCertificado;
+    texto += QStringLiteral("caminho = %1\n").arg(caminho);
     texto += QStringLiteral("[xsd]\ndiretorio = %1\nmanifesto = %2\n[emissao]\nproducao_liberada = false\n").arg(kXsd, kManifesto);
     if (!algoritmo.isEmpty()) {
         texto += QStringLiteral("[assinatura]\nalgoritmo = %1\n").arg(algoritmo);
@@ -545,7 +544,7 @@ void TstCliEmitir::prefixoDaConfiguracaoVaiNaUrl()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
@@ -563,7 +562,7 @@ void TstCliEmitir::prefixoAusenteSaiComDez()
     const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
-                                 QStringLiteral("--certificado"), kCertificados + QStringLiteral("/cnpj_ok.pfx")};
+                                 };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 10, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("sefin.prefixo"), "a mensagem tem de nomear a chave que falta");

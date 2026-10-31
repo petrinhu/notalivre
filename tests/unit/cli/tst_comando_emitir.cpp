@@ -33,7 +33,7 @@ public:
         QDir().mkpath(pasta_.filePath(QStringLiteral("notalivre")));
         QFile arquivo(pasta_.filePath(QStringLiteral("notalivre/config.ini")));
         static_cast<void>(arquivo.open(QIODevice::WriteOnly | QIODevice::Text));
-        arquivo.write("[sefin]\nurl = https://sefin.nfse.gov.br/SefinNacional\nprefixo = /SefinNacional\nancoras_tls = /tmp/ac.pem\n[certificado]\nancoras = /tmp/ac.pem\n"
+        arquivo.write("[sefin]\nurl = https://sefin.nfse.gov.br/SefinNacional\nprefixo = /SefinNacional\nancoras_tls = /tmp/ac.pem\n[certificado]\nancoras = /tmp/ac.pem\ncaminho = /tmp/x.pfx\n"
                       "[xsd]\ndiretorio = /tmp/xsd\nmanifesto = /tmp/xsd/MANIFESTO.sha256\n"
                       "[emissao]\nproducao_liberada = false\n");
         arquivo.close();

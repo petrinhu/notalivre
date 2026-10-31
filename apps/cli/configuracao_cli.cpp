@@ -75,6 +75,10 @@ std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& 
     if (!ancorasCertificado) {
         return std::unexpected(ancorasCertificado.error());
     }
+    auto caminhoCertificado = obrigatoria(valores, QStringLiteral("certificado.caminho"));
+    if (!caminhoCertificado) {
+        return std::unexpected(caminhoCertificado.error());
+    }
     auto diretorio = obrigatoria(valores, QStringLiteral("xsd.diretorio"));
     if (!diretorio) {
         return std::unexpected(diretorio.error());
@@ -87,6 +91,7 @@ std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& 
     cfg.prefixo = *prefixo;
     cfg.ancorasTls = *ancorasTls;
     cfg.ancorasCertificado = *ancorasCertificado;
+    cfg.caminhoCertificado = *caminhoCertificado;
     cfg.xsdDiretorio = *diretorio;
     cfg.xsdManifesto = *manifesto;
     // Produção só liga com a chave em "true" (go/no-go do líder). Qualquer outro valor, ou ausência, fica bloqueada.
