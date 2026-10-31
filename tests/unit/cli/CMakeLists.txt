@@ -27,11 +27,14 @@ set_tests_properties(cli.excecaoTopo PROPERTIES PASS_REGULAR_EXPRESSION "Totals:
 # A limpeza roda antes, para que um log antigo não mascare uma varredura vazia (L-36). Varredura sem .log reprova.
 find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
 set(NL_LOGS_PII_CLI_DIR "${CMAKE_BINARY_DIR}/logs_pii_cli")
+# Segredos desta execução (item 10): o e2e grava o arquivo; o portão lê junto da lista fixa, e reprova se a lista vier vazia.
+set(NL_SEGREDOS_PII_REF "${CMAKE_BINARY_DIR}/segredos_pii_execucao.txt")
 add_test(NAME cli.limpaLogsPii COMMAND ${CMAKE_COMMAND} -E rm -rf "${NL_LOGS_PII_CLI_DIR}")
 set_tests_properties(cli.excecaoTopo PROPERTIES DEPENDS cli.limpaLogsPii ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${NL_LOGS_PII_CLI_DIR}")
 add_test(NAME cli.portaoPiiVarreLogsDaCli
     COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tests/unit/foundation/log/varredura_logs.py"
-        --dir "${NL_LOGS_PII_CLI_DIR}" --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt")
+        --dir "${NL_LOGS_PII_CLI_DIR}" --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt"
+        --termos "${NL_SEGREDOS_PII_REF}")
 set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS "cli.excecaoTopo;e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso")
 
 # Configuração da CLI (NL-2.9, DA-2.44): arquivo XDG, chaves obrigatórias, Produção nasce falsa.

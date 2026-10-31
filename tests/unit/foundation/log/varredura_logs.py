@@ -3,7 +3,9 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 """Varredura de logs de PII do NotaLivre (NL-2.7, ADR-S4). Uma invocação, uma contagem sempre.
 
-Uso: python3 -I varredura_logs.py --dir DIRETORIO --termos ARQUIVO_TERMOS
+Uso: python3 -I varredura_logs.py --dir DIRETORIO --termos ARQUIVO_TERMOS [--termos OUTRO ...]
+
+  --termos pode repetir: a lista final é a soma dos arquivos (NL-2.9, item 10: a referência fixa mais a da execução).
 
   DIRETORIO: cada *.log do nível de cima é um arquivo analisado.
   ARQUIVO_TERMOS: linhas `categoria|valor`; linhas vazias e as que começam com `#` são ignoradas.
@@ -71,10 +73,12 @@ def varrer(diretorio, termos):
 def main(argv):
     parser = argparse.ArgumentParser(description="Varredura de PII nos logs (NL-2.7).")
     parser.add_argument("--dir", required=True)
-    parser.add_argument("--termos", required=True)
+    parser.add_argument("--termos", required=True, action="append")
     args = parser.parse_args(argv)
     try:
-        termos = carregar_termos(args.termos)
+        termos = []
+        for caminho_termos in args.termos:
+            termos.extend(carregar_termos(caminho_termos))
     except (OSError, ValueError) as erro:
         print("encontrados=0 analisados=0 falharam=0 linhas=0 ocorrencias=0")
         print(f"REPROVA: termos ilegíveis: {erro}")

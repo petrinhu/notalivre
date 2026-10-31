@@ -248,6 +248,12 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
 
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
     QVERIFY2(!senha.isEmpty(), "a senha da fixture sintética tem de existir");
+    // NL-2.9, item 10: os segredos desta execução vão para o arquivo de referência que o portão de PII lê junto da lista fixa.
+    // O portão reprova se a lista vier vazia, e a senha aqui é o que o log não pode mostrar.
+    QFile referencia(qEnvironmentVariable("NL_SEGREDOS_PII_REF"));
+    QVERIFY2(referencia.open(QIODevice::WriteOnly | QIODevice::Text), "o arquivo de segredos da execução tem de abrir");
+    referencia.write("# segredos desta execução\nsenha|" + senha + "\n");
+    referencia.close();
     // DA-2.49 e DA-2.38: o SHA-1 da assinatura é recusado pelo OpenSSL do fedora 44 (tabela por distro). Ali o caso espera
     // assinatura.algoritmo_bloqueado e nenhum envio; nas demais distros, a emissão tem de ser aceita.
     const QString esperado = esperadoDaDistro();
