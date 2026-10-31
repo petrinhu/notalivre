@@ -15,7 +15,7 @@ add_executable(tst_comando_emitir tst_comando_emitir.cpp ${NL_FONTES_CLI})
 target_include_directories(tst_comando_emitir PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
 target_link_libraries(tst_comando_emitir PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_warnings)
 nl_registra_teste_qt(NAME cli.comandoEmitir COMMAND tst_comando_emitir)
-set_tests_properties(cli.comandoEmitir PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 13 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+set_tests_properties(cli.comandoEmitir PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 16 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 add_executable(tst_excecao_topo tst_excecao_topo.cpp)
 target_link_libraries(tst_excecao_topo PRIVATE Qt6::Core Qt6::Test nl_mid nl_warnings)

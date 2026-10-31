@@ -221,7 +221,11 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     // 7. Envio mTLS pelo cliente Sefin, com o Log do cliente (allowlist da Mid sefin, DA-2.54).
     const ft::UrlBase base{QUrl(pedido.urlSefin), pedido.prefixoSefin, std::chrono::milliseconds{30000}};
     // Âncoras do servidor TLS: o PEM de [sefin] ancoras_tls em Homologação, senão as CAs do sistema (NL-2.10b, passo 4).
-    ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasTlsDoPedido(pedido)));
+    auto autoridadesTls = ancorasTlsDoPedido(pedido);
+    if (!autoridadesTls) {
+        return std::unexpected(autoridadesTls.error());
+    }
+    ft::TransporteHttps transporte(base, configuracaoTls(*credencial, *autoridadesTls));
     nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{},
                                                   std::make_shared<nl::mid::sefin::cliente::ComparadorInfDpsC14n>());
     auto nota = cliente.emitir(bk::DpsAssinada{*idDps, *assinado});
@@ -274,7 +278,7 @@ std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao& pedido
 
 // Âncoras do servidor TLS (NL-2.10b, emenda 4): o PEM de [sefin] ancoras_tls só em Homologação; o resto é o repositório de CAs
 // do sistema do runtime, sem pin e sem bundle próprio (condição do CISO, 31/10/2026).
-QList<QSslCertificate> ancorasTlsDoPedido(const PedidoEmissao& pedido)
+std::expected<QList<QSslCertificate>, FalhaEmissao> ancorasTlsDoPedido(const PedidoEmissao& pedido)
 {
     if (ambienteDoPedido(pedido) != Ambiente::Homologacao || pedido.caminhoAncorasTls.isEmpty()) {
         return QSslConfiguration::systemCaCertificates();

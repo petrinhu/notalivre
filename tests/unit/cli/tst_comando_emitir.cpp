@@ -88,6 +88,12 @@ private slots:
     void executarEmitirRecusaAncorasA1EmProducaoRestrita();
     // NL-2.10b, A1 (qa): âncora do servidor TLS em Produção Restrita sai com 10 pela emissão.
     void executarEmitirRecusaAncorasTlsEmProducaoRestrita();
+    // NL-2.10b, BAIXA-6 (emenda 3): série do JSON com mais de 5 dígitos sai com 4, mesmo que bata com a linha de comando.
+    void serieComMaisDeCincoDigitosNoJsonRecusada();
+    // NL-2.10b, R9 (qa, ALTO): [xsd] definido em Produção sai com 10 pela emissão, antes da recusa por bloqueio.
+    void executarEmitirRecusaXsdEmProducao();
+    // NL-2.10b, R9 (qa, ALTO): [xsd] definido em Produção Restrita sai com 10 pela emissão.
+    void executarEmitirRecusaXsdEmProducaoRestrita();
 };
 
 void TstComandoEmitir::producaoBloqueadaSaiAntesDaSenha()
@@ -216,6 +222,43 @@ void TstComandoEmitir::executarEmitirRecusaAncorasTlsEmProducaoRestrita()
     const QString ini = QStringLiteral(
         "[sefin]\nurl = https://sefin.producaorestrita.nfse.gov.br/SefinNacional\nprefixo = /SefinNacional\nancoras_tls = /tmp/tls.pem\n"
         "[certificado]\ncaminho = /tmp/x.pfx\n"
+        "[emissao]\nproducao_liberada = false\n");
+    ConfigTemporaria config(ini);
+    const QStringList argumentos{"emitir", "dps.json", "--serie", "1", "--numero", "1", "--ambiente", "producao-restrita"};
+    QCOMPARE(emitirComRegistro(argumentos), 10);
+}
+
+void TstComandoEmitir::serieComMaisDeCincoDigitosNoJsonRecusada()
+{
+    nl::cli::ArgumentosEmitir argumentos;
+    argumentos.serie = QStringLiteral("7");
+    argumentos.numero = QStringLiteral("42");
+    // Série 123456 no JSON tem seis dígitos: o leiaute dá cinco, então o campo é inválido, e não um conflito com a linha de comando.
+    const QByteArray grande = QByteArrayLiteral("{\"serie\":123456,\"nDps\":42}");
+    const auto aplicado = nl::cli::aplicarSerieENumero(grande, argumentos);
+    QVERIFY2(!aplicado.has_value(), "série do JSON com mais de cinco dígitos tem de ser recusada");
+    QCOMPARE(aplicado.error().saida, 4);
+}
+
+void TstComandoEmitir::executarEmitirRecusaXsdEmProducao()
+{
+    // [xsd] definido com URL de Produção: a emissão tem de sair com 10 antes de qualquer outra recusa (R9).
+    const QString ini = QStringLiteral(
+        "[sefin]\nurl = https://sefin.nfse.gov.br/SefinNacional\nprefixo = /SefinNacional\n"
+        "[certificado]\ncaminho = /tmp/x.pfx\n"
+        "[xsd]\ndiretorio = /tmp/xsd\nmanifesto = /tmp/xsd/MANIFESTO.sha256\n"
+        "[emissao]\nproducao_liberada = false\n");
+    ConfigTemporaria config(ini);
+    const QStringList argumentos{"emitir", "dps.json", "--serie", "1", "--numero", "1", "--ambiente", "producao"};
+    QCOMPARE(emitirComRegistro(argumentos), 10);
+}
+
+void TstComandoEmitir::executarEmitirRecusaXsdEmProducaoRestrita()
+{
+    const QString ini = QStringLiteral(
+        "[sefin]\nurl = https://sefin.producaorestrita.nfse.gov.br/SefinNacional\nprefixo = /SefinNacional\n"
+        "[certificado]\ncaminho = /tmp/x.pfx\n"
+        "[xsd]\ndiretorio = /tmp/xsd\nmanifesto = /tmp/xsd/MANIFESTO.sha256\n"
         "[emissao]\nproducao_liberada = false\n");
     ConfigTemporaria config(ini);
     const QStringList argumentos{"emitir", "dps.json", "--serie", "1", "--numero", "1", "--ambiente", "producao-restrita"};

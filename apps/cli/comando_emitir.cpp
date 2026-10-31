@@ -133,7 +133,8 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         erro << QString::fromStdString(ancorasConferidas.error().codigo) << ": " << ancorasConferidas.error().mensagem << Qt::endl;
         return nl::mid::composicao::codigoDeSaidaDaEmissao(ancorasConferidas.error().codigo);
     }
-    const auto xsdConferido = conferirXsdDeAmbiente(*config, homologacao);
+    // STUB NL-2.10b (R9, vermelho por asserção): a conferência de [xsd] fora de Homologação ainda não é aplicada na emissão.
+    const auto xsdConferido = conferirXsdDeAmbiente(*config, true);
     if (!xsdConferido) {
         erro << QString::fromStdString(xsdConferido.error().codigo) << ": " << xsdConferido.error().mensagem << Qt::endl;
         return nl::mid::composicao::codigoDeSaidaDaEmissao(xsdConferido.error().codigo);

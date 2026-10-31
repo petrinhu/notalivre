@@ -64,7 +64,7 @@ set_tests_properties(mid.composicao.respostaCrua PROPERTIES PASS_REGULAR_EXPRESS
 add_executable(tst_ancoras_emissao tst_ancoras_emissao.cpp)
 target_compile_definitions(tst_ancoras_emissao PRIVATE "NL_ICP_RAIZES_DIR=\"${NL_ICP_RAIZES_DIR}\"")
 target_link_libraries(tst_ancoras_emissao PRIVATE Qt6::Core Qt6::Network Qt6::Test nl_mid nl_foundation_pkcs12 nl_foundation_base nl_foundation_log nl_warnings)
-foreach(nome IN ITEMS ancorasPadraoSaoAsRaizesIcp ancorasTlsPadraoDoSistema pedidoSemAmbienteUsaODerivadoDoHost ambienteDivergenteDoHostRecusadoNaMid diretorioDeRaizesVazioEErroDeConfiguracao homologacaoUsaOPemDeAncoras)
+foreach(nome IN ITEMS ancorasPadraoSaoAsRaizesIcp ancorasTlsPadraoDoSistema pedidoSemAmbienteUsaODerivadoDoHost ambienteDivergenteDoHostRecusadoNaMid diretorioDeRaizesVazioEErroDeConfiguracao homologacaoUsaOPemDeAncoras hostDesconhecidoEErroNasFuncoesPublicas)
     nl_registra_teste_qt(NAME mid.composicao.ancorasEmissao.${nome} COMMAND tst_ancoras_emissao ${nome})
     set_tests_properties(mid.composicao.ancorasEmissao.${nome} PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()

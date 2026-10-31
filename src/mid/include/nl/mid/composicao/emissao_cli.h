@@ -67,7 +67,7 @@ std::expected<nl::foundation::pkcs12::Ancoras, FalhaEmissao> ancorasDoA1(const P
                                                                           std::chrono::system_clock::time_point agora);
 
 /// Âncoras do servidor TLS (NL-2.10b, emenda 4): o PEM de caminhoAncorasTls; sem ele, as CAs do sistema do runtime.
-QList<QSslCertificate> ancorasTlsDoPedido(const PedidoEmissao& pedido);
+std::expected<QList<QSslCertificate>, FalhaEmissao> ancorasTlsDoPedido(const PedidoEmissao& pedido);
 
 /// Emite a DPS e devolve a chave da NFS-e. Erro de entrada, de credencial ou de envio volta com código estável e sem dado de titular.
 /// Fábrica do assinador da DPS, dada a credencial já carregada. A emissão real usa AssinadorDpsSefin; o teste injeta outro
