@@ -154,6 +154,14 @@ jobs:
         id: ctest
         run: ctest --preset debug --output-on-failure
 
+      # DA-2.60 (item 2, NL-2.11): mutante CERT_OPTIONAL no servidor falso, a cada push. Roda numa cópia do SHA fora do
+      # workspace; o slot transporte.semCertificadoDeClienteHandshakeRecusado tem de morrer. A contagem vai para o resumo
+      # deste job (o job mutacao tem o próprio resumo).
+      - name: Mutante CERT_OPTIONAL no servidor falso (DA-2.60, cópia fora do workspace)
+        id: mutante_mtls
+        if: matrix.distro == 'ubuntu26.04'
+        run: bash tools/mutacao/mutante_mtls.sh "$GITHUB_WORKSPACE" "$GITHUB_SHA" "$RUNNER_TEMP/mutante-mtls"
+
       # A0-05 (L-36): o build nativo tem de REPROVAR uma sabotagem do próprio tst_sanidade, pelo motivo esperado.
       # Roda no mesmo contêiner, sobre uma cópia em NL_TMP_BASE. Este step passa só se a sabotagem reprovar.
       - name: Sabotagem de estreia do tst_sanidade (deve reprovar)
