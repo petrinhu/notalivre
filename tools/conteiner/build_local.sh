@@ -240,6 +240,20 @@ executar()
     fi
     mkdir -p "$build_host" "$xsd_host"
 
+    # Autotestes de estreia (NL-2.11, DA-2.61; L-36): rodam no contêiner de build, sobre o mesmo SHA, antes dos portões.
+    # Um trava nova só vale com autoteste que roda. O autoteste de limites (autoteste_build_limites.sh) NÃO entra aqui:
+    # ele chama o próprio build_local (recursão) e usa um docker de mentira no PATH, que não existe no contêiner. Roda
+    # no job autotestes do ci.yml.
+    local autoteste
+    for autoteste in tools/conteiner/autoteste_piso_portoes.sh flatpak/autoteste_suite_flatpak.sh; do
+        if ! docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --network none \
+            --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -v "$fonte:/src:ro,z" -w /src "$imagem" \
+            sh -c "mkdir -p \"\$HOME\" && bash $autoteste"; then
+            echo "PARADA: autoteste $autoteste reprovou (L-36); build não iniciado"
+            return 6
+        fi
+    done
+
     # Portões estáticos (DA-2.55, NL-2.11): os mesmos que o CI roda nos jobs higiene e camadas, sobre o mesmo SHA, antes do
     # configure (L-36). Pasta própria do SHA e da fatia; o rm -rf atinge só o caminho que este script monta.
     portoes="$NL_TMP_BASE/notalivre-portoes-$sha-$fatia"
