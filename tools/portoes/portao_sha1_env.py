@@ -19,6 +19,10 @@ Exceções, todas escritas aqui e nenhuma outra:
      também contiver a variável (rodada 5, achados 2 e 3). Nome fora do formato <stem>.cpython-<NN>.pyc, dentro de
      __pycache__ da pasta da origem, não é derivado: é arquivo comum.
 
+  5. _build NA RAIZ com CMakeCache.txt: saída do build do CMake (o Flatpak builda dentro da árvore). Derivada das fontes
+     já varridas; o objeto e o binário do teste permitido carregam o nome da variável (run 41179570887, linhas
+     VIOLACAO _build/tests/unit/foundation/xmldsig/...). Só a raiz e só com CMakeCache.txt; o resto é varrido.
+
 Saída obrigatória, mesmo com zero: "encontrados=N analisados=M violacoes=V permitidos=P derivados=D documentais=O".
 Sai com 1 se houver violação, se algum arquivo listado não puder ser lido, se a varredura achar zero arquivos
 (varredura quebrada, não código limpo) ou se a contagem de analisados diferir da de encontrados.
@@ -44,6 +48,7 @@ PERMITIDOS = frozenset({
 })
 PODAR = frozenset({".git"})  # só o histórico do git (exceção 1)
 PODAR_NA_RAIZ = frozenset({"worktrees"})  # cópias de trabalho, só na raiz e só não rastreadas (exceção 4, L-55)
+PODAR_BUILD_NA_RAIZ = "_build"  # pasta de build do CMake, só na raiz e só com CMakeCache.txt (exceção 5, DA-2.62)
 RE_PYC = re.compile(r"^(?P<stem>[A-Za-z_][A-Za-z0-9_]*)\.cpython-\d+\.pyc$")  # stem sem ponto (rodada 5, achado 2)
 
 
@@ -61,15 +66,26 @@ def rastreados(raiz):
     return {p for p in r.stdout.decode("utf-8", errors="surrogateescape").split("\0") if p}
 
 
+def _build_cmake_na_raiz(raiz, nome):
+    """Exceção 5: _build na RAIZ com CMakeCache.txt é a saída do build (CMake), derivada das fontes já varridas.
+
+    Quando o build roda dentro da árvore (o Flatpak faz cmake -B _build na raiz da sandbox), o objeto e o binário
+    de um teste permitido (tst_assinador_xml.cpp) carregam o nome da variável. A varredura de código continua inteira:
+    só a raiz é podada, e só se houver CMakeCache.txt. Um _build sem CMakeCache, ou fora da raiz, é varrido.
+    """
+    return nome == PODAR_BUILD_NA_RAIZ and os.path.isfile(os.path.join(raiz, nome, "CMakeCache.txt"))
+
+
 def listar(raiz):
     """Caminhos relativos (barra sempre) de todos os arquivos da raiz, em ordem.
 
-    Só .git é podado. Em worktrees/ da raiz, só os arquivos não rastreados saem da varredura (exceção 4).
+    Só .git é podado. Na raiz, _build com CMakeCache.txt é podado (exceção 5). Em worktrees/ da raiz, só os arquivos
+    não rastreados saem da varredura (exceção 4).
     """
     tracked = rastreados(raiz)
     caminhos = []
     for atual, dirs, arquivos in os.walk(raiz):
-        dirs[:] = [d for d in dirs if not _podar(d)]
+        dirs[:] = [d for d in dirs if not _podar(d) and not (atual == raiz and _build_cmake_na_raiz(raiz, d))]
         for arquivo in arquivos:
             caminho = os.path.relpath(os.path.join(atual, arquivo), raiz).replace(os.sep, "/")
             if caminho.startswith("worktrees/") and tracked is not None and caminho not in tracked:

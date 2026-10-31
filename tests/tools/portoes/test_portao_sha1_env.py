@@ -229,6 +229,37 @@ class TestePortaoSha1(unittest.TestCase):
         self.assertEqual(rc, 1, saida)
         self.assertIn("tests/unit/foundation/xmldsig/outro_teste.cpp", saida)
 
+    def test_portaoSha1BuildComCacheNaRaizNaoReprova(self):
+        # Exceção 5 (DA-2.62): _build na raiz com CMakeCache.txt é saída do build; o objeto do teste permitido não reprova.
+        raiz = self._arvore({
+            "src/codigo.cpp": "int x = 1;\n",
+            "_build/CMakeCache.txt": "CMAKE_BUILD_TYPE:STRING=Release\n",
+            "_build/tests/unit/foundation/xmldsig/CMakeFiles/tst.dir/tst.cpp.o": "OPENSSL_ENABLE_SHA1_SIGNATURES",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 0, saida)
+        self.assertIn("violacoes=0", saida)
+
+    def test_portaoSha1BuildSemCacheNaRaizReprova(self):
+        # Sem CMakeCache.txt, _build na raiz não é build do CMake: é arquivo comum e tem de ser varrido.
+        raiz = self._arvore({
+            "src/codigo.cpp": "int x = 1;\n",
+            "_build/saida.o": "OPENSSL_ENABLE_SHA1_SIGNATURES",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("VIOLACAO _build/saida.o", saida)
+
+    def test_portaoSha1BuildAninhadoComCacheReprova(self):
+        # Só a raiz é podada: um _build dentro de src/ com CMakeCache.txt continua sendo varrido.
+        raiz = self._arvore({
+            "src/_build/CMakeCache.txt": "CMAKE_BUILD_TYPE:STRING=Release\n",
+            "src/_build/saida.o": "OPENSSL_ENABLE_SHA1_SIGNATURES",
+        })
+        rc, saida = self._rodar(raiz)
+        self.assertEqual(rc, 1, saida)
+        self.assertIn("VIOLACAO src/_build/saida.o", saida)
+
     def test_ciHigieneLigaPortaoSha1(self):
         # Job higiene do ci.yml (fronteira: o job seguinte, camadas). O portão tem de rodar sobre o workspace inteiro.
         texto = (RAIZ / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
