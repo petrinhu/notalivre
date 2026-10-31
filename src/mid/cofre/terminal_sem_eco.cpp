@@ -9,6 +9,7 @@
 #include <QByteArrayView>
 
 #include <array>
+#include <cerrno>
 #include <cstddef>
 #include <termios.h>
 #include <unistd.h>
@@ -35,6 +36,24 @@ private:
     termios original_;
 };
 
+// Grava tudo ou falha. write() pode gravar menos que o pedido e pode ser interrompido (EINTR); o retorno não pode ser ignorado
+// (com _FORTIFY_SOURCE, a glibc marca write como de retorno obrigatório, e o build do Flatpak trata o aviso como erro).
+bool escreverTudo(int fd, const char* dados, std::size_t tamanho)
+{
+    while (tamanho > 0) {
+        const ssize_t gravados = ::write(fd, dados, tamanho);
+        if (gravados < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return false;
+        }
+        dados += gravados;
+        tamanho -= static_cast<std::size_t>(gravados);
+    }
+    return true;
+}
+
 // Lê uma linha do /dev/tty, sem eco, para o buffer. Falso se não há terminal, se a leitura falha ou se a linha passa do teto.
 bool lerLinhaNoBuffer(const QString& prompt, Buffer& buffer, std::size_t& tamanho)
 {
@@ -54,12 +73,14 @@ bool lerLinhaNoBuffer(const QString& prompt, Buffer& buffer, std::size_t& tamanh
         return false;
     }
     bool estourou = false;
+    bool gravou = true;
     {
         EcoRestaurado restaura{fd, original};
         const QByteArray texto = prompt.toLocal8Bit();
-        static_cast<void>(::write(fd, texto.constData(), static_cast<std::size_t>(texto.size())));
+        gravou = escreverTudo(fd, texto.constData(), static_cast<std::size_t>(texto.size()));
         char caractere = 0;
-        while (::read(fd, &caractere, 1) == 1 && caractere != '\n') {
+        // Sem prompt gravado o terminal não está em uso correto: a leitura não começa e a chamada recusa.
+        while (gravou && ::read(fd, &caractere, 1) == 1 && caractere != '\n') {
             if (caractere == '\r') {
                 continue;
             }
@@ -71,9 +92,9 @@ bool lerLinhaNoBuffer(const QString& prompt, Buffer& buffer, std::size_t& tamanh
         }
     }
     const char quebra = '\n';
-    static_cast<void>(::write(fd, &quebra, 1));
+    const bool quebrou = gravou && escreverTudo(fd, &quebra, 1);
     ::close(fd);
-    return !estourou;
+    return quebrou && !estourou;
 }
 
 } // namespace
