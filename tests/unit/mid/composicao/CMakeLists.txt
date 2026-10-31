@@ -19,7 +19,7 @@ set_tests_properties(mid.composicao.confirmacaoInscricao PROPERTIES PASS_REGULAR
 add_executable(tst_registro_cli tst_registro_cli.cpp)
 target_link_libraries(tst_registro_cli PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_foundation_base nl_warnings)
 add_test(NAME mid.composicao.registroCli COMMAND tst_registro_cli)
-set_tests_properties(mid.composicao.registroCli PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 2 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+set_tests_properties(mid.composicao.registroCli PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 4 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 # Revalidação no XSD depois de assinar (NL-2.9, DA-2.51). Só fixtures sintéticas; o XSD vem do build (NL_XSD_PRODREST_DIR).
 add_executable(tst_validar_xml tst_validar_xml.cpp)
