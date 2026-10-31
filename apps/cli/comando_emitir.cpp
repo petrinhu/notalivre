@@ -5,11 +5,10 @@
 
 #include "argumentos_emitir.h"
 #include "configuracao_cli.h"
-#include "senha_terminal.h"
+#include <nl/mid/composicao/terminal_sem_eco.h>
 
 #include <nl/mid/composicao/emissao_cli.h>
 #include <nl/mid/composicao/politica_emissao.h>
-#include <nl/foundation/pkcs12/senha_segura.h>
 #include <nl/mid/composicao/registro_cli.h>
 
 #include <QFile>
@@ -69,8 +68,8 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         return 2;
     }
     // A senha só entra pelo terminal, sem eco. Sem terminal de controle, a CLI não emite.
-    const auto senhaTerminal = lerSenhaSemEco(QStringLiteral("senha do certificado: "));
-    if (!senhaTerminal) {
+    auto senhaSegura = nl::mid::composicao::lerSenhaDoTerminal(QStringLiteral("senha do certificado: "));
+    if (!senhaSegura) {
         erro << QStringLiteral("senha ausente: sem terminal de controle, a CLI não lê a senha") << Qt::endl;
         return 2;
     }
@@ -82,8 +81,7 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         config->urlSefin,
         config->ancoras,
     };
-    auto senhaSegura = nl::foundation::pkcs12::SenhaSegura::de(*senhaTerminal);
-    const auto chave = nl::mid::composicao::emitirDpsPelaCli(pedido, senhaSegura, registro);
+    const auto chave = nl::mid::composicao::emitirDpsPelaCli(pedido, *senhaSegura, registro);
     if (!chave) {
         erro << QStringLiteral("emissão recusada (%1): %2")
                     .arg(QString::fromStdString(chave.error().codigo), QString::fromStdString(chave.error().mensagem))

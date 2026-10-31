@@ -3,7 +3,7 @@
 # Testes da linha de comando de `notalivre emitir` e da exceção do topo (NL-2.9). Slots sem vírgula (L-45).
 # Os fontes da CLI entram direto nos testes, porque o executável notalivre-cli não é biblioteca.
 set(NL_FONTES_CLI ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/comando_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/configuracao_cli.cpp
-    ${CMAKE_SOURCE_DIR}/apps/cli/senha_terminal.cpp)
+)
 
 add_executable(tst_argumentos_emitir tst_argumentos_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp)
 target_include_directories(tst_argumentos_emitir PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
