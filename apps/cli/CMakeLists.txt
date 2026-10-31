@@ -11,3 +11,6 @@ add_executable(notalivre-cli
     comando_config.cpp
     configuracao_cli.cpp)
 target_link_libraries(notalivre-cli PRIVATE nl_mid Qt6::Core nl_warnings)
+
+# Instalação (NL-2.10b, emenda 1 do CTO): o bundle leva a CLI em bin, pelo cmake --install do manifesto.
+install(TARGETS notalivre-cli RUNTIME DESTINATION bin)

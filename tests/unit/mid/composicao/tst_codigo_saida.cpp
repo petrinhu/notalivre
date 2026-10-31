@@ -36,7 +36,7 @@ void TstCodigoSaida::codigosDeDocumentoSaemComQuatro()
     for (const char* codigo : {"xsd.invalido", "xsd.pos_assinatura", "cpf.dv", "cpf.formato", "cpf.repetido", "cpf.tamanho",
                                "cnpj.dv", "cnpj.formato", "cnpj.tamanho", "cnpj.zerado", "dps.dcompet", "dps.invalida",
                                "dps.nao_suportado_v1", "entrada.campo_ausente", "entrada.campos_conflitantes", "entrada.json_invalido",
-                               "entrada.tipo_invalido", "entrada.xml"}) {
+                               "entrada.tipo_invalido", "entrada.xml", "entrada.numero_invalido"}) {
         QCOMPARE(codigoDeSaidaDaEmissao(codigo), 4);
     }
 }
@@ -66,8 +66,12 @@ void TstCodigoSaida::comparacaoIndisponivelSaiComSete()
 
 void TstCodigoSaida::configuracaoSaiComDez()
 {
+    // NL-2.10b (condição do CISO, 31/10/2026, emenda 2): âncora definida fora de Homologação sai com 10 também.
     for (const char* codigo : {"configuracao.chave_ausente", "configuracao.arquivo_ilegivel", "certificado.caminho_ilegivel",
-                               "assinatura.algoritmo_invalido"}) {
+                               "assinatura.algoritmo_invalido", "configuracao.ancoras_a1_fora_de_homologacao",
+                               "configuracao.ancoras_tls_fora_de_homologacao", "configuracao.raizes_diretorio_vazio",
+                               "configuracao.xsd_manifesto_nao_fixado", "configuracao.xsd_fora_de_homologacao",
+                               "configuracao.chave_duplicada", "configuracao.chave_vazia"}) {
         QCOMPARE(codigoDeSaidaDaEmissao(codigo), 10);
     }
 }
@@ -77,6 +81,8 @@ void TstCodigoSaida::codigoDesconhecidoSaiComSetenta()
     QCOMPARE(codigoDeSaidaDaEmissao("emissao.id_dps_invalido"), 70);
     QCOMPARE(codigoDeSaidaDaEmissao("emissao.id_vazio"), 70);
     QCOMPARE(codigoDeSaidaDaEmissao("codigo_que_nao_existe"), 70);
+    // NL-2.10b, MÉDIA-1: ambiente do pedido divergente do host sai com 70, por entrada explícita (interno, não recusa).
+    QCOMPARE(codigoDeSaidaDaEmissao("emissao.ambiente_divergente"), 70);
 }
 
 QTEST_APPLESS_MAIN(TstCodigoSaida)

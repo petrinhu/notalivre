@@ -16,7 +16,7 @@ bool apenasDigitos(const QString& texto, int maximo)
         return false;
     }
     for (const QChar caractere : texto) {
-        if (!caractere.isDigit()) {
+        if (caractere.unicode() < u'0' || caractere.unicode() > u'9') {  // NL-2.10b, BAIXA-7: só dígito ASCII; isDigit aceita outros alfabetos
             return false;
         }
     }

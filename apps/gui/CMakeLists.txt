@@ -37,3 +37,6 @@ qt_add_resources(notalivre-gui notalivre_fontes
         recursos/fontes/AtkinsonHyperlegible-Bold.ttf
 )
 target_link_libraries(notalivre-gui PRIVATE nl_mid nl_warnings notalivre_gui_qml Qt6::Quick)
+
+# Instalação (NL-2.10b, emenda 1 do CTO): o bundle leva a GUI em bin, pelo cmake --install do manifesto.
+install(TARGETS notalivre-gui RUNTIME DESTINATION bin)

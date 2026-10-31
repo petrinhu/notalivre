@@ -17,8 +17,10 @@
 #include <nl/mid/sefin/cliente/comparador_infdps_c14n.h>
 #include <nl/mid/composicao/confirmacao_inscricao.h>
 #include <nl/mid/composicao/registro_cli.h>
+#include <nl/mid/cofre/raizes_producao.h>
 #include <nl/mid/cofre/senha_do_terminal.h>
 #include <nl/mid/cofre/terminal_sem_eco.h>
+#include <nl/foundation/pkcs12/carga_raizes_icp.h>
 #include <nl/mid/composicao/resposta_crua.h>
 
 #include <QDir>
@@ -34,6 +36,7 @@
 #include <QFile>
 #include <QIODevice>
 #include <QSslCertificate>
+#include <QSslConfiguration>
 #include <QSslKey>
 #include <QUrl>
 #include <QXmlStreamReader>
@@ -109,7 +112,7 @@ std::expected<bk::IdDps, FalhaEmissao> idDoXml(const QByteArray& xml)
 
 // TLS de cliente a partir da credencial: certificado DER; chave PKCS#8 em DER (NL-2.9, item 11). A chave sai do OpenSSL num
 // buffer de memória do BIO, entregue ao QSslKey sem cópia (fromRawData), e o buffer é zerado logo depois.
-ft::ConfiguracaoTls configuracaoTls(const fp::CredencialX509& credencial, const QByteArray& ancorasPem)
+ft::ConfiguracaoTls configuracaoTls(const fp::CredencialX509& credencial, const QList<QSslCertificate>& autoridades)
 {
     ft::ConfiguracaoTls tls;
     unsigned char* der = nullptr;
@@ -128,7 +131,7 @@ ft::ConfiguracaoTls configuracaoTls(const fp::CredencialX509& credencial, const 
         }
     }
     BIO_free(saida);
-    tls.autoridades = QSslCertificate::fromData(ancorasPem, QSsl::Pem);
+    tls.autoridades = autoridades;
     return tls;
 }
 
@@ -162,6 +165,15 @@ FalhaEmissao recusada(RegistroCli& registro, const bk::IdDps& idDps, FalhaEmissa
 std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, fp::SenhaSegura&& senha, RegistroCli& registro,
                                                            const FabricaAssinador& fabrica)
 {
+    // 0. Ambiente (NL-2.10b, MÉDIA-1): o endpoint decide; o ambiente afirmado por quem chama só pode confirmá-lo. Divergente sai
+    // antes de qualquer leitura de DPS, de âncora e de envio, com código interno (70, codigo_saida.cpp).
+    const auto derivado = ambienteDoEndpoint(pedido.urlSefin);
+    if (!derivado) {
+        return std::unexpected(falha(derivado.error().codigo(), derivado.error().mensagem()));
+    }
+    if (pedido.ambiente && *pedido.ambiente != *derivado) {
+        return std::unexpected(falha("emissao.ambiente_divergente", "o ambiente afirmado não confere com o endpoint da configuração"));
+    }
     // 1. DPS de entrada: JSON validado no XSD. Reprovação vem com o primeiro código do validador.
     auto xml = DpsValidar::executar(pedido.dpsJson, pedido.esquema);
     if (!xml) {
@@ -174,10 +186,9 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
         return std::unexpected(idDps.error());
     }
     // 3. Âncoras e credencial do A1 (a senha é consumida aqui: o carregador a zera).
-    const QByteArray ancorasA1Pem = lerArquivo(pedido.caminhoAncoras);
-    auto ancoras = fp::Ancoras::dePem(ancorasA1Pem);
+    auto ancoras = ancorasDoA1(pedido, std::chrono::system_clock::now());
     if (!ancoras) {
-        return std::unexpected(falha("credencial.ancoras_invalidas", "o arquivo de âncoras não pode ser lido"));
+        return std::unexpected(ancoras.error());
     }
     const QByteArray pfx = lerArquivo(pedido.caminhoCertificado);
     fp::CarregadorPkcs12 carregador;
@@ -209,9 +220,12 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     }
     // 7. Envio mTLS pelo cliente Sefin, com o Log do cliente (allowlist da Mid sefin, DA-2.54).
     const ft::UrlBase base{QUrl(pedido.urlSefin), pedido.prefixoSefin, std::chrono::milliseconds{30000}};
-    // Âncoras do servidor TLS (config [sefin] ancoras_tls), separadas das do A1 (NL-2.10a, passo 4).
-    const QByteArray ancorasTlsPem = lerArquivo(pedido.caminhoAncorasTls);
-    ft::TransporteHttps transporte(base, configuracaoTls(*credencial, ancorasTlsPem));
+    // Âncoras do servidor TLS: o PEM de [sefin] ancoras_tls em Homologação, senão as CAs do sistema (NL-2.10b, passo 4).
+    auto autoridadesTls = ancorasTlsDoPedido(pedido);
+    if (!autoridadesTls) {
+        return std::unexpected(autoridadesTls.error());
+    }
+    ft::TransporteHttps transporte(base, configuracaoTls(*credencial, *autoridadesTls));
     nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{},
                                                   std::make_shared<nl::mid::sefin::cliente::ComparadorInfDpsC14n>());
     auto nota = cliente.emitir(bk::DpsAssinada{*idDps, *assinado});
@@ -225,6 +239,60 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     static_cast<void>(gravarRespostaCrua(nota->corpoCru, pastaAnalise, idDps->texto().toStdString()));
     registro.registrarEmissaoAceita(idDps->texto().toStdString(), nota->chave.texto().toStdString());
     return nota->chave.texto();
+}
+
+namespace {
+
+// Ambiente que manda nas âncoras (NL-2.10b, BAIXA-9, emenda 3): o endpoint decide. Endpoint não reconhecido é erro, com o mesmo
+// código que a emissão devolve (emissao.endpoint_desconhecido); nunca cai em um padrão, nem no ambiente afirmado.
+std::expected<Ambiente, FalhaEmissao> ambienteDoPedido(const PedidoEmissao& pedido)
+{
+    const auto derivado = ambienteDoEndpoint(pedido.urlSefin);
+    if (!derivado) {
+        return std::unexpected(falha(derivado.error().codigo(), derivado.error().mensagem()));
+    }
+    return *derivado;
+}
+
+} // namespace
+
+// Âncoras do A1 (NL-2.10b, emenda 5): em Homologação com [certificado] ancoras, o PEM; em qualquer outro caso, as raízes ICP
+// embutidas no bundle. Fora de Homologação o caminho nem é lido (a CLI já recusou a chave com código 10).
+std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao& pedido, std::chrono::system_clock::time_point agora)
+{
+    const auto ambiente = ambienteDoPedido(pedido);
+    if (!ambiente) {
+        return std::unexpected(ambiente.error());
+    }
+    if (*ambiente != Ambiente::Homologacao || pedido.caminhoAncoras.isEmpty()) {
+        if (pedido.diretorioRaizesIcp.isEmpty()) {
+            return std::unexpected(falha("configuracao.raizes_diretorio_vazio", "o diretório das raízes ICP do bundle não foi informado"));
+        }
+        auto carga = nl::mid::cofre::carregarRaizesDeProducao(pedido.diretorioRaizesIcp, agora);
+        if (!carga) {
+            return std::unexpected(falha("credencial.ancoras_icp_invalidas", "as raízes ICP do bundle não conferem com o hash embutido"));
+        }
+        return std::move(carga->ancoras);
+    }
+    auto ancoras = fp::Ancoras::dePem(lerArquivo(pedido.caminhoAncoras));
+    if (!ancoras) {
+        return std::unexpected(falha("credencial.ancoras_invalidas", "o arquivo de âncoras não pode ser lido"));
+    }
+    return std::move(*ancoras);
+}
+
+// Âncoras do servidor TLS (NL-2.10b, emenda 4): o PEM de [sefin] ancoras_tls só em Homologação; o resto é o repositório de CAs
+// do sistema do runtime, sem pin e sem bundle próprio (condição do CISO, 31/10/2026).
+std::expected<QList<QSslCertificate>, FalhaEmissao> ancorasTlsDoPedido(const PedidoEmissao& pedido)
+{
+    const auto ambiente = ambienteDoPedido(pedido);
+    if (!ambiente) {
+        return std::unexpected(ambiente.error());
+    }
+    if (*ambiente != Ambiente::Homologacao || pedido.caminhoAncorasTls.isEmpty()) {
+        return QSslConfiguration::systemCaCertificates();
+    }
+    return QSslCertificate::fromData(lerArquivo(pedido.caminhoAncorasTls), QSsl::Pem);
 }
 
 std::optional<QString> lerConfirmacaoPeloTerminal(const QString& prompt)
