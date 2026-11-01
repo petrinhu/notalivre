@@ -17,6 +17,11 @@ constexpr int kSaidaRecusa = 1;
 constexpr int kSaidaInterna = 70;
 // Configuração ou banco (NL-3.8, código 10): chave ausente, arquivo ou caminho ilegível, algoritmo fora da lista.
 constexpr int kSaidaConfiguracao = 10;
+// Entrada da senha (NL-2.27, DA-2.68 e DA-2.16): sem terminal, terminal em segundo plano, descritor recusado, senha vazia ou acima
+// do teto. São erros de uso da entrada, não recusa de regra: saem com 2 por entrada explícita, antes do prefixo cofre.
+constexpr int kSaidaEntradaDaSenha = 2;
+// Produção sem autorização headless (NL-2.27, DA-2.68): a senha por descritor não libera Produção antes da NL-3.9.
+constexpr int kSaidaHeadlessSemAutorizacao = 11;
 
 bool comecaCom(std::string_view texto, std::string_view prefixo)
 {
@@ -46,6 +51,17 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
         if (codigo == exato) {
             return kSaidaConfiguracao;
         }
+    }
+    constexpr std::array<std::string_view, 8> entradaDaSenhaExato{
+        "cofre.senha_ausente", "cofre.terminal_em_segundo_plano", "cofre.descritor_invalido", "cofre.descritor_terminal",
+        "cofre.descritor_legivel_por_outros", "cofre.senha_vazia", "cofre.senha_acima_do_teto", "cofre.descritor_falha_de_leitura"};
+    for (auto exato : entradaDaSenhaExato) {
+        if (codigo == exato) {
+            return kSaidaEntradaDaSenha;
+        }
+    }
+    if (codigo == "headless.sem_autorizacao") {
+        return kSaidaHeadlessSemAutorizacao;
     }
     // Falhas internas com código próprio (DA-2.59, item 3): não são recusa de regra nem documento, e saem como 70 por entrada explícita.
     constexpr std::array<std::string_view, 3> internoExato{"emissao.id_dps_invalido", "emissao.id_vazio", "emissao.ambiente_divergente"};

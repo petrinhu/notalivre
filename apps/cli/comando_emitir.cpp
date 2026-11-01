@@ -71,6 +71,16 @@ std::expected<void, ErroNumero> conferirCampoDaDps(const QJsonObject& objeto, co
     return {};
 }
 
+// Conferência da entrada da senha antes de ler a configuração (NL-2.27, DA-2.68): com descritor, só o número é conferido, sem ler
+// nenhum byte; sem descritor, o terminal é conferido. Terminal em segundo plano sai aqui, antes de qualquer tcsetattr.
+std::expected<void, nl::mid::composicao::FalhaEmissao> conferirEntradaDaSenha(const ArgumentosEmitir& lidos)
+{
+    if (lidos.descritorSenha) {
+        return nl::mid::composicao::conferirEntradaDaSenhaPeloDescritor(*lidos.descritorSenha);
+    }
+    return nl::mid::composicao::conferirEntradaDaSenhaPeloTerminal();
+}
+
 } // namespace
 
 std::expected<QByteArray, ErroNumero> aplicarSerieENumero(const QByteArray& dpsJson, const ArgumentosEmitir& argumentos)
@@ -107,6 +117,11 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
     if (!lidos) {
         erro << lidos.error() << Qt::endl;
         return 2;
+    }
+    // NL-2.27: a entrada da senha é conferida antes de qualquer leitura de configuração (ordem da DA-2.68).
+    if (const auto entrada = conferirEntradaDaSenha(*lidos); !entrada) {
+        erro << QString::fromStdString(entrada.error().codigo) << ": " << QString::fromStdString(entrada.error().mensagem) << Qt::endl;
+        return nl::mid::composicao::codigoDeSaidaDaEmissao(entrada.error().codigo);
     }
     const auto ambiente = nl::mid::composicao::ambienteDeTexto(lidos->ambiente.toStdString());
     if (!ambiente) {
@@ -149,6 +164,13 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
     if (!liberado) {
         erro << QString::fromStdString(liberado.error().mensagem()) << Qt::endl;
         return 1;
+    }
+    // NL-2.27 (DA-2.68): Produção com senha por descritor sai com 11 antes de ler o descritor, de abrir o A1 e de qualquer envio.
+    // Depois da trava da NL-2.9, que já saiu com 1 se Produção não estava liberada.
+    if (lidos->descritorSenha && *derivado == nl::mid::composicao::Ambiente::Producao) {
+        erro << QStringLiteral("headless.sem_autorizacao: Produção não aceita senha por descritor nesta versão; a autorização headless chega na NL-3.9")
+             << Qt::endl;
+        return nl::mid::composicao::codigoDeSaidaDaEmissao("headless.sem_autorizacao");
     }
     QFile arquivoDps(lidos->entrada);
     if (!arquivoDps.open(QIODevice::ReadOnly)) {
@@ -198,12 +220,14 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         *derivado,
         diretorioPadraoDasRaizesIcp(QCoreApplication::applicationDirPath()),
     };
-    // A senha só entra pelo terminal, sem eco, dentro da fachada: a CLI nunca a vê (DA-2.57b).
-    const auto chave = nl::mid::composicao::emitirDpsPeloTerminal(pedido, registro, QStringLiteral("senha do certificado: "));
+    // A senha entra pela fachada, do terminal sem eco ou do descritor dado por --senha-certificado-fd: a CLI nunca a vê (DA-2.57b).
+    const auto chave = lidos->descritorSenha
+                           ? nl::mid::composicao::emitirDpsPeloDescritor(pedido, registro, *lidos->descritorSenha)
+                           : nl::mid::composicao::emitirDpsPeloTerminal(pedido, registro, QStringLiteral("senha do certificado: "));
     if (!chave) {
-        if (chave.error().codigo == "cofre.senha_ausente") {
-            erro << QString::fromStdString(chave.error().mensagem) << Qt::endl;
-            return 2;
+        if (chave.error().codigo.rfind("cofre.", 0) == 0) {
+            erro << QString::fromStdString(chave.error().codigo) << ": " << QString::fromStdString(chave.error().mensagem) << Qt::endl;
+            return nl::mid::composicao::codigoDeSaidaDaEmissao(chave.error().codigo);
         }
         erro << QStringLiteral("emissão recusada (%1): %2")
                     .arg(QString::fromStdString(chave.error().codigo), QString::fromStdString(chave.error().mensagem))

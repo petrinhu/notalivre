@@ -18,6 +18,7 @@
 #include <nl/mid/composicao/confirmacao_inscricao.h>
 #include <nl/mid/composicao/registro_cli.h>
 #include <nl/mid/cofre/raizes_producao.h>
+#include <nl/mid/cofre/descritor_de_segredo.h>
 #include <nl/mid/cofre/senha_do_terminal.h>
 #include <nl/mid/cofre/terminal_sem_eco.h>
 #include <nl/foundation/pkcs12/carga_raizes_icp.h>
@@ -303,11 +304,77 @@ std::optional<QString> lerConfirmacaoPeloTerminal(const QString& prompt)
     return nl::mid::cofre::lerConfirmacaoDoTerminal(prompt);
 }
 
+namespace {
+
+// Código estável de cada motivo de falha do terminal (NL-2.27, DA-2.68): a CLI traduz o código para a saída, sem ver o terminal.
+FalhaEmissao falhaDoTerminal(nl::mid::cofre::ErroDoTerminal erro)
+{
+    switch (erro) {
+    case nl::mid::cofre::ErroDoTerminal::SemTerminal:
+        return falha("cofre.senha_ausente", "senha ausente: sem terminal de controle, a CLI não lê a senha");
+    case nl::mid::cofre::ErroDoTerminal::EmSegundoPlano:
+        return falha("cofre.terminal_em_segundo_plano",
+                     "a CLI não está em primeiro plano neste terminal, como acontece dentro do Flatpak; entregue a senha por --senha-certificado-fd");
+    case nl::mid::cofre::ErroDoTerminal::SenhaVazia:
+        return falha("cofre.senha_vazia", "a senha digitada no terminal está vazia");
+    case nl::mid::cofre::ErroDoTerminal::FalhaDeLeitura:
+        break;
+    }
+    return falha("cofre.senha_ausente", "senha ausente: a leitura do terminal falhou");
+}
+
+// Código estável de cada motivo de falha do descritor (NL-2.27, DA-2.16). Nenhum conteúdo do descritor entra na mensagem.
+FalhaEmissao falhaDoSegredo(nl::mid::cofre::ErroDoSegredo erro)
+{
+    switch (erro) {
+    case nl::mid::cofre::ErroDoSegredo::DescritorInvalido:
+        return falha("cofre.descritor_invalido", "o descritor da senha não está aberto ou é 0, 1 ou 2");
+    case nl::mid::cofre::ErroDoSegredo::DescritorTerminal:
+        return falha("cofre.descritor_terminal", "o descritor da senha é um terminal: entregue a senha por arquivo ou pipe");
+    case nl::mid::cofre::ErroDoSegredo::LegivelPorOutros:
+        return falha("cofre.descritor_legivel_por_outros", "o arquivo da senha tem permissão para grupo ou outros: use 0600");
+    case nl::mid::cofre::ErroDoSegredo::SenhaVazia:
+        return falha("cofre.senha_vazia", "a senha do descritor está vazia");
+    case nl::mid::cofre::ErroDoSegredo::AcimaDoTeto:
+        return falha("cofre.senha_acima_do_teto", "a senha do descritor passa de 512 bytes");
+    case nl::mid::cofre::ErroDoSegredo::FalhaDeLeitura:
+        break;
+    }
+    return falha("cofre.descritor_falha_de_leitura", "não foi possível ler a senha do descritor");
+}
+
+} // namespace
+
+std::expected<void, FalhaEmissao> conferirEntradaDaSenhaPeloTerminal()
+{
+    if (auto conferido = nl::mid::cofre::conferirTerminalDaSenha(); !conferido) {
+        return std::unexpected(falhaDoTerminal(conferido.error()));
+    }
+    return {};
+}
+
+std::expected<void, FalhaEmissao> conferirEntradaDaSenhaPeloDescritor(int fd)
+{
+    if (auto conferido = nl::mid::cofre::conferirDescritorDeSenha(fd); !conferido) {
+        return std::unexpected(falhaDoSegredo(conferido.error()));
+    }
+    return {};
+}
+
 std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& pedido, RegistroCli& registro, const QString& promptSenha)
 {
     auto senha = nl::mid::cofre::lerSenhaDoTerminal(promptSenha);
     if (!senha) {
-        return std::unexpected(falha("cofre.senha_ausente", "senha ausente: sem terminal de controle, a CLI não lê a senha"));
+        return std::unexpected(falhaDoTerminal(senha.error()));
+    }
+    return emitirDpsPelaCli(pedido, std::move(*senha), registro);
+}
+
+std::expected<QString, FalhaEmissao> emitirDpsPeloDescritor(const PedidoEmissao& pedido, RegistroCli& registro, int fd)
+{
+    auto senha = nl::mid::cofre::lerSenhaDoDescritor(fd);
+    if (!senha) {
+        return std::unexpected(falhaDoSegredo(senha.error()));
     }
     return emitirDpsPelaCli(pedido, std::move(*senha), registro);
 }

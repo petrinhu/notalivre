@@ -35,7 +35,14 @@ set(NL_SLOTS_E2E_SEM_SERVIDOR
     cliRecusaProducaoSemCnpjDigitado
     senhaNaoApareceEmArgvNemLog
     prefixoAusenteSaiComDez
-    certificadoIlegivelSaiComDezEInstrucao)
+    certificadoIlegivelSaiComDezEInstrucao
+    cliDescritorEmProducaoSaiCom11SemLer
+    cliProducaoBloqueadaContinuaCom1
+    cliTerminalEmSegundoPlanoSaiCom2Rapido
+    cliSenhaNuncaPorArgumentoNemAmbiente
+    cliDescritorVazioSaiCom2
+    senhaDoDescritorNaoVazaNoLogNemNaSaida
+    cliSenhaVaziaNoTerminalSaiCom2)
 
 set(NL_SLOTS_E2E
     cliEmiteDpsAceitaPeloServidorFalso
@@ -56,10 +63,18 @@ set(NL_SLOTS_E2E
     caminhoDoCertificadoNuncaVaiAoLog
     algoritmoRsaSha256NoXmlEnviado
     algoritmoRsaSha1NoXmlPadrao
-    ancorasTlsSozinhasValidamOServidor)
+    ancorasTlsSozinhasValidamOServidor
+    cliEmiteComSenhaPeloDescritor
+    cliDescritorEmProducaoSaiCom11SemLer
+    cliProducaoBloqueadaContinuaCom1
+    cliTerminalEmSegundoPlanoSaiCom2Rapido
+    cliSenhaNuncaPorArgumentoNemAmbiente
+    cliDescritorVazioSaiCom2
+    senhaDoDescritorNaoVazaNoLogNemNaSaida
+    cliSenhaVaziaNoTerminalSaiCom2)
 
 if(NL_FLATPAK_BUILD)
-    message(STATUS "e2e cli_emitir: 12 slots com servidor falso ou segredo desligados no build Flatpak (NL-2.15); 5 rodam")
+    message(STATUS "e2e cli_emitir: slots com servidor falso ou segredo desligados no build Flatpak (NL-2.15, NL-2.27)")
     set(NL_SLOTS_E2E ${NL_SLOTS_E2E_SEM_SERVIDOR})
 endif()
 

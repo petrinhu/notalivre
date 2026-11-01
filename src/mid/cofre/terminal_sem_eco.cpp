@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Leitura do terminal sem eco (NL-2.9, itens 2 e 3). Ver terminal_sem_eco.h. O buffer de leitura é zerado logo depois do uso.
+// Leitura do terminal sem eco (NL-2.9, itens 2 e 3; NL-2.27, DA-2.68). Ver terminal_sem_eco.h. O buffer de leitura é zerado logo
+// depois do uso. Dentro do Flatpak a CLI pode estar em grupo de segundo plano no terminal: nesse caso a leitura sai antes de qualquer
+// tcsetattr, que pararia o processo com SIGTTOU.
 #include <nl/mid/cofre/senha_do_terminal.h>
 #include <nl/mid/cofre/terminal_sem_eco.h>
 
@@ -21,6 +23,9 @@ namespace {
 constexpr std::size_t kTetoDaLinha = 512;  // o mesmo teto para senha e confirmação; linha maior é recusada
 
 using Buffer = std::array<char, kTetoDaLinha>;
+
+// Resultado interno da leitura de uma linha do terminal: sem terminal, em segundo plano, falha, ou a linha lida.
+enum class Leitura { Ok, SemTerminal, EmSegundoPlano, Falha };
 
 // Restaura o eco na saída do escopo, mesmo que a leitura falhe.
 class EcoRestaurado
@@ -54,23 +59,41 @@ bool escreverTudo(int fd, const char* dados, std::size_t tamanho)
     return true;
 }
 
-// Lê uma linha do /dev/tty, sem eco, para o buffer. Falso se não há terminal, se a leitura falha ou se a linha passa do teto.
-bool lerLinhaNoBuffer(const QString& prompt, Buffer& buffer, std::size_t& tamanho)
+// Confere que o processo está no primeiro plano do terminal (NL-2.27, DA-2.68). tcgetpgrp é permitido em segundo plano; tcgetattr e
+// tcsetattr não são, e parariam o processo com SIGTTOU. Não lê nem altera nada no terminal.
+Leitura conferirPrimeiroPlano(int fd)
+{
+    const pid_t primeiroPlano = tcgetpgrp(fd);
+    if (primeiroPlano < 0) {
+        return Leitura::Falha;
+    }
+    if (primeiroPlano != getpgrp()) {
+        return Leitura::EmSegundoPlano;
+    }
+    return Leitura::Ok;
+}
+
+// Lê uma linha do /dev/tty, sem eco, para o buffer. A conferência do primeiro plano vem antes de qualquer tcsetattr.
+Leitura lerLinhaNoBuffer(const QString& prompt, Buffer& buffer, std::size_t& tamanho)
 {
     const int fd = ::open("/dev/tty", O_RDWR | O_NOCTTY);
     if (fd < 0) {
-        return false;
+        return Leitura::SemTerminal;
+    }
+    if (const Leitura primeiroPlano = conferirPrimeiroPlano(fd); primeiroPlano != Leitura::Ok) {
+        ::close(fd);
+        return primeiroPlano;
     }
     termios original{};
     if (tcgetattr(fd, &original) != 0) {
         ::close(fd);
-        return false;
+        return Leitura::Falha;
     }
     termios semEco = original;
     semEco.c_lflag &= ~ECHO;
     if (tcsetattr(fd, TCSANOW, &semEco) != 0) {
         ::close(fd);
-        return false;
+        return Leitura::Falha;
     }
     bool estourou = false;
     bool gravou = true;
@@ -94,18 +117,53 @@ bool lerLinhaNoBuffer(const QString& prompt, Buffer& buffer, std::size_t& tamanh
     const char quebra = '\n';
     const bool quebrou = gravou && escreverTudo(fd, &quebra, 1);
     ::close(fd);
-    return quebrou && !estourou;
+    return (quebrou && !estourou) ? Leitura::Ok : Leitura::Falha;
 }
 
 } // namespace
 
-std::optional<nl::foundation::pkcs12::SenhaSegura> lerSenhaDoTerminal(const QString& prompt)
+std::expected<void, ErroDoTerminal> conferirTerminalDaSenha()
+{
+    const int fd = ::open("/dev/tty", O_RDWR | O_NOCTTY);
+    if (fd < 0) {
+        return std::unexpected(ErroDoTerminal::SemTerminal);
+    }
+    const Leitura estado = conferirPrimeiroPlano(fd);
+    ::close(fd);
+    switch (estado) {
+    case Leitura::Ok:
+        return {};
+    case Leitura::EmSegundoPlano:
+        return std::unexpected(ErroDoTerminal::EmSegundoPlano);
+    case Leitura::SemTerminal:
+    case Leitura::Falha:
+        break;
+    }
+    return std::unexpected(ErroDoTerminal::FalhaDeLeitura);
+}
+
+std::expected<nl::foundation::pkcs12::SenhaSegura, ErroDoTerminal> lerSenhaDoTerminal(const QString& prompt)
 {
     Buffer buffer{};
     std::size_t tamanho = 0;
-    if (!lerLinhaNoBuffer(prompt, buffer, tamanho)) {
+    const Leitura leitura = lerLinhaNoBuffer(prompt, buffer, tamanho);
+    if (leitura != Leitura::Ok) {
         OPENSSL_cleanse(buffer.data(), buffer.size());
-        return std::nullopt;
+        switch (leitura) {
+        case Leitura::EmSegundoPlano:
+            return std::unexpected(ErroDoTerminal::EmSegundoPlano);
+        case Leitura::SemTerminal:
+            return std::unexpected(ErroDoTerminal::SemTerminal);
+        case Leitura::Ok:
+        case Leitura::Falha:
+            break;
+        }
+        return std::unexpected(ErroDoTerminal::FalhaDeLeitura);
+    }
+    // NL-2.27, I3 (decisão do CISO de 01/11/2026): senha vazia no terminal é recusada aqui, como no descritor; não segue ao A1.
+    if (tamanho == 0) {
+        OPENSSL_cleanse(buffer.data(), buffer.size());
+        return std::unexpected(ErroDoTerminal::SenhaVazia);
     }
     auto senha = nl::foundation::pkcs12::SenhaSegura::de(QByteArrayView(buffer.data(), static_cast<qsizetype>(tamanho)));
     OPENSSL_cleanse(buffer.data(), buffer.size());
@@ -116,7 +174,7 @@ std::optional<QString> lerConfirmacaoDoTerminal(const QString& prompt)
 {
     Buffer buffer{};
     std::size_t tamanho = 0;
-    if (!lerLinhaNoBuffer(prompt, buffer, tamanho)) {
+    if (lerLinhaNoBuffer(prompt, buffer, tamanho) != Leitura::Ok) {
         OPENSSL_cleanse(buffer.data(), buffer.size());
         return std::nullopt;
     }

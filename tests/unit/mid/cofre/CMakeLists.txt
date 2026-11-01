@@ -53,3 +53,42 @@ foreach(nome IN ITEMS
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
+
+# Terminal em segundo plano (NL-2.27, DA-2.68): reprodução por openpty do neto em grupo de segundo plano, que não pode parar por
+# SIGTTOU. Um teste no CTest por slot (mid.cofre.<nome>), sem vírgula no nome (L-45).
+add_executable(tst_terminal_segundo_plano tst_terminal_segundo_plano.cpp)
+target_link_libraries(tst_terminal_segundo_plano PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_pkcs12 nl_warnings)
+
+foreach(nome IN ITEMS
+    terminalEmSegundoPlanoSaiSemParar
+    terminalEmSegundoPlanoNaoMexeNoEco
+    semTerminalContinuaSenhaAusente)
+  nl_registra_teste_qt(NAME mid.cofre.${nome} COMMAND tst_terminal_segundo_plano ${nome})
+  set_tests_properties(mid.cofre.${nome} PROPERTIES
+                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()
+
+# Canal de segredo por descritor (NL-2.27, DA-2.16): leitura única, recusas por tipo de descritor e permissão. Um teste no CTest por
+# slot (mid.cofre.<nome>), sem vírgula no nome (L-45).
+add_executable(tst_descritor_de_segredo tst_descritor_de_segredo.cpp)
+target_link_libraries(tst_descritor_de_segredo PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_pkcs12 nl_warnings)
+
+foreach(nome IN ITEMS
+    senhaPeloDescritorLidaUmaVezEFechada
+    quebraFinalUnicaDescartada
+    descritorVazioRecusado
+    descritorAcimaDoTetoRecusado
+    descritores0a2Recusados
+    descritorTerminalRecusado
+    arquivoLegivelPorGrupoRecusado
+    descritorFechadoOuInvalidoRecusado
+    noTetoComQuebraFinalPassa
+    zeraOBufferDoChamador
+    conferirSemLerNemFechar
+    recusaFechaODescritor)
+  nl_registra_teste_qt(NAME mid.cofre.${nome} COMMAND tst_descritor_de_segredo ${nome})
+  set_tests_properties(mid.cofre.${nome} PROPERTIES
+                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()
