@@ -428,6 +428,9 @@ jobs:
     permissions:
       contents: read
     steps:
+      # NL-2.27b: sem este checkout, o job não tem os scripts de flatpak/host/ e os passos de medição saem com 127.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: notalivre-bundle
@@ -455,6 +458,8 @@ jobs:
         run: |
           python3 -m http.server --bind 127.0.0.1 47891 > "$RUNNER_TEMP/servidor.log" 2>&1 &
           srv=$!
+          # NL-2.27b: sem set +e, o shell do passo (bash -e) encerra antes do cat e o log some quando o teste falha.
+          set +e
           flatpak run --user --command=bash io.github.petrinhu.notalivre -c 'for i in $(seq 1 30); do exec 3<>/dev/tcp/127.0.0.1/47891 && break; sleep 0.5; done; printf "GET / HTTP/1.0\r\n\r\n" >&3; head -n 1 <&3' > "$RUNNER_TEMP/tcp.log" 2>&1
           rc=$?
           kill "$srv" 2>/dev/null
@@ -469,6 +474,8 @@ jobs:
       - name: Autoteste do medidor da senha por descritor
         id: senha_fd_autoteste
         run: |
+          # NL-2.27b: sem set +e, o shell do passo (bash -e) encerra antes do cat e o log some quando o autoteste falha.
+          set +e
           bash flatpak/host/autoteste_senha_fd.sh > "$RUNNER_TEMP/autoteste_senha_fd.log" 2>&1
           rc=$?
           cat "$RUNNER_TEMP/autoteste_senha_fd.log"
@@ -479,6 +486,8 @@ jobs:
       - name: Medição da senha por descritor dentro do sandbox
         id: senha_fd
         run: |
+          # NL-2.27b: mesma correção do autoteste (set +e antes do log).
+          set +e
           bash flatpak/host/senha_fd.sh io.github.petrinhu.notalivre > "$RUNNER_TEMP/senha_fd.log" 2>&1
           rc=$?
           cat "$RUNNER_TEMP/senha_fd.log"
