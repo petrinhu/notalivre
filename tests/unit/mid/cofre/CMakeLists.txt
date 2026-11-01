@@ -85,7 +85,9 @@ foreach(nome IN ITEMS
     descritorFechadoOuInvalidoRecusado
     noTetoComQuebraFinalPassa
     zeraOBufferDoChamador
-    conferirSemLerNemFechar)
+    conferirSemLerNemFechar
+    quebraFinalMantemEspacoTabECr
+    recusaFechaODescritor)
   nl_registra_teste_qt(NAME mid.cofre.${nome} COMMAND tst_descritor_de_segredo ${nome})
   set_tests_properties(mid.cofre.${nome} PROPERTIES
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"

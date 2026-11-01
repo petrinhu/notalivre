@@ -80,6 +80,8 @@ private slots:
     void descritorTerminalRecusado();
     // Arquivo comum com permissão para grupo ou outros é recusado; 0600 passa.
     void arquivoLegivelPorGrupoRecusado();
+    // NL-2.27 (I4, revisão de segurança): a recusa também fecha o descritor (DA-2.16, "zerado e fechado").
+    void recusaFechaODescritor();
     // Descritor negativo ou que não está aberto é recusado como inválido (guarda de borda).
     void descritorFechadoOuInvalidoRecusado();
     // NL-2.27, Emenda 1 (item 4): 512 bytes de senha mais a quebra final passam; a quebra não conta no teto, como no terminal.
@@ -113,6 +115,13 @@ void TstDescritorDeSegredo::quebraFinalUnicaDescartada()
     const auto nenhuma = nl::mid::cofre::lerSenhaDoDescritor(pipeCom(QByteArrayLiteral("abc")));
     QVERIFY2(nenhuma.has_value(), "abc sem quebra tem de ser lido");
     QCOMPARE(conteudoDe(*nenhuma), QByteArrayLiteral("abc"));
+    // NL-2.27, Emenda 1 (item 4) e revisão de segurança (B2): espaço, tabulação e CR finais são mantidos; só a quebra de linha sai.
+    const auto espaco = nl::mid::cofre::lerSenhaDoDescritor(pipeCom(QByteArrayLiteral("abc \n")));
+    QVERIFY2(espaco.has_value(), "abc com espaço final tem de ser lido");
+    QCOMPARE(conteudoDe(*espaco), QByteArrayLiteral("abc "));
+    const auto cr = nl::mid::cofre::lerSenhaDoDescritor(pipeCom(QByteArrayLiteral("abc\r\n")));
+    QVERIFY2(cr.has_value(), "abc com CRLF tem de ser lido");
+    QCOMPARE(conteudoDe(*cr), QByteArrayLiteral("abc\r"));
 }
 
 void TstDescritorDeSegredo::descritorVazioRecusado()
@@ -152,7 +161,7 @@ void TstDescritorDeSegredo::descritorTerminalRecusado()
     const auto r = nl::mid::cofre::lerSenhaDoDescritor(escravo);
     QVERIFY2(!r.has_value(), "um terminal não pode ser canal de senha");
     QCOMPARE(r.error(), nl::mid::cofre::ErroDoSegredo::DescritorTerminal);
-    close(escravo);
+    // O escravo é fechado pelo próprio leitor na recusa (I4): fechá-lo aqui de novo poderia fechar um descritor reaproveitado.
     close(mestre);
 }
 
@@ -211,6 +220,22 @@ void TstDescritorDeSegredo::zeraOBufferDoChamador()
     const auto grande = nl::mid::cofre::lerSenhaDoDescritorEm(pipeCom(QByteArray(600, 'z')), buffer);
     QVERIFY(!grande.has_value());
     QVERIFY2(std::all_of(buffer.begin(), buffer.end(), [](char c) { return c == '\0'; }), "a recusa também tem de zerar o buffer");
+}
+
+void TstDescritorDeSegredo::recusaFechaODescritor()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    const QString caminho = pasta.path() + QStringLiteral("/segredo-recusado");
+    const int legivelPorGrupo = arquivoComModo(caminho, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadGroup,
+                                               QByteArrayLiteral("senha-de-teste\n"));
+    QVERIFY(legivelPorGrupo >= 0);
+    const auto recusado = nl::mid::cofre::lerSenhaDoDescritor(legivelPorGrupo);
+    QVERIFY2(!recusado.has_value(), "arquivo legível por grupo tem de ser recusado");
+    QCOMPARE(recusado.error(), nl::mid::cofre::ErroDoSegredo::LegivelPorOutros);
+    errno = 0;
+    QCOMPARE(fcntl(legivelPorGrupo, F_GETFD), -1);
+    QCOMPARE(errno, EBADF);
 }
 
 void TstDescritorDeSegredo::conferirSemLerNemFechar()

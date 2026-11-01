@@ -528,6 +528,9 @@ private slots:
     void cliDescritorVazioSaiCom2();
     // NL-2.27 (acréscimo do CISO): a senha do descritor, aleatória nesta execução, não vai à saída nem ao log.
     void senhaDoDescritorNaoVazaNoLogNemNaSaida();
+    // NL-2.27 (I3, decisão do CISO de 01/11/2026, 10:32:19): senha vazia digitada no terminal sai com 2 e cofre.senha_vazia, sem
+    // chegar ao carregador do A1 (que daria credencial.*).
+    void cliSenhaVaziaNoTerminalSaiCom2();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -1146,6 +1149,20 @@ void TstCliEmitir::senhaDoDescritorNaoVazaNoLogNemNaSaida()
     QVERIFY2(execucao.saida.contains("credencial.nao_carregou"), "a senha aleatória tem de chegar ao carregador e falhar lá");
     QVERIFY2(!execucao.saida.contains(aleatoria), "a senha do descritor não pode aparecer na saída");
     QVERIFY2(execucao.sobra.isEmpty(), "a CLI tem de ler o descritor até o fim");
+}
+
+void TstCliEmitir::cliSenhaVaziaNoTerminalSaiCom2()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:9443"));
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+    // O harness digita só a quebra de linha quando o prompt da senha aparece: a senha do terminal fica vazia.
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), QByteArray());
+    QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("cofre.senha_vazia"), "senha vazia no terminal tem de sair com cofre.senha_vazia");
+    QVERIFY2(!execucao.saida.contains("credencial."), "a senha vazia não pode chegar ao carregador do A1");
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)
