@@ -43,6 +43,7 @@ private:
     nl::foundation::log::Log& registro_;
     PoliticaRetry politica_;
     std::shared_ptr<const ComparadorInfDps> comparador_;  // dono: o cliente segura o comparador enquanto existir
+    ObservadorRespostas* observador_;                     // não-dono: emprestado; nulo quando ninguém observa
 };
 
 } // namespace nl::mid::sefin::cliente

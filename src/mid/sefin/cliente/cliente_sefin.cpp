@@ -26,6 +26,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -167,9 +168,23 @@ std::expected<bk::ChaveAcesso, bk::FalhaSefin> chaveDoCorpo(const QByteArray& co
     return chaveDoObjeto(doc.object());
 }
 
+// Modelos de rota que o observador recebe (NL-2.10c): sem o Id nem a chave, que são o caminho concreto da Sefin.
+constexpr std::string_view kRotaEnvio = "/nfse";
+constexpr std::string_view kRotaConsultaDps = "/dps/{id}";
+constexpr std::string_view kRotaConsultaNota = "/nfse/{chave}";
+
+// Repassa ao observador a resposta HTTP recebida (NL-2.10c). Sem observador, nada a fazer.
+void observar(ObservadorRespostas* observador, std::string_view metodo, std::string_view rota, const ft::RespostaHttp& resposta)
+{
+    if (observador != nullptr) {
+        observador->registrar(metodo, rota, resposta.status, resposta.tipoConteudo, resposta.corpo);
+    }
+}
+
 // GET com repetição em erro transitório e em 5xx, com a espera da política. Devolve a resposta de sucesso ou a falha.
 std::expected<ft::RespostaHttp, bk::FalhaSefin> getComRetry(ft::TransporteHttps& transporte, fl::Log& registro,
-                                                            const PoliticaRetry& politica, const QString& caminho)
+                                                            const PoliticaRetry& politica, const QString& caminho,
+                                                            std::string_view rota, ObservadorRespostas* observador)
 {
     for (int n = 1; n <= politica.tentativas; ++n) {
         if (n > 1) {
@@ -193,6 +208,7 @@ std::expected<ft::RespostaHttp, bk::FalhaSefin> getComRetry(ft::TransporteHttps&
             return std::unexpected(falhaDeRede);
         }
         registrarRequisicao(registro, "GET", resposta->status);
+        observar(observador, "GET", rota, *resposta);
         if (resposta->status >= 500 && !ultima) {
             continue;
         }
@@ -205,9 +221,10 @@ std::expected<ft::RespostaHttp, bk::FalhaSefin> getComRetry(ft::TransporteHttps&
 }
 
 std::expected<bk::ChaveAcesso, bk::FalhaSefin> consultarDpsCom(ft::TransporteHttps& transporte, fl::Log& registro,
-                                                               const PoliticaRetry& politica, const bk::IdDps& id)
+                                                               const PoliticaRetry& politica, const bk::IdDps& id,
+                                                               ObservadorRespostas* observador)
 {
-    auto resposta = getComRetry(transporte, registro, politica, QStringLiteral("/dps/") + id.texto());
+    auto resposta = getComRetry(transporte, registro, politica, QStringLiteral("/dps/") + id.texto(), kRotaConsultaDps, observador);
     if (!resposta) {
         return std::unexpected(resposta.error());
     }
@@ -224,9 +241,9 @@ std::expected<bk::ChaveAcesso, bk::FalhaSefin> consultarDpsCom(ft::TransporteHtt
 
 std::expected<bk::NotaSefin, bk::FalhaSefin> consultarNotaCom(ft::TransporteHttps& transporte, fl::Log& registro,
                                                               const PoliticaRetry& politica,
-                                                              const bk::ChaveAcesso& chave)
+                                                              const bk::ChaveAcesso& chave, ObservadorRespostas* observador)
 {
-    auto resposta = getComRetry(transporte, registro, politica, QStringLiteral("/nfse/") + chave.texto());
+    auto resposta = getComRetry(transporte, registro, politica, QStringLiteral("/nfse/") + chave.texto(), kRotaConsultaNota, observador);
     if (!resposta) {
         return std::unexpected(resposta.error());
     }
@@ -240,9 +257,9 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> consultarNotaCom(ft::TransporteHttp
 
 // Nota da chave da consulta. Se o GET /nfse falha, a chave vale: a nota fica pendente e o XML vem depois (DA-2.39).
 Desfecho notaDaChave(ft::TransporteHttps& transporte, fl::Log& registro, const PoliticaRetry& politica,
-                     const bk::ChaveAcesso& chave)
+                     const bk::ChaveAcesso& chave, ObservadorRespostas* observador)
 {
-    auto nota = consultarNotaCom(transporte, registro, politica, chave);
+    auto nota = consultarNotaCom(transporte, registro, politica, chave, observador);
     if (nota) {
         return *nota;
     }
@@ -252,11 +269,12 @@ Desfecho notaDaChave(ft::TransporteHttps& transporte, fl::Log& registro, const P
 // Estado depois de um envio que pode ter chegado à Sefin. A consulta GET /dps/{id} decide (DA-2.41, a). Devolve o
 // desfecho, ou nullopt quando a DPS não gerou nota e o reenvio, com o mesmo Id, está liberado.
 std::optional<Desfecho> resolverPosEnvio(ft::TransporteHttps& transporte, fl::Log& registro,
-                                         const PoliticaRetry& politica, const bk::DpsAssinada& dps, bool podeReenviar)
+                                         const PoliticaRetry& politica, const bk::DpsAssinada& dps, bool podeReenviar,
+                                         ObservadorRespostas* observador)
 {
-    auto consulta = consultarDpsCom(transporte, registro, politica, dps.id);
+    auto consulta = consultarDpsCom(transporte, registro, politica, dps.id, observador);
     if (consulta) {
-        return Desfecho{notaDaChave(transporte, registro, politica, *consulta)};
+        return Desfecho{notaDaChave(transporte, registro, politica, *consulta, observador)};
     }
     if (consulta.error().motivo == bk::MotivoFalhaSefin::DpsNaoGerada) {
         if (podeReenviar) {
@@ -278,13 +296,13 @@ std::optional<Desfecho> resolverPosEnvio(ft::TransporteHttps& transporte, fl::Lo
 // Diferente: DpsDuplicada, que nunca renumera sozinho e vai ao usuário. Sem conseguir buscar ou comparar: Indeterminado.
 // Nunca Rejeitada e nunca sucesso silencioso.
 Desfecho reconciliarPorInfDps(ft::TransporteHttps& transporte, fl::Log& registro, const PoliticaRetry& politica,
-                          const ComparadorInfDps& comparador, const bk::DpsAssinada& dps)
+                          const ComparadorInfDps& comparador, const bk::DpsAssinada& dps, ObservadorRespostas* observador)
 {
-    auto consulta = consultarDpsCom(transporte, registro, politica, dps.id);
+    auto consulta = consultarDpsCom(transporte, registro, politica, dps.id, observador);
     if (!consulta) {
         return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
     }
-    auto nota = consultarNotaCom(transporte, registro, politica, *consulta);
+    auto nota = consultarNotaCom(transporte, registro, politica, *consulta, observador);
     if (!nota || nota->xmlPendente) {
         return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
     }
@@ -303,9 +321,10 @@ Desfecho reconciliarPorInfDps(ft::TransporteHttps& transporte, fl::Log& registro
 } // namespace
 
 ClienteSefin::ClienteSefin(ft::TransporteHttps& transporte, fl::Log& registro, PoliticaRetry politica,
-                           std::shared_ptr<const ComparadorInfDps> comparador, ObservadorRespostas* /*observador*/)
+                           std::shared_ptr<const ComparadorInfDps> comparador, ObservadorRespostas* observador)
     : transporte_(transporte), registro_(registro), politica_(politica),
-      comparador_(comparador ? std::move(comparador) : std::make_shared<ComparadorIndisponivel>())
+      comparador_(comparador ? std::move(comparador) : std::make_shared<ComparadorIndisponivel>()),
+      observador_(observador)
 {
 }
 
@@ -343,11 +362,12 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
                                                  : bk::MotivoFalhaSefin::Transitoria));
             }
             // Conexão aberta e depois caiu: os bytes podem ter chegado. Consulta antes de qualquer decisão.
-            if (auto desfecho = resolverPosEnvio(transporte_, registro_, politica_, dps, podeReenviar)) {
+            if (auto desfecho = resolverPosEnvio(transporte_, registro_, politica_, dps, podeReenviar, observador_)) {
                 return *desfecho;
             }
             continue;
         }
+        observar(observador_, "POST", kRotaEnvio, *resposta);
 
         const int status = resposta->status;
         registrarRequisicao(registro_, "POST", status);
@@ -355,7 +375,7 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
             return notaDoCorpo(resposta->corpo);
         }
         if (status == 409) {
-            return reconciliarPorInfDps(transporte_, registro_, politica_, *comparador_, dps);  // 409 (rodada 5d)
+            return reconciliarPorInfDps(transporte_, registro_, politica_, *comparador_, dps, observador_);  // 409 (rodada 5d)
         }
         if (status >= 400 && status < 500) {
             // Recusa com resposta definitiva. Código E válido nunca repete, exceto E0014 num reenvio: a DPS já existe,
@@ -365,7 +385,7 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
             const std::string codigo = codigoSeValido(bruto);
             if (codigo == "E0014") {
                 // Adendo da DA-2.41: E0014 reconcilia em qualquer tentativa, inclusive a primeira.
-                return reconciliarPorInfDps(transporte_, registro_, politica_, *comparador_, dps);
+                return reconciliarPorInfDps(transporte_, registro_, politica_, *comparador_, dps, observador_);
             }
             if (!codigo.empty()) {
                 return std::unexpected(falha(bk::MotivoFalhaSefin::Rejeitada, codigo));
@@ -374,7 +394,7 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
         }
 
         // 2xx sem chave, 2xx fora de 200 e 201, 3xx e 5xx: a DPS pode ter sido gravada. A consulta decide.
-        if (auto desfecho = resolverPosEnvio(transporte_, registro_, politica_, dps, podeReenviar)) {
+        if (auto desfecho = resolverPosEnvio(transporte_, registro_, politica_, dps, podeReenviar, observador_)) {
             return *desfecho;
         }
     }
@@ -383,12 +403,12 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
 
 std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::consultarNota(const bk::ChaveAcesso& chave)
 {
-    return consultarNotaCom(transporte_, registro_, politica_, chave);
+    return consultarNotaCom(transporte_, registro_, politica_, chave, observador_);
 }
 
 std::expected<bk::ChaveAcesso, bk::FalhaSefin> ClienteSefin::consultarDps(const bk::IdDps& id)
 {
-    return consultarDpsCom(transporte_, registro_, politica_, id);
+    return consultarDpsCom(transporte_, registro_, politica_, id, observador_);
 }
 
 } // namespace nl::mid::sefin::cliente
