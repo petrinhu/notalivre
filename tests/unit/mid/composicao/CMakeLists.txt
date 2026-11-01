@@ -19,6 +19,24 @@ set_tests_properties(mid.composicao.confirmacaoInscricao PROPERTIES PASS_REGULAR
 add_executable(tst_registro_cli tst_registro_cli.cpp)
 target_link_libraries(tst_registro_cli PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_foundation_base nl_warnings)
 nl_registra_teste_qt(NAME mid.composicao.registroCli COMMAND tst_registro_cli)
+
+# Chave do A1 na configuração TLS da emissão (NL-2.10e, E3, H1). Fixture de teste, nunca o .pfx do líder; o handshake usa o servidor
+# falso mTLS (tools/servidor_falso/lancador.py).
+find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
+add_executable(tst_chave_a1 tst_chave_a1.cpp)
+target_link_libraries(tst_chave_a1 PRIVATE Qt6::Core Qt6::Network Qt6::Test nl_mid nl_foundation_pkcs12 nl_foundation_transporte nl_warnings)
+target_compile_definitions(tst_chave_a1 PRIVATE
+    NL_LANCADOR="${CMAKE_SOURCE_DIR}/tools/servidor_falso/lancador.py"
+    NL_PYTHON3="${Python3_EXECUTABLE}")
+set(NL_CERT_DIR_CHAVE "${CMAKE_BINARY_DIR}/certificados_teste")
+foreach(nome IN ITEMS chaveDaFixtureNaoSaiNula handshakeMtlsConcluiComAChaveDeProducao)
+  nl_registra_teste_qt(NAME mid.composicao.chaveA1.${nome} COMMAND tst_chave_a1 ${nome})
+  set_tests_properties(mid.composicao.chaveA1.${nome} PROPERTIES
+                       FIXTURES_REQUIRED certificados_teste
+                       ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR_CHAVE}"
+                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()
 set_tests_properties(mid.composicao.registroCli PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 10 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 
 # Revalidação no XSD depois de assinar (NL-2.9, DA-2.51). Só fixtures sintéticas; o XSD vem do build (NL_XSD_PRODREST_DIR).

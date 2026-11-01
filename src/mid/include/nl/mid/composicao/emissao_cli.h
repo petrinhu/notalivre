@@ -7,6 +7,7 @@
 
 #include <nl/mid/composicao/dps_validar.h>
 #include <nl/mid/composicao/politica_emissao.h>
+#include <nl/foundation/transporte/transporte_https.h>
 
 #include <optional>
 #include <QByteArray>
@@ -78,6 +79,10 @@ using FabricaAssinador = std::function<std::unique_ptr<nl::back::AssinadorDps>(c
 /// A senha é consumida: o carregador a zera (NL-2.9, item 3). O registro recebe o evento da emissão (DA-2.54).
 std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, nl::foundation::pkcs12::SenhaSegura&& senha,
                                                       RegistroCli& registro);
+
+/// Configuração TLS da emissão para uma credencial (NL-2.10e, E3, H1): é a função que a emissão usa, exposta para o teste da chave do A1.
+nl::foundation::transporte::ConfiguracaoTls configuracaoTlsDaCredencial(const nl::foundation::pkcs12::CredencialX509& credencial,
+                                                                       const QList<QSslCertificate>& autoridades);
 
 /// Lê a confirmação (CPF ou CNPJ) no terminal sem eco. A CLI usa só esta fachada, não o cofre (matriz 1.1, DA-2.59).
 std::optional<QString> lerConfirmacaoPeloTerminal(const QString& prompt);
