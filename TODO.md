@@ -101,6 +101,9 @@
 - NL-2.20 (INBOX, achado do executor da NL-2.15): funções de teste definidas e nunca registradas no CTest (tst_cliente_sefin.cpp:654, :671, :691, :710 e test_servidor_falso.py:462, blob cca6d76), que nenhum portão por ctest vê; registrar ou apagar, e pensar num portão que compare as funções declaradas com as registradas. Fonte: NL-2.15, emenda 1.
 - NL-2.22 (INBOX, INFO-7 da revisão de segurança da NL-2.10c): conferir que a pasta de estado ($XDG_STATE_HOME/notalivre/respostas) não fica em pasta sincronizada com nuvem nem com backup externo; é condição operacional do devops no preparo da NL-2.10, pelo N-03 do CISO. Fonte: DA-2.66, emenda 2.
 - NL-2.23 (INBOX, item 5 da revisão de segurança da NL-2.10c): codigoEValido duplicado em src/mid/sefin/cliente/cliente_sefin.cpp:51-65 e src/mid/composicao/resposta_crua.cpp:40-54 (blob 0a92cdd); teste de paridade com os mesmos casos nas duas cópias, ou extração na terceira ocorrência (regra de 3, L-33). Fonte: DA-2.66, emenda 2.
+- NL-2.24 (INBOX, INFO-4 da revisão de segurança da NL-2.10c, rodada 2; Emenda 3): a pasta-pai notalivre ($XDG_STATE_HOME/notalivre) é criada com o modo padrão do umask (resposta_crua.cpp, QDir().mkpath(pastaBase_)); fixar 0700 também nela, como já se faz com a pasta respostas. Fonte: triagem do CISO de 01/11/2026, 00:54:18.
+- NL-2.25 (INBOX, INFO-5 da revisão de segurança da NL-2.10c, rodada 2; Emenda 3): uma última linha parcial deixada por queda no meio da escrita não é tratada na retomada (resposta_crua.cpp, retomarArquivo): a retomada só reconhece a linha de corte e pode seguir depois de uma linha incompleta. Fonte: triagem do CISO de 01/11/2026, 00:54:18.
+- NL-2.26 (INBOX, INFO-6 da revisão de segurança da NL-2.10c, rodada 2; Emenda 3): a retomada lê o arquivo inteiro (até o teto de 4 MiB) só para achar a linha de corte; ler só o fim do arquivo. Fonte: triagem do CISO de 01/11/2026, 00:54:18.
 
 ## Backlog
 
