@@ -109,7 +109,8 @@ std::expected<QByteArray, ErroNumero> aplicarSerieENumero(const QByteArray& dpsJ
     return QJsonDocument(objeto).toJson(QJsonDocument::Compact);
 }
 
-int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro)
+int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro,
+                    const nl::mid::composicao::TomadaDaSenha* tomada)
 {
     QTextStream erro{stderr};
     QTextStream saida{stdout};
@@ -220,6 +221,13 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         *derivado,
         diretorioPadraoDasRaizesIcp(QCoreApplication::applicationDirPath()),
     };
+    // NL-2.27b (DA-2.72): na leitura, só vale o descritor tomado na entrada (mesmo dispositivo e inode).
+    if (lidos->descritorSenha && tomada != nullptr) {
+        if (const auto conferida = nl::mid::composicao::conferirTomadaDaSenha(*tomada); !conferida) {
+            erro << QString::fromStdString(conferida.error().codigo) << ": " << QString::fromStdString(conferida.error().mensagem) << Qt::endl;
+            return nl::mid::composicao::codigoDeSaidaDaEmissao(conferida.error().codigo);
+        }
+    }
     // A senha entra pela fachada, do terminal sem eco ou do descritor dado por --senha-certificado-fd: a CLI nunca a vê (DA-2.57b).
     const auto chave = lidos->descritorSenha
                            ? nl::mid::composicao::emitirDpsPeloDescritor(pedido, registro, *lidos->descritorSenha)
@@ -236,6 +244,42 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
     }
     saida << QStringLiteral("emitida: chave ") << *chave << Qt::endl;
     return 0;
+}
+
+} // namespace nl::cli
+
+namespace nl::cli {
+
+std::expected<std::optional<nl::mid::composicao::TomadaDaSenha>, nl::mid::composicao::FalhaEmissao> tomarEntradaDaSenhaNaLinha(
+    QStringList& argumentos)
+{
+    using nl::mid::composicao::TomadaDaSenha;
+    if (argumentos.size() < 2 || argumentos.at(0) != QLatin1String("emitir")) {
+        return std::optional<TomadaDaSenha>{};
+    }
+    for (qsizetype i = 1; i + 1 < argumentos.size(); ++i) {
+        if (argumentos.at(i) != QLatin1String("--senha-certificado-fd")) {
+            continue;
+        }
+        // Número com dígitos só, como no analisador. Fora disso, o analisador recusa com uso (código 2), sem tomar nada.
+        const QString valor = argumentos.at(i + 1);
+        bool digitos = !valor.isEmpty() && valor.size() <= 6;
+        for (const QChar caractere : valor) {
+            if (caractere.unicode() < u'0' || caractere.unicode() > u'9') {
+                digitos = false;
+            }
+        }
+        if (!digitos) {
+            return std::optional<TomadaDaSenha>{};
+        }
+        auto tomada = nl::mid::composicao::tomarEntradaDaSenhaPeloDescritor(valor.toInt());
+        if (!tomada) {
+            return std::unexpected(tomada.error());
+        }
+        argumentos[i + 1] = QString::number(tomada->fd);
+        return std::optional<TomadaDaSenha>(*tomada);
+    }
+    return std::optional<TomadaDaSenha>{};
 }
 
 } // namespace nl::cli

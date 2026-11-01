@@ -19,6 +19,7 @@
 #include <nl/mid/composicao/registro_cli.h>
 #include <nl/mid/cofre/raizes_producao.h>
 #include <nl/mid/cofre/descritor_de_segredo.h>
+#include <nl/mid/cofre/tomada_descritor.h>
 #include <nl/mid/cofre/senha_do_terminal.h>
 #include <nl/mid/cofre/terminal_sem_eco.h>
 #include <nl/foundation/pkcs12/carga_raizes_icp.h>
@@ -368,6 +369,58 @@ std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& 
         return std::unexpected(falhaDoTerminal(senha.error()));
     }
     return emitirDpsPelaCli(pedido, std::move(*senha), registro);
+}
+
+namespace {
+
+// Código estável da recusa da tomada (NL-2.27b, DA-2.72, DA-2.73). A mensagem diz só o tipo do descritor e o que fazer: nunca nome nem
+// caminho de arquivo (ADR-0005), e nunca o conteúdo.
+FalhaEmissao falhaDaTomada(const nl::mid::cofre::RecusaDaTomada& recusa, int numeroPedido)
+{
+    const std::string numero = std::to_string(numeroPedido);
+    switch (recusa.motivo) {
+    case nl::mid::cofre::ErroDaTomada::DescritorInvalido:
+        return falha("cofre.descritor_invalido",
+                     "o descritor " + numero + " da senha está fechado na entrada da CLI, ou é 0, 1 ou 2: nada foi lido");
+    case nl::mid::cofre::ErroDaTomada::DescritorTerminal:
+        return falha("cofre.descritor_terminal", "o descritor " + numero + " da senha é um terminal: entregue a senha por arquivo ou pipe");
+    case nl::mid::cofre::ErroDaTomada::LegivelPorOutros:
+        return falha("cofre.descritor_legivel_por_outros",
+                     "o descritor " + numero + " da senha é um " + recusa.tipo +
+                         ": use permissão 0600, ou entregue a senha por pipe");
+    case nl::mid::cofre::ErroDaTomada::FalhaDeTomada:
+        return falha("cofre.descritor_invalido", "não foi possível tomar o descritor " + numero + " da senha");
+    case nl::mid::cofre::ErroDaTomada::DescritorTrocado:
+        break;
+    }
+    return falha("cofre.descritor_trocado", "o descritor " + numero + " da senha mudou entre a entrada da CLI e a leitura");
+}
+
+} // namespace
+
+std::expected<TomadaDaSenha, FalhaEmissao> tomarEntradaDaSenhaPeloDescritor(int numeroPedido)
+{
+    auto tomada = nl::mid::cofre::tomarDescritorDeSenha(numeroPedido);
+    if (!tomada) {
+        return std::unexpected(falhaDaTomada(tomada.error(), numeroPedido));
+    }
+    TomadaDaSenha resultado;
+    resultado.fd = tomada->fd;
+    resultado.dispositivo = static_cast<std::uint64_t>(tomada->dispositivo);
+    resultado.inodo = static_cast<std::uint64_t>(tomada->inodo);
+    return resultado;
+}
+
+std::expected<void, FalhaEmissao> conferirTomadaDaSenha(const TomadaDaSenha& tomada)
+{
+    nl::mid::cofre::TomadaDeDescritor original;
+    original.fd = tomada.fd;
+    original.dispositivo = static_cast<dev_t>(tomada.dispositivo);
+    original.inodo = static_cast<ino_t>(tomada.inodo);
+    if (auto conferida = nl::mid::cofre::conferirTomadaDeDescritor(original); !conferida) {
+        return std::unexpected(falhaDaTomada(conferida.error(), tomada.fd));
+    }
+    return {};
 }
 
 std::expected<QString, FalhaEmissao> emitirDpsPeloDescritor(const PedidoEmissao& pedido, RegistroCli& registro, int fd)

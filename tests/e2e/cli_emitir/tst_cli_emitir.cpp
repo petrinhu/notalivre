@@ -531,6 +531,13 @@ private slots:
     // NL-2.27 (I3, decisão do CISO de 01/11/2026, 10:32:19): senha vazia digitada no terminal sai com 2 e cofre.senha_vazia, sem
     // chegar ao carregador do A1 (que daria credencial.*).
     void cliSenhaVaziaNoTerminalSaiCom2();
+    // NL-2.27b (DA-2.72): descritor fechado na entrada da CLI sai com 2 e cofre.descritor_invalido, antes de qualquer evento de configuração.
+    void cliDescritorFechadoNaEntradaSaiCom2();
+    // NL-2.27b (DA-2.72): o mesmo com o descritor 9, que nunca é ocupado pelo próprio app.
+    void cliDescritorFechadoNaEntradaSaiCom2Fd9();
+    // NL-2.27b (DA-2.72, DA-2.73): a recusa de descritor legível por outros diz só o tipo, sem nome nem caminho. O nome do arquivo de
+    // fixture traz um CNPJ fictício, que não pode aparecer na saída de erro, no JSON nem no log.
+    void descritorRecusadoNaoNomeiaOArquivo();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -1163,6 +1170,135 @@ void TstCliEmitir::cliSenhaVaziaNoTerminalSaiCom2()
     QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("cofre.senha_vazia"), "senha vazia no terminal tem de sair com cofre.senha_vazia");
     QVERIFY2(!execucao.saida.contains("credencial."), "a senha vazia não pode chegar ao carregador do A1");
+}
+
+// NL-2.27b (DA-2.72): roda a CLI com o descritor `fdPedido` fechado antes do exec (arquivo vazio) ou com `arquivo` aberto nele. Nada é
+// digitado: a CLI não pode pedir senha nestes casos. Devolve a saída e o código, como as outras execuções.
+Execucao rodarCliComDescritorDeEntrada(const QStringList& argumentos, const QString& configDir, int fdPedido, const QString& arquivo)
+{
+    std::vector<QByteArray> dados;
+    dados.push_back(kCli.toLocal8Bit());
+    for (const QString& argumento : argumentos) {
+        dados.push_back(argumento.toLocal8Bit());
+    }
+    std::vector<char*> argv;
+    for (QByteArray& argumento : dados) {
+        argv.push_back(argumento.data());
+    }
+    argv.push_back(nullptr);
+
+    int mestre = -1;
+    const pid_t pid = forkpty(&mestre, nullptr, nullptr, nullptr);
+    if (pid == 0) {
+        setenv("XDG_CONFIG_HOME", configDir.toLocal8Bit().constData(), 1);
+        const QByteArray estado = (configDir + QStringLiteral("/state")).toLocal8Bit();
+        setenv("XDG_STATE_HOME", estado.constData(), 1);
+        if (arquivo.isEmpty()) {
+            close(fdPedido);
+        } else {
+            const int origem = open(QFile::encodeName(arquivo).constData(), O_RDONLY);
+            if (origem < 0 || dup2(origem, fdPedido) < 0) {
+                _exit(126);
+            }
+            if (origem != fdPedido) {
+                close(origem);
+            }
+        }
+        execv(argv[0], argv.data());
+        _exit(127);
+    }
+    Execucao execucao;
+    if (pid < 0) {
+        return execucao;
+    }
+    bool expirou = false;
+    char buffer[1024];
+    for (;;) {
+        pollfd espera{mestre, POLLIN, 0};
+        if (poll(&espera, 1, 30000) <= 0) {
+            expirou = true;
+            break;
+        }
+        const ssize_t lidos = read(mestre, buffer, sizeof buffer);
+        if (lidos <= 0) {
+            break;
+        }
+        execucao.saida.append(buffer, static_cast<int>(lidos));
+    }
+    if (expirou) {
+        kill(pid, SIGKILL);
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    close(mestre);
+    if (expirou) {
+        execucao.codigo = -2;
+    } else if (WIFEXITED(status)) {
+        execucao.codigo = WEXITSTATUS(status);
+    }
+    return execucao;
+}
+
+void TstCliEmitir::cliDescritorFechadoNaEntradaSaiCom2()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:9443"));
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 QStringLiteral("--senha-certificado-fd"), QStringLiteral("3")};
+    const Execucao execucao = rodarCliComDescritorDeEntrada(argumentos, configDir.path(), 3, QString());
+    QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("cofre.descritor_invalido"), "fd 3 fechado na entrada tem de sair com cofre.descritor_invalido");
+    QVERIFY2(!execucao.saida.contains("\"evento\""), "a recusa na entrada não pode trazer evento de configuração nem do Qt");
+}
+
+void TstCliEmitir::cliDescritorFechadoNaEntradaSaiCom2Fd9()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:9443"));
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 QStringLiteral("--senha-certificado-fd"), QStringLiteral("9")};
+    const Execucao execucao = rodarCliComDescritorDeEntrada(argumentos, configDir.path(), 9, QString());
+    QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("cofre.descritor_invalido"), "fd 9 fechado na entrada tem de sair com cofre.descritor_invalido");
+    QVERIFY2(!execucao.saida.contains("\"evento\""), "a recusa na entrada não pode trazer evento de configuração nem do Qt");
+}
+
+void TstCliEmitir::descritorRecusadoNaoNomeiaOArquivo()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:9443"));
+    // Nome de fixture com um CNPJ fictício (11222333000181): nunca o CNPJ de uma pessoa real (L-28).
+    const QString caminho = pasta.filePath(QStringLiteral("segredo-11222333000181.txt"));
+    QFile arquivo(caminho);
+    QVERIFY(arquivo.open(QIODevice::WriteOnly));
+    arquivo.write("senha-de-teste-NL227b\n");
+    arquivo.close();
+    QVERIFY(QFile::setPermissions(caminho, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadGroup | QFileDevice::ReadOther));
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 QStringLiteral("--senha-certificado-fd"), QStringLiteral("3")};
+    const Execucao execucao = rodarCliComDescritorDeEntrada(argumentos, configDir.path(), 3, caminho);
+    QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("cofre.descritor_legivel_por_outros"), "arquivo legível por outros no fd 3 tem de sair com o código próprio");
+    QVERIFY2(execucao.saida.contains("arquivo comum"), "a recusa tem de dizer o tipo do descritor, sem nome");
+    QVERIFY2(!execucao.saida.contains("11222333000181"), "o CNPJ fictício do nome do arquivo não pode aparecer na saída de erro, no JSON nem no log");
+    QVERIFY2(!execucao.saida.contains("segredo-11222333000181"), "o nome do arquivo não pode aparecer na saída");
+    QVERIFY2(!execucao.saida.contains(caminho.toUtf8()), "o caminho completo do arquivo não pode aparecer na saída");
+    QVERIFY2(!execucao.saida.contains("senha-de-teste-NL227b"), "o conteúdo do arquivo nunca pode aparecer na saída");
+    // A saída também vai para a pasta que o portão de PII varre, como nas outras recusas do e2e.
+    const QString pastaPii = qEnvironmentVariable("NL_LOGS_PII_CLI_DIR");
+    QVERIFY2(!pastaPii.isEmpty(), "NL_LOGS_PII_CLI_DIR tem de estar definido pelo CTest");
+    QVERIFY2(QDir().mkpath(pastaPii), "a pasta de logs da CLI tem de existir");
+    QFile logPii(pastaPii + QStringLiteral("/emitir_e2e_descritor_tipo.log"));
+    QVERIFY2(logPii.open(QIODevice::WriteOnly), "o log do e2e tem de abrir na pasta de logs da CLI");
+    logPii.write(execucao.saida);
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)
