@@ -87,6 +87,9 @@ QSslConfiguration configurarSsl(const ConfiguracaoTls& tls)
     QSslConfiguration cfg = QSslConfiguration::defaultConfiguration();
     cfg.setProtocol(QSsl::TlsV1_2OrLater);
     cfg.setPeerVerifyMode(QSslSocket::VerifyPeer);
+    // NL-2.10e (E5, DA-2.79): a Sefin recusa HTTP/2 no caminho autenticado com HTTP_1_1_REQUIRED (Fm-s/open-nfse, L-37). ALPN só
+    // http/1.1, para o cliente não oferecer h2. Segunda camada: Http2AllowedAttribute false em montarPedido.
+    cfg.setAllowedNextProtocols({QByteArrayLiteral("http/1.1")});
     cfg.setCaCertificates(tls.autoridades);
     if (!tls.certificadoCliente.isNull() && !tls.chaveCliente.isNull()) {
         cfg.setLocalCertificate(tls.certificadoCliente);
@@ -141,6 +144,8 @@ QNetworkRequest montarPedido(const UrlBase& base, const ConfiguracaoTls& tls, co
     pedido.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     pedido.setRawHeader("Accept-Encoding", "identity");
     pedido.setSslConfiguration(configurarSsl(tls));
+    // NL-2.10e (E5, DA-2.79): HTTP/2 desligado nesta requisição; com o ALPN acima, o transporte fala só HTTP/1.1.
+    pedido.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     if (!requisicao.tipoConteudo.isEmpty()) {
         pedido.setHeader(QNetworkRequest::ContentTypeHeader, requisicao.tipoConteudo);
     }
