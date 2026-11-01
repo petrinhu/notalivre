@@ -37,7 +37,11 @@ constexpr std::chrono::milliseconds kTempoLimiteMaximo{600000};
 
 ErroTransporte erro(TipoErro tipo, CausaErro causa, QString mensagem)
 {
-    return ErroTransporte{tipo, causa, std::move(mensagem)};
+    ErroTransporte resultado;
+    resultado.tipo = tipo;
+    resultado.causa = causa;
+    resultado.mensagem = std::move(mensagem);
+    return resultado;
 }
 
 ErroTransporte configuracaoInvalida(QString motivo)
