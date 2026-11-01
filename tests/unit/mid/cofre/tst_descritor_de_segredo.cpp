@@ -122,6 +122,20 @@ void TstDescritorDeSegredo::quebraFinalUnicaDescartada()
     const auto cr = nl::mid::cofre::lerSenhaDoDescritor(pipeCom(QByteArrayLiteral("abc\r\n")));
     QVERIFY2(cr.has_value(), "abc com CRLF tem de ser lido");
     QCOMPARE(conteudoDe(*cr), QByteArrayLiteral("abc\r"));
+    // NL-2.27 (revisão, R2-B1): espaço, tab e CR finais sem quebra de linha também são mantidos. Sem estes casos, um leitor que apara
+    // espaço ou CR (X2 e X2b) passava por verde.
+    const auto sozinho = nl::mid::cofre::lerSenhaDoDescritor(pipeCom(QByteArrayLiteral("abc ")));
+    QVERIFY2(sozinho.has_value(), "abc com espaço final, sem quebra, tem de ser lido");
+    QCOMPARE(conteudoDe(*sozinho), QByteArrayLiteral("abc "));
+    const auto retorno = nl::mid::cofre::lerSenhaDoDescritor(pipeCom(QByteArrayLiteral("abc\r")));
+    QVERIFY2(retorno.has_value(), "abc com CR final, sem quebra, tem de ser lido");
+    QCOMPARE(conteudoDe(*retorno), QByteArrayLiteral("abc\r"));
+    const auto tabulado = nl::mid::cofre::lerSenhaDoDescritor(pipeCom(QByteArrayLiteral("abc\t")));
+    QVERIFY2(tabulado.has_value(), "abc com tabulação final, sem quebra, tem de ser lido");
+    QCOMPARE(conteudoDe(*tabulado), QByteArrayLiteral("abc\t"));
+    const auto tabComQuebra = nl::mid::cofre::lerSenhaDoDescritor(pipeCom(QByteArrayLiteral("abc\t\n")));
+    QVERIFY2(tabComQuebra.has_value(), "abc com tabulação e quebra tem de ser lido");
+    QCOMPARE(conteudoDe(*tabComQuebra), QByteArrayLiteral("abc\t"));
 }
 
 void TstDescritorDeSegredo::descritorVazioRecusado()
@@ -151,6 +165,10 @@ void TstDescritorDeSegredo::descritores0a2Recusados()
         QVERIFY2(!r.has_value(), "o descritor 0, 1 ou 2 não pode ser canal de senha");
         QCOMPARE(r.error(), nl::mid::cofre::ErroDoSegredo::DescritorInvalido);
     }
+    // NL-2.27 (revisão, I4b): a recusa de 0, 1 e 2 não os fecha: a asserção vem direta, sem depender do efeito colateral da saída.
+    for (const int fd : {0, 1, 2}) {
+        QVERIFY2(fcntl(fd, F_GETFD) != -1, "o descritor 0, 1 ou 2 tem de continuar aberto depois da recusa");
+    }
 }
 
 void TstDescritorDeSegredo::descritorTerminalRecusado()
@@ -161,6 +179,10 @@ void TstDescritorDeSegredo::descritorTerminalRecusado()
     const auto r = nl::mid::cofre::lerSenhaDoDescritor(escravo);
     QVERIFY2(!r.has_value(), "um terminal não pode ser canal de senha");
     QCOMPARE(r.error(), nl::mid::cofre::ErroDoSegredo::DescritorTerminal);
+    // NL-2.27 (revisão, R2-B3, I4c): a recusa de terminal fecha o escravo pelo leitor (DA-2.16). Arquivo legível fecha o mesmo caminho.
+    errno = 0;
+    QCOMPARE(fcntl(escravo, F_GETFD), -1);
+    QCOMPARE(errno, EBADF);
     // O escravo é fechado pelo próprio leitor na recusa (I4): fechá-lo aqui de novo poderia fechar um descritor reaproveitado.
     close(mestre);
 }
