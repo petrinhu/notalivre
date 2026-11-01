@@ -93,6 +93,8 @@ private slots:
     void avisoNoLogQuandoAGravacaoFalha();
     // CISO, INFO-6 (Emenda 2): teto atingido vira evento no log, sem o caminho e sem conteúdo de resposta.
     void avisoNoLogQuandoOArquivoECortado();
+    // NL-2.10e (E4, correção do prefixo): "sefin.E0714" registra o código E, sem o prefixo; só um código fora do formato vira codigo_invalido.
+    void codigoEDoSefinEhRegistrado();
 };
 
 void TstRegistroCli::excecaoNoTopoLogaSoTipoEPosicao()
@@ -196,6 +198,16 @@ void TstRegistroCli::avisoNoLogQuandoOArquivoECortado()
     QVERIFY2(saida.find("resposta_crua.cortada") != std::string::npos, "o corte tem de sair como evento no log");
     QVERIFY2(saida.find(pasta.path().toStdString()) == std::string::npos, "o caminho da pasta não pode ir ao log");
     QVERIFY2(saida.find("campoaaa") == std::string::npos, "nenhum conteúdo de resposta pode ir ao log");
+}
+
+void TstRegistroCli::codigoEDoSefinEhRegistrado()
+{
+    std::ostringstream destino;
+    auto registro = nl::mid::composicao::criarLogDaCli(destino);
+    registro->registrarEmissaoRecusada(kIdDps, "sefin.E0714");
+    const std::string saida = destino.str();
+    QVERIFY2(saida.find("\"codigoE\":\"E0714\"") != std::string::npos, "o código E do sefin tem de sair sem o prefixo");
+    QVERIFY2(saida.find("codigo_invalido") == std::string::npos, "um código E válido não pode virar codigo_invalido");
 }
 
 QTEST_APPLESS_MAIN(TstRegistroCli)

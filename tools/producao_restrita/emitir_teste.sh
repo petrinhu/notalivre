@@ -427,6 +427,16 @@ emitir_stub() {
             # NL-2.10e (E7, DA-2.80): "sefin.falha" sem nenhum evento sefin.requisicao não é prova de recusa da Sefin: a classificação é incerta.
             echo "emissão recusada (sefin.falha): "
             exit 1 ;;
+        transporte_bytes0)
+            # NL-2.10e (E7, E4): falha de transporte com zero bytes escritos é antes da Sefin: local.
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"tls","codigoQt":"4","handshake":"sim","bytesEscritos":"0","etapa":"POST"},"descartados":0}'
+            echo "emissão recusada (sefin.falha): "
+            exit 1 ;;
+        transporte_bytes5)
+            # NL-2.10e (E7, E4): com bytes escritos, o POST pode ter chegado: incerta.
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"5","etapa":"POST"},"descartados":0}'
+            echo "emissão recusada (sefin.falha): "
+            exit 1 ;;
         morto139)
             # NL-2.27 (B1, revisão de segurança): POST registrado e processo morto. A Sefin pode ter recebido a DPS: a classificação é incerta.
             echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"200"},"descartados":0}'
@@ -643,6 +653,9 @@ ensaio() {
     # e a mensagem manda confirmar na Sefin antes de reemitir. Morte sem POST na saída também é incerta (o corte pode ser depois do envio).
     ensaio_caso morto_depois_do_post_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=morto139 NL_ENSAIO_NDPS_ESPERADO=1
     # NL-2.10e (E7): "sefin.falha" sem sefin.requisicao não pode sair como "A Sefin recusou"; a mensagem é de confirmação.
+    # NL-2.10e (E7, E4): transporte com zero bytes é local; com bytes escritos, o POST pode ter chegado: incerta.
+    ensaio_caso transporte_sem_bytes_e_local 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=transporte_bytes0 NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso transporte_com_bytes_e_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=transporte_bytes5 NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso sefin_falha_sem_requisicao_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=sefin_falha_sem_requisicao NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso morto_sem_post_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=morto137 NL_ENSAIO_NDPS_ESPERADO=1
     # NL-2.27 (R2-B2, SB1b): POST 200 registrado e saída 1, sem texto sefin. Só a regra POST torna isso incerta; sem ela, cairia em local.
