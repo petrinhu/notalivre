@@ -25,6 +25,8 @@ std::vector<fl::DeclaracaoCampo> allowlistLogSefin()
         fl::DeclaracaoCampo{"codigosSsl", fl::Regra::Cru},
         fl::DeclaracaoCampo{"versaoTls", fl::Regra::Cru},
         fl::DeclaracaoCampo{"protocoloNegociado", fl::Regra::Cru},
+        // NL-2.10e (DA-2.82): categoria do Qt num conjunto fechado (qt.network.ssl, qt.network.http2, qt.network.access, outro).
+        fl::DeclaracaoCampo{"categoria", fl::Regra::Cru},
     };
 }
 
