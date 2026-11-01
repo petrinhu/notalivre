@@ -156,6 +156,7 @@ struct Desfecho {
     QNetworkReply::NetworkError codigo = QNetworkReply::NoError;
     int status = 0;
     QByteArray corpo;
+    QByteArray tipoConteudo;  // Content-Type da resposta, como veio no cabeçalho (NL-2.10c, emenda 1 item a)
     bool contentEncodingIdentidade = true;
     // Bytes do corpo que o Qt escreveu no socket (sinal uploadProgress). Zero: nada do POST saiu da máquina (DA-2.41).
     qint64 bytesEscritos = 0;
@@ -232,6 +233,7 @@ Desfecho executar(QNetworkAccessManager& gerenciador, const QNetworkRequest& ped
     desfecho.status = statusAtributo.isValid() ? statusAtributo.toInt() : 0;
     desfecho.corpo.append(resposta->readAll());
     desfecho.contentEncodingIdentidade = contentEncodingEhIdentity(resposta);
+    desfecho.tipoConteudo = resposta->rawHeader("Content-Type");
     return desfecho;
 }
 
@@ -253,7 +255,7 @@ std::expected<RespostaHttp, ErroTransporte> classificarDesfecho(const Desfecho& 
                                         mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)));
         }
         if (ehCodigoDeRespostaCompleta(d.codigo)) {
-            return RespostaHttp{d.status, d.corpo};
+            return RespostaHttp{d.status, d.corpo, d.tipoConteudo};
         }
         // Erro de rede (1 a 99) depois do status: corpo incompleto ou conexão cortada, nunca resposta.
         const int codigo = static_cast<int>(d.codigo);

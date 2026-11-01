@@ -67,6 +67,7 @@ struct RequisicaoHttp {
 struct RespostaHttp {
     int status;
     QByteArray corpo;
+    QByteArray tipoConteudo;  ///< Content-Type da resposta, como o servidor mandou; vazio se o cabeçalho não veio.
 };
 
 class TransporteHttps {

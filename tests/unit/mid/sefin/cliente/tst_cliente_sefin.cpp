@@ -285,6 +285,24 @@ private:
     mc::ResultadoComparacaoInfDps resultado_;
 };
 
+// Observador de teste (NL-2.10c, passo 1): guarda as respostas HTTP que o cliente reporta, na ordem em que chegaram.
+class RegistroObservador final : public mc::ObservadorRespostas {
+public:
+    struct Resposta {
+        std::string metodo;
+        std::string rota;
+        int status = 0;
+        QByteArray tipoConteudo;
+        QByteArray corpo;
+    };
+    void registrar(std::string_view metodo, std::string_view rota, int status, const QByteArray& tipoConteudo,
+                   const QByteArray& corpo) override
+    {
+        respostas.push_back(Resposta{std::string(metodo), std::string(rota), status, tipoConteudo, corpo});
+    }
+    std::vector<Resposta> respostas;
+};
+
 struct Montagem {
     std::ostringstream destino;
     std::unique_ptr<fl::Log> log;
@@ -293,7 +311,8 @@ struct Montagem {
 };
 
 std::unique_ptr<Montagem> montar(int porta, const fp::CredencialX509& cred,
-                                 std::shared_ptr<const mc::ComparadorInfDps> comparador = nullptr)
+                                 std::shared_ptr<const mc::ComparadorInfDps> comparador = nullptr,
+                                 mc::ObservadorRespostas* observador = nullptr)
 {
     auto m = std::make_unique<Montagem>();
     m->log = std::make_unique<fl::Log>(
@@ -305,7 +324,7 @@ std::unique_ptr<Montagem> montar(int porta, const fp::CredencialX509& cred,
     m->transporte = std::make_unique<ft::TransporteHttps>(base, configuracaoTls(cred));
     mc::PoliticaRetry politica;
     politica.base = 1ms;  // a espera é real mas curta: o teste mede a ordem, não o tempo
-    m->cliente = std::make_unique<mc::ClienteSefin>(*m->transporte, *m->log, politica, comparador);
+    m->cliente = std::make_unique<mc::ClienteSefin>(*m->transporte, *m->log, politica, comparador, observador);
     return m;
 }
 
@@ -499,6 +518,32 @@ private slots:
                  "E0014 sem nota para comparar é Indeterminado, nunca Rejeitada");
         const std::vector<std::string> esperado{"POST:400", "GET:404"};
         QVERIFY2(sequencia(m->destino.str()) == esperado, "E0014 consulta e não repete o POST");
+    }
+
+    void observadorRecebeCadaRespostaDaEmissao()
+    {
+        // NL-2.10c (DA-2.66, passo 1): o observador vê cada resposta HTTP da emissão, com método, modelo da rota (sem o Id),
+        // status e Content-Type. A recusa E0014 sem nota faz POST /nfse 400 e GET /dps 404: as duas chegam ao observador.
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao:E0014")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        RegistroObservador observador;
+        auto m = montar(srv.porta(), *cred, nullptr, &observador);
+        const auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "E0014 sem nota continua sendo recusa, não sucesso");
+        QVERIFY2(observador.respostas.size() == 2,
+                 qPrintable(QStringLiteral("o observador tinha de ver 2 respostas (POST e GET /dps); viu %1")
+                                .arg(observador.respostas.size())));
+        const RegistroObservador::Resposta& post = observador.respostas[0];
+        QVERIFY2(post.metodo == "POST" && post.rota == "/nfse" && post.status == 400,
+                 "a primeira resposta tem de ser o POST /nfse com status 400, com a rota sem Id");
+        QVERIFY2(post.tipoConteudo.startsWith("application/json"), "o Content-Type do POST tem de chegar ao observador");
+        const RegistroObservador::Resposta& consulta = observador.respostas[1];
+        QVERIFY2(consulta.metodo == "GET" && consulta.rota == "/dps/{id}" && consulta.status == 404,
+                 "a segunda resposta tem de ser o GET /dps com status 404, com a rota modelo /dps/{id}");
     }
 
     void certificadoRevogadoMapeadoPelaRejeicaoDaSefin()

@@ -226,17 +226,20 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
         return std::unexpected(autoridadesTls.error());
     }
     ft::TransporteHttps transporte(base, configuracaoTls(*credencial, *autoridadesTls));
+    // Análise local (DA-2.59 item 4, NL-2.10c): cada resposta HTTP da Sefin, recusas incluídas, vai ao arquivo da DPS pelo
+    // observador. A falha de gravação não desfaz a emissão, que já aconteceu na Sefin: o gravador guarda o erro, e a chave
+    // segue na saída da CLI.
+    const QString estado = qEnvironmentVariable("XDG_STATE_HOME");
+    const QString pastaAnalise = (estado.isEmpty() ? QDir::homePath() + QStringLiteral("/.local/state") : estado) + QStringLiteral("/notalivre");
+    GravadorRespostaCrua gravador(pastaAnalise, idDps->texto().toStdString());
     nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{},
-                                                  std::make_shared<nl::mid::sefin::cliente::ComparadorInfDpsC14n>());
+                                                  std::make_shared<nl::mid::sefin::cliente::ComparadorInfDpsC14n>(), &gravador);
     auto nota = cliente.emitir(bk::DpsAssinada{*idDps, *assinado});
+    // CISO, INFO-6 (Emenda 2): falha de gravação e teto atingido viram evento no log, na aceita e na recusada.
+    registro.registrarGravacaoDaResposta(gravador);
     if (!nota) {
         return std::unexpected(recusada(registro, *idDps, falhaDoEnvio(nota.error())));
     }
-    // Análise local (DA-2.59 item 4). A falha de gravação não desfaz a emissão, que já aconteceu na Sefin: o caso fica sem
-    // arquivo, e a chave segue na saída da CLI.
-    const QString estado = qEnvironmentVariable("XDG_STATE_HOME");
-    const QString pastaAnalise = (estado.isEmpty() ? QDir::homePath() + QStringLiteral("/.local/state") : estado) + QStringLiteral("/notalivre");
-    static_cast<void>(gravarRespostaCrua(nota->corpoCru, pastaAnalise, idDps->texto().toStdString()));
     registro.registrarEmissaoAceita(idDps->texto().toStdString(), nota->chave.texto().toStdString());
     return nota->chave.texto();
 }

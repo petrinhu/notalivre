@@ -9,6 +9,8 @@ e2e.cliEmitir.ancorasTlsSozinhasValidamOServidor | servidor falso em Python com 
 e2e.cliEmitir.caminhoDoCertificadoNuncaVaiAoLog | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 e2e.cliEmitir.caminhoDoCertificadoVemDaConfiguracao | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso | servidor falso em Python com oráculo ausente no SDK e segredo de referência gerado pelo e2e | coberto no build nativo
+e2e.cliEmitir.cliGravaARespostaDaRecusa | servidor falso em Python com oráculo ausente no SDK (rejeicao:E1207 com CPF no texto livre) | coberto no build nativo
+e2e.cliEmitir.cliAvisaQuandoAGravacaoFalha | servidor falso em Python com oráculo ausente no SDK (emissão aceita e gravação bloqueada) | coberto no build nativo
 e2e.cliEmitir.cliRecusaDpsInvalidaSemPost | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 e2e.cliEmitir.e0014ComInfDpsDiferenteSaiComCinco | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 e2e.cliEmitir.e0014DaMesmaDpsRecuperaAChave | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
@@ -37,6 +39,7 @@ mid.sefin.cliente.erroDefinitivoDepoisDoEnvioViraIndeterminado | xmlsec1 ausente
 mid.sefin.cliente.getTransitorioRepeteComBackoff | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.membroExtraDoGzipViraXmlPendente | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.naoGeradaReenviaMesmoIdNuncaNumeroNovo | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.observadorRecebeCadaRespostaDaEmissao | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.posPost2xxForaDe200e201ConsultaDps | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.posPost2xxSemChaveConsultaDps | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.post3xxConsultaDpsAntesDeReenviar | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
