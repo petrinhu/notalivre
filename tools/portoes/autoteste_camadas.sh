@@ -234,6 +234,39 @@ mkdir -p "$TMP/pz/apps/cli" && cp -a "$RAIZ_REAL/src" "$TMP/pz/" && cp -a "$RAIZ
 controle pz 1 "$TMP/pz" 'processo: varridos apps/gui=0 '
 controle PR15 0 "$RAIZ_REAL" 'processo: varridos apps/gui=[1-9][0-9]* src=[1-9][0-9]*'
 
+# --- QML (QA da NL-2.38, A1 e A2): o portão varre .qml de apps/gui; o literal e openUrlExternally reprovam ---
+# Fonte da regra de QML: documentação do Qt 6.12 (objeto Qt, qml-qtqml-qt.html): Qt.openUrlExternally "attempts to open
+# the specified target url in an external application" (repassa a QDesktopServices::openUrl). É o único método do Qt
+# que inicia programa externo; createComponent, createQmlObject, quit e exit não iniciam nada.
+viol_qml='^VIOLACAO apps/gui/qml/Sabot\.qml:[0-9]+: '
+controle_inclusao Q01 apps/gui/qml/Sabot.qml 1 'property string nome: "notalivre-cli"' \
+    "${viol_qml}texto notalivre-cli proibido fora de apps/cli"
+controle_inclusao Q02 apps/gui/qml/Sabot.qml 1 'Qt.openUrlExternally("https://example.invalid")' \
+    "${viol_qml}chamada de processo openUrlExternally proibida"
+# Comentário QML com o literal: não é texto, não reprova (negativo).
+controle_inclusao Q03 apps/gui/qml/Sabot.qml 0 '// notalivre-cli' 'violacoes=0$'
+# Piso: uma GUI só em QML (sem .cpp) tem de contar os .qml e passar o piso (A2).
+mkdir -p "$TMP/pq/apps/gui" && cp -a "$RAIZ_REAL/src" "$TMP/pq/" && cp -a "$RAIZ_REAL/apps/cli" "$TMP/pq/apps/" \
+    && cp -a "$RAIZ_REAL/apps/gui/qml" "$TMP/pq/apps/gui/" || { echo "ERRO: árvore do piso QML"; exit 1; }
+controle pq 0 "$TMP/pq" 'processo: varridos apps/gui=[1-9]'
+
+# --- A4 (QA): dígito separador 1'000 seguido de comentário com chamada não pode esconder nem reprovar o comentário ---
+controle_inclusao A4 apps/gui/main.cpp 0 "int n = 1'000; // system( fork(" 'violacoes=0$'
+
+# --- A6 (QA): um caso por nome da família exec e dos outros padrões (guardas: cada um tem de reprovar onde o padrão pede) ---
+controle_inclusao E01 apps/gui/main.cpp 1 'execl("ls", "ls", nullptr);' "${viol_proc_gui}execl proibida"
+controle_inclusao E02 apps/gui/main.cpp 1 'execlp("ls", "ls", nullptr);' "${viol_proc_gui}execlp proibida"
+controle_inclusao E03 apps/gui/main.cpp 1 'execle("ls", "ls", nullptr, nullptr);' "${viol_proc_gui}execle proibida"
+controle_inclusao E04 apps/gui/main.cpp 1 'execv("ls", nullptr);' "${viol_proc_gui}execv proibida"
+controle_inclusao E05 apps/gui/main.cpp 1 'execvpe("ls", nullptr, nullptr);' "${viol_proc_gui}execvpe proibida"
+controle_inclusao E06 apps/gui/main.cpp 1 'fexecve(0, nullptr, nullptr);' "${viol_proc_gui}fexecve proibida"
+controle_inclusao E07 apps/gui/main.cpp 1 'posix_spawnp(&pid, "ls", nullptr, nullptr, nullptr, nullptr);' \
+    "${viol_proc_gui}posix_spawnp proibida"
+controle_inclusao E08 apps/gui/main.cpp 1 'int r = system("ls");' "${viol_proc_gui}system proibida"
+controle_inclusao E09 apps/gui/main.cpp 1 'execveat(0, "ls", nullptr, nullptr, 0);' "${viol_proc_gui}execveat proibida"
+controle_inclusao E10 src/mid/camada.cpp 1 'FILE *f = popen("ls", "r");' "${viol_proc_src}popen proibida"
+controle_inclusao E11 src/mid/camada.cpp 1 'execve("ls", nullptr, nullptr);' "${viol_proc_src}execve proibida"
+
 echo "autoteste_camadas: $APROVADOS/$TOTAL controles verdes"
 [ "$APROVADOS" = "$TOTAL" ] || exit 1
 exit 0
