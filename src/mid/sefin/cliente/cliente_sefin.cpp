@@ -8,6 +8,7 @@
 #include <nl/mid/sefin/cliente/cliente_sefin.h>
 
 #include <nl/mid/sefin/cliente/catalogo_erros_sefin.h>
+#include <nl/mid/sefin/cliente/campos_lidos_sefin.h>
 #include <nl/mid/sefin/cliente/leitor_erro_sefin.h>
 #include <nl/mid/sefin/leiaute/prodrest_20261020/envelope_dps.h>
 // Teto do XML (kLimiteXmlNfse): o número mora só na pasta do leiaute (include relativo, como codec_dps.cpp).
@@ -92,7 +93,7 @@ void registrarErro(fl::Log& registro, const std::string& codigoBruto)
 // Chave da NFS-e do objeto de sucesso (INFERÊNCIA, pesquisa g).
 std::expected<bk::ChaveAcesso, bk::FalhaSefin> chaveDoObjeto(const QJsonObject& obj)
 {
-    auto chave = bk::ChaveAcesso::de(obj.value(QStringLiteral("chaveAcesso")).toString());
+    auto chave = bk::ChaveAcesso::de(obj.value(QLatin1StringView(kCampoChaveAcesso.data(), static_cast<qsizetype>(kCampoChaveAcesso.size()))).toString());
     if (!chave) {
         return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva));
     }
@@ -151,7 +152,7 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> notaDoCorpo(const QByteArray& corpo
     if (!chave) {
         return std::unexpected(chave.error());
     }
-    auto xml = xmlDoCampo(doc.object().value(QStringLiteral("nfseXmlGZipB64")).toString());
+    auto xml = xmlDoCampo(doc.object().value(QLatin1StringView(kCampoNfseXmlGZipB64.data(), static_cast<qsizetype>(kCampoNfseXmlGZipB64.size()))).toString());
     if (!xml) {
         return bk::NotaSefin{*chave, {}, true, {}};
     }

@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Resposta crua da Sefin para análise local (NL-2.9, DA-2.59 item 4; NL-2.10c, DA-2.66: recusas incluídas). Ver resposta_crua.h.
 #include <nl/mid/composicao/resposta_crua.h>
+#include <nl/mid/sefin/cliente/campos_lidos_sefin.h>
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -27,11 +28,11 @@
 namespace nl::mid::composicao {
 namespace {
 
-// A chave de acesso sai com # no lugar de cada caractere: ela não vai ao arquivo em claro (ADR-0005).
-const QString kCampoChave = QStringLiteral("chaveAcesso");
-// Os únicos campos onde o código E pode sair sem máscara (condição do CISO, 31/10/2026, emenda 1 item c).
-const QString kCampoCodigo = QStringLiteral("Codigo");
-const QString kCampoCodigoMinusculo = QStringLiteral("codigo");
+// Nome igual a um campo lido pelo cliente: a comparação é com a mesma constante que o leitor usa (campos_lidos_sefin.h).
+bool nomeIgual(const QString& nome, std::string_view campo)
+{
+    return nome == QString::fromLatin1(campo.data(), static_cast<qsizetype>(campo.size()));
+}
 
 // Limites da descida (condição do CISO, 31/10/2026): oito níveis de objeto ou array; cem elementos por array.
 constexpr int kProfundidadeMaxima = 8;
@@ -42,28 +43,56 @@ constexpr qsizetype kTetoArquivoBytes = 4 * 1024 * 1024;
 QJsonObject mascararObjeto(const QJsonObject& objeto, int nivel);
 QJsonValue mascararValor(const QString& nome, const QJsonValue& valor, int nivel);
 
-// Nome de chave que pode sair em claro (CISO, MÉDIA-1, Emenda 2): ^[A-Za-z_][A-Za-z0-9_]{0,63}$ e no máximo dois dígitos.
-// Fora disso, o nome sai como <chave:N>, com N o tamanho do nome.
-bool nomeDeChaveSeguro(const QString& nome)
+// Nome de chave que sai em claro (CISO, MÉDIA-1, Emenda 3): só um dos nomes que o cliente lê (campos_lidos_sefin.h). A regra
+// antiga (regex e limite de dígitos) saiu: um nome como ABCDEFGHIJKL12 passava nela.
+bool lidoPeloCliente(const QString& nome)
 {
-    static const QRegularExpression padrao(QStringLiteral("\\A[A-Za-z_][A-Za-z0-9_]{0,63}\\z"));
-    if (!padrao.match(nome).hasMatch()) {
-        return false;
-    }
-    qsizetype digitos = 0;
-    for (const QChar c : nome) {
-        if (c >= QLatin1Char('0') && c <= QLatin1Char('9')) {
-            ++digitos;
+    for (const std::string_view campo : nl::mid::sefin::cliente::kCamposLidosPeloCliente) {
+        if (nomeIgual(nome, campo)) {
+            return true;
         }
     }
-    return digitos <= 2;
+    return false;
 }
 
-// Content-Type que pode sair em claro (CISO, BAIXA-2, Emenda 2): os tipos JSON, com ou sem charset de nome simples.
+// Classe dos caracteres de um nome: letras, digitos ou alfanumerico (só ASCII); outro, se houver qualquer outro caractere.
+QString classeDoNome(const QString& nome)
+{
+    bool letras = false;
+    bool digitos = false;
+    bool outro = false;
+    for (const QChar c : nome) {
+        const char16_t u = c.unicode();
+        if ((u >= u'a' && u <= u'z') || (u >= u'A' && u <= u'Z')) {
+            letras = true;
+        } else if (u >= u'0' && u <= u'9') {
+            digitos = true;
+        } else {
+            outro = true;
+        }
+    }
+    if (outro || nome.isEmpty()) {
+        return QStringLiteral("outro");
+    }
+    if (letras && digitos) {
+        return QStringLiteral("alfanumerico");
+    }
+    return letras ? QStringLiteral("letras") : QStringLiteral("digitos");
+}
+
+// Nome que não é lido pelo cliente, na forma <chave:N:classe:k>: N o tamanho, classe a forma dos caracteres e k a ordem no objeto.
+// A ordem torna únicos os nomes de mesmo tamanho, então nenhum campo colide (INFO-9).
+QString formaDoNome(const QString& nome, qsizetype ordem)
+{
+    return QStringLiteral("<chave:%1:%2:%3>").arg(nome.size()).arg(classeDoNome(nome)).arg(ordem);
+}
+
+// Content-Type que pode sair em claro (CISO, BAIXA-2', Emenda 3): application/json ou application/problem+json, com ou sem charset
+// da lista fechada utf-8 ou utf8, sem diferenciar maiúsculas. O resto sai como <string:N>.
 bool tipoDeConteudoSeguro(const QString& tipo)
 {
     static const QRegularExpression padrao(
-        QStringLiteral("\\A(application/json|application/problem\\+json)(; charset=[A-Za-z0-9._:-]{1,40})?\\z"));
+        QStringLiteral("\\A(application/json|application/problem\\+json)(; charset=(?i:utf-8|utf8))?\\z"));
     return padrao.match(tipo).hasMatch();
 }
 
@@ -97,7 +126,8 @@ bool codigoEValido(const QString& texto)
 // Um texto sai inteiro só se o campo é Codigo ou codigo e o valor inteiro casa com ^E\d{3,4}$.
 bool campoDeCodigoE(const QString& nome, const QString& texto)
 {
-    return (nome == kCampoCodigo || nome == kCampoCodigoMinusculo) && codigoEValido(texto);
+    return (nomeIgual(nome, nl::mid::sefin::cliente::kCampoCodigo) || nomeIgual(nome, nl::mid::sefin::cliente::kCampoCodigoMinusculo))
+           && codigoEValido(texto);
 }
 
 // Array: cada um dos cem primeiros elementos passa pela mesma regra; o resto vira um marcador <mais:N>.
@@ -133,7 +163,7 @@ QJsonValue mascararValor(const QString& nome, const QJsonValue& valor, int nivel
     }
     if (valor.isString()) {
         const QString texto = valor.toString();
-        if (nome == kCampoChave) {
+        if (nomeIgual(nome, nl::mid::sefin::cliente::kCampoChaveAcesso)) {
             QString mascara;
             mascara.fill(QLatin1Char('#'), texto.size());
             return mascara;
@@ -155,32 +185,36 @@ QJsonValue mascararValor(const QString& nome, const QJsonValue& valor, int nivel
 QJsonObject mascararObjeto(const QJsonObject& objeto, int nivel)
 {
     QJsonObject mascarado;
+    qsizetype ordem = 0;
     for (auto it = objeto.constBegin(); it != objeto.constEnd(); ++it) {
-        const QString chave = nomeDeChaveSeguro(it.key()) ? it.key() : QStringLiteral("<chave:%1>").arg(it.key().size());
+        ++ordem;
+        const QString chave = lidoPeloCliente(it.key()) ? it.key() : formaDoNome(it.key(), ordem);
         mascarado.insert(chave, mascararValor(it.key(), it.value(), nivel + 1));
     }
     return mascarado;
 }
 
 // A pasta respostas nasce 0700 (CISO, BAIXA-4): mkdir com o modo fechado. Pasta que já existe não tem o modo mudado.
+// A pasta respostas sai 0700 (CISO, BAIXA-4 e BAIXA-4b, Emenda 3): criada com mkdir 0700, e se já existe com outro modo, fixada em 0700.
 bool criarPasta0700(const QString& pasta)
 {
-    if (QDir(pasta).exists()) {
-        return true;
+    if (!QDir(pasta).exists() && ::mkdir(QFile::encodeName(pasta).constData(), 0700) != 0) {
+        return false;
     }
-    return ::mkdir(QFile::encodeName(pasta).constData(), 0700) == 0;
+    return QFile::setPermissions(pasta, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
 }
 
-// O arquivo nasce 0600 (CISO, BAIXA-3): o umask só tira bits, então 0600 é o teto e não depende do umask do processo. Quem escreve
-// abre em seguida com QFile.
+// O arquivo sai 0600 (CISO, BAIXA-3 e INFO-3, Emenda 3): criado com modo 0600 (o umask só tira bits) e, se já existia com modo largo,
+// fixado em 0600 antes de qualquer linha. Quem escreve abre em seguida com QFile.
 bool criarArquivo0600(const QString& caminho)
 {
     const int descritor = ::open(QFile::encodeName(caminho).constData(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0600);
     if (descritor < 0) {
         return false;
     }
+    const bool ajustado = ::fchmod(descritor, 0600) == 0;
     ::close(descritor);
-    return true;
+    return ajustado;
 }
 
 // Nome do arquivo: 16 caracteres do hash do Id. Nem o Id nem a chave aparecem no nome.
