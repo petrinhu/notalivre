@@ -43,23 +43,23 @@ Nos comandos abaixo, o que está entre `< >` é um texto que você troca pelo se
 
 Um registro só. Confira antes de instalar.
 
-- **Run do CI:** `41329186551` (verde nos 10 jobs, incluindo `flatpak` e o smoke no host do runner)
-- **Commit:** `6c6118aa9752a32a353903a6482c65600c74e216` (merge da NL-2.27b na onda-2)
+- **Run do CI:** `41362487894` (verde, incluindo `flatpak` e o smoke no host do runner)
+- **Commit:** `22cdb30b9f22fd56bbef2b9deb6047a87a294aad` (merge da NL-2.10e na onda-2)
 - **Artefato:** `notalivre-bundle`
-- **Digest do ZIP do artefato, pela API do GitHub:** `sha256:a6abb27be3bae25af72db594ae04e9c8c2749704c36b9340369224a72e6d304d`
-- **SHA-256 completo do arquivo `notalivre.flatpak`:** `157af29ce2ea809cf4ebb13f8129ece640bbccb99bfb97d8bdc068354ba90140`
-- **Caminho do arquivo:** `/var/tmp/notalivre-nl210/bundle/run-41329186551/notalivre.flatpak`
-- **Tamanho:** 639896 bytes
+- **Digest do ZIP do artefato, pela API do GitHub:** `sha256:bf64796c188e477a490080ce4e5c0fcf30005dd053fb9a2bd83ec84fc246d2a5`
+- **SHA-256 completo do arquivo `notalivre.flatpak`:** `2c2372581c392b0088faa6271bb40a9333f658b047ba6398e5acef23a90164c0`
+- **Caminho do arquivo:** `/var/tmp/notalivre-nl210/bundle/run-41362487894/notalivre.flatpak`
+- **Tamanho:** 648336 bytes
 
 Antes de instalar, rode:
 
 ```
-sha256sum /var/tmp/notalivre-nl210/bundle/run-41329186551/notalivre.flatpak
+sha256sum /var/tmp/notalivre-nl210/bundle/run-41362487894/notalivre.flatpak
 ```
 
-O resultado tem de ser exatamente `157af29ce2ea809cf4ebb13f8129ece640bbccb99bfb97d8bdc068354ba90140`. Se for outro, não instale e avise o agente. O job do CI não imprime esse SHA-256 no log; o valor foi calculado pelo agente sobre o arquivo baixado do artefato, e o digest do ZIP confere com a API.
+O resultado tem de ser exatamente `2c2372581c392b0088faa6271bb40a9333f658b047ba6398e5acef23a90164c0`. Se for outro, não instale e avise o agente. O job do CI não imprime esse SHA-256 no log; o valor foi calculado pelo agente sobre o arquivo baixado do artefato, e o digest do ZIP confere com a API.
 
-**Este pacote substitui o anterior** (run `41279001563`, commit `13848877`, SHA-256 `8314ce15…`). Use só este.
+**Este pacote substitui o anterior** (run `41329186551`, commit `6c6118a`, SHA-256 `157af29c…`). Use só este.
 
 ---
 
@@ -88,15 +88,15 @@ Quem roda os comandos é você, no seu computador, com o seu certificado. O agen
 ### 3.1 Conferir o arquivo do programa
 
 ```
-sha256sum /var/tmp/notalivre-nl210/bundle/run-41329186551/notalivre.flatpak
+sha256sum /var/tmp/notalivre-nl210/bundle/run-41362487894/notalivre.flatpak
 ```
 
-O resultado tem de ser exatamente `157af29ce2ea809cf4ebb13f8129ece640bbccb99bfb97d8bdc068354ba90140`. Se for outro, pare e avise o agente.
+O resultado tem de ser exatamente `2c2372581c392b0088faa6271bb40a9333f658b047ba6398e5acef23a90164c0`. Se for outro, pare e avise o agente.
 
 ### 3.2 Instalar o programa
 
 ```
-flatpak install --user --bundle /var/tmp/notalivre-nl210/bundle/run-41329186551/notalivre.flatpak
+flatpak install --user --bundle /var/tmp/notalivre-nl210/bundle/run-41362487894/notalivre.flatpak
 ```
 
 Se o sistema pedir o ambiente de execução do KDE 6.11 e você ainda não o tiver, instale com `flatpak install --user flathub org.kde.Platform//6.11` e repita este passo.
