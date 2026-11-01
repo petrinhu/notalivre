@@ -5,6 +5,7 @@
 
 #include <QByteArray>
 #include <QFile>
+#include <QStringList>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -14,6 +15,7 @@
 #include <fcntl.h>
 #include <pty.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 namespace {
@@ -160,15 +162,40 @@ void TstDescritorDeSegredo::descritorAcimaDoTetoRecusado()
 
 void TstDescritorDeSegredo::descritores0a2Recusados()
 {
-    for (const int fd : {0, 1, 2}) {
-        const auto r = nl::mid::cofre::lerSenhaDoDescritor(fd);
-        QVERIFY2(!r.has_value(), "o descritor 0, 1 ou 2 não pode ser canal de senha");
-        QCOMPARE(r.error(), nl::mid::cofre::ErroDoSegredo::DescritorInvalido);
+    // NL-2.27 (rodada 4, I4b): a conferência roda num filho. Uma mutação que feche 0, 1 ou 2 não pode apagar a saída do QTest do pai
+    // (fechar o fd 1 apagava a saída e a falha virava "Required regular expression not found"). O filho não escreve nada e sai com
+    // uma máscara: bit k = o fd k foi fechado pela recusa; bit 3 (8) = a recusa de 0, 1 ou 2 devolveu outro erro que não DescritorInvalido.
+    const pid_t filho = fork();
+    QVERIFY2(filho >= 0, "fork tem de funcionar para conferir os descritores 0, 1 e 2");
+    if (filho == 0) {
+        int mascara = 0;
+        for (const int fd : {0, 1, 2}) {
+            const auto r = nl::mid::cofre::lerSenhaDoDescritor(fd);
+            if (r.has_value() || r.error() != nl::mid::cofre::ErroDoSegredo::DescritorInvalido) {
+                mascara |= 8;
+            }
+        }
+        for (const int fd : {0, 1, 2}) {
+            if (fcntl(fd, F_GETFD) == -1) {
+                mascara |= (1 << fd);
+            }
+        }
+        _exit(mascara);
     }
-    // NL-2.27 (revisão, I4b): a recusa de 0, 1 e 2 não os fecha: a asserção vem direta, sem depender do efeito colateral da saída.
-    for (const int fd : {0, 1, 2}) {
-        QVERIFY2(fcntl(fd, F_GETFD) != -1, "o descritor 0, 1 ou 2 tem de continuar aberto depois da recusa");
+    int estado = 0;
+    QVERIFY2(waitpid(filho, &estado, 0) == filho, "o pai tem de esperar o filho da conferência");
+    QVERIFY2(WIFEXITED(estado), "o filho da conferência tem de sair normalmente");
+    const int mascara = WEXITSTATUS(estado);
+    QStringList problemas;
+    for (int fd = 0; fd <= 2; ++fd) {
+        if (mascara & (1 << fd)) {
+            problemas << QStringLiteral("o fd %1 foi fechado pela recusa").arg(fd);
+        }
     }
+    if (mascara & 8) {
+        problemas << QStringLiteral("a recusa de 0, 1 ou 2 devolveu outro erro que não DescritorInvalido");
+    }
+    QVERIFY2(mascara == 0, qPrintable(QStringLiteral("máscara %1: %2").arg(mascara).arg(problemas.join(QStringLiteral("; ")))));
 }
 
 void TstDescritorDeSegredo::descritorTerminalRecusado()
