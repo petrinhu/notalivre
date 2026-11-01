@@ -231,7 +231,11 @@ classificar() {
     # NL-2.10e (E4, E7): falha de transporte com zero bytes escritos é antes da Sefin: local. Com bytes escritos, o POST pode ter
     # chegado: incerta (o sinal é o evento sefin.transporte_falhou, antes de qualquer texto de recusa).
     if grep -q 'sefin\.transporte_falhou' "$2"; then
-        if awk '/"evento":"sefin.transporte_falhou"/ && /"bytesEscritos":"0"/ { achou = 1 } END { exit !achou }' "$2"; then
+        # R-B1 (revisão, NL-2.10e): qualquer evento com bytes escritos, em qualquer etapa, torna a tentativa incerta (o POST pode ter
+        # chegado). Local só com a etapa POST e zero bytes escritos.
+        if awk '/"evento":"sefin.transporte_falhou"/ && !/"bytesEscritos":"0"/ { achou = 1 } END { exit !achou }' "$2"; then
+            RESULTADO=incerta
+        elif awk '/"evento":"sefin.transporte_falhou"/ && /"etapa":"POST"/ && /"bytesEscritos":"0"/ { achou = 1 } END { exit !achou }' "$2"; then
             RESULTADO=local
         else
             RESULTADO=incerta
