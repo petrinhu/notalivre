@@ -232,7 +232,7 @@ auto q = std::filesystem::path{"a"};' 'violacoes=0$'
 mkdir -p "$TMP/pz/apps/cli" && cp -a "$RAIZ_REAL/src" "$TMP/pz/" && cp -a "$RAIZ_REAL/apps/cli/." "$TMP/pz/apps/cli/" \
     || { echo "ERRO: árvore do piso"; exit 1; }
 controle pz 1 "$TMP/pz" 'processo: varridos apps/gui=0 '
-controle PR15 0 "$RAIZ_REAL" 'processo: varridos apps/gui=[1-9][0-9]* src=[1-9][0-9]*'
+controle PR15 0 "$RAIZ_REAL" 'processo: varridos apps/gui=[1-9][0-9]* \(cpp=[0-9]+ qml=[0-9]+\) src=[1-9][0-9]*'
 
 # --- QML (QA da NL-2.38, A1 e A2): o portão varre .qml de apps/gui; o literal e openUrlExternally reprovam ---
 # Fonte da regra de QML: documentação do Qt 6.12 (objeto Qt, qml-qtqml-qt.html): Qt.openUrlExternally "attempts to open

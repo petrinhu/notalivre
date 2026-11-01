@@ -57,6 +57,12 @@ PROCESSO_PADROES = (
 TEXTO_NOTALIVRE_CLI = b"notalivre-cli"
 MENSAGEM_REGRA = "A GUI usa o núcleo, nunca a CLI"
 AREAS_PISO = ("apps/gui", "src")
+# QML (QA da NL-2.38, A1 e A2): o portão também varre os .qml de apps/gui. Só a regra de processo vale para QML (QML
+# não tem #include). Qt.openUrlExternally abre programa externo: a documentação do Qt 6.12 (objeto Qt, qml-qtqml-qt.html)
+# diz que ele "attempts to open the specified target url in an external application" e repassa a QDesktopServices::openUrl.
+# É o único método do objeto Qt que inicia programa externo (createComponent, createQmlObject, quit e exit não iniciam).
+QML_EXTENSOES = frozenset({".qml"})
+PROCESSO_QML = (re.compile(rb"\bopenUrlExternally\s*\("),)
 
 # Unidades da matriz 1.1. Origem "mid" cobre mid:composicao (ver unidade_origem).
 PERMITIDOS = {
@@ -111,8 +117,13 @@ DENYLIST = {
 }
 
 
+def dentro_de_gui(raiz, dirpath):
+    rel = relativo(raiz, dirpath)
+    return rel == "apps/gui" or rel.startswith("apps/gui/")
+
+
 def arquivos_fonte(raiz, erros):
-    """Arquivos C/C++ de src/ e apps/, ordenados. Erro de diretório vai para `erros` (INCOMPLETA)."""
+    """Arquivos C/C++ de src/ e apps/, mais os .qml de apps/gui, ordenados. Erro de diretório vai para `erros`."""
     def registrar(erro):
         caminho = getattr(erro, "filename", None) or "?"
         motivo = getattr(erro, "strerror", None) or str(erro)
@@ -122,7 +133,8 @@ def arquivos_fonte(raiz, erros):
     for base in RAIZES_VARRIDAS:
         for dirpath, _dirnames, filenames in os.walk(os.path.join(raiz, base), onerror=registrar):
             for nome in filenames:
-                if os.path.splitext(nome)[1].lower() in EXTENSOES:
+                extensao = os.path.splitext(nome)[1].lower()
+                if extensao in EXTENSOES or (extensao in QML_EXTENSOES and dentro_de_gui(raiz, dirpath)):
                     achados.append(os.path.join(dirpath, nome))
     return sorted(achados)
 
@@ -256,6 +268,19 @@ def _apagar(saida, inicio, fim):
             saida[k] = 0x20
 
 
+def _apostrofo_separador(texto, i):
+    """Apóstrofo que separa dígitos (C++14: 1'000, 0xA'FF), não abre char. NL-2.38, A4.
+
+    Vale o apóstrofo logo depois de caractere alfanumérico, exceto os prefixos de char L, u, U e 8 (L'x', u'x', U'x',
+    u8'x'). LIMITE DECLARADO: 0x8'FF (dígito 8 antes do apóstrofo) é lido como início de char, e a chamada que venha
+    depois na mesma linha fica dentro desse "literal" para a busca de chamadas.
+    """
+    if texto[i] != 0x27 or i == 0:
+        return False
+    anterior = texto[i - 1]
+    return anterior < 0x80 and chr(anterior).isalnum() and chr(anterior) not in "LuU8"
+
+
 def remover_comentarios(texto):
     """Fase 3 do C++: troca comentário por espaço, mantendo quebras de linha e o tamanho do texto."""
     saida = bytearray(texto)
@@ -266,6 +291,9 @@ def remover_comentarios(texto):
             if fim is not None:
                 i = fim
                 continue
+        if _apostrofo_separador(texto, i):
+            i += 1
+            continue
         if texto[i] in (0x22, 0x27):  # " ou '
             i = _fim_literal(texto, i)
             continue
@@ -309,7 +337,7 @@ def remover_literais(texto):
                 _apagar_interior(saida, i + 1, fim - 1)
                 i = fim
                 continue
-        if c == 0x27 and i > 0 and 0x30 <= texto[i - 1] <= 0x39:  # 1'000: separador de dígitos, não é char
+        if _apostrofo_separador(texto, i):  # 1'000 e 0xA'FF: separador de dígitos, não é char (NL-2.38, A4)
             i += 1
             continue
         if c in (0x22, 0x27):
@@ -327,7 +355,8 @@ def verificar_processo(rel, dados):
     texto, posicoes = limpar_fonte(dados)
     sem_conteudo_de_string = remover_literais(texto)
     falhas = []
-    for padrao in PROCESSO_PADROES:
+    padroes = PROCESSO_PADROES + (PROCESSO_QML if rel.lower().endswith(".qml") else ())
+    for padrao in padroes:
         for casamento in padrao.finditer(sem_conteudo_de_string):
             token = casamento.group(0).split(b"(")[0].strip().decode("ascii")
             linha = dados.count(b"\n", 0, posicoes[casamento.start()]) + 1
@@ -392,7 +421,7 @@ def varrer(raiz):
     arquivos = arquivos_fonte(raiz, erros)
     analisados = 0
     violacoes = []
-    por_area = {area: 0 for area in AREAS_PISO}
+    por_area = {"apps/gui": 0, "apps/gui:cpp": 0, "apps/gui:qml": 0, "src": 0}
     for caminho in arquivos:
         rel = relativo(raiz, caminho)
         try:
@@ -402,10 +431,16 @@ def varrer(raiz):
             erros.append("ERRO LEITURA {}: {}".format(rel, erro))
             continue
         analisados += 1
-        for area in AREAS_PISO:
-            if rel == area or rel.startswith(area + "/"):
-                por_area[area] += 1
-        violacoes.extend(verificar_arquivo(raiz, caminho, dados))
+        eh_qml = os.path.splitext(caminho)[1].lower() in QML_EXTENSOES
+        if rel == "apps/gui" or rel.startswith("apps/gui/"):
+            por_area["apps/gui"] += 1
+            por_area["apps/gui:qml" if eh_qml else "apps/gui:cpp"] += 1
+        elif rel.startswith("src/"):
+            por_area["src"] += 1
+        if eh_qml:
+            violacoes.extend(verificar_processo(rel, dados))  # QML: sem #include, só processo e literal
+        else:
+            violacoes.extend(verificar_arquivo(raiz, caminho, dados))
     return len(arquivos), analisados, violacoes, erros, por_area
 
 
@@ -427,7 +462,8 @@ def main(argv):
         print("VARREDURA INCOMPLETA: analisados diferente de encontrados")
     print("encontrados={} analisados={} violacoes={}".format(encontrados, analisados, len(violacoes)))
     # Piso da regra de processo (NL-2.38, L-36): zero arquivo em apps/gui ou em src reprova, nunca passa em silêncio.
-    print("processo: varridos apps/gui={} src={}".format(por_area["apps/gui"], por_area["src"]))
+    print("processo: varridos apps/gui={} (cpp={} qml={}) src={}".format(
+        por_area["apps/gui"], por_area["apps/gui:cpp"], por_area["apps/gui:qml"], por_area["src"]))
     piso_zero = [area for area in AREAS_PISO if por_area[area] == 0]
     for area in piso_zero:
         print("VARREDURA VAZIA DO PROCESSO: nenhum arquivo varrido em {}".format(area))
