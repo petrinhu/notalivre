@@ -59,22 +59,30 @@ bool escreverTudo(int fd, const char* dados, std::size_t tamanho)
     return true;
 }
 
-// Lê uma linha do /dev/tty, sem eco, para o buffer. Antes de qualquer tcsetattr confere que o processo está no primeiro plano do
-// terminal (NL-2.27, DA-2.68): tcgetpgrp é permitido em segundo plano; tcgetattr e tcsetattr não são, e parariam o processo.
+// Confere que o processo está no primeiro plano do terminal (NL-2.27, DA-2.68). tcgetpgrp é permitido em segundo plano; tcgetattr e
+// tcsetattr não são, e parariam o processo com SIGTTOU. Não lê nem altera nada no terminal.
+Leitura conferirPrimeiroPlano(int fd)
+{
+    const pid_t primeiroPlano = tcgetpgrp(fd);
+    if (primeiroPlano < 0) {
+        return Leitura::Falha;
+    }
+    if (primeiroPlano != getpgrp()) {
+        return Leitura::EmSegundoPlano;
+    }
+    return Leitura::Ok;
+}
+
+// Lê uma linha do /dev/tty, sem eco, para o buffer. A conferência do primeiro plano vem antes de qualquer tcsetattr.
 Leitura lerLinhaNoBuffer(const QString& prompt, Buffer& buffer, std::size_t& tamanho)
 {
     const int fd = ::open("/dev/tty", O_RDWR | O_NOCTTY);
     if (fd < 0) {
         return Leitura::SemTerminal;
     }
-    const pid_t primeiroPlano = tcgetpgrp(fd);
-    if (primeiroPlano < 0) {
+    if (const Leitura primeiroPlano = conferirPrimeiroPlano(fd); primeiroPlano != Leitura::Ok) {
         ::close(fd);
-        return Leitura::Falha;
-    }
-    if (primeiroPlano != getpgrp()) {
-        ::close(fd);
-        return Leitura::EmSegundoPlano;
+        return primeiroPlano;
     }
     termios original{};
     if (tcgetattr(fd, &original) != 0) {
@@ -113,6 +121,26 @@ Leitura lerLinhaNoBuffer(const QString& prompt, Buffer& buffer, std::size_t& tam
 }
 
 } // namespace
+
+std::expected<void, ErroDoTerminal> conferirTerminalDaSenha()
+{
+    const int fd = ::open("/dev/tty", O_RDWR | O_NOCTTY);
+    if (fd < 0) {
+        return std::unexpected(ErroDoTerminal::SemTerminal);
+    }
+    const Leitura estado = conferirPrimeiroPlano(fd);
+    ::close(fd);
+    switch (estado) {
+    case Leitura::Ok:
+        return {};
+    case Leitura::EmSegundoPlano:
+        return std::unexpected(ErroDoTerminal::EmSegundoPlano);
+    case Leitura::SemTerminal:
+    case Leitura::Falha:
+        break;
+    }
+    return std::unexpected(ErroDoTerminal::FalhaDeLeitura);
+}
 
 std::expected<nl::foundation::pkcs12::SenhaSegura, ErroDoTerminal> lerSenhaDoTerminal(const QString& prompt)
 {

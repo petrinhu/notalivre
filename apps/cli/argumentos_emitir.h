@@ -8,6 +8,7 @@
 #include <QStringList>
 
 #include <expected>
+#include <optional>
 
 namespace nl::cli {
 
@@ -18,6 +19,8 @@ struct ArgumentosEmitir
     QString serie;
     QString numero;
     QString ambiente;
+    /// Número do descritor da senha (NL-2.27, DA-2.16), dado por --senha-certificado-fd N. Vazio: a senha vem do terminal.
+    std::optional<int> descritorSenha;
 };
 
 /// Espera a lista inteira da linha de comando, começando por "emitir".

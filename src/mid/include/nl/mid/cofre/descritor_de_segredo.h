@@ -14,8 +14,9 @@
 
 namespace nl::mid::cofre {
 
-/// Tamanho do buffer de leitura do segredo: o teto de 512 bytes mais um, para detectar o estouro sem ler o resto do descritor.
-inline constexpr std::size_t kTamanhoBufferDoSegredo = 513;
+/// Tamanho do buffer de leitura do segredo: o teto de 512 bytes, mais a quebra final, mais um byte de estouro. Com 514 bytes lidos,
+/// a quebra final sai e o conteúdo que sobra é comparado com o teto (512 bytes de senha, como no terminal).
+inline constexpr std::size_t kTamanhoBufferDoSegredo = 514;
 
 /// Motivo de a senha não ter sido lida pelo descritor. Cada um vira um código estável `cofre.*` na fachada.
 enum class ErroDoSegredo {

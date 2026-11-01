@@ -86,6 +86,16 @@ std::optional<QString> lerConfirmacaoPeloTerminal(const QString& prompt);
 std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& pedido, RegistroCli& registro,
                                                           const QString& promptSenha);
 
+/// Conferência de entrada da senha pelo terminal, sem ler nada (NL-2.27, DA-2.68): roda antes da configuração. Sai com
+/// cofre.senha_ausente ou cofre.terminal_em_segundo_plano.
+std::expected<void, FalhaEmissao> conferirEntradaDaSenhaPeloTerminal();
+
+/// Conferência do descritor da senha, sem ler nem fechar (NL-2.27, DA-2.16): roda antes da configuração. Sai com um cofre.descritor_*.
+std::expected<void, FalhaEmissao> conferirEntradaDaSenhaPeloDescritor(int fd);
+
+/// Lê a senha do descritor (uma vez, até o fim, com teto) e emite. A CLI passa só o número do descritor (NL-2.27, DA-2.57b).
+std::expected<QString, FalhaEmissao> emitirDpsPeloDescritor(const PedidoEmissao& pedido, RegistroCli& registro, int fd);
+
 /// Mesma emissão, com o assinador vindo da fábrica (DA-2.56: a revalidação depois de assinar é testada com um assinador falso).
 std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, nl::foundation::pkcs12::SenhaSegura&& senha,
                                                            RegistroCli& registro, const FabricaAssinador& fabrica);

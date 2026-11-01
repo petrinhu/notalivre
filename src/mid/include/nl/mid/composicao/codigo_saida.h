@@ -4,8 +4,9 @@
 // para ser testado sem a CLI. Classes: 4 documento reprovado no leiaute (entrada, XML assinado, identificação); 2 ambiente do
 // XSD; 5 DPS duplicada na Sefin (E0014 com infDPS diferente); 7 comparação indisponível; 1 recusa de regra (credencial,
 // assinatura, confirmação, cofre, Sefin); 10 configuração ou banco (chave ausente, arquivo ou caminho ilegível, algoritmo
-// fora da lista; NL-3.8). Código fora dessas listas sai como 70 (EX_SOFTWARE): código novo sem classificação
-// não passa calado.
+// fora da lista; NL-3.8). NL-2.27: erro de entrada da senha (cofre.*, sem terminal, em segundo plano, descritor recusado,
+// senha vazia) sai com 2, por entrada explícita; Produção sem autorização headless (headless.sem_autorizacao) sai com 11.
+// Código fora dessas listas sai como 70 (EX_SOFTWARE): código novo sem classificação não passa calado.
 #ifndef NL_MID_COMPOSICAO_CODIGO_SAIDA_H
 #define NL_MID_COMPOSICAO_CODIGO_SAIDA_H
 

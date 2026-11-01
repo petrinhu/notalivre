@@ -26,6 +26,10 @@ enum class ErroDoTerminal {
 /// Pede a senha no terminal sem eco. Devolve a senha, ou o motivo da falha. Nunca para o processo por SIGTTOU.
 std::expected<nl::foundation::pkcs12::SenhaSegura, ErroDoTerminal> lerSenhaDoTerminal(const QString& prompt);
 
+/// Confere o terminal antes de ler a configuração (NL-2.27, DA-2.68): sem terminal, em segundo plano ou com falha de conferência.
+/// Não lê nem escreve nada e não altera o eco.
+std::expected<void, ErroDoTerminal> conferirTerminalDaSenha();
+
 } // namespace nl::mid::cofre
 
 #endif // NL_MID_COFRE_SENHA_DO_TERMINAL_H
