@@ -15,6 +15,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <utility>
 
 namespace nl::mid::composicao {
 namespace {
@@ -94,6 +95,17 @@ std::expected<QString, nl::base::Erro> gravarRespostaCrua(const QByteArray& corp
     }
     arquivo.close();
     return caminho;
+}
+
+// Stub do NL-2.10c, passo 2 (commit de teste): ainda não grava. O teste falha por asserção no caminho vazio.
+GravadorRespostaCrua::GravadorRespostaCrua(QString pastaBase, std::string idDps)
+    : pastaBase_(std::move(pastaBase)), idDps_(std::move(idDps))
+{
+}
+
+void GravadorRespostaCrua::registrar(std::string_view /*metodo*/, std::string_view /*rota*/, int /*status*/,
+                                     const QByteArray& /*tipoConteudo*/, const QByteArray& /*corpo*/)
+{
 }
 
 } // namespace nl::mid::composicao

@@ -51,6 +51,11 @@ private slots:
     void cpfEmArraySomeDoArquivo();
     // NL-2.10a, rodada 2 (CISO): o CPF como número JSON (não string) não chega ao arquivo.
     void cpfNumericoSomeDoArquivo();
+    // NL-2.10c, passo 2 (DA-2.66, emenda 1): a recusa da Sefin também vai ao arquivo, pela allowlist, nas duas formas do
+    // relato secundário ({"Codigo","Descricao"} e {"erros":[{"codigo","descricao"}]}). O texto livre não sai em nenhuma.
+    void respostaCruaDaRecusaGravadaPorAllowlist();
+    // NL-2.10c, passo 2: um campo novo com o CPF da fixture numa recusa não põe o CPF no arquivo (varredura com contagem).
+    void campoNovoComCpfNaRecusaSomeDoArquivo();
 };
 
 void TstRespostaCrua::mascaraTrocaXmlEChave()
@@ -74,11 +79,13 @@ void TstRespostaCrua::gravacaoSai0600ComNomeSemId()
     QTemporaryDir pasta;
     QVERIFY(pasta.isValid());
     const QByteArray corpo = "{\"chaveAcesso\":\"" + kChaveSintetica + "\",\"nfseXmlGZipB64\":\"" + kXmlSintetico + "\"}";
-    const auto gravado = nl::mid::composicao::gravarRespostaCrua(corpo, pasta.path(), "DPS-ID-SINTETICO-0001");
-    QVERIFY2(gravado.has_value(), "a resposta tem de ser gravada na pasta de análise");
-    QVERIFY2(permissaoSoDoDono(*gravado), "o arquivo tem de ser 0600: dono lê e escreve, grupo e outros sem bit");
-    QVERIFY2(!gravado->contains("DPS-ID-SINTETICO"), "o nome do arquivo não pode conter o Id da DPS");
-    QFile arquivo(*gravado);
+    nl::mid::composicao::GravadorRespostaCrua gravador(pasta.path(), "DPS-ID-SINTETICO-0001");
+    gravador.registrar("POST", "/nfse", 201, QByteArrayLiteral("application/json"), corpo);
+    QVERIFY2(!gravador.ultimoErro(), "a resposta tem de ser gravada na pasta de análise");
+    QVERIFY2(gravador.caminho().endsWith(QStringLiteral(".jsonl")), "o arquivo é .jsonl: uma linha JSON por resposta");
+    QVERIFY2(permissaoSoDoDono(gravador.caminho()), "o arquivo tem de ser 0600: dono lê e escreve, grupo e outros sem bit");
+    QVERIFY2(!gravador.caminho().contains(QStringLiteral("DPS-ID-SINTETICO")), "o nome do arquivo não pode conter o Id da DPS");
+    QFile arquivo(gravador.caminho());
     QVERIFY(arquivo.open(QIODevice::ReadOnly));
     QVERIFY2(!arquivo.readAll().contains(kXmlSintetico), "o XML não pode estar no arquivo gravado");
 }
@@ -98,9 +105,10 @@ void TstRespostaCrua::campoNovoComCpfSomeDoArquivo()
     QVERIFY(pasta.isValid());
     // CPF da fixture (tests/fixtures/certificados, CPF_OK) dentro de um campo que a allowlist não conhece.
     const QByteArray corpo = "{\"chaveAcesso\":\"" + kChaveSintetica + "\",\"novoCampo\":\"12345678909\"}";
-    const auto gravado = nl::mid::composicao::gravarRespostaCrua(corpo, pasta.path(), "DPS-ID-SINTETICO-0002");
-    QVERIFY2(gravado.has_value(), "a resposta tem de ser gravada na pasta de análise");
-    QFile arquivo(*gravado);
+    nl::mid::composicao::GravadorRespostaCrua gravador(pasta.path(), "DPS-ID-SINTETICO-0002");
+    gravador.registrar("POST", "/nfse", 201, QByteArrayLiteral("application/json"), corpo);
+    QVERIFY2(!gravador.ultimoErro(), "a resposta tem de ser gravada na pasta de análise");
+    QFile arquivo(gravador.caminho());
     QVERIFY(arquivo.open(QIODevice::ReadOnly));
     const QByteArray conteudo = arquivo.readAll();
     const qsizetype ocorrencias = conteudo.count("12345678909");
@@ -118,11 +126,12 @@ qsizetype ocorrenciasDoCpfNoArquivo(const QByteArray& corpo, const char* idDps)
     if (!pasta.isValid()) {
         return -1;
     }
-    const auto gravado = nl::mid::composicao::gravarRespostaCrua(corpo, pasta.path(), idDps);
-    if (!gravado) {
+    nl::mid::composicao::GravadorRespostaCrua gravador(pasta.path(), idDps);
+    gravador.registrar("POST", "/nfse", 201, QByteArrayLiteral("application/json"), corpo);
+    if (gravador.ultimoErro() || gravador.caminho().isEmpty()) {
         return -1;
     }
-    QFile arquivo(*gravado);
+    QFile arquivo(gravador.caminho());
     if (!arquivo.open(QIODevice::ReadOnly)) {
         return -1;
     }
@@ -150,6 +159,42 @@ void TstRespostaCrua::cpfNumericoSomeDoArquivo()
     const QByteArray corpo = "{\"chaveAcesso\":\"" + kChaveSintetica + "\",\"cpfNumerico\":12345678909}";
     const qsizetype ocorrencias = ocorrenciasDoCpfNoArquivo(corpo, "DPS-ID-SINTETICO-0005");
     QVERIFY2(ocorrencias == 0, qPrintable(QStringLiteral("CPF numérico no arquivo gravado: %1 ocorrência(s)").arg(ocorrencias)));
+}
+
+void TstRespostaCrua::respostaCruaDaRecusaGravadaPorAllowlist()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    nl::mid::composicao::GravadorRespostaCrua gravador(pasta.path(), "DPS-ID-SINTETICO-0006");
+    gravador.registrar("POST", "/nfse", 400, QByteArrayLiteral("application/json; charset=utf-8"),
+                       QByteArrayLiteral("{\"Codigo\":\"E1203\",\"Descricao\":\"texto livre com CPF 12345678909 da recusa\"}"));
+    gravador.registrar("POST", "/nfse", 400, QByteArrayLiteral("application/json; charset=utf-8"),
+                       QByteArrayLiteral("{\"erros\":[{\"codigo\":\"E0714\",\"descricao\":\"texto livre com CPF 12345678909 da recusa\"}]}"));
+    QVERIFY2(!gravador.ultimoErro(), "a recusa tem de ser gravada na pasta de análise");
+    QFile arquivo(gravador.caminho());
+    QVERIFY2(arquivo.open(QIODevice::ReadOnly), "o arquivo da recusa tem de existir");
+    const QByteArray conteudo = arquivo.readAll();
+    QVERIFY2(conteudo.count('\n') == 2, qPrintable(QStringLiteral("uma linha JSON por resposta: %1 linha(s)").arg(conteudo.count('\n'))));
+    QVERIFY2(conteudo.count("\"status\":400") == 2, "cada linha da recusa leva o status HTTP");
+    QVERIFY2(conteudo.count("\"metodo\":\"POST\"") == 2, "cada linha leva o método");
+    QVERIFY2(conteudo.count("\"rota\":\"/nfse\"") == 2, "cada linha leva a rota modelo");
+    QVERIFY2(conteudo.count("\"contentType\":\"application/json") == 2, "cada linha leva o Content-Type");
+    QVERIFY2(!conteudo.contains("texto livre"), "o texto livre da recusa não pode sair, em nenhuma das duas formas");
+    QVERIFY2(conteudo.count("12345678909") == 0, "o CPF da recusa não pode sair");
+}
+
+void TstRespostaCrua::campoNovoComCpfNaRecusaSomeDoArquivo()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    nl::mid::composicao::GravadorRespostaCrua gravador(pasta.path(), "DPS-ID-SINTETICO-0007");
+    // CPF da fixture dentro de um campo que a allowlist não conhece, numa recusa (400).
+    gravador.registrar("POST", "/nfse", 400, QByteArrayLiteral("application/json"),
+                       QByteArrayLiteral("{\"Codigo\":\"E1203\",\"novoCampo\":\"12345678909\"}"));
+    QFile arquivo(gravador.caminho());
+    QVERIFY2(arquivo.open(QIODevice::ReadOnly), "a recusa tem de estar gravada");
+    const qsizetype ocorrencias = arquivo.readAll().count("12345678909");
+    QVERIFY2(ocorrencias == 0, qPrintable(QStringLiteral("CPF da fixture na recusa gravada: %1 ocorrência(s)").arg(ocorrencias)));
 }
 
 QTEST_APPLESS_MAIN(TstRespostaCrua)

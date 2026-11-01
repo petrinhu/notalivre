@@ -8,11 +8,14 @@
 #define NL_MID_COMPOSICAO_RESPOSTA_CRUA_H
 
 #include <nl/base/erro.h>
+#include <nl/mid/sefin/cliente/observador_respostas.h>
 
 #include <QByteArray>
 #include <QString>
 
 #include <expected>
+#include <optional>
+#include <string>
 #include <string_view>
 
 namespace nl::mid::composicao {
@@ -22,6 +25,28 @@ QByteArray mascararRespostaCrua(const QByteArray& corpo);
 
 /// Grava o corpo mascarado em <pastaBase>/respostas/<hash do Id>.json com permissão 0600. Devolve o caminho gravado.
 std::expected<QString, nl::base::Erro> gravarRespostaCrua(const QByteArray& corpo, const QString& pastaBase, std::string_view idDps);
+
+/// Observador da emissão (NL-2.10c, DA-2.66): grava uma linha JSON por resposta HTTP da Sefin em
+/// <pastaBase>/respostas/<hash do Id>.jsonl, com método, rota (modelo), status, Content-Type e o corpo mascarado pela allowlist.
+/// Erro de gravação não desfaz a emissão: fica em ultimoErro(), e quem chama decide o que mostrar.
+class GravadorRespostaCrua final : public nl::mid::sefin::cliente::ObservadorRespostas {
+public:
+    GravadorRespostaCrua(QString pastaBase, std::string idDps);
+
+    void registrar(std::string_view metodo, std::string_view rota, int status, const QByteArray& tipoConteudo,
+                   const QByteArray& corpo) override;
+
+    /// Arquivo do Id. Vazio enquanto nada foi gravado.
+    [[nodiscard]] const QString& caminho() const { return caminho_; }
+    /// Primeiro erro de gravação, se houve.
+    [[nodiscard]] const std::optional<nl::base::Erro>& ultimoErro() const { return erro_; }
+
+private:
+    QString pastaBase_;
+    std::string idDps_;
+    QString caminho_;
+    std::optional<nl::base::Erro> erro_;
+};
 
 } // namespace nl::mid::composicao
 
