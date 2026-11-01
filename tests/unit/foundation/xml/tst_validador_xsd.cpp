@@ -6,6 +6,13 @@
 #include <nl/foundation/xml/erros_xsd.h>
 #include <nl/foundation/xml/esquema.h>
 #include <nl/foundation/xml/validador_xsd.h>
+#include <nl/teste/tabela_por_distro.h>
+
+#include "parse_seguro.h"
+
+#include <libxml/SAX2.h>
+#include <libxml/parser.h>
+#include <libxml/parserInternals.h>
 
 #include <QByteArray>
 #include <QDir>
@@ -14,10 +21,20 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+#include <atomic>
 #include <expected>
 #include <string>
+#include <thread>
 
 namespace {
+
+using nl::teste::valorDaDistroAtual;
 
 const QString kDiretorioXsd = QStringLiteral(NL_XSD_PRODREST_DIR);
 const QString kManifesto = QStringLiteral(NL_XSD_PRODREST_MANIFESTO);
@@ -55,6 +72,121 @@ QString descricaoDe(const std::expected<T, ErrosXsd>& resultado)
     return resultado.has_value() ? QString{} : mensagensDe(resultado.error());
 }
 
+// Tabela de cliente HTTP por distro (NL-2.21): a mesma do slot do xmldsig, na pasta de fixtures do xmldsig.
+QString caminhoTabelaHttp()
+{
+    return QStringLiteral(NL_FIXTURES_XMLDSIG) + QStringLiteral("/tabela_http_por_distro.txt");
+}
+
+// DOCTYPE SYSTEM apontando para o ouvinte local: o DTD externo é o único pedido de rede do parse.
+QByteArray dtdApontandoPara(int porta)
+{
+    const QByteArray url = "http://127.0.0.1:" + QByteArray::number(porta) + "/dtd.dtd";
+    return "<!DOCTYPE DPS SYSTEM \"" + url + "\">\n<DPS/>";
+}
+
+// Soma XML_PARSE_DTDLOAD às opções do contexto (NL-2.21). xmlCtxtSetOptions substitui o conjunto (parser.c da 2.14.6), então
+// somar sem ler as opções atuais apagaria o NONET. 2.14 em diante (>= 21400): xmlCtxtGetOptions. Faixa 2.13 (21300 a 21399):
+// INFERÊNCIA, não compilada em nenhuma imagem; as opções saem montadas à mão, NONET | DTDLOAD quando comNonet (o contexto
+// do parse seguro), só DTDLOAD no controle cru. Antes da 2.13, xmlCtxtUseOptions soma sozinho e mantém o NONET.
+void somaDtdLoad(xmlParserCtxtPtr contexto, bool comNonet)
+{
+#if LIBXML_VERSION >= 21400
+    (void)comNonet;
+    xmlCtxtSetOptions(contexto, xmlCtxtGetOptions(contexto) | XML_PARSE_DTDLOAD);
+#elif LIBXML_VERSION >= 21300
+    xmlCtxtSetOptions(contexto, (comNonet ? XML_PARSE_NONET : 0) | XML_PARSE_DTDLOAD);
+#else
+    (void)comNonet;
+    xmlCtxtUseOptions(contexto, XML_PARSE_DTDLOAD);
+#endif
+}
+
+// Libera um contexto cru do controle positivo.
+struct LiberaContextoCru
+{
+    void operator()(xmlParserCtxtPtr contexto) const noexcept { xmlFreeParserCtxt(contexto); }
+};
+using ContextoCru = std::unique_ptr<xmlParserCtxt, LiberaContextoCru>;
+
+// Ouvinte TCP em 127.0.0.1 (NL-2.21): conta cada conexão aceita e a fecha. Mesma régua do ouvinte do xmldsig: as conexões
+// que já estão na fila do listen quando o laço para são aceitas e contadas no parar, sem corrida.
+class OuvinteTcp
+{
+public:
+    OuvinteTcp()
+    {
+        fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+        sockaddr_in endereco{};
+        endereco.sin_family = AF_INET;
+        endereco.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        socklen_t tamanho = sizeof(endereco);
+        if (fd_ < 0 || ::bind(fd_, reinterpret_cast<sockaddr*>(&endereco), sizeof(endereco)) != 0 ||
+            ::listen(fd_, 16) != 0 || ::getsockname(fd_, reinterpret_cast<sockaddr*>(&endereco), &tamanho) != 0) {
+            return;
+        }
+        porta_ = ntohs(endereco.sin_port);
+        ativo_ = true;
+        thread_ = std::thread([this] { laco(); });
+    }
+    ~OuvinteTcp() { parar(); }
+    OuvinteTcp(const OuvinteTcp&) = delete;
+    OuvinteTcp& operator=(const OuvinteTcp&) = delete;
+
+    int porta() const { return porta_; }
+    int conexoes() const { return conexoes_.load(); }
+
+    void parar()
+    {
+        ativo_ = false;
+        if (thread_.joinable()) {
+            thread_.join();
+        }
+        if (fd_ >= 0) {
+            drenar();
+            ::close(fd_);
+            fd_ = -1;
+        }
+    }
+
+private:
+    void laco()
+    {
+        while (ativo_) {
+            pollfd espera{fd_, POLLIN, 0};
+            if (::poll(&espera, 1, 20) > 0) {
+                const int conexao = ::accept(fd_, nullptr, nullptr);
+                if (conexao >= 0) {
+                    conexoes_++;
+                    ::close(conexao);
+                }
+            }
+        }
+    }
+
+    void drenar()
+    {
+        const int flags = ::fcntl(fd_, F_GETFL, 0);
+        if (flags < 0 || ::fcntl(fd_, F_SETFL, flags | O_NONBLOCK) < 0) {
+            return;
+        }
+        for (;;) {
+            const int conexao = ::accept(fd_, nullptr, nullptr);
+            if (conexao < 0) {
+                return;
+            }
+            conexoes_++;
+            ::close(conexao);
+        }
+    }
+
+    int fd_ = -1;
+    int porta_ = 0;
+    std::atomic<bool> ativo_{false};
+    std::atomic<int> conexoes_{0};
+    std::thread thread_;
+};
+
 } // namespace
 
 class TstValidadorXsd : public QObject
@@ -70,6 +202,8 @@ private slots:
     void idForaDoPatternReprova();
     void shaErradoDoEsquemaRecusado();
     void fixturesConcordamComORegraDoNome();
+    void xmlComDoctypeNoValidadorParaSemProcessar();
+    void validadorNaoAcessaARede();
 };
 
 void TstValidadorXsd::initTestCase()
@@ -180,6 +314,81 @@ void TstValidadorXsd::fixturesConcordamComORegraDoNome()
         ++analisados;
     }
     QCOMPARE(analisados, static_cast<int>(nomes.size()));
+}
+
+void TstValidadorXsd::xmlComDoctypeNoValidadorParaSemProcessar()
+{
+    // NL-2.21: DOCTYPE com subconjunto interno antes do corpo, e o corpo é o mesmo que valida sem ele. O validador para no
+    // DOCTYPE e recusa com código próprio: o DTD nunca é lido. Sem a parada, o corpo válido passaria.
+    const auto esquema = Esquema::abrir(kDiretorioXsd, kManifesto, kRaiz);
+    QVERIFY2(esquema.has_value(), qPrintable(descricaoDe(esquema)));
+    QByteArray comDtd = lerFixture(QStringLiteral("valida_dps_minima.xml"));
+    const int inicioDaRaiz = comDtd.indexOf("<DPS");
+    QVERIFY2(inicioDaRaiz > 0, "a fixture valida_dps_minima.xml tem de ter a raiz DPS depois da declaração XML");
+    comDtd.insert(inicioDaRaiz, "<!DOCTYPE DPS [<!ENTITY e \"x\">]>\n");
+
+    const auto resultado = ValidadorXsd::validar(comDtd, esquema.value());
+
+    QVERIFY2(!resultado.has_value(), "DOCTYPE tem de ser recusado antes da leitura do corpo");
+    QCOMPARE(resultado.error().motivo(), ErrosXsd::Motivo::xmlMalformado);
+    QVERIFY(!resultado.error().erros().empty());
+    QCOMPARE(QString::fromStdString(resultado.error().erros().front().codigo()), QStringLiteral("xml.com_dtd"));
+}
+
+void TstValidadorXsd::validadorNaoAcessaARede()
+{
+    // NL-2.21 (gêmeo do slot contextoDoParserBloqueiaRede): a expectativa sai da tabela de HTTP por distro, nunca de nome
+    // de distro, e o teste nunca pula. Onde a tabela diz sem_http, prova a ausência do cliente HTTP; onde diz com_http,
+    // prova o bloqueio com o ouvinte local e o controle positivo.
+    const QByteArray expectativa = valorDaDistroAtual(caminhoTabelaHttp()).toUtf8();
+    QVERIFY2(expectativa == "com_http" || expectativa == "sem_http",
+             "a distro atual não tem linha com_http ou sem_http em tests/fixtures/xmldsig/tabela_http_por_distro.txt");
+    const bool temHttp = xmlHasFeature(XML_WITH_HTTP) != 0;
+    if (expectativa == "sem_http") {
+        QVERIFY2(!temHttp, "a tabela diz sem_http, mas a libxml2 desta imagem tem cliente HTTP: a tabela está errada");
+        return;
+    }
+    QVERIFY2(temHttp, "a tabela diz com_http, mas a libxml2 desta imagem não tem cliente HTTP: a tabela está errada");
+
+    // Controle positivo (L-36): contexto cru, sem NONET e sem a parada, com DTDLOAD. Tem de conectar.
+    {
+        OuvinteTcp controle;
+        QVERIFY2(controle.porta() != 0, "o ouvinte TCP local tem de subir");
+        const QByteArray xmlControle = dtdApontandoPara(controle.porta());
+        ContextoCru cru(xmlCreateMemoryParserCtxt(xmlControle.constData(), static_cast<int>(xmlControle.size())));
+        QVERIFY2(cru != nullptr, "a libxml2 tem de criar o contexto cru do controle");
+        somaDtdLoad(cru.get(), false);
+        xmlParseDocument(cru.get());
+        controle.parar();
+        QVERIFY2(controle.conexoes() >= 1, "o controle sem NONET tem de conectar: sem isso o zero do validador não prova nada");
+    }
+
+    // Validador público: o DOCTYPE SYSTEM para o ouvinte é recusado antes de qualquer pedido de rede.
+    {
+        const auto esquema = Esquema::abrir(kDiretorioXsd, kManifesto, kRaiz);
+        QVERIFY2(esquema.has_value(), qPrintable(descricaoDe(esquema)));
+        OuvinteTcp ouvinte;
+        QVERIFY2(ouvinte.porta() != 0, "o ouvinte TCP local tem de subir");
+        const auto resultado = ValidadorXsd::validar(dtdApontandoPara(ouvinte.porta()), esquema.value());
+        ouvinte.parar();
+        QVERIFY2(!resultado.has_value(), "DOCTYPE SYSTEM tem de ser recusado pelo validador");
+        QCOMPARE(QString::fromStdString(resultado.error().erros().front().codigo()), QStringLiteral("xml.com_dtd"));
+        QCOMPARE(ouvinte.conexoes(), 0);
+    }
+
+    // Parse seguro sem a parada (só NONET fica), com DTDLOAD aditivo: zero conexões.
+    {
+        OuvinteTcp ouvinte;
+        QVERIFY2(ouvinte.porta() != 0, "o ouvinte TCP local tem de subir");
+        const QByteArray xml = dtdApontandoPara(ouvinte.porta());
+        auto contexto = nl::foundation::xml::detail::criarContextoParseSeguro(xml);
+        QVERIFY2(contexto != nullptr, "o contexto do parse seguro tem de existir");
+        contexto->sax->internalSubset = xmlSAX2InternalSubset;
+        somaDtdLoad(contexto.get(), true);
+        xmlParseDocument(contexto.get());
+        ouvinte.parar();
+        QCOMPARE(ouvinte.conexoes(), 0);
+    }
 }
 
 QTEST_GUILESS_MAIN(TstValidadorXsd)

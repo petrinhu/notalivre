@@ -2,13 +2,18 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Testes do validador XSD (NL-1.6a): QtTest sobre as fixtures de tests/fixtures/xsd, e o oráculo xmllint (CTest).
 # Os dois leem a mesma pasta e a mesma regra de nome (valida_* deve validar, invalida_* deve falhar).
+# NL-2.21 (DA-2.67): o slot validadorNaoAcessaARede usa a libxml2 direta (controle positivo e DTDLOAD aditivo) e a tabela de
+# HTTP por distro do xmldsig; por isso o teste inclui src/foundation/xml (parse_seguro.h, privado) e linka a libxml2.
+find_package(LibXml2 REQUIRED)
 add_executable(tst_validador_xsd tst_validador_xsd.cpp)
-target_link_libraries(tst_validador_xsd PRIVATE Qt6::Test nl_foundation nl_warnings)
+target_include_directories(tst_validador_xsd PRIVATE ${LIBXML2_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/src/foundation/xml)
+target_link_libraries(tst_validador_xsd PRIVATE Qt6::Test nl_foundation nl_teste_apoio ${LIBXML2_LIBRARY} nl_warnings)
 target_compile_definitions(tst_validador_xsd PRIVATE
     "NL_XSD_PRODREST_DIR=\"${NL_XSD_PRODREST_DIR}\""
     "NL_XSD_PRODREST_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\""
     "NL_XSD_PRODREST_RAIZ=\"${NL_XSD_PRODREST_RAIZ}\""
-    "NL_FIXTURES_XSD=\"${CMAKE_SOURCE_DIR}/tests/fixtures/xsd\"")
+    "NL_FIXTURES_XSD=\"${CMAKE_SOURCE_DIR}/tests/fixtures/xsd\""
+    "NL_FIXTURES_XMLDSIG=\"${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig\"")
 nl_registra_teste_qt(NAME tst_validador_xsd COMMAND tst_validador_xsd)
 
 # Teste de hash do ZIP (mutação M3): configure hermético de um projeto mínimo, com ZIP adulterado e com ZIP certo.

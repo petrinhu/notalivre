@@ -5,6 +5,7 @@
 
 #include "esquema_recurso.h"
 #include "libxml_util.h"
+#include "parse_seguro.h"
 
 #include <libxml/parser.h>
 #include <libxml/xmlschemas.h>
@@ -35,16 +36,22 @@ std::expected<void, ErrosXsd> ValidadorXsd::validar(QByteArrayView xml, const Es
                                                         "XML maior que o limite de 2 GiB da libxml2"}}});
     }
 
-    // Leitura sem NOENT e sem DTDLOAD: entidades externas e DTD não são carregados (sem XXE).
-    // Sem NOBLANKS: o documento chega ao validador como o xmllint o lê, para o oráculo ser comparação justa.
+    // Parse seguro (NL-2.21, gêmeo do átomo do xmldsig): para no primeiro DOCTYPE, sem ler o DTD, e NONET como segunda
+    // camada. Sem NOBLANKS: o documento chega ao validador como o xmllint o lê, para o oráculo ser comparação justa.
     xmlInitParser();
-    xmlResetLastError();
-    std::unique_ptr<xmlDoc, detail::DocLiberador> documento{xmlReadMemory(
-        xml.data(), static_cast<int>(xml.size()), "entrada.xml", nullptr, XML_PARSE_NONET)};
-    if (!documento) {
+    detail::SaidaParseSeguro saida = detail::analisarParseSeguro(xml);
+    if (saida.dtdVisto) {
         return std::unexpected(ErrosXsd{Motivo::xmlMalformado,
-                                        {detail::erroDaUltimaLeitura("xml.malformado")}});
+                                        {nl::base::Erro{"xml.com_dtd", std::nullopt,
+                                                        "XML com DOCTYPE recusado: o validador não lê DTD"}}});
     }
+    if (!saida.bemFormado || !saida.doc) {
+        std::string mensagem = saida.mensagemDoErro.empty() ? std::string{"XML malformado (a libxml2 não deu detalhe)"}
+                                                            : saida.mensagemDoErro;
+        return std::unexpected(ErrosXsd{Motivo::xmlMalformado,
+                                        {nl::base::Erro{"xml.malformado", std::nullopt, std::move(mensagem)}}});
+    }
+    std::unique_ptr<xmlDoc, detail::DocLiberador> documento = std::move(saida.doc);
 
     detail::ColetorErros coletor{"xsd.invalido"};
     std::unique_ptr<xmlSchemaValidCtxt, detail::ValidCtxtLiberador> contexto{

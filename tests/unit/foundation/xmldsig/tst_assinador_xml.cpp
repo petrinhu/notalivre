@@ -15,6 +15,7 @@
 
 #include <libxml/SAX2.h>
 #include <libxml/parser.h>
+#include <libxml/parserInternals.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 
@@ -40,6 +41,7 @@
 #include <openssl/provider.h>
 #include <openssl/x509.h>
 
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/socket.h>
@@ -131,13 +133,16 @@ public:
     int porta() const { return porta_; }
     int conexoes() const { return conexoes_.load(); }
 
-    // Para o laço e espera a thread. Depois de parar, conexoes() é o total final.
+    // Para o laço e espera a thread. Depois de parar, conexoes() é o total final: as conexões que já estavam na fila do
+    // listen quando o laço saiu são aceitas e contadas aqui (NL-2.21, L-36). Sem isso, o zero do átomo podia sair por
+    // corrida entre o último poll da thread e o parar, e não por bloqueio.
     void parar() {
         ativo_ = false;
         if (thread_.joinable()) {
             thread_.join();
         }
         if (fd_ >= 0) {
+            drenar();
             ::close(fd_);
             fd_ = -1;
         }
@@ -157,12 +162,51 @@ private:
         }
     }
 
+    // Aceita sem bloquear o que já está na fila do listen, até esvaziar. Chamado só depois do join da thread.
+    void drenar() {
+        const int flags = ::fcntl(fd_, F_GETFL, 0);
+        if (flags < 0 || ::fcntl(fd_, F_SETFL, flags | O_NONBLOCK) < 0) {
+            return;
+        }
+        for (;;) {
+            const int conexao = ::accept(fd_, nullptr, nullptr);
+            if (conexao < 0) {
+                return;
+            }
+            conexoes_++;
+            ::close(conexao);
+        }
+    }
+
     int fd_ = -1;
     int porta_ = 0;
     std::atomic<bool> ativo_{false};
     std::atomic<int> conexoes_{0};
     std::thread thread_;
 };
+
+// DOCTYPE SYSTEM apontando para o ouvinte local (NL-2.21): o DTD externo é o único pedido de rede do parse.
+QByteArray dtdApontandoPara(int porta) {
+    const QByteArray url = "http://127.0.0.1:" + QByteArray::number(porta) + "/dtd.dtd";
+    return "<!DOCTYPE DPS SYSTEM \"" + url + "\">\n<DPS/>";
+}
+
+// Soma XML_PARSE_DTDLOAD às opções do contexto (NL-2.21). xmlCtxtSetOptions substitui o conjunto (parser.c da 2.14.6:
+// ctxt->options = (ctxt->options & keepMask) | (options & allMask)), então somar sem ler as opções atuais apagaria o NONET.
+// 2.14 em diante (>= 21400): lê com xmlCtxtGetOptions. Faixa 2.13 (21300 a 21399): INFERÊNCIA, não compilada em nenhuma
+// imagem e não confirmada por grep; as opções saem montadas à mão, NONET | DTDLOAD quando comNonet (o átomo), só DTDLOAD
+// no controle cru. Antes da 2.13, xmlCtxtUseOptions soma sozinho e mantém o NONET.
+void somaDtdLoad(xmlParserCtxtPtr ctx, bool comNonet) {
+#if LIBXML_VERSION >= 21400
+    (void)comNonet;
+    xmlCtxtSetOptions(ctx, xmlCtxtGetOptions(ctx) | XML_PARSE_DTDLOAD);
+#elif LIBXML_VERSION >= 21300
+    xmlCtxtSetOptions(ctx, (comNonet ? XML_PARSE_NONET : 0) | XML_PARSE_DTDLOAD);
+#else
+    (void)comNonet;
+    xmlCtxtUseOptions(ctx, XML_PARSE_DTDLOAD);
+#endif
+}
 
 // Código estável de um erro do assinador, como QString, para comparar nas asserções.
 QString codigoDe(xd::ErroAssinatura erro) {
@@ -858,23 +902,30 @@ private slots:
             return;
         }
         QVERIFY2(temHttp, "a tabela diz com_http, mas a libxml2 desta imagem não tem cliente HTTP: a tabela está errada");
-#if LIBXML_VERSION >= 21300
-        // Com HTTP, mas em 2.13/2.14: a API aditiva de opções não foi medida nesta suíte. Falha com o motivo, sem pular.
-        QFAIL("libxml2 2.13/2.14 com HTTP: a API de opções aditiva não foi medida nesta suíte; medir antes de marcar com_http");
-#else
+        // NL-2.21 (DA-2.67): controle positivo (L-36). Contexto cru, sem NONET e sem a parada, com DTDLOAD: tem de conectar.
+        // Sem essa prova, zero conexões no átomo não diz nada, porque o DTD pode nem ter sido pedido.
+        {
+            OuvinteTcp controle;
+            QVERIFY2(controle.porta() != 0, "o ouvinte TCP local tem de subir");
+            const QByteArray xmlControle = dtdApontandoPara(controle.porta());
+            xd::privado::ContextoParser cru(xmlCreateMemoryParserCtxt(xmlControle.constData(), static_cast<int>(xmlControle.size())));
+            QVERIFY2(cru != nullptr, "a libxml2 tem de criar o contexto cru do controle");
+            somaDtdLoad(cru.get(), false);
+            xmlParseDocument(cru.get());
+            controle.parar();
+            QVERIFY2(controle.conexoes() >= 1, "o controle sem NONET tem de conectar: sem isso o zero do átomo não prova bloqueio");
+        }
+        // Átomo: NONET e a parada no DOCTYPE; tira-se só o tratador da parada, e a camada NONET fica. DTDLOAD entra aditivo.
         OuvinteTcp ouvinte;
         QVERIFY2(ouvinte.porta() != 0, "o ouvinte TCP local tem de subir");
-        const QByteArray url = "http://127.0.0.1:" + QByteArray::number(ouvinte.porta()) + "/dtd.dtd";
-        const QByteArray xml = "<!DOCTYPE DPS SYSTEM \"" + url + "\">\n<DPS/>";
+        const QByteArray xml = dtdApontandoPara(ouvinte.porta());
         auto ctx = xd::privado::criarContextoDoParser(xml);
         QVERIFY2(ctx.get() != nullptr, "o contexto do átomo tem de existir");
-        ctx->sax->internalSubset = xmlSAX2InternalSubset;  // tira a parada: só a camada NONET fica
-        // Carga do DTD externo pela API aditiva: soma XML_PARSE_DTDLOAD às opções do átomo, sem apagar o NONET.
-        xmlCtxtUseOptions(ctx.get(), XML_PARSE_DTDLOAD);
+        ctx->sax->internalSubset = xmlSAX2InternalSubset;
+        somaDtdLoad(ctx.get(), true);
         xmlParseDocument(ctx.get());
         ouvinte.parar();
         QCOMPARE(ouvinte.conexoes(), 0);
-#endif
     }
 
     // NL-2.14 (adendo 2 da DA-2.61): o piso da tabela de HTTP. Sem ao menos uma linha com_http, nenhuma imagem prova o

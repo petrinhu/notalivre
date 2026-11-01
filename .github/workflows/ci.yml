@@ -293,6 +293,13 @@ jobs:
           docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             python3 -I /src/tools/portoes/portao_sha1_env.py /src
 
+      # NL-2.21 (DA-2.67): pontos de parse da libxml2 só nos átomos listados em tools/portoes/pontos_de_parse.txt.
+      - name: Pontos de parse da libxml2 (portão pontos_de_parse, NL-2.21)
+        id: pontos_parse
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            python3 -I /src/tools/portoes/pontos_de_parse.py /src
+
       - name: Fixação do CI (digest, SHA e privilégio; ADR 0001, A0-07)
         id: fixacao
         run: |
@@ -370,6 +377,9 @@ jobs:
 
       - name: "Autoteste do portão fora do Flatpak (NL-2.15, DA-2.65)"
         run: bash tools/portoes/autoteste_fora_do_flatpak.sh
+
+      - name: "Autoteste do portão de pontos de parse (NL-2.21, DA-2.67)"
+        run: bash tools/portoes/autoteste_pontos_de_parse.sh
 
   # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
   # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.

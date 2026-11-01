@@ -36,7 +36,9 @@ void TstCodigoSaida::codigosDeDocumentoSaemComQuatro()
     for (const char* codigo : {"xsd.invalido", "xsd.pos_assinatura", "cpf.dv", "cpf.formato", "cpf.repetido", "cpf.tamanho",
                                "cnpj.dv", "cnpj.formato", "cnpj.tamanho", "cnpj.zerado", "dps.dcompet", "dps.invalida",
                                "dps.nao_suportado_v1", "entrada.campo_ausente", "entrada.campos_conflitantes", "entrada.json_invalido",
-                               "entrada.tipo_invalido", "entrada.xml", "entrada.numero_invalido"}) {
+                               "entrada.tipo_invalido", "entrada.xml", "entrada.numero_invalido",
+                               // NL-2.21 (Emenda 2 do CTO): DOCTYPE no XML da DPS é recusa do documento, não falha interna.
+                               "xml.com_dtd"}) {
         QCOMPARE(codigoDeSaidaDaEmissao(codigo), 4);
     }
 }
