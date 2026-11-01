@@ -470,6 +470,17 @@ jobs:
         id: osrelease
         run: flatpak run --user --command=cat io.github.petrinhu.notalivre /run/host/os-release
 
+      # NL-2.10e (E2, DA-2.70): quantas CAs o runtime KDE 6.11 traz dentro do sandbox, e quais raízes ICP-Brasil e a GlobalSign
+      # Root R46 estão lá. Só lê o bundle de CAs. Piso zero reprova (L-36).
+      - name: CAs do runtime KDE 6.11 dentro do sandbox
+        id: cas_runtime
+        run: |
+          set +e
+          bash tools/diagnostico/contar_cas_runtime.sh io.github.petrinhu.notalivre > "$RUNNER_TEMP/cas_runtime.log" 2>&1
+          rc=$?
+          cat "$RUNNER_TEMP/cas_runtime.log"
+          exit "$rc"
+
       # NL-2.27 (passo 6, L-36): o medidor da senha por descritor tem de reprovar com os dois flatpaks falsos antes da medição real.
       - name: Autoteste do medidor da senha por descritor
         id: senha_fd_autoteste
@@ -506,6 +517,7 @@ jobs:
             echo "| os-release | ${{ steps.osrelease.outcome }} |"
             echo "| Autoteste do medidor da senha (NL-2.27) | ${{ steps.senha_fd_autoteste.outcome }} |"
             echo "| Senha por descritor no sandbox (NL-2.27) | ${{ steps.senha_fd.outcome }} |"
+            echo "| CAs do runtime KDE 6.11 (NL-2.10e, E2) | ${{ steps.cas_runtime.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Mutação dos portões (definição de fechamento da Onda 0, L-36 e L-27): cada portão TEM de reprovar a própria
