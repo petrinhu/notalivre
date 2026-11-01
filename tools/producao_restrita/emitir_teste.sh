@@ -226,7 +226,17 @@ classificar() {
         return
     fi
     if grep -q 'sefin\.E0714' "$2"; then RESULTADO=e0714; return; fi
-    if grep -q 'emissão recusada (sefin\.' "$2"; then RESULTADO=sefin; return; fi
+    # NL-2.10e (E7, DA-2.80): "A Sefin recusou" só com prova de resposta: um código E ou um evento sefin.requisicao. Um "sefin.falha"
+    # sem nenhum dos dois não prova que a Sefin respondeu, então é incerta.
+    if grep -q 'emissão recusada (sefin\.E[0-9]' "$2"; then RESULTADO=sefin; return; fi
+    if grep -q 'emissão recusada (sefin\.' "$2"; then
+        if awk '/"evento":"sefin.requisicao"/ { achou = 1 } END { exit !achou }' "$2"; then
+            RESULTADO=sefin
+        else
+            RESULTADO=incerta
+        fi
+        return
+    fi
     # NL-2.27 (B1, revisão de segurança): processo morto (rc >= 128) ou POST registrado na saída: a Sefin pode ter recebido a DPS.
     # Incerta grava o número e manda confirmar antes de reemitir. Só "local" prova que a Sefin não foi chamada.
     if [ "$1" -ge 128 ] || awk '/"evento":"sefin.requisicao"/ && /"metodo":"POST"/ { achou = 1 } END { exit !achou }' "$2"; then
