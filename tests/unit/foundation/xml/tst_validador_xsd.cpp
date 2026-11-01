@@ -82,13 +82,19 @@ QByteArray dtdApontandoPara(int porta)
     return "<!DOCTYPE DPS SYSTEM \"" + url + "\">\n<DPS/>";
 }
 
-// Soma XML_PARSE_DTDLOAD às opções que o contexto já tem. Na 2.13 em diante, xmlCtxtSetOptions substitui o conjunto
-// (parser.c da 2.14.6): a leitura de xmlCtxtGetOptions entra na soma, senão o NONET cairia (NL-2.21).
-void somaDtdLoad(xmlParserCtxtPtr contexto)
+// Soma XML_PARSE_DTDLOAD às opções do contexto (NL-2.21). xmlCtxtSetOptions substitui o conjunto (parser.c da 2.14.6), então
+// somar sem ler as opções atuais apagaria o NONET. 2.14 em diante (>= 21400): xmlCtxtGetOptions. Faixa 2.13 (21300 a 21399):
+// INFERÊNCIA, não compilada em nenhuma imagem; as opções saem montadas à mão, NONET | DTDLOAD quando comNonet (o contexto
+// do parse seguro), só DTDLOAD no controle cru. Antes da 2.13, xmlCtxtUseOptions soma sozinho e mantém o NONET.
+void somaDtdLoad(xmlParserCtxtPtr contexto, bool comNonet)
 {
-#if LIBXML_VERSION >= 21300
+#if LIBXML_VERSION >= 21400
+    (void)comNonet;
     xmlCtxtSetOptions(contexto, xmlCtxtGetOptions(contexto) | XML_PARSE_DTDLOAD);
+#elif LIBXML_VERSION >= 21300
+    xmlCtxtSetOptions(contexto, (comNonet ? XML_PARSE_NONET : 0) | XML_PARSE_DTDLOAD);
 #else
+    (void)comNonet;
     xmlCtxtUseOptions(contexto, XML_PARSE_DTDLOAD);
 #endif
 }
@@ -348,7 +354,7 @@ void TstValidadorXsd::validadorNaoAcessaARede()
         const QByteArray xmlControle = dtdApontandoPara(controle.porta());
         ContextoCru cru(xmlCreateMemoryParserCtxt(xmlControle.constData(), static_cast<int>(xmlControle.size())));
         QVERIFY2(cru != nullptr, "a libxml2 tem de criar o contexto cru do controle");
-        somaDtdLoad(cru.get());
+        somaDtdLoad(cru.get(), false);
         xmlParseDocument(cru.get());
         controle.parar();
         QVERIFY2(controle.conexoes() >= 1, "o controle sem NONET tem de conectar: sem isso o zero do validador não prova nada");
@@ -375,7 +381,7 @@ void TstValidadorXsd::validadorNaoAcessaARede()
         auto contexto = nl::foundation::xml::detail::criarContextoParseSeguro(xml);
         QVERIFY2(contexto != nullptr, "o contexto do parse seguro tem de existir");
         contexto->sax->internalSubset = xmlSAX2InternalSubset;
-        somaDtdLoad(contexto.get());
+        somaDtdLoad(contexto.get(), true);
         xmlParseDocument(contexto.get());
         ouvinte.parar();
         QCOMPARE(ouvinte.conexoes(), 0);

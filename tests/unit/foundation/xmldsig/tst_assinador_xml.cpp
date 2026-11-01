@@ -190,13 +190,19 @@ QByteArray dtdApontandoPara(int porta) {
     return "<!DOCTYPE DPS SYSTEM \"" + url + "\">\n<DPS/>";
 }
 
-// Soma XML_PARSE_DTDLOAD às opções que o contexto já tem (NL-2.21). Na 2.13 em diante, xmlCtxtSetOptions substitui o
-// conjunto (ctxt->options = (ctxt->options & keepMask) | (options & allMask), parser.c da 2.14.6): a leitura de
-// xmlCtxtGetOptions entra na soma, senão o NONET do átomo cairia. Antes da 2.13, xmlCtxtUseOptions soma sozinho.
-void somaDtdLoad(xmlParserCtxtPtr ctx) {
-#if LIBXML_VERSION >= 21300
+// Soma XML_PARSE_DTDLOAD às opções do contexto (NL-2.21). xmlCtxtSetOptions substitui o conjunto (parser.c da 2.14.6:
+// ctxt->options = (ctxt->options & keepMask) | (options & allMask)), então somar sem ler as opções atuais apagaria o NONET.
+// 2.14 em diante (>= 21400): lê com xmlCtxtGetOptions. Faixa 2.13 (21300 a 21399): INFERÊNCIA, não compilada em nenhuma
+// imagem e não confirmada por grep; as opções saem montadas à mão, NONET | DTDLOAD quando comNonet (o átomo), só DTDLOAD
+// no controle cru. Antes da 2.13, xmlCtxtUseOptions soma sozinho e mantém o NONET.
+void somaDtdLoad(xmlParserCtxtPtr ctx, bool comNonet) {
+#if LIBXML_VERSION >= 21400
+    (void)comNonet;
     xmlCtxtSetOptions(ctx, xmlCtxtGetOptions(ctx) | XML_PARSE_DTDLOAD);
+#elif LIBXML_VERSION >= 21300
+    xmlCtxtSetOptions(ctx, (comNonet ? XML_PARSE_NONET : 0) | XML_PARSE_DTDLOAD);
 #else
+    (void)comNonet;
     xmlCtxtUseOptions(ctx, XML_PARSE_DTDLOAD);
 #endif
 }
@@ -903,7 +909,7 @@ private slots:
             const QByteArray xmlControle = dtdApontandoPara(controle.porta());
             xd::privado::ContextoParser cru(xmlCreateMemoryParserCtxt(xmlControle.constData(), static_cast<int>(xmlControle.size())));
             QVERIFY2(cru != nullptr, "a libxml2 tem de criar o contexto cru do controle");
-            somaDtdLoad(cru.get());
+            somaDtdLoad(cru.get(), false);
             xmlParseDocument(cru.get());
             controle.parar();
             QVERIFY2(controle.conexoes() >= 1, "o controle sem NONET tem de conectar: sem isso o zero do átomo não prova bloqueio");
@@ -915,7 +921,7 @@ private slots:
         auto ctx = xd::privado::criarContextoDoParser(xml);
         QVERIFY2(ctx.get() != nullptr, "o contexto do átomo tem de existir");
         ctx->sax->internalSubset = xmlSAX2InternalSubset;
-        somaDtdLoad(ctx.get());
+        somaDtdLoad(ctx.get(), true);
         xmlParseDocument(ctx.get());
         ouvinte.parar();
         QCOMPARE(ouvinte.conexoes(), 0);
