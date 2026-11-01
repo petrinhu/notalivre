@@ -160,6 +160,11 @@ std::expected<nl::foundation::pkcs12::SenhaSegura, ErroDoTerminal> lerSenhaDoTer
         }
         return std::unexpected(ErroDoTerminal::FalhaDeLeitura);
     }
+    // NL-2.27, I3 (decisão do CISO de 01/11/2026): senha vazia no terminal é recusada aqui, como no descritor; não segue ao A1.
+    if (tamanho == 0) {
+        OPENSSL_cleanse(buffer.data(), buffer.size());
+        return std::unexpected(ErroDoTerminal::SenhaVazia);
+    }
     auto senha = nl::foundation::pkcs12::SenhaSegura::de(QByteArrayView(buffer.data(), static_cast<qsizetype>(tamanho)));
     OPENSSL_cleanse(buffer.data(), buffer.size());
     return senha;

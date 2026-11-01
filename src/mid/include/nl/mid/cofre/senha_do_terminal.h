@@ -21,6 +21,7 @@ enum class ErroDoTerminal {
     SemTerminal,      ///< Não há terminal de controle (/dev/tty ausente): a CLI não tem como pedir a senha.
     EmSegundoPlano,   ///< O terminal existe, mas o processo está em segundo plano: a CLI não está em primeiro plano nele.
     FalhaDeLeitura,   ///< O terminal existe e está em primeiro plano, mas a leitura falhou ou a linha passou do teto.
+    SenhaVazia,       ///< A linha veio vazia: sai com cofre.senha_vazia, sem chegar ao carregador do A1 (NL-2.27, I3; decisão do CISO).
 };
 
 /// Pede a senha no terminal sem eco. Devolve a senha, ou o motivo da falha. Nunca para o processo por SIGTTOU.

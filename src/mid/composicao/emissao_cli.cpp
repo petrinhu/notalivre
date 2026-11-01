@@ -315,6 +315,8 @@ FalhaEmissao falhaDoTerminal(nl::mid::cofre::ErroDoTerminal erro)
     case nl::mid::cofre::ErroDoTerminal::EmSegundoPlano:
         return falha("cofre.terminal_em_segundo_plano",
                      "a CLI não está em primeiro plano neste terminal, como acontece dentro do Flatpak; entregue a senha por --senha-certificado-fd");
+    case nl::mid::cofre::ErroDoTerminal::SenhaVazia:
+        return falha("cofre.senha_vazia", "a senha digitada no terminal está vazia");
     case nl::mid::cofre::ErroDoTerminal::FalhaDeLeitura:
         break;
     }
