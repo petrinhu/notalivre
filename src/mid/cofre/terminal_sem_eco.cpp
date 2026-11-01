@@ -99,13 +99,15 @@ bool lerLinhaNoBuffer(const QString& prompt, Buffer& buffer, std::size_t& tamanh
 
 } // namespace
 
-std::optional<nl::foundation::pkcs12::SenhaSegura> lerSenhaDoTerminal(const QString& prompt)
+// Stub do NL-2.27 (commit de teste): ainda tem o comportamento antigo (sem a conferência de segundo plano). Só o tipo de retorno é
+// novo, para o teste compilar e falhar por asserção.
+std::expected<nl::foundation::pkcs12::SenhaSegura, ErroDoTerminal> lerSenhaDoTerminal(const QString& prompt)
 {
     Buffer buffer{};
     std::size_t tamanho = 0;
     if (!lerLinhaNoBuffer(prompt, buffer, tamanho)) {
         OPENSSL_cleanse(buffer.data(), buffer.size());
-        return std::nullopt;
+        return std::unexpected(ErroDoTerminal::SemTerminal);
     }
     auto senha = nl::foundation::pkcs12::SenhaSegura::de(QByteArrayView(buffer.data(), static_cast<qsizetype>(tamanho)));
     OPENSSL_cleanse(buffer.data(), buffer.size());
