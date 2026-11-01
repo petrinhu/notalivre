@@ -26,17 +26,20 @@ void paradaNoDtd(void* ctx, const xmlChar* /*nome*/, const xmlChar* /*publicId*/
     xmlStopParser(parser);
 }
 
-// Última falha do próprio contexto, sem o fim de linha que a libxml2 costuma pôr no fim da mensagem.
-std::string mensagemDoContexto(const xmlParserCtxt& contexto)
+// Última falha da libxml2 desde o xmlResetLastError, sem o fim de linha. Usa xmlGetLastError (global), e não
+// ctxt->lastError: esse membro é XML_DEPRECATED_MEMBER na 2.15 (Ubuntu 26.04), e com -Werror quebra o build (NL-2.21,
+// log NL-2.21-verde-ubuntu26.04-e3c8275.log, linhas 497 a 536). xmlGetLastError é a API que o validador já usava.
+std::string mensagemDaUltimaFalha()
 {
-    if (contexto.lastError.message == nullptr) {
+    const xmlError* ultimo = xmlGetLastError();
+    if (ultimo == nullptr || ultimo->message == nullptr) {
         return {};
     }
-    std::string texto = contexto.lastError.message;
+    std::string texto = ultimo->message;
     while (!texto.empty() && (texto.back() == '\n' || texto.back() == '\r' || texto.back() == ' ')) {
         texto.pop_back();
     }
-    return "linha " + std::to_string(contexto.lastError.line) + ": " + texto;
+    return "linha " + std::to_string(ultimo->line) + ": " + texto;
 }
 
 } // namespace
@@ -66,6 +69,7 @@ SaidaParseSeguro analisarParseSeguro(QByteArrayView xml)
     }
     EstadoParseSeguro estado;
     contexto->_private = &estado;
+    xmlResetLastError();
     xmlParseDocument(contexto.get());
     SaidaParseSeguro saida{std::unique_ptr<xmlDoc, DocLiberador>(contexto->myDoc),
                            contexto->wellFormed != 0,
@@ -73,7 +77,7 @@ SaidaParseSeguro analisarParseSeguro(QByteArrayView xml)
                            {}};
     contexto->myDoc = nullptr;  // o documento passa ao chamador; o contexto é liberado sem ele
     if (!saida.bemFormado && !saida.dtdVisto) {
-        saida.mensagemDoErro = mensagemDoContexto(*contexto);
+        saida.mensagemDoErro = mensagemDaUltimaFalha();
     }
     return saida;
 }
