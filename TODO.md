@@ -98,6 +98,8 @@
 - NL-2.18 (INBOX, BAIXA-10 da revisão de segurança da NL-2.10b, rodada 2): a falha do pin do XSD no passo 6 sai como xsd.pos_assinatura com saída 4 (emissao_cli.cpp:217-218, blob 641eeb0), quando deveria ser 10; endpoint_desconhecido, endpoint_inseguro e ambiente_divergente caem em 70 quando a Mid é chamada direto. Fonte: triagem do CISO de 31/10/2026, 19:38:36.
 - NL-2.19 (INBOX, BAIXA-12 da revisão de segurança da NL-2.10b, rodada 2; estende a NL-2.17): o XSD é relido em três pontos e a libxml2 lê do disco depois da conferência do pin (esquema.cpp:117, :130, :137-147); conferir e validar sobre os mesmos bytes. Fonte: triagem do CISO de 31/10/2026, 19:38:36.
 - NL-2.20 (INBOX, achado do executor da NL-2.15): funções de teste definidas e nunca registradas no CTest (tst_cliente_sefin.cpp:654, :671, :691, :710 e test_servidor_falso.py:462, blob cca6d76), que nenhum portão por ctest vê; registrar ou apagar, e pensar num portão que compare as funções declaradas com as registradas. Fonte: NL-2.15, emenda 1.
+- NL-2.22 (INBOX, INFO-7 da revisão de segurança da NL-2.10c): conferir que a pasta de estado ($XDG_STATE_HOME/notalivre/respostas) não fica em pasta sincronizada com nuvem nem com backup externo; é condição operacional do devops no preparo da NL-2.10, pelo N-03 do CISO. Fonte: DA-2.66, emenda 2.
+- NL-2.23 (INBOX, item 5 da revisão de segurança da NL-2.10c): codigoEValido duplicado em src/mid/sefin/cliente/cliente_sefin.cpp:51-65 e src/mid/composicao/resposta_crua.cpp:40-54 (blob 0a92cdd); teste de paridade com os mesmos casos nas duas cópias, ou extração na terceira ocorrência (regra de 3, L-33). Fonte: DA-2.66, emenda 2.
 
 ## Backlog
 
