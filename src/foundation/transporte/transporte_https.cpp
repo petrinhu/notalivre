@@ -253,7 +253,7 @@ std::expected<RespostaHttp, ErroTransporte> classificarDesfecho(const Desfecho& 
                                         mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)));
         }
         if (ehCodigoDeRespostaCompleta(d.codigo)) {
-            return RespostaHttp{d.status, d.corpo};
+            return RespostaHttp{d.status, d.corpo, {}};  // stub do tipoConteudo (vazio até o commit feat)
         }
         // Erro de rede (1 a 99) depois do status: corpo incompleto ou conexão cortada, nunca resposta.
         const int codigo = static_cast<int>(d.codigo);
