@@ -6,6 +6,8 @@
 
 ## INBOX (descobertas não priorizadas)
 
+- (sem ID): conserto do CI da NL-2.15, rev qa (BAIXA): escreverTudo em tests/e2e/cli_emitir/tst_cli_emitir.cpp:145-160 gira sem fim se write devolver 0 com bytes restantes; guarda "gravados == 0 devolve falso". Fonte: /var/tmp/notalivre-logs/NL-2.15-ci-rev-qa.md.
+- (sem ID): conserto do CI da NL-2.15, rev qa (BAIXA, anterior ao conserto): tst_cli_emitir.cpp:741 (codigo != 0) aceita também -2 (timeout) em ancorasTlsSozinhasValidamOServidor; afirmar o código esperado. Fonte: /var/tmp/notalivre-logs/NL-2.15-ci-rev-qa.md.
 - (sem ID): NL-2.10a-ci, rev qa: um mutante que confere a legibilidade só pelos bits de permissão (isReadable) passa a não ser pego, porque o caso chmod saiu do teste por causa do root no CI. Caminho: um teste de unidade com um verificador de legibilidade injetável.
 - (sem ID): NL-2.10a, rev seg MÉDIA-1, ratificada pelo CISO às 16:38: loopback vira Homologação para qualquer serviço local (politica_emissao.cpp:42-44). Teste `loopbackComCertificadoDeOutroNomeNaoConecta` antes da NL-12. Relatório: /var/tmp/notalivre-logs/NL-2.10a-rev-seg.md.
 - (sem ID): NL-2.10a, rev seg BAIXA-2: nomes de chave da resposta crua saem sem máscara (resposta_crua.cpp:59). Os valores aninhados, de array e numéricos já foram cobertos na rodada 2.

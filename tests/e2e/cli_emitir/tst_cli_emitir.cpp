@@ -20,6 +20,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdlib>
 #include <vector>
 
@@ -135,8 +136,29 @@ private:
 struct Execucao
 {
     QByteArray saida;   ///< tudo o que o pseudo-terminal mostrou: prompt, eco (se houvesse) e a saída da CLI
-    int codigo = -1;    ///< código de saída da CLI; -1 se não saiu normalmente
+    int codigo = -1;    ///< código de saída da CLI; -1 se não saiu normalmente; -2 se estourou a espera; -3 se a escrita falhou
 };
+
+// Grava a linha inteira no pseudo-terminal ou devolve falso. write pode gravar menos que o pedido e pode ser interrompido
+// (EINTR). O retorno nunca é descartado: o SDK do Flatpak compila com _FORTIFY_SOURCE=3 e -Werror=unused-result, e um
+// static_cast<void> não cala esse aviso (CI run 41257357615).
+bool escreverTudo(int fd, const QByteArray& dados)
+{
+    const char* ponteiro = dados.constData();
+    qsizetype restante = dados.size();
+    while (restante > 0) {
+        const ssize_t gravados = write(fd, ponteiro, static_cast<size_t>(restante));
+        if (gravados < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return false;
+        }
+        ponteiro += gravados;
+        restante -= gravados;
+    }
+    return true;
+}
 
 // Roda a CLI num pseudo-terminal próprio. Quando o prompt da senha aparece, digita a senha e a linha. Limite de espera.
 Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& configDir, const QByteArray& senha,
@@ -169,6 +191,7 @@ Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& config
     bool senhaEnviada = false;
     bool confirmacaoEnviada = false;
     bool expirou = false;
+    bool escritaFalhou = false;
     char buffer[1024];
     for (;;) {
         pollfd espera{mestre, POLLIN, 0};
@@ -182,23 +205,30 @@ Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& config
         }
         execucao.saida.append(buffer, static_cast<int>(lidos));
         if (!confirmacaoEnviada && execucao.saida.contains("confirme o CPF ou CNPJ")) {
-            QByteArray linha = confirmacao + "\n";  // a confirmação digitada; vazia para o caso de recusa
-            static_cast<void>(write(mestre, linha.constData(), static_cast<size_t>(linha.size())));
+            // a confirmação digitada; vazia para o caso de recusa
+            if (!escreverTudo(mestre, confirmacao + "\n")) {
+                escritaFalhou = true;
+                break;
+            }
             confirmacaoEnviada = true;
         }
         if (!senhaEnviada && execucao.saida.contains("senha do certificado")) {
-            QByteArray linha = senha + "\n";
-            static_cast<void>(write(mestre, linha.constData(), static_cast<size_t>(linha.size())));
+            if (!escreverTudo(mestre, senha + "\n")) {
+                escritaFalhou = true;
+                break;
+            }
             senhaEnviada = true;
         }
     }
-    if (expirou) {
-        kill(pid, SIGKILL);  // a CLI não respondeu: mata antes do waitpid, que bloquearia
+    if (expirou || escritaFalhou) {
+        kill(pid, SIGKILL);  // a CLI não responde mais: mata antes do waitpid, que bloquearia
     }
     int status = 0;
     waitpid(pid, &status, 0);
     close(mestre);
-    if (expirou) {
+    if (escritaFalhou) {
+        execucao.codigo = -3;  // a linha não entrou no terminal: o caso falha, nunca passa como saída normal
+    } else if (expirou) {
         execucao.codigo = -2;  // limite de espera estourado
     } else if (WIFEXITED(status)) {
         execucao.codigo = WEXITSTATUS(status);
@@ -707,6 +737,7 @@ void TstCliEmitir::ancorasTlsSozinhasValidamOServidor()
     config.close();
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
     const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo != -3, "a escrita da senha no terminal falhou: o caso não pode passar em silêncio");
     QVERIFY2(execucao.codigo != 0, qPrintable(QStringLiteral("a conexão tinha de ser recusada; rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(!execucao.saida.contains("emitida: chave "), "sem âncora TLS, nenhuma NFS-e pode sair como emitida");
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
