@@ -213,11 +213,15 @@ controle_inclusao PR08 apps/gui/main.cpp 1 'pid_t p = fork();' "${viol_proc_gui}
 controle_inclusao PR09 apps/gui/main.cpp 1 'pid_t p = vfork();' "${viol_proc_gui}vfork"
 controle_inclusao PR10 apps/gui/main.cpp 1 'const char *n = "notalivre-cli";' \
     '^VIOLACAO apps/gui/main\.cpp:[0-9]+: texto notalivre-cli proibido fora de apps/cli'
-controle_inclusao PR11 src/mid/camada.cpp 1 'const char *n = "notalivre-cli";' \
-    '^VIOLACAO src/mid/camada\.cpp:[0-9]+: texto notalivre-cli proibido fora de apps/cli'
+controle_inclusao PR11 src/mid/camada.cpp 0 'const char *n = "notalivre-cli";' 'violacoes=0$'
 controle_inclusao PR12 apps/cli/main.cpp 0 'const char *n = "notalivre-cli";' 'violacoes=0$'
 controle_inclusao PR13 apps/cli/main.cpp 1 'FILE *f = popen("ls", "r");' \
     '^VIOLACAO apps/cli/main\.cpp:[0-9]+: chamada de processo popen'
+# DA-2.84 (decisão do CTO): o literal é proibido só em apps/gui (PR11 passa em src, PR10 reprova em apps/gui).
+# A família exec ganha execve e execveat (ratificados na DA-2.84): cada um com caso visto vermelho.
+controle_inclusao PR16 apps/gui/main.cpp 1 'execve("ls", nullptr, nullptr);' "${viol_proc_gui}execve"
+controle_inclusao PR17 src/mid/camada.cpp 1 'execveat(0, "ls", nullptr, nullptr, 0);' "${viol_proc_src}execveat"
+controle_inclusao PR18 apps/gui/main.cpp 0 'int myexecve(int x);' 'violacoes=0$'
 # Controle limpo e falsos positivos: comentário, texto entre aspas, identificador que contém a palavra, namespace.
 controle_inclusao PR14 apps/gui/main.cpp 0 '// system( fork( QProcess popen( notalivre-cli
 const char *s = "system(";
