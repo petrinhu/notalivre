@@ -311,8 +311,13 @@ void TstRespostaCrua::profundidadeAcimaDeOitoViraMarcador()
         corpo = "{\"a" + QByteArray::number(nivel) + "\":" + corpo + "}";
     }
     const QByteArray m = nl::mid::composicao::mascararRespostaCrua(corpo);
-    QVERIFY2(m.contains("\"<chave:2:alfanumerico:1>\":\"<profundidade>\""),
-             "a chave a8 (oitavo nível, única no objeto) sai na forma, e o objeto do nono nível vira <profundidade>");
+    // A estrutura inteira, e não só um trecho: oito objetos aninhados, cada um com uma chave só (k=1), e o nono nível como
+    // <profundidade> sob a chave do oitavo. Um trecho não prova o nível, porque a7 sai igual a a8 (achado R3-M26 do QA).
+    QByteArray esperado = QByteArrayLiteral("\"<profundidade>\"");
+    for (int i = 0; i < 8; ++i) {
+        esperado = QByteArrayLiteral("{\"<chave:2:alfanumerico:1>\":") + esperado + "}";
+    }
+    QVERIFY2(m == esperado, "a estrutura tem de ter oito objetos aninhados, e o nono nível vira <profundidade> sob a chave do oitavo");
     QVERIFY2(!m.contains("SEGREDO123"), "nada abaixo do oitavo nível pode sair");
 }
 

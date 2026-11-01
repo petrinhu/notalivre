@@ -605,7 +605,10 @@ void TstCliEmitir::cliAvisaQuandoAGravacaoFalha()
     QVERIFY(configDir.isValid());
     ServidorFalso servidor;
     QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
-    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
+    // rsa-sha256 em todas as distros (como algoritmoRsaSha256NoXmlEnviado): com o padrão rsa-sha1, o fedora44 recusa antes do envio
+    // e a resposta nunca chega ao gravador, então o aviso não seria provado nessa distro (achado R3-M20 do QA).
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"));
     QFile bloqueio(configDir.path() + QStringLiteral("/state"));
     QVERIFY(bloqueio.open(QIODevice::WriteOnly));
     bloqueio.write("x");
@@ -616,10 +619,6 @@ void TstCliEmitir::cliAvisaQuandoAGravacaoFalha()
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
                                  };
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
-    if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
-        exigeRecusaSha1SemEnvio(execucao, servidor.requisicoesAoFechar());
-        return;
-    }
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("resposta_crua.nao_gravada"), "a falha de gravação tem de sair como aviso no log da CLI");
     QVERIFY2(!execucao.saida.contains(configDir.path().toUtf8()), "o caminho da pasta de estado não pode ir ao log");
