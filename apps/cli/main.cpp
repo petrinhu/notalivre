@@ -3,7 +3,7 @@
 // Ponto de entrada da CLI notalivre (NL-2.9, itens 4 e 5, DA-2.53): o registro e a guarda do manipulador do Qt nascem antes da
 // QCoreApplication. A CLI só chama a raiz de composição da Mid; não inclui nada de nl/foundation/log.
 // NL-2.27b (DA-2.72): a posse do descritor da senha é tomada antes de tudo: antes do registro, da guarda, da QCoreApplication e de
-// qualquer abertura de arquivo. Sem isso, um arquivo aberto antes da conferência ocupava o número pedido (medição do devops).
+// qualquer abertura de objeto do Qt. Sem isso, um eventfd da QCoreApplication (anon_inode, medido em 0d7da83) ocupava o número pedido.
 #include "comando_config.h"
 #include "comando_dps_validar.h"
 #include "comando_emitir.h"

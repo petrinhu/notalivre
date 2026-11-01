@@ -17,15 +17,16 @@ namespace nl::mid::cofre {
 enum class ErroDaTomada {
     DescritorInvalido,  ///< 0 a 2, número fora de faixa, ou descritor fechado na entrada (cofre.descritor_invalido).
     DescritorTerminal,  ///< O descritor é um terminal (cofre.descritor_terminal).
-    LegivelPorOutros,   ///< Arquivo comum com permissão para grupo ou outros; o caminho vai em ocupante (cofre.descritor_legivel_por_outros).
+    LegivelPorOutros,   ///< Arquivo comum com permissão para grupo ou outros; só o tipo vai em tipo (cofre.descritor_legivel_por_outros).
     FalhaDeTomada,      ///< A duplicação para o número alto falhou (cofre.descritor_invalido).
     DescritorTrocado,   ///< Na leitura, o descritor não tem o dispositivo e o inode tomados na entrada (cofre.descritor_trocado).
 };
 
-/// Recusa da tomada: o motivo, e o caminho do arquivo que ocupava o número pedido quando ele é legível por outros (nunca o conteúdo).
+/// Recusa da tomada: o motivo, e o tipo do descritor recusado, para a mensagem. O tipo nunca traz nome nem caminho de arquivo (ADR-0005,
+/// DA-2.73): a mensagem diz só o tipo e o que fazer.
 struct RecusaDaTomada {
     ErroDaTomada motivo = ErroDaTomada::DescritorInvalido;
-    std::string ocupante;
+    std::string tipo;
 };
 
 /// Descritor tomado na entrada, com a identidade do arquivo que estava no número pedido.

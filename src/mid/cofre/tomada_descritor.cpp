@@ -18,17 +18,8 @@ namespace {
 // Número alto da posse: fica longe dos números que o app abre depois (arquivos, sockets, bibliotecas do Qt).
 constexpr int kMenorNumeroDaPosse = 100;
 
-// Caminho do arquivo que ocupa o número, lido do /proc (nunca o conteúdo). Vazio se não há link.
-std::string caminhoDoOcupante(int numero)
-{
-    const std::string enlace = "/proc/self/fd/" + std::to_string(numero);
-    char alvo[PATH_MAX];
-    const ssize_t tamanho = readlink(enlace.c_str(), alvo, sizeof alvo - 1);
-    if (tamanho <= 0) {
-        return {};
-    }
-    return std::string(alvo, static_cast<std::size_t>(tamanho));
-}
+// Tipo do descritor que a recusa de arquivo legível por outros nomeia. Só o tipo: nada de nome nem caminho (DA-2.73).
+constexpr const char* kTipoDoArquivoLegivel = "arquivo comum com permissão aberta a grupo ou outros";
 
 } // namespace
 
@@ -47,7 +38,7 @@ std::expected<TomadaDeDescritor, RecusaDaTomada> tomarDescritorDeSenha(int numer
         return std::unexpected(RecusaDaTomada{ErroDaTomada::DescritorTerminal, {}});
     }
     if (S_ISREG(estado.st_mode) && (estado.st_mode & 077) != 0) {
-        RecusaDaTomada recusa{ErroDaTomada::LegivelPorOutros, caminhoDoOcupante(numeroPedido)};
+        RecusaDaTomada recusa{ErroDaTomada::LegivelPorOutros, kTipoDoArquivoLegivel};
         ::close(numeroPedido);
         return std::unexpected(recusa);
     }

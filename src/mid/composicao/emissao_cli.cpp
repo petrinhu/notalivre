@@ -373,21 +373,21 @@ std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& 
 
 namespace {
 
-// Código estável da recusa da tomada (NL-2.27b, DA-2.72). A mensagem nomeia o arquivo ocupante, se houver, e nunca o conteúdo.
+// Código estável da recusa da tomada (NL-2.27b, DA-2.72, DA-2.73). A mensagem diz só o tipo do descritor e o que fazer: nunca nome nem
+// caminho de arquivo (ADR-0005), e nunca o conteúdo.
 FalhaEmissao falhaDaTomada(const nl::mid::cofre::RecusaDaTomada& recusa, int numeroPedido)
 {
     const std::string numero = std::to_string(numeroPedido);
     switch (recusa.motivo) {
     case nl::mid::cofre::ErroDaTomada::DescritorInvalido:
         return falha("cofre.descritor_invalido",
-                     "o descritor " + numero + " da senha está fechado na entrada da CLI, ou é 0, 1 ou 2; nenhum arquivo o ocupava");
+                     "o descritor " + numero + " da senha está fechado na entrada da CLI, ou é 0, 1 ou 2: nada foi lido");
     case nl::mid::cofre::ErroDaTomada::DescritorTerminal:
         return falha("cofre.descritor_terminal", "o descritor " + numero + " da senha é um terminal: entregue a senha por arquivo ou pipe");
-    case nl::mid::cofre::ErroDaTomada::LegivelPorOutros: {
-        const std::string ocupante = recusa.ocupante.empty() ? std::string("o arquivo do descritor " + numero) : "o arquivo " + recusa.ocupante;
+    case nl::mid::cofre::ErroDaTomada::LegivelPorOutros:
         return falha("cofre.descritor_legivel_por_outros",
-                     ocupante + " ocupa o descritor " + numero + " e tem permissão para grupo ou outros: use 0600");
-    }
+                     "o descritor " + numero + " da senha é um " + recusa.tipo +
+                         ": use permissão 0600, ou entregue a senha por pipe");
     case nl::mid::cofre::ErroDaTomada::FalhaDeTomada:
         return falha("cofre.descritor_invalido", "não foi possível tomar o descritor " + numero + " da senha");
     case nl::mid::cofre::ErroDaTomada::DescritorTrocado:

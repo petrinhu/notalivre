@@ -103,7 +103,6 @@ struct TomadaDaSenha {
     int fd = -1;                 ///< número do descritor tomado (alto, com FD_CLOEXEC)
     std::uint64_t dispositivo = 0;
     std::uint64_t inodo = 0;
-    std::string ocupante;        ///< caminho do arquivo que ocupava o número pedido, quando a recusa é legível por outros; nunca o conteúdo
 };
 
 /// Toma posse do descritor pedido na linha de comando (fechado na entrada, terminal ou legível por outros saem com cofre.* de entrada).
