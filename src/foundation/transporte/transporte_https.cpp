@@ -76,7 +76,10 @@ QString mensagemDeRede(CausaErro causa, QNetworkReply::NetworkError codigo, bool
 ErroTransporte erroDeRede(QNetworkReply::NetworkError codigo, bool handshake, int sslErros)
 {
     const Classificacao classe = classificarErroDeRede(codigo);
-    return erro(classe.tipo, classe.causa, mensagemDeRede(classe.causa, codigo, handshake, sslErros));
+    ErroTransporte erroRede = erro(classe.tipo, classe.causa, mensagemDeRede(classe.causa, codigo, handshake, sslErros));
+    erroRede.codigoQt = static_cast<int>(codigo);  // NL-2.10e (E4): para o log de falha de transporte
+    erroRede.handshake = handshake;
+    return erroRede;
 }
 
 // mTLS: autoridade de servidor só a da configuração (sem as do sistema), TLS 1.2 ou superior, verificação do servidor

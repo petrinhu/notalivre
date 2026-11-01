@@ -17,6 +17,7 @@
 #include <nl/foundation/gzip/gzip.h>
 #include <nl/foundation/log/log.h>
 #include <nl/foundation/transporte/transporte_https.h>
+#include <nl/mid/sefin/cliente/registro_transporte.h>
 
 #include <QByteArray>
 #include <QJsonDocument>
@@ -354,6 +355,10 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
         auto resposta = transporte_.enviar(requisicao);
 
         if (!resposta) {
+            // NL-2.10e (E4, DA-2.75): a falha do envio sai no log com campos fechados, antes de qualquer decisão. Antes desta fatia
+            // a mensagem do transporte era descartada aqui.
+            registrarTransporteFalhou(registro_, resposta.error().causa, resposta.error().codigoQt, resposta.error().handshake,
+                                      resposta.error().bytesEscritos, "POST");
             // Critério por bytes escritos (DA-2.41, adendo de 30/10/2026): zero bytes é falha antes do envio; com bytes, o
             // POST pode ter chegado, e a consulta decide. O código do Qt não entra na decisão.
             if (resposta.error().bytesEscritos == 0) {

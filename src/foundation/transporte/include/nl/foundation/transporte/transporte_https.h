@@ -40,6 +40,10 @@ struct ErroTransporte {
     /// Bytes do corpo que o Qt escreveu no socket antes do erro (sinal uploadProgress). Zero: nada do pedido saiu da
     /// máquina, a falha é antes do envio. Maior que zero: o POST pode ter chegado ao servidor (DA-2.41, adendo de 30/10/2026).
     qint64 bytesEscritos = 0;
+    /// Código do erro de rede do Qt (QNetworkReply::NetworkError), para o log de falha de transporte (NL-2.10e, E4). Zero se não há.
+    int codigoQt = 0;
+    /// Se a falha foi no handshake TLS. Só para o log de falha de transporte (NL-2.10e, E4).
+    bool handshake = false;
 };
 
 /// Endereço e política de tempo do ambiente (DA-2.5). O prefixo vazio significa sem prefixo.

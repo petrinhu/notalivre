@@ -83,6 +83,11 @@ void RegistroCli::registrarCertificadoConfigurado()
 
 void RegistroCli::registrarEmissaoRecusada(std::string_view idDps, std::string_view codigo)
 {
+    // NL-2.10e (E4): o código E da Sefin chega com o prefixo "sefin."; o registro guarda só o código E, sem o prefixo.
+    constexpr std::string_view kPrefixoSefin = "sefin.";
+    if (codigo.substr(0, kPrefixoSefin.size()) == kPrefixoSefin) {
+        codigo.remove_prefix(kPrefixoSefin.size());
+    }
     const std::string codigoRegistrado = codigoEValido(codigo) ? std::string(codigo) : std::string("codigo_invalido");
     const std::vector<fl::Campo> campos{fl::Campo{"idDps", std::string(idDps)}, fl::Campo{"codigoE", codigoRegistrado}};
     static_cast<void>(interno_->log.registrar(fl::Nivel::Erro, "emissao.recusada", campos));

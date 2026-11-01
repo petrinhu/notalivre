@@ -228,6 +228,16 @@ classificar() {
     if grep -q 'sefin\.E0714' "$2"; then RESULTADO=e0714; return; fi
     # NL-2.10e (E7, DA-2.80): "A Sefin recusou" só com prova de resposta: um código E ou um evento sefin.requisicao. Um "sefin.falha"
     # sem nenhum dos dois não prova que a Sefin respondeu, então é incerta.
+    # NL-2.10e (E4, E7): falha de transporte com zero bytes escritos é antes da Sefin: local. Com bytes escritos, o POST pode ter
+    # chegado: incerta (o sinal é o evento sefin.transporte_falhou, antes de qualquer texto de recusa).
+    if grep -q 'sefin\.transporte_falhou' "$2"; then
+        if awk '/"evento":"sefin.transporte_falhou"/ && /"bytesEscritos":"0"/ { achou = 1 } END { exit !achou }' "$2"; then
+            RESULTADO=local
+        else
+            RESULTADO=incerta
+        fi
+        return
+    fi
     if grep -q 'emissão recusada (sefin\.E[0-9]' "$2"; then RESULTADO=sefin; return; fi
     if grep -q 'emissão recusada (sefin\.' "$2"; then
         if awk '/"evento":"sefin.requisicao"/ { achou = 1 } END { exit !achou }' "$2"; then
