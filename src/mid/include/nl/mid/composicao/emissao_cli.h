@@ -7,7 +7,6 @@
 
 #include <nl/mid/composicao/dps_validar.h>
 #include <nl/mid/composicao/politica_emissao.h>
-#include <nl/foundation/transporte/transporte_https.h>
 
 #include <optional>
 #include <QByteArray>
@@ -21,6 +20,9 @@
 #include <memory>
 #include <string>
 
+namespace nl::foundation::transporte {
+struct ConfiguracaoTls;  // NL-2.10e: só declarado aqui; a CLI não linka o transporte. Quem chama inclui transporte_https.h.
+}
 namespace nl::foundation::pkcs12 {
 class Ancoras;
 class SenhaSegura;
