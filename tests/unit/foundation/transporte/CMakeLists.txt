@@ -23,6 +23,7 @@ foreach(nome IN ITEMS
     conexaoRecusadaViraErroTransitorio
     corpo2xxTruncadoViraTransitorio
     rejeicao400ComCorpoContinuaRespostaHttp
+    respostaTrazOContentType
     cabecalhoAcceptEncodingIdentityEnviado
     contentEncodingNaoIdentityViraDefinitivoProtocolo
     mensagemDeErroNaoTrazURLNemHost

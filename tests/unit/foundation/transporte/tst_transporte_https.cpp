@@ -168,6 +168,7 @@ private slots:
     void conexaoRecusadaViraErroTransitorio();
     void corpo2xxTruncadoViraTransitorio();
     void rejeicao400ComCorpoContinuaRespostaHttp();
+    void respostaTrazOContentType();
     void cabecalhoAcceptEncodingIdentityEnviado();
     void contentEncodingNaoIdentityViraDefinitivoProtocolo();
     void servidorDeOutraRaizRecusado();
@@ -307,6 +308,28 @@ void TesteTransporteHttps::rejeicao400ComCorpoContinuaRespostaHttp()
     QVERIFY2(resposta.has_value(), "400 do servidor devia voltar como RespostaHttp, não como erro");
     QCOMPARE(resposta->status, 400);
     QVERIFY2(resposta->corpo.contains("ENVELOPE_INVALIDO"), "o corpo do 400 devia chegar intacto");
+}
+
+void TesteTransporteHttps::respostaTrazOContentType()
+{
+    // O servidor falso responde o 400 em JSON (Content-Type application/json; charset=utf-8). O transporte tem de devolver
+    // esse cabeçalho em tipoConteudo, para o observador de respostas (NL-2.10c) gravar o tipo que a Sefin mandou.
+    ServidorDeTeste servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = cliente.certificado;
+    tls.chaveCliente = cliente.chave;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    const RequisicaoHttp envioRuim{QByteArrayLiteral("POST"), QStringLiteral("/nfse"),
+                                   QByteArrayLiteral("nao-e-envelope"), QByteArrayLiteral("application/xml")};
+    auto resposta = transporte.enviar(envioRuim);
+    QVERIFY2(resposta.has_value(), "400 do servidor devia voltar como RespostaHttp");
+    QVERIFY2(resposta->tipoConteudo.startsWith("application/json"),
+             qPrintable(QStringLiteral("Content-Type da resposta devia vir em tipoConteudo; recebido: '%1'")
+                            .arg(QString::fromLatin1(resposta->tipoConteudo))));
 }
 
 void TesteTransporteHttps::mensagemDeErroNaoTrazURLNemHost()
