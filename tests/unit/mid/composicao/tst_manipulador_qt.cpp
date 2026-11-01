@@ -8,6 +8,10 @@
 
 #include <QtTest>
 
+#include <QDir>
+#include <QFile>
+#include <QLoggingCategory>
+
 #include <sstream>
 #include <string>
 
@@ -51,7 +55,31 @@ private slots:
     void mensagemDoQtNaSaidaDoProcessoNaoUsaLogDestruido();
     // A guarda ligada ao Log descarta ao sair do escopo: depois dela, o Qt não escreve na saída de erro (NL-2.9, item 4).
     void guardaDescartaAoSairDoEscopo();
+    // NL-2.10e (DA-2.82): a categoria do Qt sai num conjunto fechado (qt.network.ssl, qt.network.http2, qt.network.access, outro); o texto não.
+    void categoriaDoQtFechadaETextoDescartado();
 };
+
+void TstManipuladorQt::categoriaDoQtFechadaETextoDescartado()
+{
+    std::ostringstream destino;
+    nl::foundation::log::Log registro{destino, "notalivre-cli", {nl::foundation::log::DeclaracaoCampo{"categoria", nl::foundation::log::Regra::Cru}}, {"qt.mensagem"}};
+    nl::mid::composicao::instalarManipuladorQt(&registro);
+    const QLoggingCategory categoria("qt.network.ssl");
+    qCWarning(categoria) << "texto do Qt com CNPJ 11222333000181";
+    nl::mid::composicao::instalarManipuladorQt(nullptr);
+    const std::string saida = destino.str();
+    // Portão de PII (NL-2.10e, R-B2): a saída vai para a pasta que o portão varre; um texto com CNPJ nunca pode sair.
+    const QString pasta = qEnvironmentVariable("NL_LOGS_PII_CLI_DIR");
+    if (!pasta.isEmpty()) {
+        QDir().mkpath(pasta);
+        QFile arquivo(pasta + QLatin1String("/qt_mensagem.log"));
+        if (arquivo.open(QIODevice::WriteOnly | QIODevice::Append)) {
+            arquivo.write(saida.data(), static_cast<qint64>(saida.size()));
+        }
+    }
+    QVERIFY2(saida.find("\"categoria\":\"qt.network.ssl\"") != std::string::npos, "a categoria do Qt tem de sair no conjunto fechado");
+    QVERIFY2(saida.find("11222333000181") == std::string::npos, "o texto do Qt não pode sair no log");
+}
 
 void TstManipuladorQt::qWarningComCpfNaoVaiAoLog()
 {

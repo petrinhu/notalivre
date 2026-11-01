@@ -382,6 +382,8 @@ private slots:
     void falhaDePostVaiAoLogComEtapaPost();
     // (E4 complemento, DA-2.75) falha de transporte no GET vai ao log com a etapa GET.
     void falhaDeGetVaiAoLogComEtapaGet();
+    // NL-2.10e (item 6, DA-2.82): âncoras TLS vazias são recusadas antes de qualquer byte, com causa de configuração no evento.
+    void ancorasTlsVaziasSaiComCausaDeConfiguracao();
     void sucessoExtraiChaveDe50Posicoes()
     {
         auto cred = credencial();
@@ -1144,6 +1146,27 @@ void TesteClienteSefin::falhaDeGetVaiAoLogComEtapaGet()
     const std::string saida = m->destino.str();
     QVERIFY2(saida.find("sefin.transporte_falhou") != std::string::npos, "a falha do GET tem de ir ao log (E4, DA-2.75)");
     QVERIFY2(saida.find("\"etapa\":\"GET\"") != std::string::npos, "a etapa da falha do GET tem de ser GET");
+}
+
+void TesteClienteSefin::ancorasTlsVaziasSaiComCausaDeConfiguracao()
+{
+    auto cred = credencial();
+    QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+    auto dps = dpsAssinada(*cred);
+    QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+    ft::ConfiguracaoTls tls = configuracaoTls(*cred);
+    tls.autoridades.clear();  // âncoras TLS vazias: a configuração é inválida, e nada sai da máquina
+    const ft::UrlBase base{QUrl(QStringLiteral("https://127.0.0.1:1")), QString(), 5000ms};
+    ft::TransporteHttps transporte(base, tls);
+    std::ostringstream destino;
+    fl::Log log(destino, "sefin", mc::allowlistLogSefin(), mc::eventosLogSefin());
+    mc::PoliticaRetry politica;
+    politica.base = 1ms;
+    mc::ClienteSefin cliente(transporte, log, politica, nullptr, nullptr);
+    QVERIFY(!cliente.emitir(*dps).has_value());
+    const std::string saida = destino.str();
+    QVERIFY2(saida.find("\"causa\":\"configuracao\"") != std::string::npos, "âncoras vazias têm de sair com causa de configuração no evento");
+    QVERIFY2(saida.find("\"bytesEscritos\":\"0\"") != std::string::npos, "âncoras vazias não escrevem nenhum byte");
 }
 
 QTEST_GUILESS_MAIN(TesteClienteSefin)

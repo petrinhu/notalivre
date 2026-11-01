@@ -437,6 +437,13 @@ emitir_stub() {
             # NL-2.10e (E7, DA-2.80): "sefin.falha" sem nenhum evento sefin.requisicao não é prova de recusa da Sefin: a classificação é incerta.
             echo "emissão recusada (sefin.falha): "
             exit 1 ;;
+        post5_get0)
+            # NL-2.10e (R-B1, sonda SP do revisor): o POST escreveu bytes e a consulta GET falhou com zero bytes. O POST pode ter chegado:
+            # incerta, e nunca local. O evento da etapa POST tem bytes maiores que zero.
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"5","etapa":"POST"},"descartados":0}'
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"0","etapa":"GET"},"descartados":0}'
+            echo "emissão recusada (sefin.falha): "
+            exit 1 ;;
         transporte_bytes0)
             # NL-2.10e (E7, E4): falha de transporte com zero bytes escritos é antes da Sefin: local.
             echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"tls","codigoQt":"4","handshake":"sim","bytesEscritos":"0","etapa":"POST"},"descartados":0}'
@@ -664,6 +671,8 @@ ensaio() {
     ensaio_caso morto_depois_do_post_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=morto139 NL_ENSAIO_NDPS_ESPERADO=1
     # NL-2.10e (E7): "sefin.falha" sem sefin.requisicao não pode sair como "A Sefin recusou"; a mensagem é de confirmação.
     # NL-2.10e (E7, E4): transporte com zero bytes é local; com bytes escritos, o POST pode ter chegado: incerta.
+    # NL-2.10e (R-B1, sonda SP): POST com bytes e GET com zero bytes: incerta, nunca local (a regra local exige a etapa POST com zero bytes).
+    ensaio_caso post_bytes5_get0_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=post5_get0 NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso transporte_sem_bytes_e_local 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=transporte_bytes0 NL_ENSAIO_NDPS_ESPERADO=ausente
     ensaio_caso transporte_com_bytes_e_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=transporte_bytes5 NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso sefin_falha_sem_requisicao_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=sefin_falha_sem_requisicao NL_ENSAIO_NDPS_ESPERADO=1

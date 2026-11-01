@@ -94,7 +94,14 @@ def main():
     contexto = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     contexto.minimum_version = ssl.TLSVersion.TLSv1_2
     contexto.load_cert_chain(os.path.join(pasta, "servidor.pem"), os.path.join(pasta, "servidor.key"))
-    contexto.set_alpn_protocols(["h2", "http/1.1"])
+    if "--tls11" in sys.argv[2:]:
+        # NL-2.10e (R-B3, piso TLS 1.2): o servidor fala só TLS 1.1. O cliente que aceita abaixo de 1.2 completa o handshake; o que
+        # respeita o piso recusa. SECLEVEL=0 é preciso para o OpenSSL 3 negociar 1.1 do lado do servidor (teste, nunca produção).
+        contexto.minimum_version = ssl.TLSVersion.TLSv1_1
+        contexto.maximum_version = ssl.TLSVersion.TLSv1_1
+        contexto.set_ciphers("DEFAULT:@SECLEVEL=0")
+    else:
+        contexto.set_alpn_protocols(["h2", "http/1.1"])
     servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     servidor.bind(("127.0.0.1", 0))

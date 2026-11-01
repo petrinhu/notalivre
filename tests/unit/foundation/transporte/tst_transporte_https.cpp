@@ -158,8 +158,10 @@ private:
 // por conexão e "HTTP200" quando responde em HTTP/1.1. Só a biblioteca padrão do Python.
 class ServidorH2Teste {
 public:
-    ServidorH2Teste() {
-        processo_.start(QStringLiteral(NL_PYTHON3), {QStringLiteral(NL_SERVIDOR_H2), pastaFixtures()});
+    explicit ServidorH2Teste(const QStringList& extras = {}) {
+        QStringList argumentos{QStringLiteral(NL_SERVIDOR_H2), pastaFixtures()};
+        argumentos << extras;
+        processo_.start(QStringLiteral(NL_PYTHON3), argumentos);
         if (processo_.waitForReadyRead(15000)) {
             const QString linha = QString::fromUtf8(processo_.readLine()).trimmed();
             if (linha.startsWith(QStringLiteral("PORTA "))) {
@@ -222,6 +224,8 @@ private slots:
     void rejeicao400ComCorpoContinuaRespostaHttp();
     // NL-2.10e (E5, DA-2.79): o servidor só fala h2 e recusa com HTTP_1_1_REQUIRED; o transporte tem de negociar HTTP/1.1 e receber 200.
     void h2RecusadoRepetidoEmHttp11();
+    // NL-2.10e (R-B3, piso TLS 1.2): um servidor que só fala TLS 1.1 não pode ser aceito: o handshake tem de falhar com causa Tls.
+    void servidorSoTls11RecusadoPeloPiso();
     void respostaTrazOContentType();
     void cabecalhoAcceptEncodingIdentityEnviado();
     void contentEncodingNaoIdentityViraDefinitivoProtocolo();
@@ -245,6 +249,18 @@ void TesteTransporteHttps::initTestCase()
 
 void TesteTransporteHttps::cleanupTestCase()
 {
+}
+
+void TesteTransporteHttps::servidorSoTls11RecusadoPeloPiso()
+{
+    ServidorH2Teste servidor({QStringLiteral("--tls11")});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    ConfiguracaoTls tls;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 8000ms), tls);
+    const auto resposta = transporte.enviar(consultaDps());
+    QVERIFY2(!resposta.has_value(), "TLS abaixo de 1.2 não pode ser aceito (piso do canon, R-B3)");
+    QCOMPARE(resposta.error().causa, CausaErro::Tls);
 }
 
 void TesteTransporteHttps::h2RecusadoRepetidoEmHttp11()
