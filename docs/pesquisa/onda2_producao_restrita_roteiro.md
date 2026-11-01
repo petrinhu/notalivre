@@ -1,5 +1,33 @@
 # Roteiro: emissão de teste em Produção Restrita (NL-2.10)
 
+## Para o líder
+
+Você só precisa de um comando. No terminal, rode:
+
+```
+bash <caminho>/tools/producao_restrita/emitir_teste.sh
+```
+
+Troque `<caminho>` pela pasta do projeto no seu computador (a pasta que contém `tools`).
+
+O script faz sozinho todos os passos técnicos deste roteiro (o passo a passo manual está no apêndice técnico, mais abaixo). Ele pergunta, nesta ordem:
+
+1. o CNPJ do emissor, com 14 dígitos e sem pontos, numa janela;
+2. o arquivo do certificado `.pfx`, escolhido numa janela;
+3. a senha do certificado, digitada no próprio terminal, onde ela não aparece na tela. O script não lê nem guarda a senha.
+
+No fim ele mostra uma destas frases: "Nota de teste aceita", com a chave de acesso; ou "A Sefin recusou; avise o Claude". Se a emissão parar antes de chegar à Sefin, ele mostra o código de saída e manda avisar o Claude.
+
+As saídas ficam em `/var/tmp/notalivre-nl210/teste-lider/execucao-<data>/`, e as cópias para devolução em `/var/tmp/notalivre-nl210/devolucao/execucao-<data>/`. Não envie esses arquivos a ninguém. (A pasta do certificado nunca aparece nas saídas.)
+
+Enquanto o script roda, o nome do arquivo do certificado pode aparecer por instantes na lista de processos do computador (a mesma lista que o comando `ps` mostra). O script não grava esse nome em nenhum arquivo de log.
+
+Não apague o arquivo `/var/tmp/notalivre-nl210/ultimo-ndps.txt`. Ele guarda o último número de DPS usado. Se ele sumir, o próximo envio volta a usar o número 1, e a Sefin pode recusar por número repetido.
+
+**Para o agente:** `bash <caminho>/tools/producao_restrita/emitir_teste.sh --ensaio` roda todos os casos com stubs, dentro de um contêiner, sem flatpak e sem Sefin.
+
+---
+
 **Situação:** pronto para o líder. Uma verificação fica aberta e declarada (seção 6, item 4): o seu teste é a prova.
 **Data:** 31/10/2026.
 **Código:** branch `onda-2`, commit `13848877306783356cad864897e6c735bab13ff1` (merge da NL-2.10c). Esta fatia está sobre ele.
@@ -8,6 +36,8 @@
 Nos comandos abaixo, o que está entre `< >` é um texto que você troca pelo seu valor. O caminho do seu certificado nunca aparece neste roteiro: use sempre `<caminho do seu .pfx>`.
 
 ---
+
+## Apêndice técnico: passo a passo manual (o script faz o mesmo)
 
 ## Pacote a instalar
 
@@ -276,7 +306,7 @@ Não envie esses arquivos por e-mail, por mensagem de aplicativo, para o GitHub,
 rm -- "<caminho exato do arquivo de resposta>"
 ```
 
-Depois que o agente confirmar a análise, apague também as cópias em `/var/tmp/notalivre-nl210/devolucao` e a pasta `/var/tmp/notalivre-nl210/teste-lider`, sempre um caminho exato de cada vez.
+Depois que o agente confirmar a análise, apague também as cópias em `/var/tmp/notalivre-nl210/devolucao` e a pasta `/var/tmp/notalivre-nl210/teste-lider`, sempre um caminho exato de cada vez. O arquivo `/var/tmp/notalivre-nl210/ultimo-ndps.txt` (o contador dos números de DPS) não entra nessa limpeza: nunca se apaga.
 
 ---
 
