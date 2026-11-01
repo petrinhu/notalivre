@@ -9,7 +9,7 @@ e2e.cliEmitir.ancorasTlsSozinhasValidamOServidor | servidor falso em Python com 
 e2e.cliEmitir.caminhoDoCertificadoNuncaVaiAoLog | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 e2e.cliEmitir.caminhoDoCertificadoVemDaConfiguracao | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 e2e.cliEmitir.cliEmiteComSenhaPeloDescritor | servidor falso em Python com oráculo ausente no SDK (senha do descritor, NL-2.27) | coberto no build nativo
-e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso |servidor falso em Python com oráculo ausente no SDK e segredo de referência gerado pelo e2e | coberto no build nativo
+e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso | servidor falso em Python com oráculo ausente no SDK e segredo de referência gerado pelo e2e | coberto no build nativo
 e2e.cliEmitir.cliGravaARespostaDaRecusa | servidor falso em Python com oráculo ausente no SDK (rejeicao:E1207 com CPF no texto livre) | coberto no build nativo
 e2e.cliEmitir.cliAvisaQuandoAGravacaoFalha | servidor falso em Python com oráculo ausente no SDK (emissão aceita e gravação bloqueada) | coberto no build nativo
 e2e.cliEmitir.cliRecusaDpsInvalidaSemPost | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
