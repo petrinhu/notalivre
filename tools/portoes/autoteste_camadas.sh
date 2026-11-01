@@ -234,15 +234,11 @@ mkdir -p "$TMP/pz/apps/cli" && cp -a "$RAIZ_REAL/src" "$TMP/pz/" && cp -a "$RAIZ
 controle pz 1 "$TMP/pz" 'processo: varridos apps/gui=0 '
 controle PR15 0 "$RAIZ_REAL" 'processo: varridos apps/gui=[1-9][0-9]* \(cpp=[0-9]+ qml=[0-9]+\) src=[1-9][0-9]*'
 
-# --- QML (QA da NL-2.38, A1 e A2): o portão varre .qml de apps/gui; o literal e openUrlExternally reprovam ---
-# Fonte da regra de QML: documentação do Qt 6.12 (objeto Qt, qml-qtqml-qt.html): Qt.openUrlExternally "attempts to open
-# the specified target url in an external application" (repassa a QDesktopServices::openUrl). É o único método do Qt
-# que inicia programa externo; createComponent, createQmlObject, quit e exit não iniciam nada.
+# --- QML (QA da NL-2.38, A1 e A2): o portão varre .qml de apps/gui; o literal notalivre-cli reprova ---
+# openUrlExternally não entra na regra (DA-2.85): abrir URL pelo portal do sistema é permitido. O caso dele saiu.
 viol_qml='^VIOLACAO apps/gui/qml/Sabot\.qml:[0-9]+: '
 controle_inclusao Q01 apps/gui/qml/Sabot.qml 1 'property string nome: "notalivre-cli"' \
     "${viol_qml}texto notalivre-cli proibido fora de apps/cli"
-controle_inclusao Q02 apps/gui/qml/Sabot.qml 1 'Qt.openUrlExternally("https://example.invalid")' \
-    "${viol_qml}chamada de processo openUrlExternally proibida"
 # Comentário QML com o literal: não é texto, não reprova (negativo).
 controle_inclusao Q03 apps/gui/qml/Sabot.qml 0 '// notalivre-cli' 'violacoes=0$'
 # Piso: uma GUI só em QML (sem .cpp) tem de contar os .qml e passar o piso (A2).

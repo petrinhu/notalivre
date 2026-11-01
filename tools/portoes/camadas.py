@@ -57,12 +57,9 @@ PROCESSO_PADROES = (
 TEXTO_NOTALIVRE_CLI = b"notalivre-cli"
 MENSAGEM_REGRA = "A GUI usa o núcleo, nunca a CLI"
 AREAS_PISO = ("apps/gui", "src")
-# QML (QA da NL-2.38, A1 e A2): o portão também varre os .qml de apps/gui. Só a regra de processo vale para QML (QML
-# não tem #include). Qt.openUrlExternally abre programa externo: a documentação do Qt 6.12 (objeto Qt, qml-qtqml-qt.html)
-# diz que ele "attempts to open the specified target url in an external application" e repassa a QDesktopServices::openUrl.
-# É o único método do objeto Qt que inicia programa externo (createComponent, createQmlObject, quit e exit não iniciam).
+# QML (QA da NL-2.38, A1 e A2): o portão também varre os .qml de apps/gui. QML não tem #include: nele valem a regra de
+# processo e o literal notalivre-cli. Abrir URL pelo portal do sistema é permitido (DA-2.85): openUrlExternally fica fora.
 QML_EXTENSOES = frozenset({".qml"})
-PROCESSO_QML = (re.compile(rb"\bopenUrlExternally\s*\("),)
 
 # Unidades da matriz 1.1. Origem "mid" cobre mid:composicao (ver unidade_origem).
 PERMITIDOS = {
@@ -355,8 +352,7 @@ def verificar_processo(rel, dados):
     texto, posicoes = limpar_fonte(dados)
     sem_conteudo_de_string = remover_literais(texto)
     falhas = []
-    padroes = PROCESSO_PADROES + (PROCESSO_QML if rel.lower().endswith(".qml") else ())
-    for padrao in padroes:
+    for padrao in PROCESSO_PADROES:
         for casamento in padrao.finditer(sem_conteudo_de_string):
             token = casamento.group(0).split(b"(")[0].strip().decode("ascii")
             linha = dados.count(b"\n", 0, posicoes[casamento.start()]) + 1
