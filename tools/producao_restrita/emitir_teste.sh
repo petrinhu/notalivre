@@ -224,6 +224,12 @@ classificar() {
     fi
     if grep -q 'sefin\.E0714' "$2"; then RESULTADO=e0714; return; fi
     if grep -q 'emissão recusada (sefin\.' "$2"; then RESULTADO=sefin; return; fi
+    # NL-2.27 (B1, revisão de segurança): processo morto (rc >= 128) ou POST registrado na saída: a Sefin pode ter recebido a DPS.
+    # Incerta grava o número e manda confirmar antes de reemitir. Só "local" prova que a Sefin não foi chamada.
+    if [ "$1" -ge 128 ] || awk '/"evento":"sefin.requisicao"/ && /"metodo":"POST"/ { achou = 1 } END { exit !achou }' "$2"; then
+        RESULTADO=incerta
+        return
+    fi
     RESULTADO=local
 }
 
@@ -346,6 +352,8 @@ fluxo() {
         local chave
         chave=$(grep -o 'emitida: chave [0-9]*' "$SAIDA_ATUAL" | tail -n 1 | grep -o '[0-9]*$')
         printf 'Nota de teste aceita. Chave de acesso: %s\n' "$chave"
+    elif [ "$RESULTADO" = incerta ]; then
+        printf 'Não foi possível confirmar se a nota chegou à Sefin; avise o Claude antes de tentar de novo.\n'
     elif [ "$RESULTADO" = local ]; then
         printf 'A emissão parou antes de chegar à Sefin (saída %s). Avise o Claude.\n' "$EMITIU_RC"
     else
@@ -402,6 +410,13 @@ emitir_stub() {
             echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"200"},"descartados":0}'
             echo "emissão recusada (sefin.E0714): assinatura recusada"
             exit 1 ;;
+        morto139)
+            # NL-2.27 (B1, revisão de segurança): POST registrado e processo morto. A Sefin pode ter recebido a DPS: a classificação é incerta.
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"200"},"descartados":0}'
+            exit 139 ;;
+        morto137)
+            # Processo morto sem nenhum POST na saída: também incerta, porque o corte pode ter sido depois do envio.
+            exit 137 ;;
         local)
             echo "certificado.caminho_ilegivel: ensaio"
             exit 2 ;;
@@ -473,6 +488,8 @@ case "$1" in
         printf '%s\n' "${NL_ENSAIO_CNPJ:-11222333000181}"
         exit 0 ;;
     --password)
+        # NL-2.27 (I9): guarda o texto que o script mostrou, para o ensaio conferir que é o genérico.
+        printf '%s\n' "$2" >> "$NL_ENSAIO_DIR/kdialog-texto.txt"
         # Cancelado: sai com 1 e não escreve nada, e marca o cancelamento para o stub do flatpak (ver emitir_stub).
         if [ -n "${NL_ENSAIO_KDIALOG_CANCELA:-}" ]; then
             : > "$NL_ENSAIO_DIR/senha-cancelada"
@@ -546,6 +563,11 @@ ensaio_caso() {
         "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
         problema="$problema vazamento(pfx ou CNPJ em saída, devolução ou execução)"
     fi
+    # NL-2.27 (I9, revisão de segurança): o texto da janela do kdialog é o genérico, sem CNPJ nem nome de arquivo.
+    if [ -f "$dir/kdialog-texto.txt" ]; then
+        grep -q -F -- "Senha do certificado digital, para a emissão de teste." "$dir/kdialog-texto.txt" || problema="$problema texto_kdialog_fora_do_padrao"
+        grep -q -F -e pfxsecreto -e 11222333000181 -e 1122233300018A "$dir/kdialog-texto.txt" && problema="$problema texto_kdialog_com_dado_pessoal"
+    fi
     # NL-2.27: a senha do kdialog nunca aparece na saída do script, na devolução nem na linha de comando do flatpak (chamadas).
     if grep -r -l -F -e NL227-senha-do-ensaio "$dir/saida-do-script.txt" "$dir/base/devolucao" "$dir/chamadas.txt" \
         "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
@@ -596,6 +618,10 @@ ensaio() {
     ensaio_caso outra_recusa_para_sem_tentar 1 "A Sefin recusou" 1 1 "prefixo = /SefinNacional" NL_ENSAIO_SEQ=outro NL_ENSAIO_NDPS_ESPERADO=1
     # NL-2.27: parar antes da Sefin não consome número. Antes de qualquer envio, o contador fica ausente (nada foi gravado).
     ensaio_caso antes_da_sefin_para 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=local NL_ENSAIO_NDPS_ESPERADO=ausente
+    # NL-2.27 (B1, revisão de segurança): processo morto depois do POST não é "antes da Sefin". Caso permanente: o número é gravado
+    # e a mensagem manda confirmar na Sefin antes de reemitir. Morte sem POST na saída também é incerta (o corte pode ser depois do envio).
+    ensaio_caso morto_depois_do_post_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=morto139 NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso morto_sem_post_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=morto137 NL_ENSAIO_NDPS_ESPERADO=1
     # NL-2.27 (Emenda 1, item 5): kdialog cancelado = senha vazia na CLI (saída 2, local): o número não é consumido.
     ensaio_caso senha_cancelada_nao_consome_numero 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_KDIALOG_CANCELA=1 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
     ensaio_caso bundle_errado_nao_instala 1 "SHA-256" 0 0 "" NL_ENSAIO_BUNDLE=errado NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
