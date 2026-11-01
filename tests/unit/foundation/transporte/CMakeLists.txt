@@ -26,6 +26,7 @@ foreach(nome IN ITEMS
     rejeicao400ComCorpoContinuaRespostaHttp
     h2RecusadoRepetidoEmHttp11
     servidorSoTls11RecusadoPeloPiso
+    pisoTls12NaConfiguracaoDeProducao
     respostaTrazOContentType
     cabecalhoAcceptEncodingIdentityEnviado
     contentEncodingNaoIdentityViraDefinitivoProtocolo

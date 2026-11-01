@@ -349,6 +349,11 @@ std::expected<RespostaHttp, ErroTransporte> interpretar(const Desfecho& d)
 
 } // namespace
 
+QSslConfiguration configuracaoSslDoTransporte(const ConfiguracaoTls& tls)
+{
+    return configurarSsl(tls);
+}
+
 // A credencial do A1 entra por cópia: ConfiguracaoTls guarda a chave (QSslKey) dentro do transporte, e cada envio copia
 // a chave para o QSslConfiguration da conexão, que morre no fim do envio. Por isso o TransporteHttps tem a vida da
 // credencial que o montou: o adaptador do Mid o cria a partir da CredencialX509 e o destrói junto com ela.

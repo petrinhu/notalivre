@@ -226,6 +226,7 @@ private slots:
     void h2RecusadoRepetidoEmHttp11();
     // NL-2.10e (R-B3, piso TLS 1.2): um servidor que só fala TLS 1.1 não pode ser aceito: o handshake tem de falhar com causa Tls.
     void servidorSoTls11RecusadoPeloPiso();
+    void pisoTls12NaConfiguracaoDeProducao();
     void respostaTrazOContentType();
     void cabecalhoAcceptEncodingIdentityEnviado();
     void contentEncodingNaoIdentityViraDefinitivoProtocolo();
@@ -261,6 +262,15 @@ void TesteTransporteHttps::servidorSoTls11RecusadoPeloPiso()
     const auto resposta = transporte.enviar(consultaDps());
     QVERIFY2(!resposta.has_value(), "TLS abaixo de 1.2 não pode ser aceito (piso do canon, R-B3)");
     QCOMPARE(resposta.error().causa, CausaErro::Tls);
+}
+
+// NL-2.10e (R-B3, T3): o piso é afirmado na configuração que a conexão usa, não só pelo handshake. O handshake com servidor
+// só-1.1 falha por política do sistema (MinProtocol=TLSv1.2 do OpenSSL) mesmo com AnyProtocol, então esse teste não mata T3 sozinho.
+void TesteTransporteHttps::pisoTls12NaConfiguracaoDeProducao()
+{
+    const ConfiguracaoTls tls;
+    const QSslConfiguration cfg = configuracaoSslDoTransporte(tls);
+    QVERIFY2(cfg.protocol() == QSsl::TlsV1_2OrLater, "a conexão tem de pedir TLS 1.2 ou mais novo (piso do canon)");
 }
 
 void TesteTransporteHttps::h2RecusadoRepetidoEmHttp11()

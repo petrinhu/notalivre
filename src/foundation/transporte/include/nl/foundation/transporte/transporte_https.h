@@ -9,6 +9,7 @@
 #include <QByteArray>
 #include <QList>
 #include <QSslCertificate>
+#include <QSslConfiguration>
 #include <QSslKey>
 #include <QString>
 #include <QUrl>
@@ -81,6 +82,10 @@ struct RespostaHttp {
     QByteArray corpo;
     QByteArray tipoConteudo;  ///< Content-Type da resposta, como o servidor mandou; vazio se o cabeçalho não veio.
 };
+
+/// Configuração TLS que cada conexão do transporte usa (protocolo mínimo TLS 1.2, verificação do servidor, âncoras e
+/// certificado de cliente). Exposta para o teste do piso (NL-2.10e, R-B3, T3): é a MESMA função que o envio chama, não uma cópia.
+[[nodiscard]] QSslConfiguration configuracaoSslDoTransporte(const ConfiguracaoTls& tls);
 
 class TransporteHttps {
 public:
