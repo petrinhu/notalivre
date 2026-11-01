@@ -10,6 +10,9 @@
 #include <QStringList>
 
 #include <expected>
+#include <optional>
+
+#include <nl/mid/composicao/emissao_cli.h>
 
 namespace nl::mid::composicao {
 class RegistroCli;
@@ -33,7 +36,14 @@ std::expected<QByteArray, ErroNumero> aplicarSerieENumero(const QByteArray& dpsJ
 
 /// Código de saída: 0 emissão aceita; 1 recusa de regra (Produção bloqueada, confirmação não digitada ou não confere, envio
 /// recusado); 2 uso, ambiente, endpoint ou senha ausente; 4 documento reprovado no leiaute (DPS de entrada ou XML assinado).
-int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro);
+int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroCli& registro,
+                    const nl::mid::composicao::TomadaDaSenha* tomada = nullptr);
+
+/// NL-2.27b (DA-2.72): toma a posse do descritor da senha na linha de `emitir`, antes da QCoreApplication e de qualquer abertura de
+/// arquivo. Troca o número pedido na linha pelo número do descritor tomado. Sem a opção, devolve vazio e não faz nada.
+/// Recusa: o código de entrada da senha (cofre.*), com a saída que o chamador aplica.
+std::expected<std::optional<nl::mid::composicao::TomadaDaSenha>, nl::mid::composicao::FalhaEmissao> tomarEntradaDaSenhaNaLinha(
+    QStringList& argumentos);
 
 } // namespace nl::cli
 

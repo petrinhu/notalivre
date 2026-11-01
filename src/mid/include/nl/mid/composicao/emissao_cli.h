@@ -14,6 +14,7 @@
 #include <QString>
 
 #include <chrono>
+#include <cstdint>
 #include <expected>
 #include <functional>
 #include <memory>
@@ -95,6 +96,21 @@ std::expected<void, FalhaEmissao> conferirEntradaDaSenhaPeloDescritor(int fd);
 
 /// Lê a senha do descritor (uma vez, até o fim, com teto) e emite. A CLI passa só o número do descritor (NL-2.27, DA-2.57b).
 std::expected<QString, FalhaEmissao> emitirDpsPeloDescritor(const PedidoEmissao& pedido, RegistroCli& registro, int fd);
+
+/// NL-2.27b (DA-2.72): descritor da senha tomado na entrada da CLI, antes da QCoreApplication. A identidade (dispositivo e inode) é a do
+/// arquivo que estava no número pedido; a leitura só vale para ela. A CLI guarda o valor e não vê tipos do sistema.
+struct TomadaDaSenha {
+    int fd = -1;                 ///< número do descritor tomado (alto, com FD_CLOEXEC)
+    std::uint64_t dispositivo = 0;
+    std::uint64_t inodo = 0;
+    std::string ocupante;        ///< caminho do arquivo que ocupava o número pedido, quando a recusa é legível por outros; nunca o conteúdo
+};
+
+/// Toma posse do descritor pedido na linha de comando (fechado na entrada, terminal ou legível por outros saem com cofre.* de entrada).
+std::expected<TomadaDaSenha, FalhaEmissao> tomarEntradaDaSenhaPeloDescritor(int numeroPedido);
+
+/// Confere, na leitura, que o descritor é o tomado na entrada. Troca de arquivo sai com cofre.descritor_trocado.
+std::expected<void, FalhaEmissao> conferirTomadaDaSenha(const TomadaDaSenha& tomada);
 
 /// Mesma emissão, com o assinador vindo da fábrica (DA-2.56: a revalidação depois de assinar é testada com um assinador falso).
 std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, nl::foundation::pkcs12::SenhaSegura&& senha,

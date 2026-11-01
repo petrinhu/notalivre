@@ -52,9 +52,10 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
             return kSaidaConfiguracao;
         }
     }
-    constexpr std::array<std::string_view, 8> entradaDaSenhaExato{
+    constexpr std::array<std::string_view, 9> entradaDaSenhaExato{
         "cofre.senha_ausente", "cofre.terminal_em_segundo_plano", "cofre.descritor_invalido", "cofre.descritor_terminal",
-        "cofre.descritor_legivel_por_outros", "cofre.senha_vazia", "cofre.senha_acima_do_teto", "cofre.descritor_falha_de_leitura"};
+        "cofre.descritor_legivel_por_outros", "cofre.senha_vazia", "cofre.senha_acima_do_teto", "cofre.descritor_falha_de_leitura",
+        "cofre.descritor_trocado"};
     for (auto exato : entradaDaSenhaExato) {
         if (codigo == exato) {
             return kSaidaEntradaDaSenha;

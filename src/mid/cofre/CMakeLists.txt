@@ -9,6 +9,8 @@ target_sources(nl_mid PRIVATE raizes_producao.cpp)
 target_sources(nl_mid PRIVATE terminal_sem_eco.cpp)
 # Canal de segredo por descritor (NL-2.27, DA-2.16): a senha do certificado vem de um descritor herdado, nunca de argumento.
 target_sources(nl_mid PRIVATE descritor_de_segredo.cpp)
+# Posse do descritor na entrada da CLI (NL-2.27b, DA-2.72): tomada antes da QCoreApplication, com identidade guardada.
+target_sources(nl_mid PRIVATE tomada_descritor.cpp)
 # O SHA-256 do manifesto fixado entra no alvo do Mid (CISO item 1): só a carga de produção o usa.
 target_compile_definitions(nl_mid PRIVATE
                            "NL_ICP_RAIZES_MANIFESTO_SHA256=\"${NL_ICP_RAIZES_MANIFESTO_SHA256}\"")
