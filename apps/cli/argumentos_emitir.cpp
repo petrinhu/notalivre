@@ -47,7 +47,7 @@ std::expected<ArgumentosEmitir, QString> lerArgumentosEmitir(const QStringList& 
             continue;
         }
         if (opcao.contains(QLatin1String("senha"), Qt::CaseInsensitive)) {
-            return std::unexpected(QStringLiteral("a senha não vai pela linha de comando: ela é pedida no terminal, sem eco"));
+            return std::unexpected(QStringLiteral("a senha não vai pela linha de comando: ela vem do terminal, sem eco, ou do descritor de --senha-certificado-fd"));
         }
         if (i + 1 >= argumentos.size()) {
             return std::unexpected(kUsoEmitir);

@@ -25,7 +25,8 @@ struct ArgumentosEmitir
 
 /// Espera a lista inteira da linha de comando, começando por "emitir".
 /// Uso: notalivre emitir <entrada.json> --serie <S> --numero <N> --ambiente <A>. A confirmação de Produção é digitada no terminal.
-/// Qualquer opção com "senha" no nome é recusada: a senha é lida do terminal, sem eco.
+/// Qualquer opção com "senha" no nome é recusada, salvo --senha-certificado-fd N (NL-2.27): a senha vem do terminal sem eco ou do
+/// descritor N, nunca de argumento.
 std::expected<ArgumentosEmitir, QString> lerArgumentosEmitir(const QStringList& argumentos);
 
 } // namespace nl::cli
