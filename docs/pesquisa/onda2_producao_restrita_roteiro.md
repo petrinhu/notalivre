@@ -2,7 +2,7 @@
 
 **Situação:** pronto para o líder. Uma verificação fica aberta e declarada (seção 6, item 4): o seu teste é a prova.
 **Data:** 31/10/2026.
-**Código:** branch `onda-2`, commit `cca6d76` (merge da NL-2.10b). Esta fatia está sobre ele.
+**Código:** branch `onda-2`, commit `13848877306783356cad864897e6c735bab13ff1` (merge da NL-2.10c). Esta fatia está sobre ele.
 **Pacote a instalar:** veja a seção "Pacote a instalar", logo abaixo.
 
 Nos comandos abaixo, o que está entre `< >` é um texto que você troca pelo seu valor. O caminho do seu certificado nunca aparece neste roteiro: use sempre `<caminho do seu .pfx>`.
@@ -13,23 +13,23 @@ Nos comandos abaixo, o que está entre `< >` é um texto que você troca pelo se
 
 Um registro só. Confira antes de instalar.
 
-- **Run do CI:** `41251698052` (verde, 10 jobs)
-- **Commit:** `cca6d76` (merge da NL-2.10b na onda-2)
+- **Run do CI:** `41279001563` (verde em todos os jobs, incluindo `flatpak` e o smoke no host do runner)
+- **Commit:** `13848877306783356cad864897e6c735bab13ff1` (merge da NL-2.10c na onda-2)
 - **Artefato:** `notalivre-bundle`
-- **Digest do ZIP do artefato, pela API do GitHub:** `sha256:01dab6a02066c0f71c46171f4a995e087240a267329180f917f4d9f41b97e953`
-- **SHA-256 completo do arquivo `notalivre.flatpak`:** `261eb964902215ca0e8b5a01ea65ad146c8835d706ffcf96f7418794db3350c2`
-- **Caminho do arquivo:** `/var/tmp/notalivre-nl210/bundle/run-41251698052/extraido/notalivre.flatpak`
-- **Tamanho:** 619896 bytes
+- **Digest do ZIP do artefato, pela API do GitHub:** `sha256:d47d576fa05271d321ca06db1b2a04ba70cab59d095badc6ae7398349cbefbf9`
+- **SHA-256 completo do arquivo `notalivre.flatpak`:** `8314ce15d190807f23c4b42917a4725d313329924763611fc1b16d3f669dae18`
+- **Caminho do arquivo:** `/var/tmp/notalivre-nl210/bundle/run-41279001563/extraido/notalivre.flatpak`
+- **Tamanho:** 631432 bytes
 
 Antes de instalar, rode:
 
 ```
-sha256sum /var/tmp/notalivre-nl210/bundle/run-41251698052/extraido/notalivre.flatpak
+sha256sum /var/tmp/notalivre-nl210/bundle/run-41279001563/extraido/notalivre.flatpak
 ```
 
-O resultado tem de ser exatamente `261eb964902215ca0e8b5a01ea65ad146c8835d706ffcf96f7418794db3350c2`. Se for outro, não instale e avise o agente. O job do CI ainda não imprime esse SHA-256 no resumo; o valor acima foi calculado pelo agente sobre o arquivo extraído do artefato, e o digest do ZIP confere com a API.
+O resultado tem de ser exatamente `8314ce15d190807f23c4b42917a4725d313329924763611fc1b16d3f669dae18`. Se for outro, não instale e avise o agente. O job do CI não imprime esse SHA-256 no log; o valor foi calculado pelo agente sobre o arquivo extraído do artefato, e o digest do ZIP confere com a API.
 
-**Nota:** este pacote é provisório. Ele será substituído pelo run do merge da NL-2.10c, que terá um SHA novo. Os valores desta seção serão trocados por esse run antes de qualquer instalação.
+**Este pacote substitui o anterior** (run `41251698052`, commit `cca6d76`). Use só este.
 
 ---
 
@@ -58,15 +58,15 @@ Quem roda os comandos é você, no seu computador, com o seu certificado. O agen
 ### 3.1 Conferir o arquivo do programa
 
 ```
-sha256sum /var/tmp/notalivre-nl210/bundle/run-41251698052/extraido/notalivre.flatpak
+sha256sum /var/tmp/notalivre-nl210/bundle/run-41279001563/extraido/notalivre.flatpak
 ```
 
-O resultado tem de ser exatamente `261eb964902215ca0e8b5a01ea65ad146c8835d706ffcf96f7418794db3350c2`. Se for outro, pare e avise o agente.
+O resultado tem de ser exatamente `8314ce15d190807f23c4b42917a4725d313329924763611fc1b16d3f669dae18`. Se for outro, pare e avise o agente.
 
 ### 3.2 Instalar o programa
 
 ```
-flatpak install --user --bundle /var/tmp/notalivre-nl210/bundle/run-41251698052/extraido/notalivre.flatpak
+flatpak install --user --bundle /var/tmp/notalivre-nl210/bundle/run-41279001563/extraido/notalivre.flatpak
 ```
 
 Se o sistema pedir o ambiente de execução do KDE 6.11 e você ainda não o tiver, instale com `flatpak install --user flathub org.kde.Platform//6.11` e repita este passo.
@@ -250,13 +250,15 @@ Se vier qualquer outro código de erro, que não seja 404 ou E0714, pare. Não t
 
 **A saída do programa** é o que a CLI escreve durante a emissão: a linha `emitida`, os erros e as mensagens. Os comandos das seções 3.9 a 3.11 a gravam em `/var/tmp/notalivre-nl210/teste-lider/saida-tentativa-N.txt`, fora de qualquer pasta sincronizada. Esse arquivo é o log que você devolve ao agente.
 
-**As respostas cruas da Sefin** são gravadas pelo próprio programa, em um arquivo por DPS, dentro de uma pasta chamada `respostas`. **A confirmar após a NL-2.10c:** quais emissões gravam essa resposta. O CTO decidiu que a recusa da Sefin também passa a gravá-la, mascarada. Essa pasta fica na pasta de dados do app, que está dentro de `~/.var/app/io.github.petrinhu.notalivre`. Para achar a pasta:
+**As respostas cruas da Sefin** são gravadas pelo próprio programa, em um arquivo por DPS, dentro de uma pasta chamada `respostas`, com o nome `<hash>.jsonl`, onde o hash é o do identificador da DPS (o identificador em texto não aparece no nome do arquivo). Cada linha do arquivo é uma resposta HTTP da Sefin. O programa grava a resposta de toda emissão, aceita ou recusada. Essa pasta fica na pasta de dados do app, que está dentro de `~/.var/app/io.github.petrinhu.notalivre`. Para achar a pasta:
 
 ```
 find ~/.var/app/io.github.petrinhu.notalivre -type d -name respostas
 ```
 
-**A confirmar após a NL-2.10c** (quais emissões gravam o arquivo). Cada arquivo sai com permissão só para você (0600). O conteúdo é mascarado pelo programa, mas continua sendo a resposta da Sefin para a sua nota, então trate como dado pessoal.
+O programa mascara o que sai no arquivo: a chave de acesso sai com `#` no lugar dos caracteres, o XML comprimido vira um marcador, e cada outro valor sai como o tipo e o tamanho dele (os nomes dos campos continuam). Cada arquivo sai com permissão só para você (0600). Mesmo mascarado, é a resposta da Sefin para a sua nota, então trate como dado pessoal.
+
+Se o programa não conseguir gravar essa resposta, a emissão continua (a Sefin já recebeu a nota) e o log mostra o evento `resposta_crua.nao_gravada`, em nível de erro. Se a resposta passar do teto de tamanho, o log mostra `resposta_crua.cortada`, em nível de aviso. Nesses dois casos, copie o log junto com a saída: ele é a prova de que a resposta falhou.
 
 **Como devolver ao agente.** Copie os arquivos para a pasta de devolução, sem alterar o nome, e avise no chat:
 
