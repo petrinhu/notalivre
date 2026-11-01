@@ -92,3 +92,17 @@ foreach(nome IN ITEMS
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
+
+# Posse do descritor na entrada da CLI (NL-2.27b, DA-2.72; revisão da rodada 2: MS, SLC e MI). Um teste no CTest por slot.
+add_executable(tst_tomada_descritor tst_tomada_descritor.cpp)
+target_link_libraries(tst_tomada_descritor PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_pkcs12 nl_warnings)
+foreach(nome IN ITEMS
+    tomadaTemFechamentoNoExec
+    numeroPedidoFechadoDepoisDaTomada
+    trocaDeArquivoNoNumeroAltoERecusada
+    fechadoNaEntradaRecusaSemTomar)
+  nl_registra_teste_qt(NAME mid.cofre.${nome} COMMAND tst_tomada_descritor ${nome})
+  set_tests_properties(mid.cofre.${nome} PROPERTIES
+                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()

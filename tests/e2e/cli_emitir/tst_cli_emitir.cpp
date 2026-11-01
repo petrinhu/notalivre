@@ -535,8 +535,9 @@ private slots:
     void cliDescritorFechadoNaEntradaSaiCom2();
     // NL-2.27b (DA-2.72): o mesmo com o descritor 9, que nunca é ocupado pelo próprio app.
     void cliDescritorFechadoNaEntradaSaiCom2Fd9();
-    // NL-2.27b (DA-2.72, aceite 5): descritor ocupado por arquivo legível por outros nomeia o arquivo, sem mostrar o conteúdo.
-    void cliDescritorLegivelNomeiaOArquivo();
+    // NL-2.27b (DA-2.72, DA-2.73): a recusa de descritor legível por outros diz só o tipo, sem nome nem caminho. O nome do arquivo de
+    // fixture traz um CNPJ fictício, que não pode aparecer na saída de erro, no JSON nem no log.
+    void descritorRecusadoNaoNomeiaOArquivo();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -1266,14 +1267,15 @@ void TstCliEmitir::cliDescritorFechadoNaEntradaSaiCom2Fd9()
     QVERIFY2(!execucao.saida.contains("\"evento\""), "a recusa na entrada não pode trazer evento de configuração nem do Qt");
 }
 
-void TstCliEmitir::cliDescritorLegivelNomeiaOArquivo()
+void TstCliEmitir::descritorRecusadoNaoNomeiaOArquivo()
 {
     QTemporaryDir pasta;
     QVERIFY(pasta.isValid());
     QTemporaryDir configDir;
     QVERIFY(configDir.isValid());
     escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:9443"));
-    const QString caminho = pasta.filePath(QStringLiteral("segredo-legivel-nl227b.txt"));
+    // Nome de fixture com um CNPJ fictício (11222333000181): nunca o CNPJ de uma pessoa real (L-28).
+    const QString caminho = pasta.filePath(QStringLiteral("segredo-11222333000181.txt"));
     QFile arquivo(caminho);
     QVERIFY(arquivo.open(QIODevice::WriteOnly));
     arquivo.write("senha-de-teste-NL227b\n");
@@ -1285,8 +1287,18 @@ void TstCliEmitir::cliDescritorLegivelNomeiaOArquivo()
     const Execucao execucao = rodarCliComDescritorDeEntrada(argumentos, configDir.path(), 3, caminho);
     QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("cofre.descritor_legivel_por_outros"), "arquivo legível por outros no fd 3 tem de sair com o código próprio");
-    QVERIFY2(execucao.saida.contains("segredo-legivel-nl227b.txt"), "a recusa tem de nomear o arquivo que ocupava o descritor");
+    QVERIFY2(execucao.saida.contains("arquivo comum"), "a recusa tem de dizer o tipo do descritor, sem nome");
+    QVERIFY2(!execucao.saida.contains("11222333000181"), "o CNPJ fictício do nome do arquivo não pode aparecer na saída de erro, no JSON nem no log");
+    QVERIFY2(!execucao.saida.contains("segredo-11222333000181"), "o nome do arquivo não pode aparecer na saída");
+    QVERIFY2(!execucao.saida.contains(caminho.toUtf8()), "o caminho completo do arquivo não pode aparecer na saída");
     QVERIFY2(!execucao.saida.contains("senha-de-teste-NL227b"), "o conteúdo do arquivo nunca pode aparecer na saída");
+    // A saída também vai para a pasta que o portão de PII varre, como nas outras recusas do e2e.
+    const QString pastaPii = qEnvironmentVariable("NL_LOGS_PII_CLI_DIR");
+    QVERIFY2(!pastaPii.isEmpty(), "NL_LOGS_PII_CLI_DIR tem de estar definido pelo CTest");
+    QVERIFY2(QDir().mkpath(pastaPii), "a pasta de logs da CLI tem de existir");
+    QFile logPii(pastaPii + QStringLiteral("/emitir_e2e_descritor_tipo.log"));
+    QVERIFY2(logPii.open(QIODevice::WriteOnly), "o log do e2e tem de abrir na pasta de logs da CLI");
+    logPii.write(execucao.saida);
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)
