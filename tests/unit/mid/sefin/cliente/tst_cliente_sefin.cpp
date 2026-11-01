@@ -20,6 +20,7 @@
 #include <nl/foundation/pkcs12/senha_segura.h>
 #include <nl/foundation/transporte/transporte_https.h>
 
+#include <nl/mid/sefin/cliente/allowlist_log_sefin.h>
 #include <nl/mid/sefin/cliente/catalogo_erros_sefin.h>
 #include <nl/mid/sefin/cliente/comparador_infdps_c14n.h>
 #include <nl/mid/sefin/cliente/cliente_sefin.h>
