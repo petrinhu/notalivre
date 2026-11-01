@@ -4,6 +4,7 @@
 #include <nl/mid/composicao/registro_cli.h>
 
 #include <nl/foundation/log/log.h>
+#include <nl/mid/composicao/resposta_crua.h>
 #include <nl/mid/sefin/cliente/allowlist_log_sefin.h>
 
 #include <cctype>
@@ -43,7 +44,8 @@ std::vector<fl::DeclaracaoCampo> allowlistDaCli()
 
 std::vector<std::string> eventosDaCli()
 {
-    std::vector<std::string> eventos{"cli.excecao", "qt.mensagem", "certificado.caminho_configurado"};
+    std::vector<std::string> eventos{"cli.excecao", "qt.mensagem", "certificado.caminho_configurado", "resposta_crua.nao_gravada",
+                                     "resposta_crua.cortada"};
     for (auto& evento : nl::mid::sefin::cliente::eventosLogSefin()) {
         eventos.push_back(std::move(evento));
     }
@@ -86,9 +88,15 @@ void RegistroCli::registrarEmissaoRecusada(std::string_view idDps, std::string_v
     static_cast<void>(interno_->log.registrar(fl::Nivel::Erro, "emissao.recusada", campos));
 }
 
-// Stub do NL-2.10c, Emenda 2 (commit de teste): ainda não registra. Os testes falham por asserção (evento ausente).
-void RegistroCli::registrarGravacaoDaResposta(const GravadorRespostaCrua& /*gravador*/)
+// Estado da gravação da resposta de análise (CISO, INFO-6, Emenda 2): só o evento, sem caminho e sem conteúdo.
+void RegistroCli::registrarGravacaoDaResposta(const GravadorRespostaCrua& gravador)
 {
+    if (gravador.ultimoErro()) {
+        static_cast<void>(interno_->log.registrar(fl::Nivel::Erro, "resposta_crua.nao_gravada", {}));
+    }
+    if (gravador.cortado()) {
+        static_cast<void>(interno_->log.registrar(fl::Nivel::Aviso, "resposta_crua.cortada", {}));
+    }
 }
 
 nl::foundation::log::Log* RegistroCli::logDoCliente() noexcept

@@ -235,6 +235,8 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
     nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{},
                                                   std::make_shared<nl::mid::sefin::cliente::ComparadorInfDpsC14n>(), &gravador);
     auto nota = cliente.emitir(bk::DpsAssinada{*idDps, *assinado});
+    // CISO, INFO-6 (Emenda 2): falha de gravação e teto atingido viram evento no log, na aceita e na recusada.
+    registro.registrarGravacaoDaResposta(gravador);
     if (!nota) {
         return std::unexpected(recusada(registro, *idDps, falhaDoEnvio(nota.error())));
     }

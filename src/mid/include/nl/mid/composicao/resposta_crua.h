@@ -43,6 +43,8 @@ public:
 private:
     /// Reescreve a linha de corte logo depois das respostas gravadas, com o total atual de omitidas (uma linha só).
     void escreverCorte();
+    /// Primeira gravação: retoma o arquivo do mesmo Id, sem partir linha nem duplicar a linha de corte (BAIXA-5).
+    void retomarArquivo();
 
     QString pastaBase_;
     std::string idDps_;
@@ -51,6 +53,7 @@ private:
     qsizetype tamanhoRespostas_ = 0;  // bytes das linhas de resposta; a linha de corte, se houver, começa logo depois
     qsizetype omitidas_ = 0;          // respostas que não couberam no teto de 4 MiB
     bool cortado_ = false;            // teto atingido: daí em diante só se conta, e o arquivo não recebe mais respostas
+    bool retomado_ = false;           // a primeira gravação já olhou o arquivo que pode existir do mesmo Id
 };
 
 } // namespace nl::mid::composicao

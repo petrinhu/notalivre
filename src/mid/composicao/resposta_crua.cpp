@@ -12,6 +12,12 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QFileInfo>
+#include <QRegularExpression>
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -35,6 +41,41 @@ constexpr qsizetype kTetoArquivoBytes = 4 * 1024 * 1024;
 
 QJsonObject mascararObjeto(const QJsonObject& objeto, int nivel);
 QJsonValue mascararValor(const QString& nome, const QJsonValue& valor, int nivel);
+
+// Nome de chave que pode sair em claro (CISO, MÉDIA-1, Emenda 2): ^[A-Za-z_][A-Za-z0-9_]{0,63}$ e no máximo dois dígitos.
+// Fora disso, o nome sai como <chave:N>, com N o tamanho do nome.
+bool nomeDeChaveSeguro(const QString& nome)
+{
+    static const QRegularExpression padrao(QStringLiteral("\\A[A-Za-z_][A-Za-z0-9_]{0,63}\\z"));
+    if (!padrao.match(nome).hasMatch()) {
+        return false;
+    }
+    qsizetype digitos = 0;
+    for (const QChar c : nome) {
+        if (c >= QLatin1Char('0') && c <= QLatin1Char('9')) {
+            ++digitos;
+        }
+    }
+    return digitos <= 2;
+}
+
+// Content-Type que pode sair em claro (CISO, BAIXA-2, Emenda 2): os tipos JSON, com ou sem charset de nome simples.
+bool tipoDeConteudoSeguro(const QString& tipo)
+{
+    static const QRegularExpression padrao(
+        QStringLiteral("\\A(application/json|application/problem\\+json)(; charset=[A-Za-z0-9._:-]{1,40})?\\z"));
+    return padrao.match(tipo).hasMatch();
+}
+
+// O Content-Type como vai ao arquivo: o tipo permitido em claro, ou <string:N> com N o tamanho do valor recebido.
+QJsonValue tipoDeConteudoEscrito(const QByteArray& tipoConteudo)
+{
+    const QString tipo = QString::fromUtf8(tipoConteudo);
+    if (tipoDeConteudoSeguro(tipo)) {
+        return tipo;
+    }
+    return QStringLiteral("<string:%1>").arg(tipoConteudo.size());
+}
 
 // Código E válido: ^E\d{3,4}$ (DA-2.41, b). A mesma regra existe em cliente_sefin.cpp, que é privada dele (segunda ocorrência).
 bool codigoEValido(const QString& texto)
@@ -115,9 +156,31 @@ QJsonObject mascararObjeto(const QJsonObject& objeto, int nivel)
 {
     QJsonObject mascarado;
     for (auto it = objeto.constBegin(); it != objeto.constEnd(); ++it) {
-        mascarado.insert(it.key(), mascararValor(it.key(), it.value(), nivel + 1));
+        const QString chave = nomeDeChaveSeguro(it.key()) ? it.key() : QStringLiteral("<chave:%1>").arg(it.key().size());
+        mascarado.insert(chave, mascararValor(it.key(), it.value(), nivel + 1));
     }
     return mascarado;
+}
+
+// A pasta respostas nasce 0700 (CISO, BAIXA-4): mkdir com o modo fechado. Pasta que já existe não tem o modo mudado.
+bool criarPasta0700(const QString& pasta)
+{
+    if (QDir(pasta).exists()) {
+        return true;
+    }
+    return ::mkdir(QFile::encodeName(pasta).constData(), 0700) == 0;
+}
+
+// O arquivo nasce 0600 (CISO, BAIXA-3): o umask só tira bits, então 0600 é o teto e não depende do umask do processo. Quem escreve
+// abre em seguida com QFile.
+bool criarArquivo0600(const QString& caminho)
+{
+    const int descritor = ::open(QFile::encodeName(caminho).constData(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0600);
+    if (descritor < 0) {
+        return false;
+    }
+    ::close(descritor);
+    return true;
 }
 
 // Nome do arquivo: 16 caracteres do hash do Id. Nem o Id nem a chave aparecem no nome.
@@ -137,7 +200,7 @@ QByteArray linhaDaResposta(std::string_view metodo, std::string_view rota, int s
         {QStringLiteral("metodo"), QString::fromUtf8(metodo.data(), static_cast<qsizetype>(metodo.size()))},
         {QStringLiteral("rota"), QString::fromUtf8(rota.data(), static_cast<qsizetype>(rota.size()))},
         {QStringLiteral("status"), status},
-        {QStringLiteral("contentType"), QString::fromUtf8(tipoConteudo)},
+        {QStringLiteral("contentType"), tipoDeConteudoEscrito(tipoConteudo)},
         {QStringLiteral("corpo"), mascarado.object()},
     };
     return QJsonDocument(linha).toJson(QJsonDocument::Compact) + '\n';
@@ -167,12 +230,18 @@ void GravadorRespostaCrua::registrar(std::string_view metodo, std::string_view r
         return;  // Depois do primeiro erro o arquivo não recebe mais linhas, para não sair uma linha pela metade.
     }
     const QString pasta = pastaBase_ + QStringLiteral("/respostas");
-    if (!QDir().mkpath(pasta)) {
+    if (!QDir().mkpath(pastaBase_) || !criarPasta0700(pasta)) {
         erro_ = nl::base::Erro("analise.pasta", std::nullopt, "não foi possível criar a pasta da resposta para análise");
         return;
     }
     if (caminho_.isEmpty()) {
         caminho_ = pasta + QStringLiteral("/") + QString::fromLatin1(hashDoId(idDps_)) + QStringLiteral(".jsonl");
+    }
+    if (!retomado_) {
+        retomarArquivo();
+        if (erro_) {
+            return;
+        }
     }
     if (cortado_) {
         ++omitidas_;
@@ -186,12 +255,15 @@ void GravadorRespostaCrua::registrar(std::string_view metodo, std::string_view r
         escreverCorte();
         return;
     }
+    if (!criarArquivo0600(caminho_)) {
+        erro_ = nl::base::Erro("analise.gravacao", std::nullopt, "não foi possível criar o arquivo da resposta");
+        return;
+    }
     QFile arquivo(caminho_);
     if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Append)) {
         erro_ = nl::base::Erro("analise.gravacao", std::nullopt, "não foi possível abrir o arquivo da resposta");
         return;
     }
-    arquivo.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);  // 0600 logo após a abertura, antes de qualquer linha
     if (arquivo.write(linha) != linha.size() || !arquivo.flush()) {
         erro_ = nl::base::Erro("analise.gravacao", std::nullopt, "não foi possível gravar a resposta");
         return;
@@ -203,12 +275,15 @@ void GravadorRespostaCrua::registrar(std::string_view metodo, std::string_view r
 void GravadorRespostaCrua::escreverCorte()
 {
     // Corta o arquivo no fim das respostas e escreve a linha de corte com o total atual: uma linha só, nunca duas com N defasado.
+    if (!criarArquivo0600(caminho_)) {
+        erro_ = nl::base::Erro("analise.gravacao", std::nullopt, "não foi possível criar o arquivo da resposta");
+        return;
+    }
     QFile arquivo(caminho_);
     if (!arquivo.open(QIODevice::ReadWrite)) {
         erro_ = nl::base::Erro("analise.gravacao", std::nullopt, "não foi possível abrir o arquivo da resposta");
         return;
     }
-    arquivo.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
     const QByteArray corte = QByteArrayLiteral("{\"corte\":\"teto de ") + QByteArray::number(kTetoArquivoBytes)
                              + QByteArrayLiteral(" bytes atingido\",\"respostas_omitidas\":") + QByteArray::number(omitidas_)
                              + QByteArrayLiteral("}\n");
@@ -216,6 +291,45 @@ void GravadorRespostaCrua::escreverCorte()
         || !arquivo.flush()) {
         erro_ = nl::base::Erro("analise.gravacao", std::nullopt, "não foi possível gravar a linha de corte");
     }
+}
+
+// Primeira gravação do gravador (CISO, BAIXA-5, Emenda 2): o arquivo pode já existir, do mesmo Id. O gravador segue do tamanho que
+// o arquivo tem. Se a última linha já é a de corte, ele continua antes dela, com o total de omitidas que ela traz: a linha de
+// corte nunca fica no meio nem se duplica, e as respostas anteriores não são apagadas.
+void GravadorRespostaCrua::retomarArquivo()
+{
+    retomado_ = true;
+    if (!QFileInfo(caminho_).exists()) {
+        return;
+    }
+    QFile arquivo(caminho_);
+    if (!arquivo.open(QIODevice::ReadOnly)) {
+        erro_ = nl::base::Erro("analise.gravacao", std::nullopt, "não foi possível ler o arquivo da resposta já gravado");
+        return;
+    }
+    const QByteArray conteudo = arquivo.readAll();
+    const qsizetype fimDaUltima = conteudo.endsWith('\n') ? conteudo.size() - 1 : conteudo.size();
+    const qsizetype inicioDaUltima = fimDaUltima > 0 ? conteudo.lastIndexOf('\n', fimDaUltima - 1) + 1 : 0;
+    const QByteArray ultima = conteudo.mid(inicioDaUltima, fimDaUltima - inicioDaUltima);
+    if (!ultima.startsWith(QByteArrayLiteral("{\"corte\":"))) {
+        tamanhoRespostas_ = conteudo.size();
+        return;
+    }
+    const QByteArray marcaOmitidas = QByteArrayLiteral("\"respostas_omitidas\":");
+    const qsizetype posicaoOmitidas = ultima.indexOf(marcaOmitidas);
+    if (posicaoOmitidas < 0) {
+        erro_ = nl::base::Erro("analise.gravacao", std::nullopt, "a linha de corte do arquivo já gravado não confere");
+        return;
+    }
+    const QByteArray depois = ultima.mid(posicaoOmitidas + marcaOmitidas.size());
+    bool convertido = false;
+    omitidas_ = depois.left(depois.indexOf('}')).toLongLong(&convertido);
+    if (!convertido) {
+        erro_ = nl::base::Erro("analise.gravacao", std::nullopt, "a linha de corte do arquivo já gravado não confere");
+        return;
+    }
+    tamanhoRespostas_ = inicioDaUltima;
+    cortado_ = true;
 }
 
 } // namespace nl::mid::composicao
