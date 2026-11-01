@@ -7,6 +7,8 @@ target_sources(nl_mid PRIVATE material_assinatura.cpp)
 target_sources(nl_mid PRIVATE raizes_producao.cpp)
 # Leitura do terminal sem eco da senha e da confirmação (NL-2.9, DA-2.57b): mora no cofre, sem diretório novo.
 target_sources(nl_mid PRIVATE terminal_sem_eco.cpp)
+# Canal de segredo por descritor (NL-2.27, DA-2.16): a senha do certificado vem de um descritor herdado, nunca de argumento.
+target_sources(nl_mid PRIVATE descritor_de_segredo.cpp)
 # O SHA-256 do manifesto fixado entra no alvo do Mid (CISO item 1): só a carga de produção o usa.
 target_compile_definitions(nl_mid PRIVATE
                            "NL_ICP_RAIZES_MANIFESTO_SHA256=\"${NL_ICP_RAIZES_MANIFESTO_SHA256}\"")
