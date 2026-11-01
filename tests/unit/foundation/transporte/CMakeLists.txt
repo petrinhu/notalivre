@@ -11,7 +11,8 @@ target_link_libraries(tst_transporte_https PRIVATE Qt6::Core Qt6::Network Qt6::T
                       OpenSSL::Crypto nl_warnings)
 target_compile_definitions(tst_transporte_https PRIVATE
     NL_LANCADOR="${CMAKE_SOURCE_DIR}/tools/servidor_falso/lancador.py"
-    NL_PYTHON3="${Python3_EXECUTABLE}")
+    NL_PYTHON3="${Python3_EXECUTABLE}"
+    NL_SERVIDOR_H2="${CMAKE_SOURCE_DIR}/tools/servidor_falso/servidor_h2.py")
 
 set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
 
@@ -23,6 +24,7 @@ foreach(nome IN ITEMS
     conexaoRecusadaViraErroTransitorio
     corpo2xxTruncadoViraTransitorio
     rejeicao400ComCorpoContinuaRespostaHttp
+    h2RecusadoRepetidoEmHttp11
     respostaTrazOContentType
     cabecalhoAcceptEncodingIdentityEnviado
     contentEncodingNaoIdentityViraDefinitivoProtocolo
