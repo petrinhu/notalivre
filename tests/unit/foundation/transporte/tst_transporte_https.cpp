@@ -186,10 +186,9 @@ public:
         QElapsedTimer relogio;
         relogio.start();
         while (relogio.elapsed() < milissegundos && !todas.contains(marca)) {
-            if (!processo_.waitForReadyRead(200)) {
-                continue;
-            }
+            // Lê o que já está no buffer do QProcess antes de esperar: waitForReadyRead só acorda com dado novo.
             resto += processo_.readAllStandardOutput();
+            processo_.waitForReadyRead(100);
             qsizetype fim = resto.indexOf('\n');
             while (fim >= 0) {
                 todas << QString::fromUtf8(resto.left(fim)).trimmed();
