@@ -597,6 +597,30 @@ void TstCliEmitir::cliGravaARespostaDaRecusa()
     QVERIFY2(conteudo.count("12345678909") == 0, "nenhum dígito do CPF da fixture pode ir ao arquivo");
 }
 
+// Configuração XDG com [sefin] url, prefixo e algoritmo (NL-2.10a, passo 3). Sem prefixo ou algoritmo, a linha não é escrita.
+void escreverConfigPrefixo(const QTemporaryDir& pasta, const QString& url, const QString& prefixo, const QString& algoritmo,
+                           const QString& caminhoCertificado = QString())
+{
+    QDir().mkpath(pasta.filePath(QStringLiteral("notalivre")));
+    QFile arquivo(pasta.filePath(QStringLiteral("notalivre/config.ini")));
+    if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return;
+    }
+    // [sefin] com prefixo e âncoras do servidor; [certificado] com as do A1, na ordem em que o INI as lê por seção.
+    QString texto = QStringLiteral("[sefin]\nurl = %1\n").arg(url);
+    if (!prefixo.isEmpty()) {
+        texto += QStringLiteral("prefixo = %1\n").arg(prefixo);
+    }
+    texto += QStringLiteral("ancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\n").arg(kCertificados);
+    const QString caminho = caminhoCertificado.isEmpty() ? kCertificados + QStringLiteral("/cnpj_ok.pfx") : caminhoCertificado;
+    texto += QStringLiteral("caminho = %1\n").arg(caminho);
+    texto += QStringLiteral("[xsd]\ndiretorio = %1\nmanifesto = %2\n[emissao]\nproducao_liberada = false\n").arg(kXsd, kManifesto);
+    if (!algoritmo.isEmpty()) {
+        texto += QStringLiteral("[assinatura]\nalgoritmo = %1\n").arg(algoritmo);
+    }
+    arquivo.write(texto.toUtf8());
+}
+
 void TstCliEmitir::cliAvisaQuandoAGravacaoFalha()
 {
     // NL-2.10c, Emenda 3, BAIXA-7 e M11: a falha de gravação da resposta de análise chega ao log da CLI como aviso, e a emissão
@@ -622,30 +646,6 @@ void TstCliEmitir::cliAvisaQuandoAGravacaoFalha()
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("resposta_crua.nao_gravada"), "a falha de gravação tem de sair como aviso no log da CLI");
     QVERIFY2(!execucao.saida.contains(configDir.path().toUtf8()), "o caminho da pasta de estado não pode ir ao log");
-}
-
-// Configuração XDG com [sefin] url, prefixo e algoritmo (NL-2.10a, passo 3). Sem prefixo ou algoritmo, a linha não é escrita.
-void escreverConfigPrefixo(const QTemporaryDir& pasta, const QString& url, const QString& prefixo, const QString& algoritmo,
-                           const QString& caminhoCertificado = QString())
-{
-    QDir().mkpath(pasta.filePath(QStringLiteral("notalivre")));
-    QFile arquivo(pasta.filePath(QStringLiteral("notalivre/config.ini")));
-    if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        return;
-    }
-    // [sefin] com prefixo e âncoras do servidor; [certificado] com as do A1, na ordem em que o INI as lê por seção.
-    QString texto = QStringLiteral("[sefin]\nurl = %1\n").arg(url);
-    if (!prefixo.isEmpty()) {
-        texto += QStringLiteral("prefixo = %1\n").arg(prefixo);
-    }
-    texto += QStringLiteral("ancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\n").arg(kCertificados);
-    const QString caminho = caminhoCertificado.isEmpty() ? kCertificados + QStringLiteral("/cnpj_ok.pfx") : caminhoCertificado;
-    texto += QStringLiteral("caminho = %1\n").arg(caminho);
-    texto += QStringLiteral("[xsd]\ndiretorio = %1\nmanifesto = %2\n[emissao]\nproducao_liberada = false\n").arg(kXsd, kManifesto);
-    if (!algoritmo.isEmpty()) {
-        texto += QStringLiteral("[assinatura]\nalgoritmo = %1\n").arg(algoritmo);
-    }
-    arquivo.write(texto.toUtf8());
 }
 
 void TstCliEmitir::prefixoDaConfiguracaoVaiNaUrl()
