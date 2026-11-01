@@ -5,7 +5,8 @@
 # Emissão de teste do líder em Produção Restrita, em um comando só (NL-2.10; decisão do líder de 01/11/2026:
 # "Um comando só (Recomendado)"). Faz as seções 3.1 a 3.11 e a 4 de docs/pesquisa/onda2_producao_restrita_roteiro.md:
 # confere o programa, escolhe o .pfx numa janela, pede o CNPJ, monta a DPS, emite e devolve o resultado.
-# A senha é digitada só no prompt da própria CLI; este script não a lê, não a guarda e não a passa por argv nem por env.
+# A senha é pedida pelo kdialog (janela própria) e entregue à CLI pelo descritor 3 (--senha-certificado-fd 3, NL-2.27). Este
+# script não a lê, não a guarda em variável e não a passa por argv nem por env; sem kdialog ele para antes de consumir número.
 #
 # Para o líder:                  bash tools/producao_restrita/emitir_teste.sh
 # Ensaio (contêiner, sem flatpak e sem Sefin):   bash tools/producao_restrita/emitir_teste.sh --ensaio
@@ -33,6 +34,7 @@ RUNTIME=org.kde.Platform//6.11
 BUNDLE_SHA=8314ce15d190807f23c4b42917a4725d313329924763611fc1b16d3f669dae18
 BASE=/var/tmp/notalivre-nl210
 BUNDLE="$BASE/bundle/run-41279001563/extraido/notalivre.flatpak"
+# Hash do pacote: único lugar do script. O main atualiza esta linha quando o pacote do CI muda (NL-2.10, run 41279001563).
 MUNICIPIO=2611606
 CTRIBNAC=040101
 SERIE=1
@@ -106,19 +108,13 @@ cnpj_valido() {
     [ "${c:12:1}" -eq "$d1" ] && [ "${c:13:1}" -eq "$d2" ]
 }
 
-# Pergunta ao líder pela janela (kdialog) ou, sem kdialog, pelo terminal. O valor nunca é impresso nem gravado.
+# Pergunta ao líder pela janela (kdialog, exigido pelo pré-voo). O valor nunca é impresso nem gravado.
 perguntar() {
-    local texto="$1" modo="$2" resposta=""
-    if [ "$TEM_KDIALOG" -eq 1 ]; then
-        if [ "$modo" = pfx ]; then
-            kdialog --getopenfilename "$HOME" "*.pfx *.p12|Certificado A1 (*.pfx, *.p12)" 2>/dev/null
-        else
-            kdialog --inputbox "$texto" 2>/dev/null
-        fi
+    local texto="$1" modo="$2"
+    if [ "$modo" = pfx ]; then
+        kdialog --getopenfilename "$HOME" "*.pfx *.p12|Certificado A1 (*.pfx, *.p12)" 2>/dev/null
     else
-        printf '%s: ' "$texto" >&2
-        IFS= read -r resposta
-        printf '%s' "$resposta"
+        kdialog --inputbox "$texto" 2>/dev/null
     fi
 }
 
@@ -142,7 +138,8 @@ gravar_config() {
     chmod 600 "$CFG"
 }
 
-# Próximo nDps: lê o último usado, soma 1 e grava antes de qualquer envio, para nunca repetir.
+# Próximo nDps: lê o último número gravado e soma 1. Não grava nada aqui (NL-2.27, regra do líder): o número só vai ao arquivo
+# depois da tentativa, e só se ela chegou à Sefin (ver gravar_ndps).
 proximo_ndps() {
     local ultimo=0
     if [ -f "$NDPS_ARQ" ]; then ultimo=$(cat "$NDPS_ARQ"); fi
@@ -150,7 +147,12 @@ proximo_ndps() {
         ''|*[!0-9]*) falha "o arquivo do último número da DPS está inválido. Nada foi emitido." ;;
     esac
     NDPS_ATUAL=$(( ultimo + 1 ))
-    printf '%s\n' "$NDPS_ATUAL" > "$NDPS_ARQ"
+}
+
+# Grava o número da tentativa. Chamada só quando a classificação não é "local": uma tentativa que parou antes da Sefin não
+# consome número (o contador fica como estava).
+gravar_ndps() {
+    printf '%s\n' "$1" > "$NDPS_ARQ"
 }
 
 # Monta a DPS do roteiro (3.8) com o número dado e libera o arquivo para o programa.
@@ -200,12 +202,15 @@ EOF
     esac
 }
 
-# Uma tentativa de emissão (3.9). A saída inteira vai para a pasta da execução.
+# Uma tentativa de emissão (3.9). A saída inteira vai para a pasta da execução. A senha vem do kdialog por substituição de
+# processo no descritor 3 (NL-2.27, Emenda 1, item 3): não passa por variável, por argv nem por env, e o shell não a lê.
+# O texto da janela é genérico: sem nome de arquivo e sem CNPJ.
 emitir_tentativa() {
     local k="$1" n="$2"
     SAIDA_ATUAL="$RUN_DIR/saida-tentativa-$k.txt"
     flatpak run --command=notalivre-cli "$APP" emitir "$DOC_DPS" \
-        --serie "$SERIE" --numero "$n" --ambiente producao-restrita > "$SAIDA_ATUAL" 2>&1
+        --serie "$SERIE" --numero "$n" --ambiente producao-restrita --senha-certificado-fd 3 \
+        > "$SAIDA_ATUAL" 2>&1 3< <(kdialog --password "Senha do certificado digital, para a emissão de teste.")
     EMITIU_RC=$?
 }
 
@@ -248,6 +253,14 @@ fluxo() {
             || falha "não consegui instalar o programa (registro em $log_inst)."
         printf '%s\n' "$BUNDLE_SHA" > "$ESTADO_INST"
     fi
+
+    # NL-2.27 (Emenda 1, item 3): pré-voo do canal de senha, antes de qualquer pergunta e antes de consumir número. Sem kdialog a
+    # senha não é pedida; sem o repasse do descritor 3 pelo flatpak instalado, a CLI não receberia a senha. Nos dois casos, para.
+    [ "$TEM_KDIALOG" -eq 1 ] || falha "o kdialog não está instalado: sem ele a senha não é pedida. Nada foi emitido."
+    flatpak --version > "$RUN_DIR/flatpak-versao.txt" 2>&1 || true
+    local repasse
+    repasse=$(flatpak run --command=sh "$APP" -c 'cat <&3' 3< <(printf ok) 2>/dev/null) || repasse=""
+    [ "$repasse" = ok ] || falha "o Flatpak instalado não repassa descritores ao programa (versão em $RUN_DIR/flatpak-versao.txt). Nada foi emitido."
 
     # CNPJ do emissor: pedido ao líder, conferido pelo dígito verificador, nunca impresso nem gravado fora da DPS.
     CNPJ=$(perguntar "Digite o CNPJ do emissor: 14 dígitos, sem pontos, barras ou traços." cnpj)
@@ -296,6 +309,9 @@ fluxo() {
         printf 'Tentativa %s: enviando a DPS de número %s.\n' "$tentativa" "$NDPS_ATUAL"
         emitir_tentativa "$tentativa" "$NDPS_ATUAL"
         classificar "$EMITIU_RC" "$SAIDA_ATUAL"
+        if [ "$RESULTADO" != local ]; then
+            gravar_ndps "$NDPS_ATUAL" || falha "a tentativa chegou à Sefin, mas o número $NDPS_ATUAL não foi gravado: avise o Claude antes de emitir de novo."
+        fi
         case "$RESULTADO" in
             aceita)
                 break ;;
@@ -355,6 +371,15 @@ emitir_stub() {
     local n resultado
     n=$(( $(cat "$D/emitidas.txt" 2>/dev/null || echo 0) + 1 ))
     printf '%s' "$n" > "$D/emitidas.txt"
+    # Senha pelo descritor (NL-2.27): confere só que o fd 3 está aberto e que a linha tem --senha-certificado-fd 3. Não lê o fd.
+    if [ -e /proc/self/fd/3 ] && printf '%s' "$*" | grep -q -e '--senha-certificado-fd 3'; then
+        echo "senha-fd3=ok" >> "$D/chamadas.txt"
+    fi
+    # Cancelado no kdialog: o pipe fecha sem bytes, e a CLI real sai com cofre.senha_vazia (teste e2e da CLI prova isso).
+    if [ -f "$D/senha-cancelada" ]; then
+        echo "cofre.senha_vazia: a senha do descritor está vazia"
+        exit 2
+    fi
     resultado=$(printf '%s' "${NL_ENSAIO_SEQ:-outro}" | awk -F, -v n="$n" '{ print $n }')
     [ -n "$resultado" ] || resultado=outro
     local pasta="$HOME/.var/app/io.github.petrinhu.notalivre/data/notalivre/respostas"
@@ -391,6 +416,7 @@ case "$1" in
             *org.kde.Platform*) [ -f "$D/runtime-ok" ] && exit 0 || exit 1 ;;
             *) [ -f "$D/app-ok" ] && exit 0 || exit 1 ;;
         esac ;;
+    --version) echo "Flatpak 1.18.4 (ensaio)"; exit 0 ;;
     remote-add) exit 0 ;;
     install)
         case "$*" in
@@ -406,6 +432,11 @@ case "$1" in
         case "$*" in
             *--command=ls*)
                 [ "${NL_ENSAIO_CA:-ok}" = faltando ] && exit 1
+                exit 0 ;;
+            *"cat <&3"*)
+                # Pré-voo do repasse do descritor (NL-2.27): o stub devolve o que chegou ao fd 3, ou nada se o repasse está desligado.
+                [ "${NL_ENSAIO_FD_NAO_REPASSA:-}" = 1 ] && exit 0
+                cat <&3
                 exit 0 ;;
             *--command=sh*)
                 if [ "${NL_ENSAIO_XDG:-ok}" = errado ]; then
@@ -441,6 +472,14 @@ case "$1" in
     --inputbox)
         printf '%s\n' "${NL_ENSAIO_CNPJ:-11222333000181}"
         exit 0 ;;
+    --password)
+        # Cancelado: sai com 1 e não escreve nada, e marca o cancelamento para o stub do flatpak (ver emitir_stub).
+        if [ -n "${NL_ENSAIO_KDIALOG_CANCELA:-}" ]; then
+            : > "$NL_ENSAIO_DIR/senha-cancelada"
+            exit 1
+        fi
+        printf '%s\n' "${NL_ENSAIO_SENHA:-NL227-senha-do-ensaio}"
+        exit 0 ;;
 esac
 exit 1
 STUB
@@ -458,12 +497,13 @@ escrever_stubs_sem_kdialog() {
 ensaio_caso() {
     local nome="$1" rc_esp="$2" txt_esp="$3" saidas_esp="$4" emit_esp="$5" cfg_esp="$6"
     shift 6
-    local dir="$RAIZ/$nome" entrada rc saidas emit problema="" pfx_nome="pfxsecreto-ensaio.p12" sem_kd=0 par
+    local dir="$RAIZ/$nome" entrada rc saidas emit problema="" pfx_nome="pfxsecreto-ensaio.p12" sem_kd=0 par ndps_esp=""
     mkdir -p "$dir"
     for par in "$@"; do
         case "$par" in
             NL_ENSAIO_SEM_KDIALOG=1) sem_kd=1 ;;
             NL_ENSAIO_PFX_NOME=*) pfx_nome="${par#NL_ENSAIO_PFX_NOME=}" ;;
+            NL_ENSAIO_NDPS_ESPERADO=*) ndps_esp="${par#NL_ENSAIO_NDPS_ESPERADO=}" ;;
         esac
     done
     printf 'pfxsecreto-ensaio\n' > "$dir/$pfx_nome"
@@ -484,6 +524,13 @@ ensaio_caso() {
     grep -q -F -- "$txt_esp" "$dir/saida-do-script.txt" || problema="$problema texto_ausente('$txt_esp')"
     [ "$saidas" -eq "$saidas_esp" ] || problema="$problema saidas=$saidas(esperado $saidas_esp)"
     [ "$emit" -eq "$emit_esp" ] || problema="$problema emitir=$emit(esperado $emit_esp)"
+    # NL-2.27: cada emissão tem de receber a senha pelo descritor 3, e o contador só anda quando a tentativa chegou à Sefin.
+    local fd3 ndps_atual=ausente
+    fd3=$(grep -c 'senha-fd3=ok' "$dir/chamadas.txt" 2>/dev/null || true)
+    [ -n "$fd3" ] || fd3=0
+    [ "$emit" -eq 0 ] || [ "$fd3" -eq "$emit" ] || problema="$problema senha_fora_do_descritor(fd3=$fd3,emitir=$emit)"
+    [ -f "$dir/base/ultimo-ndps.txt" ] && ndps_atual=$(cat "$dir/base/ultimo-ndps.txt")
+    [ -z "$ndps_esp" ] || [ "$ndps_atual" = "$ndps_esp" ] || problema="$problema ultimo_ndps=$ndps_atual(esperado $ndps_esp)"
     local cfg_arq="$dir/home/.var/app/$APP/config/notalivre/config.ini" padrao
     if [ -n "$cfg_esp" ]; then
         printf '%s\n' "$cfg_esp" | tr '|' '\n' > "$dir/cfg-esperados.txt"
@@ -498,6 +545,11 @@ ensaio_caso() {
     if grep -r -l -F -e pfxsecreto -e 11222333000181 -e 1122233300018A "$dir/saida-do-script.txt" "$dir/base/devolucao" \
         "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
         problema="$problema vazamento(pfx ou CNPJ em saída, devolução ou execução)"
+    fi
+    # NL-2.27: a senha do kdialog nunca aparece na saída do script, na devolução nem na linha de comando do flatpak (chamadas).
+    if grep -r -l -F -e NL227-senha-do-ensaio "$dir/saida-do-script.txt" "$dir/base/devolucao" "$dir/chamadas.txt" \
+        "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
+        problema="$problema vazamento_da_senha"
     fi
     if [ -z "$problema" ]; then
         printf 'ok %s\n' "$nome"
@@ -534,27 +586,33 @@ ensaio() {
     mkdir -p "$RAIZ" || { echo "PARADA: não consegui criar a pasta do ensaio"; exit 1; }
     CASOS=0
     FALHAS=0
-    ensaio_caso aceita 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita
+    ensaio_caso aceita 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_dois_envios
-    ensaio_caso rota_404_preserva_certificado 0 "Nota de teste aceita" 2 2 "[certificado]" NL_ENSAIO_SEQ=404,aceita
-    ensaio_caso rota_404_depois_aceita 0 "Nota de teste aceita" 2 2 "prefixo = /API/SefinNacional" NL_ENSAIO_SEQ=404,aceita
-    ensaio_caso algoritmo_e0714_depois_aceita 0 "Nota de teste aceita" 2 2 "algoritmo = rsa-sha256" NL_ENSAIO_SEQ=E0714,aceita
-    ensaio_caso e0714_duas_vezes_para 1 "A Sefin recusou" 2 2 "" NL_ENSAIO_SEQ=E0714,E0714
-    ensaio_caso rota_404_duas_vezes_para 1 "A Sefin recusou" 2 2 "" NL_ENSAIO_SEQ=404,404
-    ensaio_caso outra_recusa_para_sem_tentar 1 "A Sefin recusou" 1 1 "prefixo = /SefinNacional" NL_ENSAIO_SEQ=outro
-    ensaio_caso antes_da_sefin_para 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=local
-    ensaio_caso bundle_errado_nao_instala 1 "SHA-256" 0 0 "" NL_ENSAIO_BUNDLE=errado NL_ENSAIO_SEQ=aceita
-    ensaio_caso cnpj_invalido_para_antes_de_emitir 1 "CNPJ" 0 0 "" NL_ENSAIO_CNPJ=11222333000180 NL_ENSAIO_SEQ=aceita
-    ensaio_caso pfx_cancelado_para_antes_de_emitir 1 "não pôde ser lido" 0 0 "" NL_ENSAIO_PFX_VAZIO=1 NL_ENSAIO_SEQ=aceita
-    ensaio_caso ca_faltando_para_antes_de_emitir 1 "arquivo de CAs" 0 0 "" NL_ENSAIO_CA=faltando NL_ENSAIO_SEQ=aceita
-    ensaio_caso pasta_config_errada_para_antes_de_emitir 1 "pasta de configuração" 0 0 "" NL_ENSAIO_XDG=errado NL_ENSAIO_SEQ=aceita
-    ensaio_caso sem_kdialog_pergunta_no_terminal 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEM_KDIALOG=1 NL_ENSAIO_SEQ=aceita
+    ensaio_caso rota_404_preserva_certificado 0 "Nota de teste aceita" 2 2 "[certificado]" NL_ENSAIO_SEQ=404,aceita NL_ENSAIO_NDPS_ESPERADO=2
+    ensaio_caso rota_404_depois_aceita 0 "Nota de teste aceita" 2 2 "prefixo = /API/SefinNacional" NL_ENSAIO_SEQ=404,aceita NL_ENSAIO_NDPS_ESPERADO=2
+    ensaio_caso algoritmo_e0714_depois_aceita 0 "Nota de teste aceita" 2 2 "algoritmo = rsa-sha256" NL_ENSAIO_SEQ=E0714,aceita NL_ENSAIO_NDPS_ESPERADO=2
+    ensaio_caso e0714_duas_vezes_para 1 "A Sefin recusou" 2 2 "" NL_ENSAIO_SEQ=E0714,E0714 NL_ENSAIO_NDPS_ESPERADO=2
+    ensaio_caso rota_404_duas_vezes_para 1 "A Sefin recusou" 2 2 "" NL_ENSAIO_SEQ=404,404 NL_ENSAIO_NDPS_ESPERADO=2
+    ensaio_caso outra_recusa_para_sem_tentar 1 "A Sefin recusou" 1 1 "prefixo = /SefinNacional" NL_ENSAIO_SEQ=outro NL_ENSAIO_NDPS_ESPERADO=1
+    # NL-2.27: parar antes da Sefin não consome número. Antes de qualquer envio, o contador fica ausente (nada foi gravado).
+    ensaio_caso antes_da_sefin_para 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=local NL_ENSAIO_NDPS_ESPERADO=ausente
+    # NL-2.27 (Emenda 1, item 5): kdialog cancelado = senha vazia na CLI (saída 2, local): o número não é consumido.
+    ensaio_caso senha_cancelada_nao_consome_numero 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_KDIALOG_CANCELA=1 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso bundle_errado_nao_instala 1 "SHA-256" 0 0 "" NL_ENSAIO_BUNDLE=errado NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso cnpj_invalido_para_antes_de_emitir 1 "CNPJ" 0 0 "" NL_ENSAIO_CNPJ=11222333000180 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso pfx_cancelado_para_antes_de_emitir 1 "não pôde ser lido" 0 0 "" NL_ENSAIO_PFX_VAZIO=1 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso ca_faltando_para_antes_de_emitir 1 "arquivo de CAs" 0 0 "" NL_ENSAIO_CA=faltando NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso pasta_config_errada_para_antes_de_emitir 1 "pasta de configuração" 0 0 "" NL_ENSAIO_XDG=errado NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
+    # NL-2.27 (Emenda 1, item 3): sem kdialog o script para antes de qualquer pergunta e antes de consumir número de DPS.
+    ensaio_caso sem_kdialog_para_antes_do_numero 1 "kdialog" 0 0 "" NL_ENSAIO_SEM_KDIALOG=1 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
+    # NL-2.27 (DA-2.16): o Flatpak que não repassa o fd 3 faz o script parar antes do kdialog, com a versão do flatpak gravada.
+    ensaio_caso fd_nao_repassado_para_antes_do_numero 1 "não repassa descritores" 0 0 "" NL_ENSAIO_FD_NAO_REPASSA=1 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
     # MÉDIA-S1: 404 de consulta (GET) seguido de E0714 não troca a base; só o algoritmo muda.
-    ensaio_caso consulta_404_depois_e0714_nao_troca_base 0 "Nota de teste aceita" 2 2 "prefixo = /SefinNacional|algoritmo = rsa-sha256" NL_ENSAIO_SEQ=consulta404E0714,aceita
+    ensaio_caso consulta_404_depois_e0714_nao_troca_base 0 "Nota de teste aceita" 2 2 "prefixo = /SefinNacional|algoritmo = rsa-sha256" NL_ENSAIO_SEQ=consulta404E0714,aceita NL_ENSAIO_NDPS_ESPERADO=2
     # BAIXA-S4: caminho com espaço, aspas e cifrão, e o .pfx entra sem vazar; caminho relativo para antes de emitir.
-    ensaio_caso pfx_com_espaco_aspas_cifrao 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita "NL_ENSAIO_PFX_NOME=pfxsecreto com 'aspas' e \$HOME.p12"
-    ensaio_caso pfx_relativo_recusado_antes_de_emitir 1 "absoluto" 0 0 "" NL_ENSAIO_PFX_RELATIVO=1 NL_ENSAIO_SEQ=aceita
-    ensaio_caso cnpj_com_letra_para_antes_de_emitir 1 "CNPJ" 0 0 "" NL_ENSAIO_CNPJ=1122233300018A NL_ENSAIO_SEQ=aceita
+    ensaio_caso pfx_com_espaco_aspas_cifrao 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 "NL_ENSAIO_PFX_NOME=pfxsecreto com 'aspas' e \$HOME.p12"
+    ensaio_caso pfx_relativo_recusado_antes_de_emitir 1 "absoluto" 0 0 "" NL_ENSAIO_PFX_RELATIVO=1 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso cnpj_com_letra_para_antes_de_emitir 1 "CNPJ" 0 0 "" NL_ENSAIO_CNPJ=1122233300018A NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
     # CISO (BAIXA-S3, condição 1): o script não liga o rastreio do shell.
     local marca_xtrace marca_bash
     marca_xtrace="set -$(printf x)"
