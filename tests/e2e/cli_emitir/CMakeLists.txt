@@ -47,6 +47,7 @@ set(NL_SLOTS_E2E
     e0014ComInfDpsDiferenteSaiComCinco
     e0014SemComparacaoSaiComSete
     respostaCruaGravadaParaAnalise
+    cliGravaARespostaDaRecusa
     prefixoDaConfiguracaoVaiNaUrl
     prefixoAusenteSaiComDez
     caminhoDoCertificadoVemDaConfiguracao

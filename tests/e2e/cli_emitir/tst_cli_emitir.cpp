@@ -320,6 +320,7 @@ private slots:
     void e0014SemComparacaoSaiComSete();
     // DA-2.59 item 4: a resposta crua da Sefin fica num arquivo local 0600, com o XML e a chave mascarados, sem senha.
     void respostaCruaGravadaParaAnalise();
+    void cliGravaARespostaDaRecusa();
     // NL-2.10a, passo 3 (DA-2.5): [sefin] prefixo vai ao caminho do POST; o servidor com o mesmo prefixo recebe em /SefinNacional/nfse.
     void prefixoDaConfiguracaoVaiNaUrl();
     // NL-2.10a, passo 3: sem [sefin] prefixo, a CLI recusa com 10 e nomeia a chave, antes de pedir a senha.
@@ -560,6 +561,39 @@ void TstCliEmitir::respostaCruaGravadaParaAnalise()
     QVERIFY2(!conteudo.contains("nfseXmlGZipB64\":\"H4s"), "o XML da NFS-e (GZip em Base64) não pode ir ao arquivo");
     QVERIFY2(!conteudo.contains(senha), "a senha não pode ir ao arquivo");
     QVERIFY2(!conteudo.contains("11222333000181"), "o CNPJ do certificado não pode ir ao arquivo sem máscara");
+}
+
+void TstCliEmitir::cliGravaARespostaDaRecusa()
+{
+    // NL-2.10c (DA-2.66, passo 4): a CLI recebe uma recusa com código E (rejeicao:E1207: 400 com um CPF no texto livre). A
+    // resposta da recusa vai ao .jsonl da DPS, com o status 400, em 0600, sem o texto livre e sem nenhum dígito do CPF.
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor(QStringLiteral("rejeicao:E1207"));
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 };
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
+        exigeRecusaSha1SemEnvio(execucao, servidor.requisicoesAoFechar());
+        return;
+    }
+    QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("sefin.E1207"), "a recusa tem de sair com o código E da Sefin");
+    const QDir pasta(configDir.path() + QStringLiteral("/state/notalivre/respostas"));
+    const QStringList arquivos = pasta.entryList({QStringLiteral("*.jsonl")}, QDir::Files);
+    QCOMPARE(arquivos.size(), 1);
+    const QString caminho = pasta.filePath(arquivos.first());
+    QVERIFY2(permissaoSoDoDono(caminho), "o arquivo da recusa tem de ser 0600: dono lê e escreve, grupo e outros sem bit");
+    const QByteArray conteudo = lerArquivo(caminho);
+    QVERIFY2(conteudo.contains("\"status\":400"), "a linha do POST recusado leva o status 400");
+    QVERIFY2(conteudo.contains("\"metodo\":\"POST\""), "a linha do POST recusado leva o método");
+    QVERIFY2(!conteudo.contains("texto livre devolvido pela API"), "o texto livre da recusa não pode ir ao arquivo");
+    QVERIFY2(conteudo.count("12345678909") == 0, "nenhum dígito do CPF da fixture pode ir ao arquivo");
 }
 
 // Configuração XDG com [sefin] url, prefixo e algoritmo (NL-2.10a, passo 3). Sem prefixo ou algoritmo, a linha não é escrita.
