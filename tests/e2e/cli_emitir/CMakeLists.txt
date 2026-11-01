@@ -42,7 +42,10 @@ set(NL_SLOTS_E2E_SEM_SERVIDOR
     cliSenhaNuncaPorArgumentoNemAmbiente
     cliDescritorVazioSaiCom2
     senhaDoDescritorNaoVazaNoLogNemNaSaida
-    cliSenhaVaziaNoTerminalSaiCom2)
+    cliSenhaVaziaNoTerminalSaiCom2
+    cliDescritorFechadoNaEntradaSaiCom2
+    cliDescritorFechadoNaEntradaSaiCom2Fd9
+    cliDescritorLegivelNomeiaOArquivo)
 
 set(NL_SLOTS_E2E
     cliEmiteDpsAceitaPeloServidorFalso
@@ -71,7 +74,10 @@ set(NL_SLOTS_E2E
     cliSenhaNuncaPorArgumentoNemAmbiente
     cliDescritorVazioSaiCom2
     senhaDoDescritorNaoVazaNoLogNemNaSaida
-    cliSenhaVaziaNoTerminalSaiCom2)
+    cliSenhaVaziaNoTerminalSaiCom2
+    cliDescritorFechadoNaEntradaSaiCom2
+    cliDescritorFechadoNaEntradaSaiCom2Fd9
+    cliDescritorLegivelNomeiaOArquivo)
 
 if(NL_FLATPAK_BUILD)
     message(STATUS "e2e cli_emitir: slots com servidor falso ou segredo desligados no build Flatpak (NL-2.15, NL-2.27)")

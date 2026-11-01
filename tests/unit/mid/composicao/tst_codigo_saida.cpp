@@ -39,7 +39,7 @@ void TstCodigoSaida::codigosDoSegredoSaemComDois()
 {
     for (const char* codigo : {"cofre.senha_ausente", "cofre.terminal_em_segundo_plano", "cofre.descritor_invalido",
                                "cofre.descritor_terminal", "cofre.descritor_legivel_por_outros", "cofre.senha_vazia",
-                               "cofre.senha_acima_do_teto", "cofre.descritor_falha_de_leitura"}) {
+                               "cofre.senha_acima_do_teto", "cofre.descritor_falha_de_leitura", "cofre.descritor_trocado"}) {
         QCOMPARE(codigoDeSaidaDaEmissao(codigo), 2);
     }
 }
