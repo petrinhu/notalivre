@@ -25,6 +25,16 @@ const QByteArray kXmlSintetico = "H4sIAAAAAAAAAPNIzcnJVyjPL8pKUQQAjAqUFgUAAAA";
 
 // Dono lê e escreve; grupo e outros sem nenhum bit (0600). O Qt devolve o bit de usuário junto do de dono, então a
 // igualdade exata com ReadOwner|WriteOwner nunca bate; por isso a conferência é por máscara.
+// Nome de chave só com letras, de 63 caracteres e largura fixa. A regra da MÉDIA-1 mantém um nome assim em claro, então ele
+// conta no tamanho da resposta; nomes com dígitos ou longos demais viram <chave:N> e encolhem a resposta.
+QString nomeDeChaveLongo(int k)
+{
+    const char a = static_cast<char>('a' + k / 676 % 26);
+    const char b = static_cast<char>('a' + k / 26 % 26);
+    const char c = static_cast<char>('a' + k % 26);
+    return QStringLiteral("campo") + QLatin1Char(a) + QLatin1Char(b) + QLatin1Char(c) + QString(55, QLatin1Char('x'));
+}
+
 bool permissaoSoDoDono(const QString& caminho)
 {
     const QFileDevice::Permissions p = QFile::permissions(caminho);
@@ -301,8 +311,8 @@ void TstRespostaCrua::arquivoNoTetoParaComLinhaDeCorte()
     QTemporaryDir pasta;
     QVERIFY(pasta.isValid());
     QJsonObject grande;
-    for (int k = 0; k < 1000; ++k) {
-        grande.insert(QStringLiteral("campo%1_").arg(k, 200, 10, QLatin1Char('x')), QStringLiteral("valor"));
+    for (int k = 0; k < 3000; ++k) {
+        grande.insert(nomeDeChaveLongo(k), QStringLiteral("valor"));
     }
     const QByteArray corpo = QJsonDocument(grande).toJson(QJsonDocument::Compact);
     constexpr int kEnviadas = 40;
@@ -356,8 +366,8 @@ private:
 QByteArray corpoGrande()
 {
     QJsonObject grande;
-    for (int k = 0; k < 1000; ++k) {
-        grande.insert(QStringLiteral("campo%1_").arg(k, 200, 10, QLatin1Char('x')), QStringLiteral("valor"));
+    for (int k = 0; k < 3000; ++k) {
+        grande.insert(nomeDeChaveLongo(k), QStringLiteral("valor"));
     }
     return QJsonDocument(grande).toJson(QJsonDocument::Compact);
 }

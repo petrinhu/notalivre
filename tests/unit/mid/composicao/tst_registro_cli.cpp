@@ -59,6 +59,15 @@ void trechoDoAvisoComCpf()
 }
 
 
+// Nome de chave só com letras, de 63 caracteres e largura fixa: a regra da MÉDIA-1 o mantém em claro, então conta no tamanho.
+QString nomeDeChaveLongo(int k)
+{
+    const char a = static_cast<char>('a' + k / 676 % 26);
+    const char b = static_cast<char>('a' + k / 26 % 26);
+    const char c = static_cast<char>('a' + k % 26);
+    return QStringLiteral("campo") + QLatin1Char(a) + QLatin1Char(b) + QLatin1Char(c) + QString(55, QLatin1Char('x'));
+}
+
 constexpr const char* kCpfFixture = "52998224725";
 constexpr const char* kIdDps = "DPS430510821122233300018100001000000000000001";
 constexpr const char* kInscricaoDoId = "11222233300018";
@@ -171,8 +180,8 @@ void TstRegistroCli::avisoNoLogQuandoOArquivoECortado()
     QTemporaryDir pasta;
     QVERIFY(pasta.isValid());
     QJsonObject grande;
-    for (int k = 0; k < 1000; ++k) {
-        grande.insert(QStringLiteral("campo%1_").arg(k, 200, 10, QLatin1Char('x')), QStringLiteral("valor"));
+    for (int k = 0; k < 3000; ++k) {
+        grande.insert(nomeDeChaveLongo(k), QStringLiteral("valor"));
     }
     const QByteArray corpo = QJsonDocument(grande).toJson(QJsonDocument::Compact);
     nl::mid::composicao::GravadorRespostaCrua gravador(pasta.path(), "DPS-ID-SINTETICO-0202");
@@ -186,7 +195,7 @@ void TstRegistroCli::avisoNoLogQuandoOArquivoECortado()
     const std::string saida = destino.str();
     QVERIFY2(saida.find("resposta_crua.cortada") != std::string::npos, "o corte tem de sair como evento no log");
     QVERIFY2(saida.find(pasta.path().toStdString()) == std::string::npos, "o caminho da pasta não pode ir ao log");
-    QVERIFY2(saida.find("campo0") == std::string::npos, "nenhum conteúdo de resposta pode ir ao log");
+    QVERIFY2(saida.find("campoaaa") == std::string::npos, "nenhum conteúdo de resposta pode ir ao log");
 }
 
 QTEST_APPLESS_MAIN(TstRegistroCli)
