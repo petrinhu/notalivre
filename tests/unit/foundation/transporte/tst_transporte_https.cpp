@@ -17,6 +17,7 @@
 #include <QByteArray>
 #include <QFile>
 #include <QIODevice>
+#include <QElapsedTimer>
 #include <QProcess>
 #include <QSslCertificate>
 #include <QSslKey>
@@ -153,6 +154,59 @@ private:
 
 } // namespace
 
+// Servidor que recusa HTTP/2 com HTTP_1_1_REQUIRED (NL-2.10e, E5, DA-2.80, tools/servidor_falso/servidor_h2.py). Escreve "ALPN <valor>"
+// por conexão e "HTTP200" quando responde em HTTP/1.1. Só a biblioteca padrão do Python.
+class ServidorH2Teste {
+public:
+    explicit ServidorH2Teste(const QStringList& extras = {}) {
+        QStringList argumentos{QStringLiteral(NL_SERVIDOR_H2), pastaFixtures()};
+        argumentos << extras;
+        processo_.start(QStringLiteral(NL_PYTHON3), argumentos);
+        if (processo_.waitForReadyRead(15000)) {
+            const QString linha = QString::fromUtf8(processo_.readLine()).trimmed();
+            if (linha.startsWith(QStringLiteral("PORTA "))) {
+                porta_ = linha.mid(6).toInt();
+            }
+        }
+        if (porta_ == 0) {
+            processo_.kill();
+            processo_.waitForFinished(2000);
+            diagnostico_ = QStringLiteral("servidor h2 falso não subiu; stderr: ") + QString::fromUtf8(processo_.readAllStandardError());
+        }
+    }
+    ~ServidorH2Teste() {
+        processo_.kill();
+        processo_.waitForFinished(2000);
+    }
+    int porta() const { return porta_; }
+    const QString& diagnostico() const { return diagnostico_; }
+
+    // Linhas que o servidor escreveu até aparecer a marca, ou até o tempo acabar.
+    QStringList linhasAte(const QString& marca, int milissegundos) {
+        QStringList todas;
+        QByteArray resto;
+        QElapsedTimer relogio;
+        relogio.start();
+        while (relogio.elapsed() < milissegundos && !todas.contains(marca)) {
+            // Lê o que já está no buffer do QProcess antes de esperar: waitForReadyRead só acorda com dado novo.
+            resto += processo_.readAllStandardOutput();
+            processo_.waitForReadyRead(100);
+            qsizetype fim = resto.indexOf('\n');
+            while (fim >= 0) {
+                todas << QString::fromUtf8(resto.left(fim)).trimmed();
+                resto.remove(0, fim + 1);
+                fim = resto.indexOf('\n');
+            }
+        }
+        return todas;
+    }
+
+private:
+    QProcess processo_;
+    int porta_ = 0;
+    QString diagnostico_;
+};
+
 class TesteTransporteHttps : public QObject {
     Q_OBJECT
 
@@ -168,6 +222,11 @@ private slots:
     void conexaoRecusadaViraErroTransitorio();
     void corpo2xxTruncadoViraTransitorio();
     void rejeicao400ComCorpoContinuaRespostaHttp();
+    // NL-2.10e (E5, DA-2.79): o servidor só fala h2 e recusa com HTTP_1_1_REQUIRED; o transporte tem de negociar HTTP/1.1 e receber 200.
+    void h2RecusadoRepetidoEmHttp11();
+    // NL-2.10e (R-B3, piso TLS 1.2): um servidor que só fala TLS 1.1 não pode ser aceito: o handshake tem de falhar com causa Tls.
+    void servidorSoTls11RecusadoPeloPiso();
+    void pisoTls12NaConfiguracaoDeProducao();
     void respostaTrazOContentType();
     void cabecalhoAcceptEncodingIdentityEnviado();
     void contentEncodingNaoIdentityViraDefinitivoProtocolo();
@@ -191,6 +250,43 @@ void TesteTransporteHttps::initTestCase()
 
 void TesteTransporteHttps::cleanupTestCase()
 {
+}
+
+void TesteTransporteHttps::servidorSoTls11RecusadoPeloPiso()
+{
+    ServidorH2Teste servidor({QStringLiteral("--tls11")});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    ConfiguracaoTls tls;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 8000ms), tls);
+    const auto resposta = transporte.enviar(consultaDps());
+    QVERIFY2(!resposta.has_value(), "TLS abaixo de 1.2 não pode ser aceito (piso do canon, R-B3)");
+    QCOMPARE(resposta.error().causa, CausaErro::Tls);
+}
+
+// NL-2.10e (R-B3, T3): o piso é afirmado na configuração que a conexão usa, não só pelo handshake. O handshake com servidor
+// só-1.1 falha por política do sistema (MinProtocol=TLSv1.2 do OpenSSL) mesmo com AnyProtocol, então esse teste não mata T3 sozinho.
+void TesteTransporteHttps::pisoTls12NaConfiguracaoDeProducao()
+{
+    const ConfiguracaoTls tls;
+    const QSslConfiguration cfg = configuracaoSslDoTransporte(tls);
+    QVERIFY2(cfg.protocol() == QSsl::TlsV1_2OrLater, "a conexão tem de pedir TLS 1.2 ou mais novo (piso do canon)");
+}
+
+void TesteTransporteHttps::h2RecusadoRepetidoEmHttp11()
+{
+    ServidorH2Teste servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    ConfiguracaoTls tls;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 8000ms), tls);
+    const auto resposta = transporte.enviar(consultaDps());
+    const QStringList linhas = servidor.linhasAte(QStringLiteral("HTTP200"), 8000);
+    qInfo().noquote() << "servidor h2 falso:" << linhas.join(QStringLiteral(" | "));
+    QVERIFY2(linhas.contains(QStringLiteral("ALPN http/1.1")),
+             "o transporte tem de negociar HTTP/1.1 no caminho autenticado (E5, DA-2.79); negociou outra coisa");
+    QVERIFY2(resposta.has_value(), "com HTTP/1.1 forçado, a requisição tem de receber resposta");
+    QCOMPARE(resposta->status, 200);
 }
 
 void TesteTransporteHttps::semCertificadoDeClienteHandshakeRecusado()

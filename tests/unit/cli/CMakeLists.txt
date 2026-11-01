@@ -41,7 +41,7 @@ else()
         COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tests/unit/foundation/log/varredura_logs.py"
             --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt")
     # NL-2.14 (adendo 5): os caminhos do build vão pelo ambiente, não como argumento depois do script.
-    set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS "cli.excecaoTopo;e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso"
+    set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS "cli.excecaoTopo;e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso;mid.sefin.registroTransporte.eventoTemSoCamposFechados;mid.sefin.registroTransporte.camposNovosSaoFechados;mid.sefin.registroTransporte.versaoForaDoConjuntoVira_outro;mid.sefin.registroTransporte.codigosSslLimitadosEm16;mid.sefin.registroTransporte.valorForaDoConjuntoVira_outro;mid.composicao.manipuladorQt"
         ENVIRONMENT "NL_VARREDURA_DIR=${NL_LOGS_PII_CLI_DIR};NL_VARREDURA_TERMOS_EXTRA=${NL_SEGREDOS_PII_REF}")
 endif()
 

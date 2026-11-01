@@ -164,6 +164,13 @@ FalhaEmissao recusada(RegistroCli& registro, const bk::IdDps& idDps, FalhaEmissa
 
 } // namespace
 
+// NL-2.10e (E3, H1): expõe a configuração TLS que a emissão usa, para o teste da chave do A1 chamar a mesma função de produção.
+nl::foundation::transporte::ConfiguracaoTls configuracaoTlsDaCredencial(const fp::CredencialX509& credencial,
+                                                                       const QList<QSslCertificate>& autoridades)
+{
+    return configuracaoTls(credencial, autoridades);
+}
+
 std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, fp::SenhaSegura&& senha, RegistroCli& registro,
                                                            const FabricaAssinador& fabrica)
 {

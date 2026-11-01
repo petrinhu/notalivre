@@ -18,6 +18,7 @@ e2e.cliEmitir.e0014DaMesmaDpsRecuperaAChave | servidor falso em Python com orác
 e2e.cliEmitir.e0014SemComparacaoSaiComSete | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 e2e.cliEmitir.prefixoDaConfiguracaoVaiNaUrl | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 e2e.cliEmitir.respostaCruaGravadaParaAnalise | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.ancorasTlsVaziasSaiComCausaDeConfiguracao | xmlsec1 ausente no SDK KDE 6.11 (DPS de referência assinada pelo xmlsec1; NL-2.10e, DA-2.82) | coberto no build nativo
 mid.sefin.cliente.base64ComCaractereInvalidoETamanhoValidoRecusado | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.base64ComIgualNoMeioRecusado | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.base64InvalidoRecusado | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
@@ -88,3 +89,5 @@ xmldsig.signedInfoCanonicalizadoNoContextoDoDocumento | xmlsec1 ausente no SDK K
 xmldsig.transformadaEnvelopedExcluiASignatureDoDigest | xmlsec1 ausente no SDK KDE 6.11 (verificação pelo xmlsec1 de linha de comando) | coberto no build nativo
 xmldsig.xmlAlteradoDepoisDeAssinarReprova | xmlsec1 ausente no SDK KDE 6.11 (verificação pelo xmlsec1 de linha de comando) | coberto no build nativo
 xmldsig.xmlAssinadoContinuaValidoNoXsd | ferramenta de linha de comando não medida no SDK KDE 6.11 (xmllint) | coberto no build nativo
+mid.sefin.cliente.falhaDePostVaiAoLogComEtapaPost | lista de slots do cliente Sefin desligada no build Flatpak (NL-2.10e, desvio declarado: o teste não precisa de servidor) | coberto no build nativo
+mid.sefin.cliente.falhaDeGetVaiAoLogComEtapaGet | lista de slots do cliente Sefin desligada no build Flatpak (NL-2.10e, desvio declarado: o teste não precisa de servidor) | coberto no build nativo

@@ -20,6 +20,7 @@
 #include <nl/foundation/pkcs12/senha_segura.h>
 #include <nl/foundation/transporte/transporte_https.h>
 
+#include <nl/mid/sefin/cliente/allowlist_log_sefin.h>
 #include <nl/mid/sefin/cliente/catalogo_erros_sefin.h>
 #include <nl/mid/sefin/cliente/comparador_infdps_c14n.h>
 #include <nl/mid/sefin/cliente/cliente_sefin.h>
@@ -319,7 +320,7 @@ std::unique_ptr<Montagem> montar(int porta, const fp::CredencialX509& cred,
         m->destino, "sefin",
         std::vector<fl::DeclaracaoCampo>{{"metodo", fl::Regra::Cru}, {"status", fl::Regra::Cru},
                                          {"codigoE", fl::Regra::Cru}, {"etapa", fl::Regra::Cru}},
-        std::vector<std::string>{"sefin.requisicao", "sefin.consulta", "sefin.emissao", "sefin.erro"});
+        std::vector<std::string>{"sefin.requisicao", "sefin.consulta", "sefin.emissao", "sefin.erro", "sefin.transporte_falhou"});
     const ft::UrlBase base{QUrl(QStringLiteral("https://127.0.0.1:%1").arg(porta)), QString(), 5000ms};
     m->transporte = std::make_unique<ft::TransporteHttps>(base, configuracaoTls(cred));
     mc::PoliticaRetry politica;
@@ -348,7 +349,7 @@ std::unique_ptr<Montagem> montarSemCertificado(int porta)
         m->destino, "sefin",
         std::vector<fl::DeclaracaoCampo>{{"metodo", fl::Regra::Cru}, {"status", fl::Regra::Cru},
                                          {"codigoE", fl::Regra::Cru}, {"etapa", fl::Regra::Cru}},
-        std::vector<std::string>{"sefin.requisicao", "sefin.consulta", "sefin.emissao", "sefin.erro"});
+        std::vector<std::string>{"sefin.requisicao", "sefin.consulta", "sefin.emissao", "sefin.erro", "sefin.transporte_falhou"});
     ft::ConfiguracaoTls tls;
     tls.autoridades = QSslCertificate::fromData(lerFixture(QStringLiteral("ac.pem")), QSsl::Pem);
     const ft::UrlBase base{QUrl(QStringLiteral("https://127.0.0.1:%1").arg(porta)), QString(), 5000ms};
@@ -378,6 +379,12 @@ class TesteClienteSefin : public QObject {
     Q_OBJECT
 
 private slots:
+    // (E4 complemento, DA-2.75) falha de transporte no POST vai ao log com a etapa POST (porta sem servidor: recusa antes de qualquer byte).
+    void falhaDePostVaiAoLogComEtapaPost();
+    // (E4 complemento, DA-2.75) falha de transporte no GET vai ao log com a etapa GET.
+    void falhaDeGetVaiAoLogComEtapaGet();
+    // NL-2.10e (item 6, DA-2.82): âncoras TLS vazias são recusadas antes de qualquer byte, com causa de configuração no evento.
+    void ancorasTlsVaziasSaiComCausaDeConfiguracao();
     void sucessoExtraiChaveDe50Posicoes()
     {
         auto cred = credencial();
@@ -1115,5 +1122,53 @@ private slots:
 
 // QTEST_GUILESS_MAIN cria o QCoreApplication: o transporte espera pelo QEventLoop e o seu tempo limite é um QTimer, e
 // nenhum dos dois funciona sem laço de eventos (com APPLESS, o envio ficava sem prazo até o timeout de 300 s do QTest).
+void TesteClienteSefin::falhaDePostVaiAoLogComEtapaPost()
+{
+    auto cred = credencial();
+    QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+    auto dps = dpsAssinada(*cred);
+    QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+    // Porta 1 sem servidor: a conexão é recusada antes de qualquer byte do POST (bytesEscritos 0).
+    auto m = montar(1, *cred);
+    QVERIFY(!m->cliente->emitir(*dps).has_value());
+    const std::string saida = m->destino.str();
+    QVERIFY2(saida.find("sefin.transporte_falhou") != std::string::npos, "a falha do POST tem de ir ao log (E4, DA-2.75)");
+    QVERIFY2(saida.find("\"etapa\":\"POST\"") != std::string::npos, "a etapa da falha do POST tem de ser POST");
+}
+
+void TesteClienteSefin::falhaDeGetVaiAoLogComEtapaGet()
+{
+    auto cred = credencial();
+    QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+    auto dps = dpsAssinada(*cred);
+    QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+    auto m = montar(1, *cred);
+    QVERIFY(!m->cliente->consultarDps(dps->id).has_value());
+    const std::string saida = m->destino.str();
+    QVERIFY2(saida.find("sefin.transporte_falhou") != std::string::npos, "a falha do GET tem de ir ao log (E4, DA-2.75)");
+    QVERIFY2(saida.find("\"etapa\":\"GET\"") != std::string::npos, "a etapa da falha do GET tem de ser GET");
+}
+
+void TesteClienteSefin::ancorasTlsVaziasSaiComCausaDeConfiguracao()
+{
+    auto cred = credencial();
+    QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+    auto dps = dpsAssinada(*cred);
+    QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+    ft::ConfiguracaoTls tls = configuracaoTls(*cred);
+    tls.autoridades.clear();  // âncoras TLS vazias: a configuração é inválida, e nada sai da máquina
+    const ft::UrlBase base{QUrl(QStringLiteral("https://127.0.0.1:1")), QString(), 5000ms};
+    ft::TransporteHttps transporte(base, tls);
+    std::ostringstream destino;
+    fl::Log log(destino, "sefin", mc::allowlistLogSefin(), mc::eventosLogSefin());
+    mc::PoliticaRetry politica;
+    politica.base = 1ms;
+    mc::ClienteSefin cliente(transporte, log, politica, nullptr, nullptr);
+    QVERIFY(!cliente.emitir(*dps).has_value());
+    const std::string saida = destino.str();
+    QVERIFY2(saida.find("\"causa\":\"configuracao\"") != std::string::npos, "âncoras vazias têm de sair com causa de configuração no evento");
+    QVERIFY2(saida.find("\"bytesEscritos\":\"0\"") != std::string::npos, "âncoras vazias não escrevem nenhum byte");
+}
+
 QTEST_GUILESS_MAIN(TesteClienteSefin)
 #include "tst_cliente_sefin.moc"

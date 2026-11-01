@@ -226,7 +226,31 @@ classificar() {
         return
     fi
     if grep -q 'sefin\.E0714' "$2"; then RESULTADO=e0714; return; fi
-    if grep -q 'emissão recusada (sefin\.' "$2"; then RESULTADO=sefin; return; fi
+    # NL-2.10e (E7, DA-2.80): "A Sefin recusou" só com prova de resposta: um código E ou um evento sefin.requisicao. Um "sefin.falha"
+    # sem nenhum dos dois não prova que a Sefin respondeu, então é incerta.
+    # NL-2.10e (E4, E7): falha de transporte com zero bytes escritos é antes da Sefin: local. Com bytes escritos, o POST pode ter
+    # chegado: incerta (o sinal é o evento sefin.transporte_falhou, antes de qualquer texto de recusa).
+    if grep -q 'sefin\.transporte_falhou' "$2"; then
+        # R-B1 (revisão, NL-2.10e): qualquer evento com bytes escritos, em qualquer etapa, torna a tentativa incerta (o POST pode ter
+        # chegado). Local só com a etapa POST e zero bytes escritos.
+        if awk '/"evento":"sefin.transporte_falhou"/ && !/"bytesEscritos":"0"/ { achou = 1 } END { exit !achou }' "$2"; then
+            RESULTADO=incerta
+        elif awk '/"evento":"sefin.transporte_falhou"/ && /"etapa":"POST"/ && /"bytesEscritos":"0"/ { achou = 1 } END { exit !achou }' "$2"; then
+            RESULTADO=local
+        else
+            RESULTADO=incerta
+        fi
+        return
+    fi
+    if grep -q 'emissão recusada (sefin\.E[0-9]' "$2"; then RESULTADO=sefin; return; fi
+    if grep -q 'emissão recusada (sefin\.' "$2"; then
+        if awk '/"evento":"sefin.requisicao"/ { achou = 1 } END { exit !achou }' "$2"; then
+            RESULTADO=sefin
+        else
+            RESULTADO=incerta
+        fi
+        return
+    fi
     # NL-2.27 (B1, revisão de segurança): processo morto (rc >= 128) ou POST registrado na saída: a Sefin pode ter recebido a DPS.
     # Incerta grava o número e manda confirmar antes de reemitir. Só "local" prova que a Sefin não foi chamada.
     if [ "$1" -ge 128 ] || awk '/"evento":"sefin.requisicao"/ && /"metodo":"POST"/ { achou = 1 } END { exit !achou }' "$2"; then
@@ -412,6 +436,27 @@ emitir_stub() {
         E0714)
             echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"200"},"descartados":0}'
             echo "emissão recusada (sefin.E0714): assinatura recusada"
+            exit 1 ;;
+        sefin_falha_sem_requisicao)
+            # NL-2.10e (E7, DA-2.80): "sefin.falha" sem nenhum evento sefin.requisicao não é prova de recusa da Sefin: a classificação é incerta.
+            echo "emissão recusada (sefin.falha): "
+            exit 1 ;;
+        post5_get0)
+            # NL-2.10e (R-B1, sonda SP do revisor): o POST escreveu bytes e a consulta GET falhou com zero bytes. O POST pode ter chegado:
+            # incerta, e nunca local. O evento da etapa POST tem bytes maiores que zero.
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"5","etapa":"POST"},"descartados":0}'
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"0","etapa":"GET"},"descartados":0}'
+            echo "emissão recusada (sefin.falha): "
+            exit 1 ;;
+        transporte_bytes0)
+            # NL-2.10e (E7, E4): falha de transporte com zero bytes escritos é antes da Sefin: local.
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"tls","codigoQt":"4","handshake":"sim","bytesEscritos":"0","etapa":"POST"},"descartados":0}'
+            echo "emissão recusada (sefin.falha): "
+            exit 1 ;;
+        transporte_bytes5)
+            # NL-2.10e (E7, E4): com bytes escritos, o POST pode ter chegado: incerta.
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"5","etapa":"POST"},"descartados":0}'
+            echo "emissão recusada (sefin.falha): "
             exit 1 ;;
         morto139)
             # NL-2.27 (B1, revisão de segurança): POST registrado e processo morto. A Sefin pode ter recebido a DPS: a classificação é incerta.
@@ -628,6 +673,13 @@ ensaio() {
     # NL-2.27 (B1, revisão de segurança): processo morto depois do POST não é "antes da Sefin". Caso permanente: o número é gravado
     # e a mensagem manda confirmar na Sefin antes de reemitir. Morte sem POST na saída também é incerta (o corte pode ser depois do envio).
     ensaio_caso morto_depois_do_post_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=morto139 NL_ENSAIO_NDPS_ESPERADO=1
+    # NL-2.10e (E7): "sefin.falha" sem sefin.requisicao não pode sair como "A Sefin recusou"; a mensagem é de confirmação.
+    # NL-2.10e (E7, E4): transporte com zero bytes é local; com bytes escritos, o POST pode ter chegado: incerta.
+    # NL-2.10e (R-B1, sonda SP): POST com bytes e GET com zero bytes: incerta, nunca local (a regra local exige a etapa POST com zero bytes).
+    ensaio_caso post_bytes5_get0_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=post5_get0 NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso transporte_sem_bytes_e_local 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=transporte_bytes0 NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso transporte_com_bytes_e_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=transporte_bytes5 NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso sefin_falha_sem_requisicao_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=sefin_falha_sem_requisicao NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso morto_sem_post_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=morto137 NL_ENSAIO_NDPS_ESPERADO=1
     # NL-2.27 (R2-B2, SB1b): POST 200 registrado e saída 1, sem texto sefin. Só a regra POST torna isso incerta; sem ela, cairia em local.
     ensaio_caso post_sem_texto_sefin_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=post_sem_texto NL_ENSAIO_NDPS_ESPERADO=1

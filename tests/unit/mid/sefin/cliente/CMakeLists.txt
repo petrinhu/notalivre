@@ -5,6 +5,17 @@
 find_package(OpenSSL 3.0 REQUIRED)
 find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
 
+add_executable(tst_registro_transporte tst_registro_transporte.cpp)
+target_link_libraries(tst_registro_transporte PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_foundation_transporte nl_warnings)
+foreach(nome IN ITEMS eventoTemSoCamposFechados valorForaDoConjuntoVira_outro camposNovosSaoFechados versaoForaDoConjuntoVira_outro codigosSslLimitadosEm16)
+  nl_registra_teste_qt(NAME mid.sefin.registroTransporte.${nome} COMMAND tst_registro_transporte ${nome})
+  set_tests_properties(mid.sefin.registroTransporte.${nome} PROPERTIES
+                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!"
+                       ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${CMAKE_BINARY_DIR}/logs_pii_cli"
+                       DEPENDS cli.limpaLogsPii)
+endforeach()
+
 add_executable(tst_cliente_sefin tst_cliente_sefin.cpp)
 target_link_libraries(tst_cliente_sefin PRIVATE Qt6::Core Qt6::Network Qt6::Test nl_mid nl_back nl_foundation_pkcs12
                       nl_foundation_transporte nl_foundation_log OpenSSL::Crypto nl_warnings)
@@ -24,6 +35,9 @@ else()
     find_program(NL_XMLSEC1_CLIENTE xmlsec1 REQUIRED)
     set(NL_SLOTS_CLIENTE
         sucessoExtraiChaveDe50Posicoes
+        falhaDePostVaiAoLogComEtapaPost
+        falhaDeGetVaiAoLogComEtapaGet
+        ancorasTlsVaziasSaiComCausaDeConfiguracao
         postTransitorioConsultaDpsAntesDeReenviar
         dps404E2404LiberaReenvio
         conflito409ConsultaENaoReenvia
