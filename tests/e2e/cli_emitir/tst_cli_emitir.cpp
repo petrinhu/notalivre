@@ -546,13 +546,13 @@ void TstCliEmitir::respostaCruaGravadaParaAnalise()
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
         exigeRecusaSha1SemEnvio(execucao, servidor.requisicoesAoFechar());
-        QVERIFY2(QDir(configDir.path() + QStringLiteral("/state/notalivre/respostas")).entryList({QStringLiteral("*.json")}, QDir::Files).isEmpty(),
+        QVERIFY2(QDir(configDir.path() + QStringLiteral("/state/notalivre/respostas")).entryList({QStringLiteral("*.jsonl")}, QDir::Files).isEmpty(),
                  "nesta distro nada chega ao POST, e não pode haver resposta crua gravada");
         return;
     }
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     const QDir pasta(configDir.path() + QStringLiteral("/state/notalivre/respostas"));
-    const QStringList arquivos = pasta.entryList({QStringLiteral("*.json")}, QDir::Files);
+    const QStringList arquivos = pasta.entryList({QStringLiteral("*.jsonl")}, QDir::Files);
     QCOMPARE(arquivos.size(), 1);
     const QString caminho = pasta.filePath(arquivos.first());
     QVERIFY2(permissaoSoDoDono(caminho), "o arquivo da resposta tem de ser 0600: dono lê e escreve, grupo e outros sem bit");

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Resposta crua da Sefin para análise local (NL-2.9, DA-2.59 item 4). Ver resposta_crua.h.
+// Resposta crua da Sefin para análise local (NL-2.9, DA-2.59 item 4; NL-2.10c, DA-2.66: recusas incluídas). Ver resposta_crua.h.
 #include <nl/mid/composicao/resposta_crua.h>
 
 #include <QCryptographicHash>
@@ -62,6 +62,29 @@ QJsonObject mascararObjeto(const QJsonObject& objeto)
     return mascarado;
 }
 
+// Nome do arquivo: 16 caracteres do hash do Id. Nem o Id nem a chave aparecem no nome.
+QByteArray hashDoId(std::string_view idDps)
+{
+    return QCryptographicHash::hash(QByteArray(idDps.data(), static_cast<qsizetype>(idDps.size())), QCryptographicHash::Sha256)
+        .toHex()
+        .left(16);
+}
+
+// Uma linha do arquivo: o envelope da resposta (método, rota modelo, status, Content-Type) e o corpo pela allowlist.
+QByteArray linhaDaResposta(std::string_view metodo, std::string_view rota, int status, const QByteArray& tipoConteudo,
+                           const QByteArray& corpo)
+{
+    const QJsonDocument mascarado = QJsonDocument::fromJson(mascararRespostaCrua(corpo));
+    const QJsonObject linha{
+        {QStringLiteral("metodo"), QString::fromUtf8(metodo.data(), static_cast<qsizetype>(metodo.size()))},
+        {QStringLiteral("rota"), QString::fromUtf8(rota.data(), static_cast<qsizetype>(rota.size()))},
+        {QStringLiteral("status"), status},
+        {QStringLiteral("contentType"), QString::fromUtf8(tipoConteudo)},
+        {QStringLiteral("corpo"), mascarado.object()},
+    };
+    return QJsonDocument(linha).toJson(QJsonDocument::Compact) + '\n';
+}
+
 } // namespace
 
 QByteArray mascararRespostaCrua(const QByteArray& corpo)
@@ -74,38 +97,37 @@ QByteArray mascararRespostaCrua(const QByteArray& corpo)
     return QJsonDocument(mascararObjeto(doc.object())).toJson(QJsonDocument::Compact);
 }
 
-std::expected<QString, nl::base::Erro> gravarRespostaCrua(const QByteArray& corpo, const QString& pastaBase, std::string_view idDps)
-{
-    const QString pasta = pastaBase + QStringLiteral("/respostas");
-    if (!QDir().mkpath(pasta)) {
-        return std::unexpected(nl::base::Erro("analise.pasta", std::nullopt, "não foi possível criar a pasta da resposta para análise"));
-    }
-    const QByteArray hash = QCryptographicHash::hash(QByteArray(idDps.data(), static_cast<qsizetype>(idDps.size())),
-                                                     QCryptographicHash::Sha256)
-                                .toHex()
-                                .left(16);
-    const QString caminho = pasta + QStringLiteral("/") + QString::fromLatin1(hash) + QStringLiteral(".json");
-    QFile arquivo(caminho);
-    if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        return std::unexpected(nl::base::Erro("analise.gravacao", std::nullopt, "não foi possível abrir o arquivo da resposta"));
-    }
-    arquivo.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);  // 0600 antes de qualquer byte do corpo
-    if (arquivo.write(mascararRespostaCrua(corpo)) < 0 || !arquivo.flush()) {
-        return std::unexpected(nl::base::Erro("analise.gravacao", std::nullopt, "não foi possível gravar a resposta"));
-    }
-    arquivo.close();
-    return caminho;
-}
-
-// Stub do NL-2.10c, passo 2 (commit de teste): ainda não grava. O teste falha por asserção no caminho vazio.
 GravadorRespostaCrua::GravadorRespostaCrua(QString pastaBase, std::string idDps)
     : pastaBase_(std::move(pastaBase)), idDps_(std::move(idDps))
 {
 }
 
-void GravadorRespostaCrua::registrar(std::string_view /*metodo*/, std::string_view /*rota*/, int /*status*/,
-                                     const QByteArray& /*tipoConteudo*/, const QByteArray& /*corpo*/)
+void GravadorRespostaCrua::registrar(std::string_view metodo, std::string_view rota, int status, const QByteArray& tipoConteudo,
+                                     const QByteArray& corpo)
 {
+    if (erro_) {
+        return;  // Depois do primeiro erro o arquivo não recebe mais linhas, para não sair uma linha pela metade.
+    }
+    const QString pasta = pastaBase_ + QStringLiteral("/respostas");
+    if (!QDir().mkpath(pasta)) {
+        erro_ = nl::base::Erro("analise.pasta", std::nullopt, "não foi possível criar a pasta da resposta para análise");
+        return;
+    }
+    if (caminho_.isEmpty()) {
+        caminho_ = pasta + QStringLiteral("/") + QString::fromLatin1(hashDoId(idDps_)) + QStringLiteral(".jsonl");
+    }
+    QFile arquivo(caminho_);
+    if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Append)) {
+        erro_ = nl::base::Erro("analise.gravacao", std::nullopt, "não foi possível abrir o arquivo da resposta");
+        return;
+    }
+    arquivo.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);  // 0600 logo após a abertura, antes de qualquer linha
+    const QByteArray linha = linhaDaResposta(metodo, rota, status, tipoConteudo, corpo);
+    if (arquivo.write(linha) != linha.size() || !arquivo.flush()) {
+        erro_ = nl::base::Erro("analise.gravacao", std::nullopt, "não foi possível gravar a resposta");
+        return;
+    }
+    arquivo.close();
 }
 
 } // namespace nl::mid::composicao

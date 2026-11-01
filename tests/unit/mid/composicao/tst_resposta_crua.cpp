@@ -119,7 +119,7 @@ void TstRespostaCrua::campoNovoComCpfSomeDoArquivo()
 
 namespace {
 
-// Grava o corpo com gravarRespostaCrua e devolve quantas vezes o CPF da fixture aparece no arquivo gravado (0 é o esperado).
+// Grava o corpo com GravadorRespostaCrua e devolve quantas vezes o CPF da fixture aparece no arquivo gravado (0 é o esperado).
 qsizetype ocorrenciasDoCpfNoArquivo(const QByteArray& corpo, const char* idDps)
 {
     QTemporaryDir pasta;

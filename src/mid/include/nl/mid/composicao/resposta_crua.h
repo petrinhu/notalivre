@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Resposta crua da Sefin para análise local (NL-2.9, DA-2.59 item 4). A fachada grava o corpo da resposta de sucesso em
-// arquivo 0600, por allowlist (CISO N-03): só a chave sai mascarada (# no lugar dos caracteres) e cada outro valor sai como
-// <tipo:tamanho>; os nomes e a forma dos campos ficam. Nome do
-// arquivo é o hash do Id, sem o Id nem a chave. Nenhuma senha passa por aqui.
+// Resposta crua da Sefin para análise local (NL-2.9, DA-2.59 item 4; NL-2.10c, DA-2.66). A fachada grava cada resposta HTTP da
+// emissão, recusas incluídas, em arquivo 0600 (uma linha JSON por resposta), por allowlist (CISO N-03): só a chave sai mascarada
+// (# no lugar dos caracteres) e cada outro valor sai como <tipo:tamanho>; os nomes e a forma dos campos ficam. Nome do arquivo é
+// o hash do Id, sem o Id nem a chave. Nenhuma senha passa por aqui.
 #ifndef NL_MID_COMPOSICAO_RESPOSTA_CRUA_H
 #define NL_MID_COMPOSICAO_RESPOSTA_CRUA_H
 
@@ -22,9 +22,6 @@ namespace nl::mid::composicao {
 
 /// Corpo com a PII mascarada: nfseXmlGZipB64 vira marcador, chaveAcesso vira #. Corpo que não é JSON vira um aviso.
 QByteArray mascararRespostaCrua(const QByteArray& corpo);
-
-/// Grava o corpo mascarado em <pastaBase>/respostas/<hash do Id>.json com permissão 0600. Devolve o caminho gravado.
-std::expected<QString, nl::base::Erro> gravarRespostaCrua(const QByteArray& corpo, const QString& pastaBase, std::string_view idDps);
 
 /// Observador da emissão (NL-2.10c, DA-2.66): grava uma linha JSON por resposta HTTP da Sefin em
 /// <pastaBase>/respostas/<hash do Id>.jsonl, com método, rota (modelo), status, Content-Type e o corpo mascarado pela allowlist.
