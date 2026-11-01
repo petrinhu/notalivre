@@ -196,6 +196,40 @@ controle_inclusao N03 src/foundation/base/camada.cpp 0 '#include <openssl/evp.h>
 controle_inclusao N04 apps/cli/main.cpp 0 '#include <nl/mid/composicao/fachada.h>' 'violacoes=0$'
 controle_inclusao N05 apps/cli/main.cpp 0 '#include <nl/base/camada.h>' 'violacoes=0$'
 
+# --- Processo na GUI (NL-2.38, item 2; DA-2.83): a GUI usa o núcleo, nunca a CLI ---
+# Em apps/gui e em src: #include de QProcess, identificador QProcess, popen, system(, a família exec,
+# posix_spawn, fork, vfork e o texto notalivre-cli. Em apps/cli: só as chamadas de processo (o literal é o próprio nome).
+# tests/ fica fora da varredura (os e2e executam a CLI). Piso: varredura não vazia em apps/gui e em src (L-36).
+viol_proc_gui='^VIOLACAO apps/gui/main\.cpp:[0-9]+: chamada de processo '
+viol_proc_src='^VIOLACAO src/mid/camada\.cpp:[0-9]+: chamada de processo '
+controle_inclusao PR01 apps/gui/main.cpp 1 '#include <QProcess>' "${viol_proc_gui}QProcess"
+controle_inclusao PR02 apps/gui/main.cpp 1 '#include <QtCore/QProcess>' "${viol_proc_gui}QProcess"
+controle_inclusao PR03 apps/gui/main.cpp 1 'QProcess proc;' "${viol_proc_gui}QProcess"
+controle_inclusao PR04 apps/gui/main.cpp 1 'FILE *f = popen("ls", "r");' "${viol_proc_gui}popen"
+controle_inclusao PR05 src/mid/camada.cpp 1 'int r = system("ls");' "${viol_proc_src}system"
+controle_inclusao PR06 apps/gui/main.cpp 1 'execvp("ls", nullptr);' "${viol_proc_gui}execvp"
+controle_inclusao PR07 apps/gui/main.cpp 1 'posix_spawn(&pid, "x", nullptr, nullptr, nullptr, nullptr);' "${viol_proc_gui}posix_spawn"
+controle_inclusao PR08 apps/gui/main.cpp 1 'pid_t p = fork();' "${viol_proc_gui}fork"
+controle_inclusao PR09 apps/gui/main.cpp 1 'pid_t p = vfork();' "${viol_proc_gui}vfork"
+controle_inclusao PR10 apps/gui/main.cpp 1 'const char *n = "notalivre-cli";' \
+    '^VIOLACAO apps/gui/main\.cpp:[0-9]+: texto notalivre-cli proibido fora de apps/cli'
+controle_inclusao PR11 src/mid/camada.cpp 1 'const char *n = "notalivre-cli";' \
+    '^VIOLACAO src/mid/camada\.cpp:[0-9]+: texto notalivre-cli proibido fora de apps/cli'
+controle_inclusao PR12 apps/cli/main.cpp 0 'const char *n = "notalivre-cli";' 'violacoes=0$'
+controle_inclusao PR13 apps/cli/main.cpp 1 'FILE *f = popen("ls", "r");' \
+    '^VIOLACAO apps/cli/main\.cpp:[0-9]+: chamada de processo popen'
+# Controle limpo e falsos positivos: comentário, texto entre aspas, identificador que contém a palavra, namespace.
+controle_inclusao PR14 apps/gui/main.cpp 0 '// system( fork( QProcess popen( notalivre-cli
+const char *s = "system(";
+int myfork(int x);
+auto r = filesystem(x);
+auto q = std::filesystem::path{"a"};' 'violacoes=0$'
+# Piso: uma árvore sem apps/gui tem de reprovar (varredura vazia em apps/gui, L-36).
+mkdir -p "$TMP/pz/apps/cli" && cp -a "$RAIZ_REAL/src" "$TMP/pz/" && cp -a "$RAIZ_REAL/apps/cli/." "$TMP/pz/apps/cli/" \
+    || { echo "ERRO: árvore do piso"; exit 1; }
+controle pz 1 "$TMP/pz" 'processo: varridos apps/gui=0 '
+controle PR15 0 "$RAIZ_REAL" 'processo: varridos apps/gui=[1-9][0-9]* src=[1-9][0-9]*'
+
 echo "autoteste_camadas: $APROVADOS/$TOTAL controles verdes"
 [ "$APROVADOS" = "$TOTAL" ] || exit 1
 exit 0
