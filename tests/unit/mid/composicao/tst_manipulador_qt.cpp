@@ -84,7 +84,8 @@ void TstManipuladorQt::categoriaDoQtFechadaETextoDescartado()
 void TstManipuladorQt::qWarningComCpfNaoVaiAoLog()
 {
     std::ostringstream destino;
-    nl::foundation::log::Log registro{destino, "notalivre-cli", {}, {"qt.mensagem"}};
+    // NL-2.10e (DA-2.82): categoria declarada, como em produção; só o texto fica sem declaração e é o único descartado.
+    nl::foundation::log::Log registro{destino, "notalivre-cli", {nl::foundation::log::DeclaracaoCampo{"categoria", nl::foundation::log::Regra::Cru}}, {"qt.mensagem"}};
     nl::mid::composicao::instalarManipuladorQt(&registro);
     qWarning("CPF 12345678901 no aviso do Qt");
     nl::mid::composicao::instalarManipuladorQt(nullptr);
