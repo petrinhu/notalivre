@@ -114,6 +114,7 @@
 - NL-2.34 (INBOX, I12 da revisão de segurança da NL-2.27): a cobertura do canal de senha no Flatpak fica só no smoke-host (medição do passo 6). cliEmiteComSenhaPeloDescritor sai do Flatpak por servidor falso sem oráculo no SDK.
 - NL-2.35 (INBOX, I13 da revisão de segurança da NL-2.27): tst_comando_emitir.cpp passa a todos os casos o mesmo pipe de teste (descritorDeTeste). Um caso futuro que lesse o pipe consumiria o dos outros. Trocar por um pipe por caso.
 - NL-2.36 (INBOX, I10 da revisão de segurança da NL-2.27): sem teste que prove o OPENSSL_cleanse do caminho de sucesso do terminal (terminal_sem_eco.cpp, lerSenhaDoTerminal). Gêmeo de M6. Exige seam no leitor do terminal com buffer do chamador, como no descritor, e um harness de sessão com terminal de controle.
+- (sem ID): descritor da senha: aceitar só pipe/FIFO ou arquivo comum do usuário sem permissão para grupo e outros; dispositivo, socket e diretório saem com 2 e cofre.descritor_invalido; leitura com tempo-limite e código próprio (DA-2.71). Destino: NL-3.9.
 
 ## Backlog
 
