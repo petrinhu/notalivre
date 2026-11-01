@@ -413,6 +413,10 @@ emitir_stub() {
             echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"200"},"descartados":0}'
             echo "emissão recusada (sefin.E0714): assinatura recusada"
             exit 1 ;;
+        sefin_falha_sem_requisicao)
+            # NL-2.10e (E7, DA-2.80): "sefin.falha" sem nenhum evento sefin.requisicao não é prova de recusa da Sefin: a classificação é incerta.
+            echo "emissão recusada (sefin.falha): "
+            exit 1 ;;
         morto139)
             # NL-2.27 (B1, revisão de segurança): POST registrado e processo morto. A Sefin pode ter recebido a DPS: a classificação é incerta.
             echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"200"},"descartados":0}'
@@ -628,6 +632,8 @@ ensaio() {
     # NL-2.27 (B1, revisão de segurança): processo morto depois do POST não é "antes da Sefin". Caso permanente: o número é gravado
     # e a mensagem manda confirmar na Sefin antes de reemitir. Morte sem POST na saída também é incerta (o corte pode ser depois do envio).
     ensaio_caso morto_depois_do_post_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=morto139 NL_ENSAIO_NDPS_ESPERADO=1
+    # NL-2.10e (E7): "sefin.falha" sem sefin.requisicao não pode sair como "A Sefin recusou"; a mensagem é de confirmação.
+    ensaio_caso sefin_falha_sem_requisicao_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=sefin_falha_sem_requisicao NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso morto_sem_post_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=morto137 NL_ENSAIO_NDPS_ESPERADO=1
     # NL-2.27 (R2-B2, SB1b): POST 200 registrado e saída 1, sem texto sefin. Só a regra POST torna isso incerta; sem ela, cairia em local.
     ensaio_caso post_sem_texto_sefin_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=post_sem_texto NL_ENSAIO_NDPS_ESPERADO=1
