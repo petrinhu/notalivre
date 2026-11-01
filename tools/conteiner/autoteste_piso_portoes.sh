@@ -57,15 +57,15 @@ caso() {
 }
 
 # Controle positivo: a lista e o piso batem, o laço roda 11 portões e nenhum reprova.
-caso verde atual 11 "" 0 "portoes=11 falharam=0 (piso 11)"
+caso verde atual 12 "" 0 "portoes=12 falharam=0 (piso 12)"
 # Sabotagem 1: um portão sai da lista (o laço roda 10). Sem piso, passaria verde.
-caso lista_sem_um atual 11 '/segredos_historico|/d' 1 "a lista de PORTOES tem 10 portões, o piso é 11"
+caso lista_sem_um atual 12 '/segredos_historico|/d' 1 "a lista de PORTOES tem 11 portões, o piso é 12"
 # Sabotagem 2: lista esvaziada (zero portões, o falso verde de origem).
-caso lista_vazia atual 11 '/^PORTOES=(/,/^)/{/^PORTOES=(/!{/^)/!d}}' 1 "a lista de PORTOES tem 0 portões, o piso é 11"
+caso lista_vazia atual 12 '/^PORTOES=(/,/^)/{/^PORTOES=(/!{/^)/!d}}' 1 "a lista de PORTOES tem 0 portões, o piso é 12"
 # Sabotagem 3: piso 0 no arquivo versionado.
 caso piso_zero atual 0 "" 2 "piso 0 recusado"
 # Sabotagem 4: piso maior que a lista (lista de 11, piso 12).
-caso piso_maior atual 12 "" 1 "a lista de PORTOES tem 11 portões, o piso é 12"
+caso piso_maior atual 13 "" 1 "a lista de PORTOES tem 12 portões, o piso é 13"
 # Sabotagem 5: piso ilegível.
 caso piso_ilegivel atual "1x" "" 2 "piso ilegível"
 
