@@ -203,12 +203,12 @@ Como funciona:
 - **Nunca repita um `nDps` depois de uma saída diferente de 0 sem ler o arquivo.** Uma recusa pode já ter registrado o número na Sefin.
 - Códigos de saída:
   - **0:** emissão aceita. O arquivo tem a linha `emitida: chave` seguida de um número de 50 caracteres. Esse é o número da nota de teste.
-  - **1:** recusa de credencial, ou recusa da Sefin. A credencial cobre senha errada e certificado que não carrega (`credencial.nao_carregou`). A recusa da Sefin aparece como `emissão recusada (sefin.<código>)`, e é aí que você distingue a rota não encontrada (404) do E0714: leia o texto no arquivo, porque ambos saem com 1.
+  - **1:** recusa de credencial, ou recusa da Sefin. A credencial cobre senha errada e certificado que não carrega (`credencial.nao_carregou`). A recusa da Sefin aparece como `emissão recusada (sefin.<código>)`, e é aí que você distingue a rota não encontrada (404) do E0714: leia o texto no arquivo, porque ambos saem com 1. Para o 404, procure no arquivo a linha `sefin.requisicao` com `status` igual a 404, porque a mensagem pode vir vazia.
   - **2:** uso errado da linha de comando, `--serie` ou `--numero` diferente da DPS, host de `sefin.url` que não é o de Produção Restrita, esquema XSD instalado com problema, ou senha não digitada (sem terminal).
   - **4:** documento reprovado: a DPS não passou na validação do esquema XSD, ou um campo (CPF, CNPJ, série ou entrada) está errado. Corrija o arquivo, use um número novo e tente de novo.
   - **5:** a DPS já existe na Sefin com outro conteúdo (`sefin.dps_duplicada`). Não reenvie o mesmo `nDps`. Use o próximo número livre e avise o agente.
   - **7:** a Sefin não conseguiu comparar a DPS com a nota já existente (`sefin.comparacao_indisponivel`). Devolva o arquivo ao agente.
-  - **10:** problema de configuração: chave vazia, chave repetida, chave que não pode existir em Produção Restrita, chave obrigatória ausente, ou certificado ilegível.
+  - **10:** problema de configuração: chave vazia, chave repetida, chave que não pode existir em Produção Restrita, chave obrigatória ausente, certificado ilegível, ou manifesto dos XSD não fixado (`xsd.manifesto_nao_fixado`).
   - **70:** erro interno do programa. Devolva o arquivo ao agente.
   - Qualquer outro código de erro da Sefin não está nesta tabela: devolva o arquivo ao agente.
 
@@ -216,7 +216,7 @@ Se a saída não for `saida=0`, não faça outra tentativa antes de devolver o a
 
 ### 3.10 Tentativa 2: segunda base
 
-Faça esta tentativa só se a Sefin responder que a rota não existe (um erro 404, ou uma mensagem dizendo que o endereço não foi encontrado).
+Faça esta tentativa só se a linha `sefin.requisicao` do arquivo da tentativa 1 tiver `status` igual a 404. A mensagem de erro pode vir vazia, por isso a linha de status é a referência.
 
 1. Abra o `config.ini` e troque a linha `prefixo` para `prefixo = /API/SefinNacional`.
 2. No arquivo `dps-teste.json`, troque `nDps` para `2`.
@@ -256,7 +256,7 @@ Se vier qualquer outro código de erro, que não seja 404 ou E0714, pare. Não t
 find ~/.var/app/io.github.petrinhu.notalivre -type d -name respostas
 ```
 
-O programa mascara o que sai no arquivo: a chave de acesso sai com `#` no lugar dos caracteres, o XML comprimido vira um marcador, e cada outro valor sai como o tipo e o tamanho dele (os nomes dos campos continuam). Cada arquivo sai com permissão só para você (0600). Mesmo mascarado, é a resposta da Sefin para a sua nota, então trate como dado pessoal.
+O programa mascara o que sai no arquivo: a chave de acesso sai com `#` no lugar dos caracteres, o XML comprimido vira um marcador, e cada outro valor sai como o tipo e o tamanho dele (só os nomes dos campos que o programa lê continuam: `chaveAcesso`, `nfseXmlGZipB64`, `erro`, `erros`, `Codigo` e `codigo`; os outros nomes viram `<chave:N:classe:k>`). Cada arquivo sai com permissão só para você (0600). Mesmo mascarado, é a resposta da Sefin para a sua nota, então trate como dado pessoal.
 
 Se o programa não conseguir gravar essa resposta, a emissão continua (a Sefin já recebeu a nota) e o log mostra o evento `resposta_crua.nao_gravada`, em nível de erro. Se a resposta passar do teto de tamanho, o log mostra `resposta_crua.cortada`, em nível de aviso. Nesses dois casos, copie o log junto com a saída: ele é a prova de que a resposta falhou.
 
@@ -294,7 +294,7 @@ Depois que o agente confirmar a análise, apague também as cópias em `/var/tmp
 
 ## 6. Pendências que bloqueiam o teste
 
-Os três pontos que bloqueavam o teste antes da NL-2.10b estão resolvidos no código do `cca6d76`. Fica um ponto aberto.
+Os três pontos que bloqueavam o teste antes da NL-2.10b estão resolvidos no código do `1384887` (merge da NL-2.10c). Fica um ponto aberto.
 
 1. **Esquemas XSD (resolvido).** O bundle instala os XSD conferidos em `/app/share/notalivre/xsd`, e o programa usa essa pasta sozinho. Por isso o `config.ini` não tem `[xsd]`.
 2. **Raízes da ICP-Brasil (resolvido).** O bundle instala as raízes em `/app/share/notalivre/icp-brasil`, e o programa as usa sozinho para validar o seu certificado. Por isso o `config.ini` não tem `certificado.ancoras`.
