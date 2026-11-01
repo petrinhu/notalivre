@@ -15,6 +15,8 @@
 
 #include <chrono>
 #include <expected>
+#include <string>
+#include <vector>
 
 namespace nl::foundation::transporte {
 
@@ -44,6 +46,12 @@ struct ErroTransporte {
     int codigoQt = 0;
     /// Se a falha foi no handshake TLS. Só para o log de falha de transporte (NL-2.10e, E4).
     bool handshake = false;
+    /// Códigos do QSslError::SslError vistos na falha (no máximo 16). Só inteiros; nunca texto, certificado ou errorString (DA-2.75).
+    std::vector<int> codigosSsl;
+    /// Versão TLS negociada: "tls1.2", "tls1.3", "nenhuma" ou "outro". Só para o log de falha de transporte.
+    std::string versaoTls = "nenhuma";
+    /// Protocolo negociado no ALPN: "http/1.1", "h2", "nenhum" ou "outro". Só para o log de falha de transporte.
+    std::string protocoloNegociado = "nenhum";
 };
 
 /// Endereço e política de tempo do ambiente (DA-2.5). O prefixo vazio significa sem prefixo.

@@ -21,6 +21,10 @@ std::vector<fl::DeclaracaoCampo> allowlistLogSefin()
         fl::DeclaracaoCampo{"handshake", fl::Regra::Cru},
         fl::DeclaracaoCampo{"bytesEscritos", fl::Regra::Cru},
         fl::DeclaracaoCampo{"etapa", fl::Regra::Cru},
+        // NL-2.10e (E4 complemento, DA-2.75): conjunto fechado de códigos SSL (inteiros), versão TLS e protocolo negociado.
+        fl::DeclaracaoCampo{"codigosSsl", fl::Regra::Cru},
+        fl::DeclaracaoCampo{"versaoTls", fl::Regra::Cru},
+        fl::DeclaracaoCampo{"protocoloNegociado", fl::Regra::Cru},
     };
 }
 

@@ -63,6 +63,32 @@ QString descricaoDaCausa(CausaErro causa)
     return QStringLiteral("erro de transporte");
 }
 
+// NL-2.10e (E4 complemento): versão TLS e protocolo negociado, só como valores do conjunto fechado (DA-2.75).
+std::string versaoTlsDoProtocolo(QSsl::SslProtocol protocolo)
+{
+    if (protocolo == QSsl::TlsV1_2) {
+        return "tls1.2";
+    }
+    if (protocolo == QSsl::TlsV1_3) {
+        return "tls1.3";
+    }
+    return "outro";
+}
+
+std::string protocoloDoAlpn(const QByteArray& protocolo)
+{
+    if (protocolo.isEmpty()) {
+        return "nenhum";
+    }
+    if (protocolo == "http/1.1") {
+        return "http/1.1";
+    }
+    if (protocolo == "h2") {
+        return "h2";
+    }
+    return "outro";
+}
+
 QString mensagemDeRede(CausaErro causa, QNetworkReply::NetworkError codigo, bool handshake, int sslErros)
 {
     return QStringLiteral("%1 (codigo Qt %2, handshake %3, erros SSL %4)")
@@ -161,6 +187,10 @@ struct Desfecho {
     bool excedeuTeto = false;
     bool handshake = false;
     int sslErros = 0;
+    // NL-2.10e (E4 complemento): códigos do QSslError::SslError (no máximo 16) e o que o handshake negociou, todos de conjunto fechado.
+    std::vector<int> codigosSsl;
+    std::string versaoTls = "nenhuma";
+    std::string protocoloNegociado = "nenhum";
     QNetworkReply::NetworkError codigo = QNetworkReply::NoError;
     int status = 0;
     QByteArray corpo;
@@ -204,11 +234,19 @@ Desfecho executar(QNetworkAccessManager& gerenciador, const QNetworkRequest& ped
         desfecho.expirou = true;
         resposta->abort();
     });
-    QObject::connect(resposta, &QNetworkReply::encrypted, resposta, [&desfecho] {
+    QObject::connect(resposta, &QNetworkReply::encrypted, resposta, [&desfecho, resposta] {
         desfecho.handshake = true;
+        const QSslConfiguration cfg = resposta->sslConfiguration();
+        desfecho.versaoTls = versaoTlsDoProtocolo(cfg.sessionProtocol());
+        desfecho.protocoloNegociado = protocoloDoAlpn(cfg.nextNegotiatedProtocol());
     });
     QObject::connect(resposta, &QNetworkReply::sslErrors, resposta, [&desfecho](const QList<QSslError>& erros) {
         desfecho.sslErros += static_cast<int>(erros.size());
+        for (const QSslError& erro : erros) {
+            if (desfecho.codigosSsl.size() < 16) {
+                desfecho.codigosSsl.push_back(static_cast<int>(erro.error()));
+            }
+        }
     });
     QObject::connect(resposta, &QNetworkReply::metaDataChanged, resposta, [&desfecho, resposta, teto] {
         const QVariant tamanho = resposta->header(QNetworkRequest::ContentLengthHeader);
@@ -247,7 +285,7 @@ Desfecho executar(QNetworkAccessManager& gerenciador, const QNetworkRequest& ped
 
 // Transforma o que o Qt observou no resultado do transporte. Ordem: teto do corpo, tempo limite, status recebido,
 // e por fim erro sem status.
-std::expected<RespostaHttp, ErroTransporte> classificarDesfecho(const Desfecho& d)
+std::expected<RespostaHttp, ErroTransporte> classificarDesfechoSemDados(const Desfecho& d)
 {
     if (d.excedeuTeto) {
         return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
@@ -280,6 +318,19 @@ std::expected<RespostaHttp, ErroTransporte> classificarDesfecho(const Desfecho& 
                                     QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente")));
     }
     return std::unexpected(erroDeRede(d.codigo, d.handshake, d.sslErros));
+}
+
+// NL-2.10e (E4 complemento, DA-2.75): anexa ao erro os dados TLS do desfecho (códigos SSL, versão e protocolo). Só valores do conjunto
+// fechado; nunca texto do Qt, certificado ou erro anexado.
+std::expected<RespostaHttp, ErroTransporte> classificarDesfecho(const Desfecho& d)
+{
+    auto resultado = classificarDesfechoSemDados(d);
+    if (!resultado) {
+        resultado.error().codigosSsl = d.codigosSsl;
+        resultado.error().versaoTls = d.versaoTls;
+        resultado.error().protocoloNegociado = d.protocoloNegociado;
+    }
+    return resultado;
 }
 
 // Resultado do pedido, com os bytes escritos do corpo no erro: é o sinal que o cliente usa para decidir se consulta (DA-2.41).
