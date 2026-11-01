@@ -194,7 +194,6 @@ QJsonObject mascararObjeto(const QJsonObject& objeto, int nivel)
     return mascarado;
 }
 
-// A pasta respostas nasce 0700 (CISO, BAIXA-4): mkdir com o modo fechado. Pasta que já existe não tem o modo mudado.
 // A pasta respostas sai 0700 (CISO, BAIXA-4 e BAIXA-4b, Emenda 3): criada com mkdir 0700, e se já existe com outro modo, fixada em 0700.
 bool criarPasta0700(const QString& pasta)
 {

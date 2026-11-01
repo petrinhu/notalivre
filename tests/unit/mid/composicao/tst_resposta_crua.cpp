@@ -25,8 +25,9 @@ const QByteArray kXmlSintetico = "H4sIAAAAAAAAAPNIzcnJVyjPL8pKUQQAjAqUFgUAAAA";
 
 // Dono lê e escreve; grupo e outros sem nenhum bit (0600). O Qt devolve o bit de usuário junto do de dono, então a
 // igualdade exata com ReadOwner|WriteOwner nunca bate; por isso a conferência é por máscara.
-// Nome de chave só com letras, de 63 caracteres e largura fixa. A regra da MÉDIA-1 mantém um nome assim em claro, então ele
-// conta no tamanho da resposta; nomes com dígitos ou longos demais viram <chave:N> e encolhem a resposta.
+// Nome de chave só com letras, de 63 caracteres e largura fixa. A allowlist fechada (Emenda 3) não deixa sair em claro um nome
+// desses, que não é lido pelo cliente: ele sai como forma <chave:63:letras:k>, e a forma conta no tamanho da resposta. Por isso
+// o teste precisa de 3000 chaves por corpo para cruzar o teto.
 QString nomeDeChaveLongo(int k)
 {
     const char a = static_cast<char>('a' + k / 676 % 26);
@@ -310,7 +311,8 @@ void TstRespostaCrua::profundidadeAcimaDeOitoViraMarcador()
         corpo = "{\"a" + QByteArray::number(nivel) + "\":" + corpo + "}";
     }
     const QByteArray m = nl::mid::composicao::mascararRespostaCrua(corpo);
-    QVERIFY2(m.contains(":\"<profundidade>\""), "o objeto do nono nível vira <profundidade>");
+    QVERIFY2(m.contains("\"<chave:2:alfanumerico:1>\":\"<profundidade>\""),
+             "a chave a8 (oitavo nível, única no objeto) sai na forma, e o objeto do nono nível vira <profundidade>");
     QVERIFY2(!m.contains("SEGREDO123"), "nada abaixo do oitavo nível pode sair");
 }
 
