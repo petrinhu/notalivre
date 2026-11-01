@@ -5,15 +5,29 @@
 # certificado de cliente, sem POST e sem corpo. A única requisição HTTP é um GET sem corpo, no caminho de H8. Nenhuma chave
 # é lida nem guardada. Roda dentro de contêiner com rede (imagem fedora44). Não decide nada: só registra o que o servidor faz.
 #
-# Uso: sondar_sefin_tls.sh [HOST]
+# Uso: NL_SONDA_SEFIN_CONFIRMO=1 sondar_sefin_tls.sh [HOST]
 # Saída: texto no stdout, com a ordem das medidas numeradas. Sai com 1 só se o servidor não responder ao handshake.
+# Trava (revisão de segurança da NL-2.10e): conecta ao host real só com NL_SONDA_SEFIN_CONFIRMO=1 explícito, e recusa
+# (rc 2) se a variável CI estiver definida. Sem a variável, nada é conectado.
 set -u
+
+if [ -n "${CI:-}" ]; then
+    echo "RECUSADA: a sonda não roda em CI (variável CI definida)"
+    exit 2
+fi
+if [ "${NL_SONDA_SEFIN_CONFIRMO:-}" != 1 ]; then
+    echo "RECUSADA: falta NL_SONDA_SEFIN_CONFIRMO=1 (confirmação explícita para conectar à Sefin real)"
+    exit 2
+fi
 
 HOST="${1:-sefin.producaorestrita.nfse.gov.br}"
 PORTA=443
+# Base de temporários: NL_TMP_BASE, padrão /var/tmp (L-11). TMPDIR segue a mesma base.
+NL_TMP_BASE="${NL_TMP_BASE:-/var/tmp}"
+export TMPDIR="$NL_TMP_BASE"
 # Repositório de CAs do sistema da imagem (Fedora, p11-kit). É o que o contêiner confia; nenhum certificado é baixado.
 CA_SISTEMA=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
-TMPD="$(mktemp -d /tmp/sonda-sefin.XXXXXX)" || { echo "FALHA: não criei a pasta temporária"; exit 1; }
+TMPD="$(mktemp -d "$NL_TMP_BASE/sonda-sefin.XXXXXX")" || { echo "FALHA: não criei a pasta temporária"; exit 1; }
 
 conectar() {
     # Sem entrada de dados: o handshake completa e a conexão fecha. $1 é o arquivo de saída; o resto são opções do s_client.
