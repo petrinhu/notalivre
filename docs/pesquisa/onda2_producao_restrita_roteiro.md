@@ -20,6 +20,10 @@ No fim ele mostra uma destas frases: "Nota de teste aceita", com a chave de aces
 
 As saídas ficam em `/var/tmp/notalivre-nl210/teste-lider/execucao-<data>/`, e as cópias para devolução em `/var/tmp/notalivre-nl210/devolucao/execucao-<data>/`. Não envie esses arquivos a ninguém. (A pasta do certificado nunca aparece nas saídas.)
 
+Enquanto o script roda, o nome do arquivo do certificado pode aparecer por instantes na lista de processos do computador (a mesma lista que o comando `ps` mostra). O script não grava esse nome em nenhum arquivo de log.
+
+Não apague o arquivo `/var/tmp/notalivre-nl210/ultimo-ndps.txt`. Ele guarda o último número de DPS usado. Se ele sumir, o próximo envio volta a usar o número 1, e a Sefin pode recusar por número repetido.
+
 **Para o agente:** `bash <caminho>/tools/producao_restrita/emitir_teste.sh --ensaio` roda todos os casos com stubs, dentro de um contêiner, sem flatpak e sem Sefin.
 
 ---
@@ -302,7 +306,7 @@ Não envie esses arquivos por e-mail, por mensagem de aplicativo, para o GitHub,
 rm -- "<caminho exato do arquivo de resposta>"
 ```
 
-Depois que o agente confirmar a análise, apague também as cópias em `/var/tmp/notalivre-nl210/devolucao` e a pasta `/var/tmp/notalivre-nl210/teste-lider`, sempre um caminho exato de cada vez.
+Depois que o agente confirmar a análise, apague também as cópias em `/var/tmp/notalivre-nl210/devolucao` e a pasta `/var/tmp/notalivre-nl210/teste-lider`, sempre um caminho exato de cada vez. O arquivo `/var/tmp/notalivre-nl210/ultimo-ndps.txt` (o contador dos números de DPS) não entra nessa limpeza: nunca se apaga.
 
 ---
 

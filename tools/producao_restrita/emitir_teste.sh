@@ -25,6 +25,8 @@
 # (base) se a Sefin responder 404, e tentativa 3 (algoritmo rsa-sha256) se ela responder E0714.
 
 set -u
+# CISO (BAIXA-S3): tudo que o script cria sai com permissão só do dono (0600 para arquivos, 0700 para pastas).
+umask 077
 
 APP=io.github.petrinhu.notalivre
 RUNTIME=org.kde.Platform//6.11
@@ -64,7 +66,8 @@ fi
 
 TESTE_DIR="$BASE/teste-lider"
 DEVOLUCAO="$BASE/devolucao"
-NDPS_ARQ="$TESTE_DIR/ultimo-ndps.txt"
+# MÉDIA-S2: o contador de números de DPS fica fora de teste-lider (que se limpa); nunca se apaga.
+NDPS_ARQ="$BASE/ultimo-ndps.txt"
 DPS_ARQ="$TESTE_DIR/dps-teste.json"
 ESTADO_INST="$BASE/programa-instalado-sha.txt"
 CFG_DIR="$HOME/.var/app/$APP/config/notalivre"
@@ -123,6 +126,7 @@ gravar_config() {
     mkdir -p "$CFG_DIR" || return 1
     if [ -f "$CFG" ] && [ "$BACKUP_FEITO" -eq 0 ]; then
         cp -p -- "$CFG" "$CFG.antes-$RUN_TS" || return 1
+        chmod 600 "$CFG.antes-$RUN_TS" || return 1
         BACKUP_FEITO=1
     fi
     {
@@ -133,7 +137,9 @@ gravar_config() {
             awk '/^\[certificado\]/ { f = 1; print ""; print; next } /^\[/ { f = 0 } f' "$CFG"
         fi
     } > "$CFG.tmp" || return 1
-    mv -f -- "$CFG.tmp" "$CFG"
+    chmod 600 "$CFG.tmp" || return 1
+    mv -f -- "$CFG.tmp" "$CFG" || return 1
+    chmod 600 "$CFG"
 }
 
 # Próximo nDps: lê o último usado, soma 1 e grava antes de qualquer envio, para nunca repetir.
@@ -206,7 +212,8 @@ emitir_tentativa() {
 # Classifica o resultado: aceita, 404 (rota), e0714 (algoritmo), sefin (outra recusa da Sefin) ou local (antes da Sefin).
 classificar() {
     if [ "$1" -eq 0 ]; then RESULTADO=aceita; return; fi
-    if awk '/"evento":"sefin.requisicao"/ && /"status":"404"/ { achou = 1 } END { exit !achou }' "$2"; then
+    # MÉDIA-S1: só o POST de emissão com 404 diz que a rota de envio não existe; GET de consulta não conta.
+    if awk '/"evento":"sefin.requisicao"/ && /"metodo":"POST"/ && /"status":"404"/ { achou = 1 } END { exit !achou }' "$2"; then
         RESULTADO=404
         return
     fi
@@ -250,8 +257,14 @@ fluxo() {
     # 3.3: o .pfx é escolhido pelo líder e só passa ao document-export. Nunca é impresso nem listado.
     local pfx
     pfx=$(perguntar "Escolha o arquivo .pfx do certificado" pfx)
-    [ -n "$pfx" ] && [ -f "$pfx" ] && [ -r "$pfx" ] \
-        || falha "o arquivo escolhido não pôde ser lido. Nada foi emitido."
+    # INFO-S8: caminho relativo (ou que começa por "-") não entra; o flatpak o leria como opção ou fora do lugar.
+    # CISO (BAIXA-S3, condição 1): a mensagem fala só do "certificado escolhido"; o caminho nunca é impresso.
+    [ -n "$pfx" ] || falha "certificado escolhido não pôde ser lido. Nada foi emitido."
+    case "$pfx" in
+        /*) ;;
+        *) falha "o certificado escolhido precisa de caminho absoluto (começar por /). Nada foi emitido." ;;
+    esac
+    [ -f "$pfx" ] && [ -r "$pfx" ] || falha "certificado escolhido não pôde ser lido. Nada foi emitido."
     DOC_PFX=$(flatpak document-export --app="$APP" --forbid-write "$pfx" 2>/dev/null) || DOC_PFX=""
     pfx=""
     case "$DOC_PFX" in
@@ -271,6 +284,7 @@ fluxo() {
     gravar_config || falha "não consegui gravar o config.ini. Nada foi emitido."
     flatpak run --command=notalivre-cli "$APP" config certificado "$DOC_PFX" >/dev/null 2>&1 \
         || falha "não consegui gravar o certificado na configuração (roteiro, 3.7). Nada foi emitido."
+    chmod 600 "$CFG" || falha "não consegui fechar a permissão do config.ini. Nada foi emitido."
     DOC_PFX=""
 
     # 3.8 a 3.11: número novo, DPS, emissão e as tentativas 2 e 3 só pelas condições do roteiro.
@@ -354,6 +368,11 @@ emitir_stub() {
             echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"404"},"descartados":0}'
             echo "emissão recusada (sefin.falha): "
             exit 1 ;;
+        consulta404E0714)
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"GET","status":"404"},"descartados":0}'
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"200"},"descartados":0}'
+            echo "emissão recusada (sefin.E0714): assinatura recusada"
+            exit 1 ;;
         E0714)
             echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"200"},"descartados":0}'
             echo "emissão recusada (sefin.E0714): assinatura recusada"
@@ -413,7 +432,11 @@ STUB
 case "$1" in
     --getopenfilename)
         [ "${NL_ENSAIO_PFX_VAZIO:-}" = 1 ] && exit 1
-        printf '%s\n' "$NL_ENSAIO_DIR/pfxsecreto-ensaio.p12"
+        if [ "${NL_ENSAIO_PFX_RELATIVO:-}" = 1 ]; then
+            printf '%s\n' "pfxsecreto-ensaio.p12"
+            exit 0
+        fi
+        printf '%s\n' "$NL_ENSAIO_DIR/${NL_ENSAIO_PFX_NOME:-pfxsecreto-ensaio.p12}"
         exit 0 ;;
     --inputbox)
         printf '%s\n' "${NL_ENSAIO_CNPJ:-11222333000181}"
@@ -435,18 +458,20 @@ escrever_stubs_sem_kdialog() {
 ensaio_caso() {
     local nome="$1" rc_esp="$2" txt_esp="$3" saidas_esp="$4" emit_esp="$5" cfg_esp="$6"
     shift 6
-    local dir="$RAIZ/$nome" entrada rc saidas emit problema=""
+    local dir="$RAIZ/$nome" entrada rc saidas emit problema="" pfx_nome="pfxsecreto-ensaio.p12" sem_kd=0 par
     mkdir -p "$dir"
-    printf 'pfxsecreto-ensaio' > "$dir/pfxsecreto-ensaio.p12"
-    entrada=/dev/null
-    local sem_kd=0
     for par in "$@"; do
-        case "$par" in NL_ENSAIO_SEM_KDIALOG=1) sem_kd=1 ;; esac
+        case "$par" in
+            NL_ENSAIO_SEM_KDIALOG=1) sem_kd=1 ;;
+            NL_ENSAIO_PFX_NOME=*) pfx_nome="${par#NL_ENSAIO_PFX_NOME=}" ;;
+        esac
     done
+    printf 'pfxsecreto-ensaio\n' > "$dir/$pfx_nome"
+    entrada=/dev/null
     if [ "$sem_kd" -eq 1 ]; then
         escrever_stubs_sem_kdialog "$dir"
         entrada="$dir/entrada.txt"
-        printf '11222333000181\n%s\n' "$dir/pfxsecreto-ensaio.p12" > "$entrada"
+        printf '11222333000181\n%s\n' "$dir/$pfx_nome" > "$entrada"
     else
         escrever_stubs "$dir"
     fi
@@ -459,11 +484,18 @@ ensaio_caso() {
     grep -q -F -- "$txt_esp" "$dir/saida-do-script.txt" || problema="$problema texto_ausente('$txt_esp')"
     [ "$saidas" -eq "$saidas_esp" ] || problema="$problema saidas=$saidas(esperado $saidas_esp)"
     [ "$emit" -eq "$emit_esp" ] || problema="$problema emitir=$emit(esperado $emit_esp)"
+    local cfg_arq="$dir/home/.var/app/$APP/config/notalivre/config.ini" padrao
     if [ -n "$cfg_esp" ]; then
-        grep -q -F -- "$cfg_esp" "$dir/home/.var/app/$APP/config/notalivre/config.ini" 2>/dev/null \
-            || problema="$problema config('$cfg_esp')"
+        printf '%s\n' "$cfg_esp" | tr '|' '\n' > "$dir/cfg-esperados.txt"
+        while IFS= read -r padrao; do
+            grep -q -F -- "$padrao" "$cfg_arq" 2>/dev/null || problema="$problema config('$padrao')"
+        done < "$dir/cfg-esperados.txt"
     fi
-    if grep -r -l -F -e pfxsecreto -e 11222333000181 "$dir/saida-do-script.txt" "$dir/base/devolucao" \
+    # CISO (BAIXA-S3, condição 2): o config.ini que o script escreve tem de ficar em 0600.
+    if [ -f "$cfg_arq" ]; then
+        [ "$(stat -c %a "$cfg_arq")" = 600 ] || problema="$problema config.ini_modo_$(stat -c %a "$cfg_arq")(esperado 600)"
+    fi
+    if grep -r -l -F -e pfxsecreto -e 11222333000181 -e 1122233300018A "$dir/saida-do-script.txt" "$dir/base/devolucao" \
         "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
         problema="$problema vazamento(pfx ou CNPJ em saída, devolução ou execução)"
     fi
@@ -486,7 +518,7 @@ ensaio_dois_envios() {
     r1=$?
     env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
     r2=$?
-    ndps=$(cat "$dir/base/teste-lider/ultimo-ndps.txt" 2>/dev/null)
+    ndps=$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null)
     if [ "$r1" -eq 0 ] && [ "$r2" -eq 0 ] && [ "$ndps" = 2 ] && grep -q '"nDps": 2,' "$dir/base/teste-lider/dps-teste.json"; then
         printf 'ok %s\n' "$nome"
     else
@@ -497,7 +529,9 @@ ensaio_dois_envios() {
 }
 
 ensaio() {
-    RAIZ=$(mktemp -d /var/tmp/notalivre-ensaio-producao.XXXXXX) || { echo "PARADA: mktemp"; exit 1; }
+    # INFO-S6: o ensaio escreve só dentro da base do programa, numa pasta datada que fica no lugar (nada é apagado).
+    RAIZ="$BASE/ensaio-$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$RAIZ" || { echo "PARADA: não consegui criar a pasta do ensaio"; exit 1; }
     CASOS=0
     FALHAS=0
     ensaio_caso aceita 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita
@@ -515,6 +549,23 @@ ensaio() {
     ensaio_caso ca_faltando_para_antes_de_emitir 1 "arquivo de CAs" 0 0 "" NL_ENSAIO_CA=faltando NL_ENSAIO_SEQ=aceita
     ensaio_caso pasta_config_errada_para_antes_de_emitir 1 "pasta de configuração" 0 0 "" NL_ENSAIO_XDG=errado NL_ENSAIO_SEQ=aceita
     ensaio_caso sem_kdialog_pergunta_no_terminal 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEM_KDIALOG=1 NL_ENSAIO_SEQ=aceita
+    # MÉDIA-S1: 404 de consulta (GET) seguido de E0714 não troca a base; só o algoritmo muda.
+    ensaio_caso consulta_404_depois_e0714_nao_troca_base 0 "Nota de teste aceita" 2 2 "prefixo = /SefinNacional|algoritmo = rsa-sha256" NL_ENSAIO_SEQ=consulta404E0714,aceita
+    # BAIXA-S4: caminho com espaço, aspas e cifrão, e o .pfx entra sem vazar; caminho relativo para antes de emitir.
+    ensaio_caso pfx_com_espaco_aspas_cifrao 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita "NL_ENSAIO_PFX_NOME=pfxsecreto com 'aspas' e \$HOME.p12"
+    ensaio_caso pfx_relativo_recusado_antes_de_emitir 1 "absoluto" 0 0 "" NL_ENSAIO_PFX_RELATIVO=1 NL_ENSAIO_SEQ=aceita
+    ensaio_caso cnpj_com_letra_para_antes_de_emitir 1 "CNPJ" 0 0 "" NL_ENSAIO_CNPJ=1122233300018A NL_ENSAIO_SEQ=aceita
+    # CISO (BAIXA-S3, condição 1): o script não liga o rastreio do shell.
+    local marca_xtrace marca_bash
+    marca_xtrace="set -$(printf x)"
+    marca_bash="bash -$(printf x)"
+    if grep -q -F -e "$marca_xtrace" -e "$marca_bash" "$0"; then
+        printf 'FALHA sem_rastreio_do_shell: o script liga o rastreio do shell\n'
+        FALHAS=$(( FALHAS + 1 ))
+    else
+        printf 'ok sem_rastreio_do_shell\n'
+    fi
+    CASOS=$(( CASOS + 1 ))
     echo "ensaio: casos=$CASOS falhas=$FALHAS (pasta: $RAIZ)"
     [ "$FALHAS" -eq 0 ]
 }
