@@ -12,6 +12,7 @@
 
 #include <libxml/SAX2.h>
 #include <libxml/parser.h>
+#include <libxml/parserInternals.h>
 
 #include <QByteArray>
 #include <QDir>

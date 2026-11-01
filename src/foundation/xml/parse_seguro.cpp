@@ -3,6 +3,8 @@
 // Parse seguro do validador XSD (NL-2.21). Gêmeo do átomo do xmldsig (parse_xml_privado.cpp). Ver parse_seguro.h.
 #include "parse_seguro.h"
 
+#include <libxml/parserInternals.h>
+
 #include <string>
 
 namespace nl::foundation::xml::detail {
