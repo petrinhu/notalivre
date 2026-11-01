@@ -39,6 +39,28 @@ DIRETIVA = re.compile(rb"^[ \t\f\v]*(?:#|%:)[ \t\f\v]*(include_next|include|impo
 LITERAL = re.compile(rb"[ \t\f\v]*(?:<([^>\n]*)>|\"([^\"\n]*)\")[ \t\f\v\r]*")
 DESCONHECIDA = "desconhecida"
 
+# Processo na GUI (NL-2.38, item 2; DA-2.83 e DA-2.84): a GUI usa o núcleo, nunca a CLI. Chamada de processo
+# (QProcess, popen, system(, a família exec, posix_spawn, fork, vfork) é proibida em apps/gui, src e apps/cli.
+# O texto notalivre-cli é proibido só em apps/gui (DA-2.84: em src ele nomeia o serviço do log; a CLI cita o próprio
+# nome). Busca em código: comentários saem antes, e o conteúdo de strings sai antes de procurar chamadas (texto entre
+# aspas não é chamada). Casa por palavra inteira (\b): myfork, filesystem( e std::filesystem não casam.
+# tests/ não entra (os e2e executam a CLI).
+PROCESSO_PADROES = (
+    re.compile(rb"\bQProcess\b"),
+    re.compile(rb"\bpopen\s*\("),
+    re.compile(rb"\bsystem\s*\("),
+    re.compile(rb"\b(?:fexecve|execveat|execvpe|execlp|execle|execvp|execve|execl|execv)\s*\("),
+    re.compile(rb"\bposix_spawnp?\s*\("),
+    re.compile(rb"\bfork\s*\("),
+    re.compile(rb"\bvfork\s*\("),
+)
+TEXTO_NOTALIVRE_CLI = b"notalivre-cli"
+MENSAGEM_REGRA = "A GUI usa o núcleo, nunca a CLI"
+AREAS_PISO = ("apps/gui", "src")
+# QML (QA da NL-2.38, A1 e A2): o portão também varre os .qml de apps/gui. QML não tem #include: nele valem a regra de
+# processo e o literal notalivre-cli. Abrir URL pelo portal do sistema é permitido (DA-2.85): openUrlExternally fica fora.
+QML_EXTENSOES = frozenset({".qml"})
+
 # Unidades da matriz 1.1. Origem "mid" cobre mid:composicao (ver unidade_origem).
 PERMITIDOS = {
     "front:cli": frozenset({"front:cli", "foundation:base", "mid:composicao"}),
@@ -92,8 +114,13 @@ DENYLIST = {
 }
 
 
+def dentro_de_gui(raiz, dirpath):
+    rel = relativo(raiz, dirpath)
+    return rel == "apps/gui" or rel.startswith("apps/gui/")
+
+
 def arquivos_fonte(raiz, erros):
-    """Arquivos C/C++ de src/ e apps/, ordenados. Erro de diretório vai para `erros` (INCOMPLETA)."""
+    """Arquivos C/C++ de src/ e apps/, mais os .qml de apps/gui, ordenados. Erro de diretório vai para `erros`."""
     def registrar(erro):
         caminho = getattr(erro, "filename", None) or "?"
         motivo = getattr(erro, "strerror", None) or str(erro)
@@ -103,7 +130,8 @@ def arquivos_fonte(raiz, erros):
     for base in RAIZES_VARRIDAS:
         for dirpath, _dirnames, filenames in os.walk(os.path.join(raiz, base), onerror=registrar):
             for nome in filenames:
-                if os.path.splitext(nome)[1].lower() in EXTENSOES:
+                extensao = os.path.splitext(nome)[1].lower()
+                if extensao in EXTENSOES or (extensao in QML_EXTENSOES and dentro_de_gui(raiz, dirpath)):
                     achados.append(os.path.join(dirpath, nome))
     return sorted(achados)
 
@@ -237,6 +265,19 @@ def _apagar(saida, inicio, fim):
             saida[k] = 0x20
 
 
+def _apostrofo_separador(texto, i):
+    """Apóstrofo que separa dígitos (C++14: 1'000, 0xA'FF), não abre char. NL-2.38, A4.
+
+    Vale o apóstrofo logo depois de caractere alfanumérico, exceto os prefixos de char L, u, U e 8 (L'x', u'x', U'x',
+    u8'x'). LIMITE DECLARADO: 0x8'FF (dígito 8 antes do apóstrofo) é lido como início de char, e a chamada que venha
+    depois na mesma linha fica dentro desse "literal" para a busca de chamadas.
+    """
+    if texto[i] != 0x27 or i == 0:
+        return False
+    anterior = texto[i - 1]
+    return anterior < 0x80 and chr(anterior).isalnum() and chr(anterior) not in "LuU8"
+
+
 def remover_comentarios(texto):
     """Fase 3 do C++: troca comentário por espaço, mantendo quebras de linha e o tamanho do texto."""
     saida = bytearray(texto)
@@ -247,6 +288,9 @@ def remover_comentarios(texto):
             if fim is not None:
                 i = fim
                 continue
+        if _apostrofo_separador(texto, i):
+            i += 1
+            continue
         if texto[i] in (0x22, 0x27):  # " ou '
             i = _fim_literal(texto, i)
             continue
@@ -272,6 +316,56 @@ def limpar_fonte(dados):
     return remover_comentarios(texto), posicoes
 
 
+def _apagar_interior(saida, inicio, fim):
+    for k in range(inicio, max(inicio, fim)):
+        if saida[k] != 0x0A:
+            saida[k] = 0x20
+
+
+def remover_literais(texto):
+    """Apaga o conteúdo de strings e chars (mantém as aspas e o tamanho). Separador de dígitos (1'000) não é char."""
+    saida = bytearray(texto)
+    i = 0
+    while i < len(texto):
+        c = texto[i]
+        if c == 0x22 and i > 0 and texto[i - 1] == 0x52:  # R"..." raw string
+            fim = _fim_raw(texto, i)
+            if fim is not None:
+                _apagar_interior(saida, i + 1, fim - 1)
+                i = fim
+                continue
+        if _apostrofo_separador(texto, i):  # 1'000 e 0xA'FF: separador de dígitos, não é char (NL-2.38, A4)
+            i += 1
+            continue
+        if c in (0x22, 0x27):
+            fim = _fim_literal(texto, i)
+            fecho = fim - 1 if fim - 1 > i and texto[fim - 1] == c else fim
+            _apagar_interior(saida, i + 1, fecho)
+            i = fim
+            continue
+        i += 1
+    return bytes(saida)
+
+
+def verificar_processo(rel, dados):
+    """Chamadas de processo (todas as áreas) e o texto notalivre-cli (fora de apps/cli). Cada uma traz arquivo:linha."""
+    texto, posicoes = limpar_fonte(dados)
+    sem_conteudo_de_string = remover_literais(texto)
+    falhas = []
+    for padrao in PROCESSO_PADROES:
+        for casamento in padrao.finditer(sem_conteudo_de_string):
+            token = casamento.group(0).split(b"(")[0].strip().decode("ascii")
+            linha = dados.count(b"\n", 0, posicoes[casamento.start()]) + 1
+            falhas.append("VIOLACAO {}:{}: chamada de processo {} proibida: {}".format(
+                rel, linha, token, MENSAGEM_REGRA))
+    if rel.startswith("apps/gui/"):  # DA-2.84: o literal só é proibido na GUI
+        for casamento in re.finditer(re.escape(TEXTO_NOTALIVRE_CLI), texto):
+            linha = dados.count(b"\n", 0, posicoes[casamento.start()]) + 1
+            falhas.append("VIOLACAO {}:{}: texto notalivre-cli proibido fora de apps/cli: {}".format(
+                rel, linha, MENSAGEM_REGRA))
+    return falhas
+
+
 def verificar_literal(raiz, caminho, origem, rel, linha, alvo):
     """Violação de um include literal, ou None. None também quando é externo e não é terceiro proibido."""
     destino = destino_do_include(raiz, caminho, origem, alvo)
@@ -292,9 +386,10 @@ def verificar_literal(raiz, caminho, origem, rel, linha, alvo):
 def verificar_arquivo(raiz, caminho, dados):
     """Devolve as violações de um arquivo já lido. Cada uma traz arquivo:linha."""
     rel = relativo(raiz, caminho)
+    processo = verificar_processo(rel, dados)
     origem = unidade_do_caminho(rel)
     if origem is None:
-        return ["VIOLACAO {}:1: arquivo fora da matriz 1.1 (diretorio nao mapeado)".format(rel)]
+        return ["VIOLACAO {}:1: arquivo fora da matriz 1.1 (diretorio nao mapeado)".format(rel)] + processo
     texto, posicoes = limpar_fonte(dados)
     falhas = []
     for casamento in DIRETIVA.finditer(texto):
@@ -313,25 +408,36 @@ def verificar_arquivo(raiz, caminho, dados):
         falha = verificar_literal(raiz, caminho, origem, rel, linha, alvo)
         if falha is not None:
             falhas.append(falha)
-    return falhas
+    return falhas + processo
 
 
 def varrer(raiz):
-    """Varre tudo numa passada. Devolve (encontrados, analisados, violações, erros de varredura)."""
+    """Varre tudo numa passada. Devolve (encontrados, analisados, violações, erros de varredura, analisados por área)."""
     erros = []
     arquivos = arquivos_fonte(raiz, erros)
     analisados = 0
     violacoes = []
+    por_area = {"apps/gui": 0, "apps/gui:cpp": 0, "apps/gui:qml": 0, "src": 0}
     for caminho in arquivos:
+        rel = relativo(raiz, caminho)
         try:
             with open(caminho, "rb") as arquivo:
                 dados = arquivo.read()
         except OSError as erro:
-            erros.append("ERRO LEITURA {}: {}".format(relativo(raiz, caminho), erro))
+            erros.append("ERRO LEITURA {}: {}".format(rel, erro))
             continue
         analisados += 1
-        violacoes.extend(verificar_arquivo(raiz, caminho, dados))
-    return len(arquivos), analisados, violacoes, erros
+        eh_qml = os.path.splitext(caminho)[1].lower() in QML_EXTENSOES
+        if rel == "apps/gui" or rel.startswith("apps/gui/"):
+            por_area["apps/gui"] += 1
+            por_area["apps/gui:qml" if eh_qml else "apps/gui:cpp"] += 1
+        elif rel.startswith("src/"):
+            por_area["src"] += 1
+        if eh_qml:
+            violacoes.extend(verificar_processo(rel, dados))  # QML: sem #include, só processo e literal
+        else:
+            violacoes.extend(verificar_arquivo(raiz, caminho, dados))
+    return len(arquivos), analisados, violacoes, erros, por_area
 
 
 def raiz_padrao():
@@ -343,7 +449,7 @@ def main(argv):
         print("uso: camadas.py [RAIZ]", file=sys.stderr)
         return 2
     raiz = os.path.abspath(argv[1]) if len(argv) == 2 else raiz_padrao()
-    encontrados, analisados, violacoes, erros = varrer(raiz)
+    encontrados, analisados, violacoes, erros, por_area = varrer(raiz)
     for linha in violacoes + erros:
         print(linha)
     if encontrados == 0:
@@ -351,7 +457,13 @@ def main(argv):
     if analisados != encontrados:
         print("VARREDURA INCOMPLETA: analisados diferente de encontrados")
     print("encontrados={} analisados={} violacoes={}".format(encontrados, analisados, len(violacoes)))
-    falhou = bool(violacoes) or bool(erros) or encontrados == 0 or analisados != encontrados
+    # Piso da regra de processo (NL-2.38, L-36): zero arquivo em apps/gui ou em src reprova, nunca passa em silêncio.
+    print("processo: varridos apps/gui={} (cpp={} qml={}) src={}".format(
+        por_area["apps/gui"], por_area["apps/gui:cpp"], por_area["apps/gui:qml"], por_area["src"]))
+    piso_zero = [area for area in AREAS_PISO if por_area[area] == 0]
+    for area in piso_zero:
+        print("VARREDURA VAZIA DO PROCESSO: nenhum arquivo varrido em {}".format(area))
+    falhou = bool(violacoes) or bool(erros) or encontrados == 0 or analisados != encontrados or bool(piso_zero)
     return 1 if falhou else 0
 
 
