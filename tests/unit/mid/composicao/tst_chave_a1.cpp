@@ -114,5 +114,6 @@ void TstChaveA1::handshakeMtlsConcluiComAChaveDeProducao()
     }
 }
 
-QTEST_APPLESS_MAIN(TstChaveA1)
+// QTEST_MAIN e não APPLESS: o transporte espera a resposta com QEventLoop, que exige QCoreApplication (sem ela, o teste trava).
+QTEST_MAIN(TstChaveA1)
 #include "tst_chave_a1.moc"
