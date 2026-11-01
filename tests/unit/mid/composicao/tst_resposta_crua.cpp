@@ -310,8 +310,10 @@ void TstRespostaCrua::arquivoNoTetoParaComLinhaDeCorte()
         QVERIFY2(QJsonDocument::fromJson(linha, &erro).isObject(), "cada resposta gravada é uma linha JSON inteira, nunca cortada");
         ++gravadas;
     }
+    // O número vai até o '}' que fecha a linha. toLongLong exige a string inteira numérica, então o resto da linha é cortado antes.
+    const QByteArray resto = conteudo.mid(inicioCorte + chaveCorte.size());
     bool convertido = false;
-    const qint64 omitidas = conteudo.mid(inicioCorte + chaveCorte.size()).toLongLong(&convertido);
+    const qint64 omitidas = resto.left(resto.indexOf('}')).toLongLong(&convertido);
     QVERIFY2(convertido, "a linha de corte traz o número de respostas omitidas");
     QVERIFY2(omitidas > 0, "o teto foi atingido, então há respostas omitidas");
     QVERIFY2(gravadas + omitidas == kEnviadas, "respostas gravadas mais omitidas têm de bater com as enviadas");
