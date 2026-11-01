@@ -31,10 +31,13 @@ umask 077
 
 APP=io.github.petrinhu.notalivre
 RUNTIME=org.kde.Platform//6.11
-BUNDLE_SHA=8314ce15d190807f23c4b42917a4725d313329924763611fc1b16d3f669dae18
+# Pacote do CI: único lugar do script com o run e o SHA-256 do notalivre.flatpak. Fonte: artefato notalivre-bundle do run
+# 41329186551 (commit 6c6118a, branch onda-2), baixado com gh run download (digest do zip a6abb27be3bae25af72db594ae04e9c8c2749704c36b9340369224a72e6d304d,
+# conferido na API do GitHub). O main troca estas duas linhas quando o pacote do CI muda (NL-2.10d).
+BUNDLE_RUN=41329186551
+BUNDLE_SHA=157af29ce2ea809cf4ebb13f8129ece640bbccb99bfb97d8bdc068354ba90140
 BASE=/var/tmp/notalivre-nl210
-BUNDLE="$BASE/bundle/run-41279001563/extraido/notalivre.flatpak"
-# Hash do pacote: único lugar do script. O main atualiza esta linha quando o pacote do CI muda (NL-2.10, run 41279001563).
+BUNDLE="$BASE/bundle/run-$BUNDLE_RUN/notalivre.flatpak"
 MUNICIPIO=2611606
 CTRIBNAC=040101
 SERIE=1
@@ -54,7 +57,7 @@ if [ "$MODO" = caso ]; then
     : "${NL_ENSAIO_DIR:?ensaio sem NL_ENSAIO_DIR}"
     HOME="$NL_ENSAIO_DIR/home"
     BASE="$NL_ENSAIO_DIR/base"
-    BUNDLE="$BASE/bundle/run-41279001563/extraido/notalivre.flatpak"
+    BUNDLE="$BASE/bundle/run-$BUNDLE_RUN/notalivre.flatpak"
     PATH="$NL_ENSAIO_DIR/bin:$PATH"
     export HOME PATH
     mkdir -p "$HOME" "$(dirname "$BUNDLE")"
