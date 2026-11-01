@@ -303,7 +303,7 @@ Desfecho reconciliarPorInfDps(ft::TransporteHttps& transporte, fl::Log& registro
 } // namespace
 
 ClienteSefin::ClienteSefin(ft::TransporteHttps& transporte, fl::Log& registro, PoliticaRetry politica,
-                           std::shared_ptr<const ComparadorInfDps> comparador)
+                           std::shared_ptr<const ComparadorInfDps> comparador, ObservadorRespostas* /*observador*/)
     : transporte_(transporte), registro_(registro), politica_(politica),
       comparador_(comparador ? std::move(comparador) : std::make_shared<ComparadorIndisponivel>())
 {

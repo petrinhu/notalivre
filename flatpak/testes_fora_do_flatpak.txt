@@ -37,6 +37,7 @@ mid.sefin.cliente.erroDefinitivoDepoisDoEnvioViraIndeterminado | xmlsec1 ausente
 mid.sefin.cliente.getTransitorioRepeteComBackoff | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.membroExtraDoGzipViraXmlPendente | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.naoGeradaReenviaMesmoIdNuncaNumeroNovo | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.observadorRecebeCadaRespostaDaEmissao | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.posPost2xxForaDe200e201ConsultaDps | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.posPost2xxSemChaveConsultaDps | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.post3xxConsultaDpsAntesDeReenviar | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
