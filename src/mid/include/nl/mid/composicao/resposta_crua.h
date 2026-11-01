@@ -39,10 +39,16 @@ public:
     [[nodiscard]] const std::optional<nl::base::Erro>& ultimoErro() const { return erro_; }
 
 private:
+    /// Reescreve a linha de corte logo depois das respostas gravadas, com o total atual de omitidas (uma linha só).
+    void escreverCorte();
+
     QString pastaBase_;
     std::string idDps_;
     QString caminho_;
     std::optional<nl::base::Erro> erro_;
+    qsizetype tamanhoRespostas_ = 0;  // bytes das linhas de resposta; a linha de corte, se houver, começa logo depois
+    qsizetype omitidas_ = 0;          // respostas que não couberam no teto de 4 MiB
+    bool cortado_ = false;            // teto atingido: daí em diante só se conta, e o arquivo não recebe mais respostas
 };
 
 } // namespace nl::mid::composicao
