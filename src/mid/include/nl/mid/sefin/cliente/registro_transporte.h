@@ -11,12 +11,17 @@
 #include <QtGlobal>
 
 #include <string_view>
+#include <vector>
 
 namespace nl::mid::sefin::cliente {
 
 /// Registra a falha do transporte no envio. etapa: "POST" ou "GET"; qualquer outro valor vira "outro".
+/// codigosSsl: inteiros do QSslError::SslError, no máximo 16 (vazio: "nenhum"). versaoTls: "tls1.2", "tls1.3" ou "nenhuma";
+/// protocoloNegociado: "http/1.1", "h2" ou "nenhum". Valor fora do conjunto vira "outro".
 void registrarTransporteFalhou(nl::foundation::log::Log& registro, nl::foundation::transporte::CausaErro causa, int codigoQt,
-                               bool handshake, qint64 bytesEscritos, std::string_view etapa);
+                               bool handshake, qint64 bytesEscritos, std::string_view etapa,
+                               const std::vector<int>& codigosSsl = {}, std::string_view versaoTls = {},
+                               std::string_view protocoloNegociado = {});
 
 } // namespace nl::mid::sefin::cliente
 

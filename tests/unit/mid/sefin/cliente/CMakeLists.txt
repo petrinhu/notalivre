@@ -7,7 +7,7 @@ find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
 
 add_executable(tst_registro_transporte tst_registro_transporte.cpp)
 target_link_libraries(tst_registro_transporte PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_foundation_transporte nl_warnings)
-foreach(nome IN ITEMS eventoTemSoCamposFechados valorForaDoConjuntoVira_outro)
+foreach(nome IN ITEMS eventoTemSoCamposFechados valorForaDoConjuntoVira_outro camposNovosSaoFechados versaoForaDoConjuntoVira_outro)
   nl_registra_teste_qt(NAME mid.sefin.registroTransporte.${nome} COMMAND tst_registro_transporte ${nome})
   set_tests_properties(mid.sefin.registroTransporte.${nome} PROPERTIES
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
@@ -33,6 +33,8 @@ else()
     find_program(NL_XMLSEC1_CLIENTE xmlsec1 REQUIRED)
     set(NL_SLOTS_CLIENTE
         sucessoExtraiChaveDe50Posicoes
+        falhaDePostVaiAoLogComEtapaPost
+        falhaDeGetVaiAoLogComEtapaGet
         postTransitorioConsultaDpsAntesDeReenviar
         dps404E2404LiberaReenvio
         conflito409ConsultaENaoReenvia

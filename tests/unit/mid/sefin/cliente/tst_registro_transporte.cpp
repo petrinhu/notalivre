@@ -24,7 +24,32 @@ private slots:
     void eventoTemSoCamposFechados();
     // Etapa ou causa fora do conjunto vira "outro": nada do texto livre entra no log.
     void valorForaDoConjuntoVira_outro();
+    // E4 complemento (DA-2.75): codigosSsl (inteiros), versaoTls e protocoloNegociado saem como conjunto fechado.
+    void camposNovosSaoFechados();
+    // E4 complemento: versão TLS ou protocolo fora do conjunto vira "outro", sem o texto livre.
+    void versaoForaDoConjuntoVira_outro();
 };
+
+void TstRegistroTransporte::camposNovosSaoFechados()
+{
+    std::ostringstream destino;
+    fl::Log log(destino, "sefin", mc::allowlistLogSefin(), mc::eventosLogSefin());
+    mc::registrarTransporteFalhou(log, ft::CausaErro::Tls, 4, true, 0, "POST", {1, 4}, "tls1.3", "h2");
+    const std::string saida = destino.str();
+    QVERIFY2(saida.find("\"codigosSsl\":\"1,4\"") != std::string::npos, "os códigos SSL tem de sair como inteiros separados por vírgula");
+    QVERIFY2(saida.find("\"versaoTls\":\"tls1.3\"") != std::string::npos, "a versão TLS tem de sair do conjunto fechado");
+    QVERIFY2(saida.find("\"protocoloNegociado\":\"h2\"") != std::string::npos, "o protocolo negociado tem de sair do conjunto fechado");
+}
+
+void TstRegistroTransporte::versaoForaDoConjuntoVira_outro()
+{
+    std::ostringstream destino;
+    fl::Log log(destino, "sefin", mc::allowlistLogSefin(), mc::eventosLogSefin());
+    mc::registrarTransporteFalhou(log, ft::CausaErro::Tls, 4, true, 0, "POST", {}, "SSLv3 texto livre", "http/1.1");
+    const std::string saida = destino.str();
+    QVERIFY2(saida.find("\"versaoTls\":\"outro\"") != std::string::npos, "versão fora do conjunto tem de virar outro");
+    QVERIFY2(saida.find("texto livre") == std::string::npos, "o texto livre da versão não pode sair no log");
+}
 
 void TstRegistroTransporte::eventoTemSoCamposFechados()
 {
