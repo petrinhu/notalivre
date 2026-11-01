@@ -59,6 +59,7 @@ PORTOES=(
     "tema_gerado|python3 -I /src/tools/tema/gerar_theme.py --raiz /src --verificar"
     "sha1_env|git config --global --add safe.directory /src && python3 -I /src/tools/portoes/portao_sha1_env.py /src"
     "fixacao_ci|python3 -I /src/tools/portoes/fixacao_ci.py /src && python3 -I /src/tools/portoes/fixacao_ci.py --autoteste"
+    "pontos_de_parse|python3 -I /src/tools/portoes/pontos_de_parse.py /src && bash /src/tools/portoes/autoteste_pontos_de_parse.sh"
 )
 lista=${#PORTOES[@]}
 if [[ "$lista" == "$piso" ]]; then :; else
