@@ -15,6 +15,7 @@ cat > "$BASE/bin/ctest" <<'STUB'
 #!/bin/sh
 case "$*" in
     *" -N"*) echo "  Test  #1: stub"; echo "Total Tests: ${STUB_TOTAL:-0}"; exit 0 ;;
+    *"--show-only=json-v1"*) cat "${STUB_SHOW:-/dev/null}"; exit 0 ;;
 esac
 if [ -n "${STUB_RESUMO:-}" ]; then
     echo "$STUB_RESUMO"
@@ -28,13 +29,23 @@ export PATH="$BASE/bin:$PATH"
 CASOS=0
 FALHAS=0
 
-# caso NOME PISO MAIS TOTAL RESUMO RC ESPERADO_RC TEXTO
+# caso NOME PISO MAIS TOTAL RESUMO RC ESPERADO_RC TEXTO [NOMES]
 # MAIS vazio = sem flatpak/piso_mais.txt. RESUMO vazio = saída sem a linha "tests passed".
+# NOMES (padrão "stub"): nomes que o JSON do --show-only=json-v1 do CTest de mentira lista (NL-2.15, DA-2.65).
 caso() {
-    local nome="$1" piso="$2" mais="$3" total="$4" resumo="$5" rc="$6" esperado="$7" texto="$8"
-    local dir="$BASE/c-$nome" saida rc_suite
+    local nome="$1" piso="$2" mais="$3" total="$4" resumo="$5" rc="$6" esperado="$7" texto="$8" nomes="${9:-stub}"
+    local dir="$BASE/c-$nome" saida rc_suite n
     CASOS=$((CASOS + 1))
     mkdir -p "$dir/flatpak" "$dir/_build" "$dir/tools/portoes" "$dir/tests" "$dir/_build/junit"
+    # NL-2.15: a lista real de testes fora do Flatpak entra no caso (a conferência nova a lê pelo caminho relativo).
+    cp "$RAIZ/flatpak/testes_fora_do_flatpak.txt" "$dir/flatpak/testes_fora_do_flatpak.txt"
+    {
+        printf '%s\n' '{' '  "kind" : "ctestInfo",' '  "tests" :' '  ['
+        for n in $nomes; do
+            printf '%s\n' '    {' '      "command" :' '      [' "        \"/x/$n\"" '      ],' "      \"name\" : \"$n\"" '    },'
+        done
+        printf '%s\n' '  ]' '}'
+    } > "$dir/_build/show.json"
     # NL-2.14: o suite chama o portão de pulos depois das checagens acima. O caso verde precisa de um junitxml válido
     # (um teste, sem pulo) e da lista real, senão o portão reprova um caso que só quer testar a contagem.
     cp "$RAIZ/tools/portoes/pulos_testes.sh" "$dir/tools/portoes/"
@@ -56,7 +67,7 @@ caso() {
     if [ -n "$mais" ]; then
         printf '%s\n' "$mais" > "$dir/flatpak/piso_mais.txt"
     fi
-    saida="$(cd "$dir" && NL_CTEST_JSON_ARQ="$dir/_build/junit/ctest.json" STUB_TOTAL="$total" STUB_RESUMO="$resumo" STUB_RC="$rc" timeout 120 sh flatpak/suite_flatpak.sh _build 2>&1)"
+    saida="$(cd "$dir" && NL_CTEST_JSON_ARQ="$dir/_build/junit/ctest.json" STUB_SHOW="$dir/_build/show.json" STUB_TOTAL="$total" STUB_RESUMO="$resumo" STUB_RC="$rc" timeout 120 sh flatpak/suite_flatpak.sh _build 2>&1)"
     rc_suite=$?
     echo "--- caso $nome: rc=$rc_suite (esperado $esperado)"
     echo "$saida" | grep -E '^(PARADA|suite_flatpak)' | tail -n 2
@@ -98,6 +109,10 @@ caso sem_resumo 3 "" 3 "" 0 1 "varredura incompleta: executou 0 de 3"
 caso piso_zero 0 "" 0 "" 0 1 "piso 0 recusado"
 # Piso ilegível.
 caso piso_ilegivel "3 " "" 3 "$OK3" 0 1 "piso ilegível"
+# NL-2.15 (DA-2.65): um teste listado em flatpak/testes_fora_do_flatpak.txt (o de xmlsec1 do cliente Sefin) que aparece
+# registrado no Flatpak tem de reprovar. Lista desatualizada não pode passar em silêncio.
+OK1="100% tests passed, 0 tests failed out of 1"
+caso listado_registrado_no_flatpak 1 "" 1 "$OK1" 0 1 "estão registrados no Flatpak" "mid.sefin.cliente.comparadorRealIgualParaMesmaDps"
 
 echo "casos=$CASOS falhas=$FALHAS"
 if [ "$FALHAS" -eq 0 ]; then

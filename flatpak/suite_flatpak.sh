@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Suíte de unidade do build Flatpak (NL-2.11, DA-2.60 item 1; L-36). Roda, no sandbox do SDK, todos os testes que o CMake
-# registra com NL_FLATPAK_BUILD=ON. Exclusão escrita (DA-2.28 e plano NL-2.11): fora do Flatpak ficam o servidor falso
-# (tests/tools/servidor_falso, precisa de python, xmlsec1 e do arnês), o cliente Sefin (tests/unit/mid/sefin/cliente, precisa
-# do servidor com oráculo) e os slots de xmldsig que chamam xmlsec1. Essas exclusões estão no próprio CMake, por NL_FLATPAK_BUILD.
+# registra com NL_FLATPAK_BUILD=ON. Exclusão por teste (NL-2.15, DA-2.65): cada guarda do CMake desliga só os slots que usam
+# xmlsec1, xmllint ou o servidor falso com oráculo; os que ficam fora estão em flatpak/testes_fora_do_flatpak.txt, com o motivo
+# de cada um, e este script confere que nenhum deles aparece registrado.
 #
 # Piso versionado em flatpak/piso_suite.txt (1ª linha). A contagem é EXATA (DA-2.61, achado A4). Reprova se:
 #   - o CTest listar número de testes diferente do piso: para menos (teste perdido) ou para mais (teste novo sem
@@ -39,6 +39,31 @@ encontrados="$(sed -n 's/^Total Tests: //p' "$BUILD/suite-listados.txt")"
 case "$encontrados" in
     ''|*[!0-9]*) echo "PARADA: ctest -N não deu a contagem ('$encontrados')"; exit 1 ;;
 esac
+
+# NL-2.15 (DA-2.65): os testes que o CMake deixa fora do Flatpak estão em flatpak/testes_fora_do_flatpak.txt, com motivo.
+# Nenhum deles pode aparecer registrado no _build do Flatpak: se aparecer, a lista está desatualizada e o job reprova.
+# Mesma leitura do portão nativo (tools/portoes/fora_do_flatpak.sh): nomes do JSON do próprio CTest, nível de teste.
+LISTA_FORA="flatpak/testes_fora_do_flatpak.txt"
+ctest --test-dir "$BUILD" --show-only=json-v1 > "$BUILD/suite-json.txt" 2>&1
+json_rc=$?
+sed -n 's/^      "name" : "\(.*\)",\{0,1\}$/\1/p' "$BUILD/suite-json.txt" | LC_ALL=C sort -u > "$BUILD/suite-registrados.set"
+sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' -e 's/[[:space:]]*|.*$//' "$LISTA_FORA" | LC_ALL=C sort -u > "$BUILD/suite-fora.set"
+registrados="$(wc -l < "$BUILD/suite-registrados.set" | tr -d ' ')"
+fora_listados="$(wc -l < "$BUILD/suite-fora.set" | tr -d ' ')"
+registrados_fora="$(LC_ALL=C comm -12 "$BUILD/suite-fora.set" "$BUILD/suite-registrados.set" | wc -l | tr -d ' ')"
+echo "suite_flatpak: registrados=$registrados fora_listados=$fora_listados registrados_e_listados=$registrados_fora"
+if [ "$json_rc" -ne 0 ] || [ "$registrados" -eq 0 ]; then
+    echo "PARADA: ctest --show-only=json-v1 do _build do Flatpak falhou ou não listou testes (NL-2.15)"
+    exit 1
+fi
+if [ "$fora_listados" -eq 0 ]; then
+    echo "PARADA: lista $LISTA_FORA sem nenhum teste (NL-2.15): zero excluídos não é varredura"
+    exit 1
+fi
+if [ "$registrados_fora" -ne 0 ]; then
+    echo "PARADA: $registrados_fora teste(s) listados em $LISTA_FORA estão registrados no Flatpak (NL-2.15, DA-2.65)"
+    exit 1
+fi
 
 echo "suite_flatpak: piso=$piso (base $piso_base + mais $mais) encontrados=$encontrados"
 if [ "$encontrados" -ne "$piso" ]; then

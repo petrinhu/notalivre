@@ -30,5 +30,10 @@ ctest --preset "$modo" --output-on-failure --no-tests=error || ctest_rc=$?
 # reprova (fechado). O portão roda mesmo com ctest vermelho, para o log mostrar as contagens.
 pulos_rc=0
 sh tools/portoes/pulos_testes.sh "$NL_TMP_BASE/notalivre-build/$modo" "${NL_DISTRO:-}" tests/pulos_esperados_por_distro.txt || pulos_rc=$?
+# NL-2.15 (DA-2.65): testes registrados no nativo e ausentes no build Flatpak (NL_FLATPAK_BUILD=ON) têm de estar na lista
+# versionada, por igualdade exata. Roda também com ctest ou pulos vermelhos, para o log trazer as contagens.
+fora_rc=0
+sh tools/portoes/fora_do_flatpak.sh "$NL_TMP_BASE/notalivre-build/$modo" flatpak/testes_fora_do_flatpak.txt || fora_rc=$?
 [ "$ctest_rc" -eq 0 ] || exit "$ctest_rc"
-exit "$pulos_rc"
+[ "$pulos_rc" -eq 0 ] || exit "$pulos_rc"
+exit "$fora_rc"

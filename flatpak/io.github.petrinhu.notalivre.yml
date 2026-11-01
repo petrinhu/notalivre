@@ -40,8 +40,8 @@ modules:
       # falha de outra causa também daria rc diferente de zero (L-36).
       - |
         sh -c 'printf "1\n" > flatpak/piso_mais.txt; sh flatpak/suite_flatpak.sh _build > _build/sabotagem-piso.txt 2>&1; rc=$?; rm -f flatpak/piso_mais.txt; tail -n 2 _build/sabotagem-piso.txt; [ "$rc" -ne 0 ] && grep -q "PARADA: o CTest registrou .* abaixo do piso " _build/sabotagem-piso.txt && ! grep -q "tests passed" _build/sabotagem-piso.txt || { echo "PARADA: a sabotagem do piso +1 não reprovou pelo motivo do piso"; exit 1; }'
-      # DA-2.60 (item 1, NL-2.11): suíte de unidade do Flatpak com contagem e piso versionado. Exclusão escrita no próprio
-      # script: servidor falso, cliente Sefin e slots de xmlsec1 ficam fora por NL_FLATPAK_BUILD (DA-2.28).
+      # DA-2.60 (item 1, NL-2.11): suíte de unidade do Flatpak com contagem e piso versionado. NL-2.15 (DA-2.65): a exclusão é
+      # por teste, no CMake (NL_FLATPAK_BUILD em cada guarda); os que ficam fora têm motivo em flatpak/testes_fora_do_flatpak.txt.
       - |
         sh flatpak/suite_flatpak.sh _build
     sources:

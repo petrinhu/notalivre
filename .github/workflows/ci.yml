@@ -52,20 +52,26 @@ jobs:
         shell: bash
 
     steps:
-      # A imagem ubuntu26.04 não traz git. Sem git no PATH, o actions/checkout baixa o arquivo sem .git (log do run
-      # 41176856725: "The repository will be downloaded using the GitHub REST API"), e o mutante_mtls.sh, que faz
-      # git archive do SHA, falha. Por isso o git entra ANTES do checkout, só nesta distro.
-      - name: "Git antes do checkout (só ubuntu26.04: a imagem não traz git)"
+      # A imagem ubuntu26.04 não traz git. Sem .git, o actions/checkout baixa pela API (log do run 41176856725:
+      # "The repository will be downloaded using the GitHub REST API"). Por isso, só nesta distro, o primeiro checkout sai
+      # sem histórico, o script de instalação (que já traz git e ca-certificates, tools/conteiner/instalar/ubuntu26.04.sh)
+      # roda, e só então o checkout com histórico completo. NL-2.15 (DA-2.65): a instalação de pacotes desta distro fica só
+      # no script de tools/conteiner/instalar, uma só fonte de pacotes (L-51). As outras três distros seguem com um checkout só.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: matrix.distro == 'ubuntu26.04'
+
+      - name: "Git e ferramentas de build (só ubuntu26.04: script de instalação, antes do checkout com histórico)"
         if: matrix.distro == 'ubuntu26.04'
         run: |
-          apt-get update -qq
-          apt-get install -y -qq --no-install-recommends git ca-certificates
+          bash tools/conteiner/instalar/ubuntu26.04.sh
+          echo "/opt/aqt/bin" >> "$GITHUB_PATH"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0   # NL-2.14 (DA-2.63, R5-3): histórico inteiro para o merge-base com a onda-2 no resumo do job
 
       - name: Ferramentas de build (mesmo script do Dockerfile)
+        if: matrix.distro != 'ubuntu26.04'
         run: |
           bash tools/conteiner/instalar/${{ matrix.distro }}.sh
           echo "/opt/aqt/bin" >> "$GITHUB_PATH"
@@ -168,6 +174,13 @@ jobs:
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
           sh tools/portoes/pulos_testes.sh "$NL_TMP_BASE/notalivre-build/debug" "$NL_DISTRO" tests/pulos_esperados_por_distro.txt
+
+      # NL-2.15 (DA-2.65): testes registrados no nativo e ausentes no build Flatpak têm de estar em flatpak/testes_fora_do_flatpak.txt,
+      # por igualdade exata. Roda com ctest ou pulos vermelhos para o log trazer as contagens; reprova o job.
+      - name: "Testes fora do Flatpak, por igualdade exata (NL-2.15, DA-2.65)"
+        id: fora
+        if: ${{ always() && steps.ctest.outcome != 'skipped' }}
+        run: sh tools/portoes/fora_do_flatpak.sh "$NL_TMP_BASE/notalivre-build/debug" flatpak/testes_fora_do_flatpak.txt
 
       # NL-2.14 (DA-2.63, R5-3): diff das listas e contagens contra o merge-base com a onda-2, no resumo do job. O checkout acima
       # traz o histórico inteiro (fetch-depth 0); NL_BASE_REF aponta para o ref da onda-2 que esse checkout baixa.
@@ -355,6 +368,9 @@ jobs:
       - name: "Autoteste do portão de pulos (NL-2.14, DA-2.61)"
         run: bash tools/portoes/autoteste_pulos_testes.sh
 
+      - name: "Autoteste do portão fora do Flatpak (NL-2.15, DA-2.65)"
+        run: bash tools/portoes/autoteste_fora_do_flatpak.sh
+
   # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
   # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.
   flatpak:
@@ -407,10 +423,10 @@ jobs:
           name: notalivre-bundle
           path: ${{ runner.temp }}/bundle
 
+      # Plano B da NL-0.5: o runner instala o Flatpak do sistema para o smoke do bundle. Não é pacote de build de contêiner;
+      # fica só neste job de smoke, fora do job nativo (NL-2.15, DA-2.65, emenda 2).
       - name: Instalar flatpak no host
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak
+        run: sudo apt-get update && sudo apt-get install -y flatpak
 
       - name: Runtime KDE 6.11 e bundle (instalação de usuário)
         id: instalar
