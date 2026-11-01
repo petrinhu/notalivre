@@ -423,10 +423,10 @@ jobs:
           name: notalivre-bundle
           path: ${{ runner.temp }}/bundle
 
+      # Plano B da NL-0.5: o runner instala o Flatpak do sistema para o smoke do bundle. Não é pacote de build de contêiner;
+      # fica só neste job de smoke, fora do job nativo (NL-2.15, DA-2.65, emenda 2).
       - name: Instalar flatpak no host
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak
+        run: sudo apt-get update && sudo apt-get install -y flatpak
 
       - name: Runtime KDE 6.11 e bundle (instalação de usuário)
         id: instalar
