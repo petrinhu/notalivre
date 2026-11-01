@@ -517,7 +517,7 @@ void TstRespostaCrua::mesmoIdDuasVezesNaoPartLinhaNemCorte()
     QVERIFY2(linhasDeCorte == 1, "só pode haver uma linha de corte");
     QVERIFY2(linhas.last().startsWith(marcaCorte), "a linha de corte é a última do arquivo");
     for (int i = 0; i < 3; ++i) {
-        QVERIFY2(linhas[i].contains("\"a\":\"<number:1>\""), "as respostas da primeira execução continuam inteiras no arquivo");
+        QVERIFY2(linhas[i].contains("\"<chave:1:letras:1>\":\"<number:1>\""), "as respostas da primeira execução continuam inteiras no arquivo");
     }
     for (qsizetype i = 0; i < linhas.size() - 1; ++i) {
         QJsonParseError erro;
