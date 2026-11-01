@@ -37,6 +37,8 @@ public:
     [[nodiscard]] const QString& caminho() const { return caminho_; }
     /// Primeiro erro de gravação, se houve.
     [[nodiscard]] const std::optional<nl::base::Erro>& ultimoErro() const { return erro_; }
+    /// Verdadeiro quando o teto de 4 MiB foi atingido: as respostas seguintes foram omitidas e contadas.
+    [[nodiscard]] bool cortado() const { return cortado_; }
 
 private:
     /// Reescreve a linha de corte logo depois das respostas gravadas, com o total atual de omitidas (uma linha só).

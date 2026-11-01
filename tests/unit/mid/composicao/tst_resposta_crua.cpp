@@ -15,6 +15,8 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <sys/stat.h>
+
 namespace {
 
 // Chave sintética de 44 caracteres (não é chave real de NFS-e).
@@ -76,6 +78,22 @@ private slots:
     // NL-2.10c, condição do CISO: ao atingir o teto de 4 MiB por arquivo, nenhuma linha é cortada pela metade; o arquivo termina
     // com uma linha de corte que traz o total de respostas omitidas.
     void arquivoNoTetoParaComLinhaDeCorte();
+    // NL-2.10c, Emenda 2, MÉDIA-1 (CISO, 31/10/2026 23:18:32): um nome de chave só sai em claro se casar com
+    // ^[A-Za-z_][A-Za-z0-9_]{0,63}$ e tiver no máximo 2 dígitos. Fora disso, sai como <chave:N>, com N o tamanho do nome.
+    void cpfComoNomeDeChaveMascarado();
+    void cnpjNumericoComoNomeDeChaveMascarado();
+    void cnpjAlfanumericoComoNomeDeChaveMascarado();
+    // Guarda: os nomes que a Sefin usa de fato (e a forma dos objetos) continuam legíveis.
+    void nomesConhecidosDaSefinContinuamLegiveis();
+    // NL-2.10c, Emenda 2, BAIXA-2: o Content-Type só sai em claro se for application/json ou application/problem+json,
+    // com ou sem charset simples. Qualquer outro valor sai como <string:N>.
+    void tipoDeConteudoDesconhecidoMascarado();
+    // NL-2.10c, Emenda 2, BAIXA-3: o arquivo nasce 0600, conferido com o umask do processo em 0022.
+    void arquivoNasceComPermissao0600();
+    // NL-2.10c, Emenda 2, BAIXA-4: a pasta respostas nasce 0700 (sem bit de grupo nem de outros).
+    void pastaDeRespostasNasceComPermissao0700();
+    // NL-2.10c, Emenda 2, BAIXA-5: uma segunda execução com o mesmo Id não parte a linha nem apaga as respostas da primeira.
+    void mesmoIdDuasVezesNaoPartLinhaNemCorte();
 };
 
 void TstRespostaCrua::mascaraTrocaXmlEChave()
@@ -317,6 +335,166 @@ void TstRespostaCrua::arquivoNoTetoParaComLinhaDeCorte()
     QVERIFY2(convertido, "a linha de corte traz o número de respostas omitidas");
     QVERIFY2(omitidas > 0, "o teto foi atingido, então há respostas omitidas");
     QVERIFY2(gravadas + omitidas == kEnviadas, "respostas gravadas mais omitidas têm de bater com as enviadas");
+}
+
+namespace {
+
+// Fixa o umask do processo no trecho do teste e devolve o anterior ao sair do escopo (BAIXA-3: o teste confere com 0022).
+class UmaskFixado
+{
+public:
+    explicit UmaskFixado(mode_t novo) : anterior_(umask(novo)) {}
+    ~UmaskFixado() { umask(anterior_); }
+    UmaskFixado(const UmaskFixado&) = delete;
+    UmaskFixado& operator=(const UmaskFixado&) = delete;
+
+private:
+    mode_t anterior_;
+};
+
+// Corpo grande: 1000 chaves de 200 caracteres. Mascarado, cada resposta ocupa cerca de 200 KB.
+QByteArray corpoGrande()
+{
+    QJsonObject grande;
+    for (int k = 0; k < 1000; ++k) {
+        grande.insert(QStringLiteral("campo%1_").arg(k, 200, 10, QLatin1Char('x')), QStringLiteral("valor"));
+    }
+    return QJsonDocument(grande).toJson(QJsonDocument::Compact);
+}
+
+// Linhas não vazias do arquivo gravado.
+QList<QByteArray> linhasDoArquivo(const QString& caminho)
+{
+    QFile arquivo(caminho);
+    if (!arquivo.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    QList<QByteArray> linhas;
+    for (const QByteArray& linha : arquivo.readAll().split('\n')) {
+        if (!linha.isEmpty()) {
+            linhas.append(linha);
+        }
+    }
+    return linhas;
+}
+
+} // namespace
+
+void TstRespostaCrua::cpfComoNomeDeChaveMascarado()
+{
+    const QByteArray m = nl::mid::composicao::mascararRespostaCrua("{\"12345678909\":\"valor\"}");
+    QVERIFY2(!m.contains("12345678909"), "um CPF como nome de chave não pode sair em claro");
+    QVERIFY2(m.contains("\"<chave:11>\""), "o nome fora da regra sai como <chave:N>, com N o tamanho do nome");
+}
+
+void TstRespostaCrua::cnpjNumericoComoNomeDeChaveMascarado()
+{
+    const QByteArray m = nl::mid::composicao::mascararRespostaCrua("{\"11222333000181\":\"valor\"}");
+    QVERIFY2(!m.contains("11222333000181"), "um CNPJ numérico como nome de chave não pode sair em claro");
+    QVERIFY2(m.contains("\"<chave:14>\""), "o nome com 14 dígitos sai como <chave:14>");
+}
+
+void TstRespostaCrua::cnpjAlfanumericoComoNomeDeChaveMascarado()
+{
+    const QByteArray m = nl::mid::composicao::mascararRespostaCrua("{\"AB12CD34EF56GH78\":\"valor\"}");
+    QVERIFY2(!m.contains("AB12CD34EF56GH78"), "um CNPJ alfanumérico com mais de 2 dígitos como nome de chave não pode sair");
+    QVERIFY2(m.contains("\"<chave:16>\""), "o nome com 8 dígitos sai como <chave:16>");
+}
+
+void TstRespostaCrua::nomesConhecidosDaSefinContinuamLegiveis()
+{
+    const QByteArray corpo = "{\"chaveAcesso\":\"" + kChaveSintetica + "\",\"idDps\":\"DPS-X\",\"nfseXmlGZipB64\":\"" + kXmlSintetico
+                             + "\",\"Codigo\":\"E0714\",\"Descricao\":\"texto\",\"erros\":[{\"codigo\":\"E0714\",\"descricao\":\"texto\"}]}";
+    const QByteArray m = nl::mid::composicao::mascararRespostaCrua(corpo);
+    for (const char* nome : {"chaveAcesso", "idDps", "nfseXmlGZipB64", "Codigo", "Descricao", "erros"}) {
+        QVERIFY2(m.contains(QByteArray("\"") + nome + "\":"), nome);
+    }
+}
+
+void TstRespostaCrua::tipoDeConteudoDesconhecidoMascarado()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    nl::mid::composicao::GravadorRespostaCrua gravador(pasta.path(), "DPS-ID-SINTETICO-0111");
+    gravador.registrar("POST", "/nfse", 201, QByteArrayLiteral("application/json; charset=utf-8"), QByteArrayLiteral("{\"a\":1}"));
+    gravador.registrar("POST", "/nfse", 400, QByteArrayLiteral("text/html; charset=utf-8 <script>x</script>"), QByteArrayLiteral("{\"a\":1}"));
+    QVERIFY2(!gravador.ultimoErro(), "a gravação tem de funcionar nesta montagem");
+    QFile arquivo(gravador.caminho());
+    QVERIFY(arquivo.open(QIODevice::ReadOnly));
+    const QByteArray conteudo = arquivo.readAll();
+    QVERIFY2(conteudo.contains("\"contentType\":\"application/json; charset=utf-8\""), "o tipo conhecido sai em claro");
+    QVERIFY2(!conteudo.contains("text/html"), "o tipo desconhecido não pode sair em claro");
+    QVERIFY2(conteudo.contains("\"contentType\":\"<string:"), "o tipo desconhecido sai como <string:N>");
+}
+
+void TstRespostaCrua::arquivoNasceComPermissao0600()
+{
+    UmaskFixado umask0022(0022);
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    nl::mid::composicao::GravadorRespostaCrua gravador(pasta.path(), "DPS-ID-SINTETICO-0112");
+    gravador.registrar("POST", "/nfse", 201, QByteArrayLiteral("application/json"), QByteArrayLiteral("{\"a\":1}"));
+    QVERIFY2(!gravador.ultimoErro(), "a gravação tem de funcionar nesta montagem");
+    QVERIFY2(permissaoSoDoDono(gravador.caminho()), "o arquivo tem de nascer 0600, com o umask do processo em 0022");
+}
+
+void TstRespostaCrua::pastaDeRespostasNasceComPermissao0700()
+{
+    UmaskFixado umask0022(0022);
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    nl::mid::composicao::GravadorRespostaCrua gravador(pasta.path(), "DPS-ID-SINTETICO-0113");
+    gravador.registrar("POST", "/nfse", 201, QByteArrayLiteral("application/json"), QByteArrayLiteral("{\"a\":1}"));
+    QVERIFY2(!gravador.ultimoErro(), "a gravação tem de funcionar nesta montagem");
+    const QFileDevice::Permissions grupoEOutros = QFileDevice::ReadGroup | QFileDevice::WriteGroup | QFileDevice::ExeGroup |
+                                                  QFileDevice::ReadOther | QFileDevice::WriteOther | QFileDevice::ExeOther;
+    const QFileDevice::Permissions permissoes = QFile::permissions(pasta.path() + QStringLiteral("/respostas"));
+    QVERIFY2((permissoes & grupoEOutros) == 0, "a pasta respostas tem de nascer 0700: sem bit de grupo nem de outros");
+}
+
+void TstRespostaCrua::mesmoIdDuasVezesNaoPartLinhaNemCorte()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    const char* id = "DPS-ID-SINTETICO-0114";
+    nl::mid::composicao::GravadorRespostaCrua primeira(pasta.path(), id);
+    for (int i = 0; i < 3; ++i) {
+        primeira.registrar("POST", "/nfse", 201, QByteArrayLiteral("application/json"), QByteArrayLiteral("{\"a\":1}"));
+    }
+    QVERIFY2(!primeira.ultimoErro(), "a primeira execução tem de gravar");
+    constexpr int kEnviadas = 40;
+    const QByteArray corpo = corpoGrande();
+    nl::mid::composicao::GravadorRespostaCrua segunda(pasta.path(), id);
+    for (int i = 0; i < kEnviadas; ++i) {
+        segunda.registrar("POST", "/nfse", 201, QByteArrayLiteral("application/json"), corpo);
+    }
+    QVERIFY2(!segunda.ultimoErro(), "a segunda execução tem de gravar até o teto");
+    QVERIFY2(segunda.cortado(), "a segunda execução tem de atingir o teto");
+    const QList<QByteArray> linhas = linhasDoArquivo(segunda.caminho());
+    QVERIFY2(linhas.size() >= 4, "as respostas da primeira execução e a linha de corte têm de estar no arquivo");
+    const QByteArray marcaCorte = QByteArrayLiteral("{\"corte\":");
+    int linhasDeCorte = 0;
+    for (const QByteArray& linha : linhas) {
+        if (linha.startsWith(marcaCorte)) {
+            ++linhasDeCorte;
+        }
+    }
+    QVERIFY2(linhasDeCorte == 1, "só pode haver uma linha de corte");
+    QVERIFY2(linhas.last().startsWith(marcaCorte), "a linha de corte é a última do arquivo");
+    for (int i = 0; i < 3; ++i) {
+        QVERIFY2(linhas[i].contains("\"a\":\"<number:1>\""), "as respostas da primeira execução continuam inteiras no arquivo");
+    }
+    for (qsizetype i = 0; i < linhas.size() - 1; ++i) {
+        QJsonParseError erro;
+        QVERIFY2(QJsonDocument::fromJson(linhas[i], &erro).isObject(), "nenhuma linha de resposta pode sair partida");
+    }
+    const QByteArray marcaOmitidas = QByteArrayLiteral("\"respostas_omitidas\":");
+    QVERIFY2(linhas.last().contains(marcaOmitidas), "a linha de corte traz o total de respostas omitidas");
+    const QByteArray depois = linhas.last().mid(linhas.last().indexOf(marcaOmitidas) + marcaOmitidas.size());
+    bool convertido = false;
+    const qint64 omitidas = depois.left(depois.indexOf('}')).toLongLong(&convertido);
+    QVERIFY2(convertido, "o total omitido tem de ser um número");
+    QVERIFY2((linhas.size() - 1) + omitidas == 3 + kEnviadas, "respostas gravadas mais omitidas têm de bater com as enviadas das duas execuções");
 }
 
 QTEST_APPLESS_MAIN(TstRespostaCrua)

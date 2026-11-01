@@ -86,6 +86,11 @@ void RegistroCli::registrarEmissaoRecusada(std::string_view idDps, std::string_v
     static_cast<void>(interno_->log.registrar(fl::Nivel::Erro, "emissao.recusada", campos));
 }
 
+// Stub do NL-2.10c, Emenda 2 (commit de teste): ainda não registra. Os testes falham por asserção (evento ausente).
+void RegistroCli::registrarGravacaoDaResposta(const GravadorRespostaCrua& /*gravador*/)
+{
+}
+
 nl::foundation::log::Log* RegistroCli::logDoCliente() noexcept
 {
     return &interno_->log;

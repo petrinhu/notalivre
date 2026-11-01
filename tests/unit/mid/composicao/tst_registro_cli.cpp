@@ -5,8 +5,14 @@
 #include <nl/foundation/log/log.h>
 #include <nl/mid/composicao/guarda_manipulador_qt.h>
 #include <nl/mid/composicao/registro_cli.h>
+#include <nl/mid/composicao/resposta_crua.h>
 
+#include <QByteArray>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QString>
+#include <QTemporaryDir>
 #include <QtTest>
 
 #include <sstream>
@@ -74,6 +80,10 @@ private slots:
     void qWarningComCpfPeloRegistroNaoVaiAoLog();
     // DA-2.52: o aviso do Qt com CPF não sai pela saída de erro do processo, nem dentro nem depois da guarda, e não vai ao registro.
     void qWarningComCpfNaoVaiAoStderrNemAoLog();
+    // CISO, INFO-6 (Emenda 2): falha de gravação da resposta vira evento no log, sem o caminho da pasta.
+    void avisoNoLogQuandoAGravacaoFalha();
+    // CISO, INFO-6 (Emenda 2): teto atingido vira evento no log, sem o caminho e sem conteúdo de resposta.
+    void avisoNoLogQuandoOArquivoECortado();
 };
 
 void TstRegistroCli::excecaoNoTopoLogaSoTipoEPosicao()
@@ -133,6 +143,50 @@ void TstRegistroCli::qWarningComCpfNaoVaiAoStderrNemAoLog()
     QVERIFY2(stderrDoProcesso.find(kCpfFixture) == std::string::npos, "o CPF do aviso do Qt não pode sair pela saída de erro");
     QVERIFY2(stderrDoProcesso.empty(), "com a guarda ativa ou depois dela, a saída de erro do processo tem de ficar vazia");
     QVERIFY2(destino.str().find(kCpfFixture) == std::string::npos, "o CPF do aviso do Qt não pode ir ao registro");
+}
+
+void TstRegistroCli::avisoNoLogQuandoAGravacaoFalha()
+{
+    // A pasta de análise é um arquivo comum: criar a pasta respostas falha, e a resposta não grava.
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    const QString bloqueio = pasta.path() + QStringLiteral("/bloqueio");
+    QFile arquivo(bloqueio);
+    QVERIFY(arquivo.open(QIODevice::WriteOnly));
+    arquivo.write("x");
+    arquivo.close();
+    nl::mid::composicao::GravadorRespostaCrua gravador(bloqueio, "DPS-ID-SINTETICO-0201");
+    gravador.registrar("POST", "/nfse", 201, QByteArrayLiteral("application/json"), QByteArrayLiteral("{\"a\":1}"));
+    QVERIFY2(gravador.ultimoErro().has_value(), "a gravação tem de falhar nesta montagem");
+    std::ostringstream destino;
+    auto registro = nl::mid::composicao::criarLogDaCli(destino);
+    registro->registrarGravacaoDaResposta(gravador);
+    const std::string saida = destino.str();
+    QVERIFY2(saida.find("resposta_crua.nao_gravada") != std::string::npos, "a falha de gravação tem de sair como evento no log");
+    QVERIFY2(saida.find("bloqueio") == std::string::npos, "o caminho da pasta não pode ir ao log");
+}
+
+void TstRegistroCli::avisoNoLogQuandoOArquivoECortado()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    QJsonObject grande;
+    for (int k = 0; k < 1000; ++k) {
+        grande.insert(QStringLiteral("campo%1_").arg(k, 200, 10, QLatin1Char('x')), QStringLiteral("valor"));
+    }
+    const QByteArray corpo = QJsonDocument(grande).toJson(QJsonDocument::Compact);
+    nl::mid::composicao::GravadorRespostaCrua gravador(pasta.path(), "DPS-ID-SINTETICO-0202");
+    for (int i = 0; i < 40; ++i) {
+        gravador.registrar("POST", "/nfse", 201, QByteArrayLiteral("application/json"), corpo);
+    }
+    QVERIFY2(gravador.cortado(), "o teto tem de ser atingido nesta montagem");
+    std::ostringstream destino;
+    auto registro = nl::mid::composicao::criarLogDaCli(destino);
+    registro->registrarGravacaoDaResposta(gravador);
+    const std::string saida = destino.str();
+    QVERIFY2(saida.find("resposta_crua.cortada") != std::string::npos, "o corte tem de sair como evento no log");
+    QVERIFY2(saida.find(pasta.path().toStdString()) == std::string::npos, "o caminho da pasta não pode ir ao log");
+    QVERIFY2(saida.find("campo0") == std::string::npos, "nenhum conteúdo de resposta pode ir ao log");
 }
 
 QTEST_APPLESS_MAIN(TstRegistroCli)

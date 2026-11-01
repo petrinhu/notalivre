@@ -16,6 +16,8 @@ class Log;
 
 namespace nl::mid::composicao {
 
+class GravadorRespostaCrua;
+
 class RegistroCli
 {
 public:
@@ -35,6 +37,10 @@ public:
 
     /// O caminho do .pfx foi lido da configuração: só o evento, sem campo (NL-2.10a, emenda 6). O caminho nunca entra no log.
     void registrarCertificadoConfigurado();
+
+    /// Estado da gravação da resposta de análise (CISO, INFO-6, Emenda 2): falha de gravação e teto atingido viram evento, sem
+    /// caminho nem conteúdo. Emissão e recusa passam pelo mesmo ponto, depois da chamada à Sefin.
+    void registrarGravacaoDaResposta(const GravadorRespostaCrua& gravador);
 
     /// O Log que o cliente Sefin e o manipulador do Qt usam. Só a Mid chama; a CLI não.
     [[nodiscard]] nl::foundation::log::Log* logDoCliente() noexcept;
