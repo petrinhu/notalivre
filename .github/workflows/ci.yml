@@ -465,6 +465,25 @@ jobs:
         id: osrelease
         run: flatpak run --user --command=cat io.github.petrinhu.notalivre /run/host/os-release
 
+      # NL-2.27 (passo 6, L-36): o medidor da senha por descritor tem de reprovar com os dois flatpaks falsos antes da medição real.
+      - name: Autoteste do medidor da senha por descritor
+        id: senha_fd_autoteste
+        run: |
+          bash flatpak/host/autoteste_senha_fd.sh > "$RUNNER_TEMP/autoteste_senha_fd.log" 2>&1
+          rc=$?
+          cat "$RUNNER_TEMP/autoteste_senha_fd.log"
+          exit "$rc"
+
+      # NL-2.27 (passo 6): medição real dentro do sandbox: versão do flatpak, grupos de processo, repasse do fd 3 e CLI sem descritor
+      # sob pseudo-terminal. Os números vão para o resumo do job (DA-2.16, DA-2.68).
+      - name: Medição da senha por descritor dentro do sandbox
+        id: senha_fd
+        run: |
+          bash flatpak/host/senha_fd.sh io.github.petrinhu.notalivre > "$RUNNER_TEMP/senha_fd.log" 2>&1
+          rc=$?
+          cat "$RUNNER_TEMP/senha_fd.log"
+          exit "$rc"
+
       - name: Resumo do smoke no host
         if: always()
         run: |
@@ -476,6 +495,8 @@ jobs:
             echo "| Smoke QML offscreen | ${{ steps.smoke.outcome }} |"
             echo "| TCP 127.0.0.1 | ${{ steps.tcp.outcome }} |"
             echo "| os-release | ${{ steps.osrelease.outcome }} |"
+            echo "| Autoteste do medidor da senha (NL-2.27) | ${{ steps.senha_fd_autoteste.outcome }} |"
+            echo "| Senha por descritor no sandbox (NL-2.27) | ${{ steps.senha_fd.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Mutação dos portões (definição de fechamento da Onda 0, L-36 e L-27): cada portão TEM de reprovar a própria
