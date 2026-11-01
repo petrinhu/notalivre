@@ -8,6 +8,7 @@ target_sources(nl_foundation PRIVATE
     erros_xsd.cpp
     esquema.cpp
     validador_xsd.cpp
+    parse_seguro.cpp
     libxml_util.cpp)
 
 # Qt Core na interface pública (QByteArrayView, QString). libxml2 só no .cpp (nenhum tipo do libxml2 no cabeçalho público).
