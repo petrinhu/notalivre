@@ -27,7 +27,9 @@ bool comecaCom(std::string_view texto, std::string_view prefixo)
 
 int codigoDeSaidaDaEmissao(std::string_view codigo)
 {
-    constexpr std::array<std::string_view, 2> documentoExato{"xsd.invalido", "xsd.pos_assinatura"};
+    // xml.com_dtd (NL-2.21, Emenda 2 do CTO): DOCTYPE recusado pelo validador é culpa do documento, sai com 4 por entrada
+    // explícita. Sem ela, cairia no padrão 70 (falha interna).
+    constexpr std::array<std::string_view, 3> documentoExato{"xsd.invalido", "xsd.pos_assinatura", "xml.com_dtd"};
     constexpr std::array<std::string_view, 4> documentoPrefixo{"cpf.", "cnpj.", "dps.", "entrada."};
     constexpr std::array<std::string_view, 2> ambienteXsd{"xsd.esquema", "xsd.interno"};
     constexpr std::array<std::string_view, 5> recusaPrefixo{"credencial.", "assinatura.", "confirmacao.", "cofre.", "sefin."};
