@@ -185,7 +185,7 @@ void TstRegistroCli::avisoNoLogQuandoOArquivoECortado()
     }
     const QByteArray corpo = QJsonDocument(grande).toJson(QJsonDocument::Compact);
     nl::mid::composicao::GravadorRespostaCrua gravador(pasta.path(), "DPS-ID-SINTETICO-0202");
-    for (int i = 0; i < 40; ++i) {
+    for (int i = 0; i < 80; ++i) {
         gravador.registrar("POST", "/nfse", 201, QByteArrayLiteral("application/json"), corpo);
     }
     QVERIFY2(gravador.cortado(), "o teto tem de ser atingido nesta montagem");

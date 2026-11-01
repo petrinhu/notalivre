@@ -48,6 +48,7 @@ set(NL_SLOTS_E2E
     e0014SemComparacaoSaiComSete
     respostaCruaGravadaParaAnalise
     cliGravaARespostaDaRecusa
+    cliAvisaQuandoAGravacaoFalha
     prefixoDaConfiguracaoVaiNaUrl
     prefixoAusenteSaiComDez
     caminhoDoCertificadoVemDaConfiguracao

@@ -321,6 +321,7 @@ private slots:
     // DA-2.59 item 4: a resposta crua da Sefin fica num arquivo local 0600, com o XML e a chave mascarados, sem senha.
     void respostaCruaGravadaParaAnalise();
     void cliGravaARespostaDaRecusa();
+    void cliAvisaQuandoAGravacaoFalha();
     // NL-2.10a, passo 3 (DA-2.5): [sefin] prefixo vai ao caminho do POST; o servidor com o mesmo prefixo recebe em /SefinNacional/nfse.
     void prefixoDaConfiguracaoVaiNaUrl();
     // NL-2.10a, passo 3: sem [sefin] prefixo, a CLI recusa com 10 e nomeia a chave, antes de pedir a senha.
@@ -594,6 +595,34 @@ void TstCliEmitir::cliGravaARespostaDaRecusa()
     QVERIFY2(conteudo.contains("\"metodo\":\"POST\""), "a linha do POST recusado leva o método");
     QVERIFY2(!conteudo.contains("texto livre devolvido pela API"), "o texto livre da recusa não pode ir ao arquivo");
     QVERIFY2(conteudo.count("12345678909") == 0, "nenhum dígito do CPF da fixture pode ir ao arquivo");
+}
+
+void TstCliEmitir::cliAvisaQuandoAGravacaoFalha()
+{
+    // NL-2.10c, Emenda 3, BAIXA-7 e M11: a falha de gravação da resposta de análise chega ao log da CLI como aviso, e a emissão
+    // segue (a Sefin já aceitou). Um arquivo comum no lugar da pasta de estado impede a gravação.
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
+    QFile bloqueio(configDir.path() + QStringLiteral("/state"));
+    QVERIFY(bloqueio.open(QIODevice::WriteOnly));
+    bloqueio.write("x");
+    bloqueio.close();
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 };
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    if (esperadoDaDistro() == QStringLiteral("algoritmo_bloqueado")) {
+        exigeRecusaSha1SemEnvio(execucao, servidor.requisicoesAoFechar());
+        return;
+    }
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("resposta_crua.nao_gravada"), "a falha de gravação tem de sair como aviso no log da CLI");
+    QVERIFY2(!execucao.saida.contains(configDir.path().toUtf8()), "o caminho da pasta de estado não pode ir ao log");
 }
 
 // Configuração XDG com [sefin] url, prefixo e algoritmo (NL-2.10a, passo 3). Sem prefixo ou algoritmo, a linha não é escrita.
