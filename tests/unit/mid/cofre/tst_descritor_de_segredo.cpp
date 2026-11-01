@@ -8,6 +8,8 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <algorithm>
+#include <array>
 #include <cerrno>
 #include <fcntl.h>
 #include <pty.h>
@@ -80,6 +82,12 @@ private slots:
     void arquivoLegivelPorGrupoRecusado();
     // Descritor negativo ou que não está aberto é recusado como inválido (guarda de borda).
     void descritorFechadoOuInvalidoRecusado();
+    // NL-2.27, Emenda 1 (item 4): 512 bytes de senha mais a quebra final passam; a quebra não conta no teto, como no terminal.
+    void noTetoComQuebraFinalPassa();
+    // NL-2.27 (aceite de mutação): o leitor zera o buffer do chamador em sucesso e em recusa.
+    void zeraOBufferDoChamador();
+    // NL-2.27 (DA-2.68): a conferência do descritor não lê nenhum byte e não fecha o descritor.
+    void conferirSemLerNemFechar();
 };
 
 void TstDescritorDeSegredo::senhaPeloDescritorLidaUmaVezEFechada()
@@ -179,6 +187,43 @@ void TstDescritorDeSegredo::descritorFechadoOuInvalidoRecusado()
     const auto fechado = nl::mid::cofre::lerSenhaDoDescritor(999);
     QVERIFY(!fechado.has_value());
     QCOMPARE(fechado.error(), nl::mid::cofre::ErroDoSegredo::DescritorInvalido);
+}
+
+void TstDescritorDeSegredo::noTetoComQuebraFinalPassa()
+{
+    const auto noTeto = nl::mid::cofre::lerSenhaDoDescritor(pipeCom(QByteArray(512, 'y') + QByteArrayLiteral("\n")));
+    QVERIFY2(noTeto.has_value(), "512 bytes mais a quebra final têm de passar: a quebra não conta no teto, como no terminal");
+    QCOMPARE(noTeto->tamanho(), std::size_t{512});
+    const auto acima = nl::mid::cofre::lerSenhaDoDescritor(pipeCom(QByteArray(513, 'x') + QByteArrayLiteral("\n")));
+    QVERIFY(!acima.has_value());
+    QCOMPARE(acima.error(), nl::mid::cofre::ErroDoSegredo::AcimaDoTeto);
+}
+
+void TstDescritorDeSegredo::zeraOBufferDoChamador()
+{
+    std::array<char, nl::mid::cofre::kTamanhoBufferDoSegredo> buffer{};
+    buffer.fill('x');
+    const auto senha = nl::mid::cofre::lerSenhaDoDescritorEm(pipeCom(QByteArrayLiteral("senha-de-teste\n")), buffer);
+    QVERIFY2(senha.has_value(), "a senha tem de ser lida do descritor");
+    QCOMPARE(conteudoDe(*senha), QByteArrayLiteral("senha-de-teste"));
+    QVERIFY2(std::all_of(buffer.begin(), buffer.end(), [](char c) { return c == '\0'; }), "o buffer do chamador tem de sair zerado");
+    buffer.fill('x');
+    const auto grande = nl::mid::cofre::lerSenhaDoDescritorEm(pipeCom(QByteArray(600, 'z')), buffer);
+    QVERIFY(!grande.has_value());
+    QVERIFY2(std::all_of(buffer.begin(), buffer.end(), [](char c) { return c == '\0'; }), "a recusa também tem de zerar o buffer");
+}
+
+void TstDescritorDeSegredo::conferirSemLerNemFechar()
+{
+    const int fd = pipeCom(QByteArrayLiteral("abc\n"));
+    QVERIFY(fd >= 0);
+    const auto conferido = nl::mid::cofre::conferirDescritorDeSenha(fd);
+    QVERIFY2(conferido.has_value(), "um pipe comum tem de passar na conferência");
+    errno = 0;
+    QVERIFY2(fcntl(fd, F_GETFD) != -1, "a conferência não pode fechar o descritor");
+    const auto senha = nl::mid::cofre::lerSenhaDoDescritor(fd);
+    QVERIFY2(senha.has_value(), "a conferência não pode consumir os bytes");
+    QCOMPARE(conteudoDe(*senha), QByteArrayLiteral("abc"));
 }
 
 QTEST_APPLESS_MAIN(TstDescritorDeSegredo)

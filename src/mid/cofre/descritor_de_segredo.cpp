@@ -96,4 +96,20 @@ std::expected<nl::foundation::pkcs12::SenhaSegura, ErroDoSegredo> lerSenhaDoDesc
     return senha;
 }
 
+// STUB do passo vermelho (NL-2.27): devolve o comportamento antigo, sem tocar no buffer, para o teste falhar por asserção.
+std::expected<nl::foundation::pkcs12::SenhaSegura, ErroDoSegredo> lerSenhaDoDescritorEm(int fd,
+                                                                                         std::array<char, kTamanhoBufferDoSegredo>& buffer)
+{
+    static_cast<void>(buffer);
+    static_cast<void>(fd);
+    return std::unexpected(ErroDoSegredo::DescritorInvalido);
+}
+
+// STUB do passo vermelho (NL-2.27): ainda não confere nada.
+std::expected<void, ErroDoSegredo> conferirDescritorDeSenha(int fd)
+{
+    static_cast<void>(fd);
+    return std::unexpected(ErroDoSegredo::DescritorInvalido);
+}
+
 } // namespace nl::mid::cofre

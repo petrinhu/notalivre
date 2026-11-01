@@ -14,11 +14,16 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <fcntl.h>
 #include <poll.h>
 #include <pty.h>
 #include <csignal>
+#include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#include <QElapsedTimer>
+#include <QRandomGenerator>
 
 #include <cerrno>
 #include <cstdlib>
@@ -137,6 +142,7 @@ struct Execucao
 {
     QByteArray saida;   ///< tudo o que o pseudo-terminal mostrou: prompt, eco (se houvesse) e a saída da CLI
     int codigo = -1;    ///< código de saída da CLI; -1 se não saiu normalmente; -2 se estourou a espera; -3 se a escrita falhou
+    QByteArray sobra;   ///< bytes que ficaram no pipe do descritor depois da execução (NL-2.27): vazio se a CLI leu tudo
 };
 
 // Grava a linha inteira no pseudo-terminal ou devolve falso. write pode gravar menos que o pedido e pode ser interrompido
@@ -230,6 +236,175 @@ Execucao rodarCliNoTerminal(const QStringList& argumentos, const QString& config
         execucao.codigo = -3;  // a linha não entrou no terminal: o caso falha, nunca passa como saída normal
     } else if (expirou) {
         execucao.codigo = -2;  // limite de espera estourado
+    } else if (WIFEXITED(status)) {
+        execucao.codigo = WEXITSTATUS(status);
+    }
+    return execucao;
+}
+
+// Roda a CLI com o segredo no descritor 3 (NL-2.27, DA-2.16), num pseudo-terminal próprio, sem digitar nada. O segredo entra por um
+// pipe já cheio e fechado do lado da escrita. Depois da execução, o que sobrou no pipe volta em `sobra`: vazio quando a CLI leu tudo.
+Execucao rodarCliComSegredoNoDescritor(const QStringList& argumentos, const QString& configDir, const QByteArray& segredo)
+{
+    Execucao execucao;
+    int par[2] = {-1, -1};
+    if (pipe(par) != 0) {
+        return execucao;
+    }
+    const bool escrito = escreverTudo(par[1], segredo);
+    close(par[1]);
+    if (!escrito) {
+        close(par[0]);
+        execucao.codigo = -3;
+        return execucao;
+    }
+    std::vector<QByteArray> dados;
+    dados.push_back(kCli.toLocal8Bit());
+    for (const QString& argumento : argumentos) {
+        dados.push_back(argumento.toLocal8Bit());
+    }
+    std::vector<char*> argv;
+    for (QByteArray& argumento : dados) {
+        argv.push_back(argumento.data());
+    }
+    argv.push_back(nullptr);
+
+    int mestre = -1;
+    const pid_t pid = forkpty(&mestre, nullptr, nullptr, nullptr);
+    if (pid == 0) {
+        setenv("XDG_CONFIG_HOME", configDir.toLocal8Bit().constData(), 1);
+        const QByteArray estado = (configDir + QStringLiteral("/state")).toLocal8Bit();
+        setenv("XDG_STATE_HOME", estado.constData(), 1);
+        if (dup2(par[0], 3) < 0) {
+            _exit(126);
+        }
+        if (par[0] != 3) {
+            close(par[0]);
+        }
+        execv(argv[0], argv.data());
+        _exit(127);
+    }
+    if (pid < 0) {
+        close(par[0]);
+        return execucao;
+    }
+    bool expirou = false;
+    char buffer[1024];
+    for (;;) {
+        pollfd espera{mestre, POLLIN, 0};
+        if (poll(&espera, 1, 60000) <= 0) {
+            expirou = true;
+            break;
+        }
+        const ssize_t lidos = read(mestre, buffer, sizeof buffer);
+        if (lidos <= 0) {
+            break;
+        }
+        execucao.saida.append(buffer, static_cast<int>(lidos));
+    }
+    if (expirou) {
+        kill(pid, SIGKILL);
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    close(mestre);
+    if (expirou) {
+        execucao.codigo = -2;
+    } else if (WIFEXITED(status)) {
+        execucao.codigo = WEXITSTATUS(status);
+    }
+    // O que a CLI deixou no pipe: sem leitura, os bytes continuam lá para o pai (ler sem bloquear: o escritor já fechou).
+    fcntl(par[0], F_SETFL, fcntl(par[0], F_GETFL) | O_NONBLOCK);
+    for (;;) {
+        const ssize_t lidos = read(par[0], buffer, sizeof buffer);
+        if (lidos <= 0) {
+            break;
+        }
+        execucao.sobra.append(buffer, static_cast<int>(lidos));
+    }
+    close(par[0]);
+    return execucao;
+}
+
+// Roda a CLI em grupo de processos de segundo plano do terminal (NL-2.27, DA-2.68), como o `flatpak run` a deixa. Um filho vira líder
+// de sessão, com o pseudo-terminal como controle, e fica em primeiro plano; o neto (a CLI) vai para o próprio grupo, em segundo plano.
+// O filho espera o neto com WUNTRACED: se o neto parar (SIGTTOU), mata-o e sai com 99. Código do filho sem parada = código da CLI.
+Execucao rodarCliEmSegundoPlano(const QStringList& argumentos, const QString& configDir)
+{
+    Execucao execucao;
+    std::vector<QByteArray> dados;
+    dados.push_back(kCli.toLocal8Bit());
+    for (const QString& argumento : argumentos) {
+        dados.push_back(argumento.toLocal8Bit());
+    }
+    std::vector<char*> argv;
+    for (QByteArray& argumento : dados) {
+        argv.push_back(argumento.data());
+    }
+    argv.push_back(nullptr);
+
+    int mestre = -1;
+    int escravo = -1;
+    if (openpty(&mestre, &escravo, nullptr, nullptr, nullptr) != 0) {
+        return execucao;
+    }
+    const pid_t filho = fork();
+    if (filho == 0) {
+        close(mestre);
+        setsid();
+        ioctl(escravo, TIOCSCTTY, 0);
+        dup2(escravo, 0);
+        dup2(escravo, 1);
+        dup2(escravo, 2);
+        if (escravo > 2) {
+            close(escravo);
+        }
+        alarm(20);  // teto: nenhum caso deste teste pode prender a suíte
+        const pid_t neto = fork();
+        if (neto == 0) {
+            setpgid(0, 0);  // próprio grupo, fora do primeiro plano: é o caso de `flatpak run`
+            setenv("XDG_CONFIG_HOME", configDir.toLocal8Bit().constData(), 1);
+            const QByteArray estado = (configDir + QStringLiteral("/state")).toLocal8Bit();
+            setenv("XDG_STATE_HOME", estado.constData(), 1);
+            execv(argv[0], argv.data());
+            _exit(127);
+        }
+        int estadoNeto = 0;
+        waitpid(neto, &estadoNeto, WUNTRACED);
+        if (WIFSTOPPED(estadoNeto)) {
+            kill(neto, SIGKILL);
+            waitpid(neto, &estadoNeto, 0);
+            _exit(99);
+        }
+        _exit(WIFEXITED(estadoNeto) ? WEXITSTATUS(estadoNeto) : 98);
+    }
+    close(escravo);
+    if (filho < 0) {
+        close(mestre);
+        return execucao;
+    }
+    bool expirou = false;
+    char buffer[1024];
+    for (;;) {
+        pollfd espera{mestre, POLLIN, 0};
+        if (poll(&espera, 1, 30000) <= 0) {
+            expirou = true;
+            break;
+        }
+        const ssize_t lidos = read(mestre, buffer, sizeof buffer);
+        if (lidos <= 0) {
+            break;
+        }
+        execucao.saida.append(buffer, static_cast<int>(lidos));
+    }
+    if (expirou) {
+        kill(filho, SIGKILL);
+    }
+    int status = 0;
+    waitpid(filho, &status, 0);
+    close(mestre);
+    if (expirou) {
+        execucao.codigo = -2;
     } else if (WIFEXITED(status)) {
         execucao.codigo = WEXITSTATUS(status);
     }
@@ -339,6 +514,20 @@ private slots:
     void algoritmoRsaSha1NoXmlPadrao();
     // NL-2.10a, rodada 2 (QA, item 2): as âncoras do servidor TLS são as da chave ancoras_tls, não as do A1 (M3 do QA).
     void ancorasTlsSozinhasValidamOServidor();
+    // NL-2.27 (DA-2.16): a senha vem pelo descritor 3; a CLI a lê e a emissão sai com 0 contra o servidor falso.
+    void cliEmiteComSenhaPeloDescritor();
+    // NL-2.27 (DA-2.68): Produção com descritor sai com 11 (headless.sem_autorizacao) antes de ler o descritor: os bytes ficam no pipe.
+    void cliDescritorEmProducaoSaiCom11SemLer();
+    // NL-2.27: a trava de Produção da NL-2.9 vem antes da autorização headless e continua saindo com 1.
+    void cliProducaoBloqueadaContinuaCom1();
+    // NL-2.27 (DA-2.68): CLI em grupo de segundo plano, sem descritor, sai com 2 e cofre.terminal_em_segundo_plano, sem parar.
+    void cliTerminalEmSegundoPlanoSaiCom2Rapido();
+    // NL-2.27: a senha nunca vem por argumento nem por ambiente; a CLI não emite sem o canal certo (guarda).
+    void cliSenhaNuncaPorArgumentoNemAmbiente();
+    // NL-2.27 (Emenda 1, item 5): senha vazia pelo descritor sai com 2 e cofre.senha_vazia.
+    void cliDescritorVazioSaiCom2();
+    // NL-2.27 (acréscimo do CISO): a senha do descritor, aleatória nesta execução, não vai à saída nem ao log.
+    void senhaDoDescritorNaoVazaNoLogNemNaSaida();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -803,6 +992,160 @@ void TstCliEmitir::ancorasTlsSozinhasValidamOServidor()
     QVERIFY2(execucao.codigo != 0, qPrintable(QStringLiteral("a conexão tinha de ser recusada; rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(!execucao.saida.contains("emitida: chave "), "sem âncora TLS, nenhuma NFS-e pode sair como emitida");
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
+}
+
+void TstCliEmitir::cliEmiteComSenhaPeloDescritor()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    QVERIFY2(!senha.isEmpty(), "a senha da fixture sintética tem de existir");
+    // NL-2.9, item 10: o segredo desta execução vai ao arquivo de referência do portão de PII (anexado, sem apagar os outros).
+    QFile referencia(qEnvironmentVariable("NL_SEGREDOS_PII_REF"));
+    QVERIFY2(referencia.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append), "o arquivo de segredos da execução tem de abrir");
+    referencia.write("senha|" + senha + "\n");
+    referencia.close();
+    const QString esperado = esperadoDaDistro();
+    QVERIFY2(!esperado.isEmpty(), "a distro desta máquina tem de estar em tabela_sha1_por_distro.txt");
+
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 QStringLiteral("--senha-certificado-fd"), QStringLiteral("3")};
+    const Execucao execucao = rodarCliComSegredoNoDescritor(argumentos, configDir.path(), senha);
+    const QString pastaPii = qEnvironmentVariable("NL_LOGS_PII_CLI_DIR");
+    QVERIFY2(!pastaPii.isEmpty(), "NL_LOGS_PII_CLI_DIR tem de estar definido pelo CTest");
+    QVERIFY2(QDir().mkpath(pastaPii), "a pasta de logs da CLI tem de existir");
+    QFile logPii(pastaPii + QStringLiteral("/emitir_e2e_descritor.log"));
+    QVERIFY2(logPii.open(QIODevice::WriteOnly), "o log do e2e tem de abrir na pasta de logs da CLI");
+    logPii.write(execucao.saida);
+    QVERIFY2(!execucao.saida.contains(senha), "a senha do descritor não pode aparecer na saída");
+    QVERIFY2(execucao.sobra.isEmpty(), "a CLI tem de ler o descritor até o fim");
+
+    if (esperado == QStringLiteral("algoritmo_bloqueado")) {
+        QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+        QVERIFY2(execucao.saida.contains("assinatura.algoritmo_bloqueado"), "nesta distro, a assinatura SHA-1 tem de ser recusada pelo código da tabela");
+        return;
+    }
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
+}
+
+void TstCliEmitir::cliDescritorEmProducaoSaiCom11SemLer()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    // Produção liberada só nesta configuração de teste: a trava da NL-2.9 passa, e a autorização headless é o que barra.
+    escreverConfigRecusa(configDir, true, QStringLiteral("https://sefin.nfse.gov.br/SefinNacional"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("producao"),
+                                 QStringLiteral("--senha-certificado-fd"), QStringLiteral("3")};
+    const Execucao execucao = rodarCliComSegredoNoDescritor(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 11, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("headless.sem_autorizacao"), "a recusa tem de trazer o código headless.sem_autorizacao");
+    QVERIFY2(execucao.sobra == senha, "Produção sai antes de ler o descritor: os bytes têm de continuar no pipe");
+    QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer na saída");
+}
+
+void TstCliEmitir::cliProducaoBloqueadaContinuaCom1()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://sefin.nfse.gov.br/SefinNacional"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("producao"),
+                                 QStringLiteral("--senha-certificado-fd"), QStringLiteral("3")};
+    const Execucao execucao = rodarCliComSegredoNoDescritor(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("bloqueada"), "a trava de Produção tem de continuar dizendo que está bloqueada");
+    QVERIFY2(execucao.sobra == senha, "a trava sai antes de ler o descritor");
+}
+
+void TstCliEmitir::cliTerminalEmSegundoPlanoSaiCom2Rapido()
+{
+    // Pasta sem configuração: se a CLI lesse a configuração antes da conferência do terminal, sairia com 10, não com 2.
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+    QElapsedTimer relogio;
+    relogio.start();
+    const Execucao execucao = rodarCliEmSegundoPlano(argumentos, configDir.path());
+    QVERIFY2(execucao.codigo != 99, "a CLI em segundo plano não pode parar por SIGTTOU");
+    QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("cofre.terminal_em_segundo_plano"), "a recusa tem de trazer o código cofre.terminal_em_segundo_plano");
+    QVERIFY2(!execucao.saida.contains("senha do certificado"), "a senha não pode ser pedida num terminal em segundo plano");
+    QVERIFY2(relogio.elapsed() < 10000, "a recusa tem de ser rápida: nada de espera de terminal");
+}
+
+void TstCliEmitir::cliSenhaNuncaPorArgumentoNemAmbiente()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:9443"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    // Por argumento: o valor não é numérico, a CLI recusa com uso, e o valor nunca volta na saída.
+    const QStringList porArgumento{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                                   QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                   QStringLiteral("--senha-certificado-fd"), QString::fromUtf8(senha)};
+    const Execucao recusada = rodarCliNoTerminal(porArgumento, configDir.path(), senha);
+    QVERIFY2(recusada.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(recusada.codigo).arg(QString::fromUtf8(recusada.saida))));
+    QVERIFY2(!recusada.saida.contains(senha), "a senha por argumento não pode aparecer na saída");
+    // Por ambiente: a variável é ignorada. Sem nada digitado no terminal, a CLI não emite.
+    qputenv("NL_SENHA_CERTIFICADO", senha);
+    qputenv("NOTALIVRE_SENHA_CERTIFICADO", senha);
+    const QStringList sem{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                          QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+    const Execucao ambiente = rodarCliNoTerminal(sem, configDir.path(), QByteArray());
+    qunsetenv("NL_SENHA_CERTIFICADO");
+    qunsetenv("NOTALIVRE_SENHA_CERTIFICADO");
+    QVERIFY2(!ambiente.saida.contains("emitida: chave "), "a variável de ambiente não pode liberar a emissão");
+    QVERIFY2(!ambiente.saida.contains(senha), "a senha do ambiente não pode aparecer na saída");
+}
+
+void TstCliEmitir::cliDescritorVazioSaiCom2()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:9443"));
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 QStringLiteral("--senha-certificado-fd"), QStringLiteral("3")};
+    const Execucao execucao = rodarCliComSegredoNoDescritor(argumentos, configDir.path(), QByteArrayLiteral("\n"));
+    QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("cofre.senha_vazia"), "senha vazia pelo descritor tem de sair com cofre.senha_vazia");
+}
+
+void TstCliEmitir::senhaDoDescritorNaoVazaNoLogNemNaSaida()
+{
+    // Senha aleatória desta execução: não abre o A1 de fixture, então a CLI recusa no carregamento (código 1). O teste prova que
+    // os bytes chegaram ao carregador e não aparecem em lugar nenhum da saída, nem no log da pasta varrida pelo portão de PII.
+    const QByteArray aleatoria = "NL227-" + QString::number(QRandomGenerator::global()->generate64(), 36).toUtf8();
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:9443"));
+    QFile referencia(qEnvironmentVariable("NL_SEGREDOS_PII_REF"));
+    QVERIFY2(referencia.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append), "o arquivo de segredos da execução tem de abrir");
+    referencia.write("senha|" + aleatoria + "\n");
+    referencia.close();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/mei_minima.json"), QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao"),
+                                 QStringLiteral("--senha-certificado-fd"), QStringLiteral("3")};
+    const Execucao execucao = rodarCliComSegredoNoDescritor(argumentos, configDir.path(), aleatoria);
+    const QString pastaPii = qEnvironmentVariable("NL_LOGS_PII_CLI_DIR");
+    QVERIFY2(!pastaPii.isEmpty(), "NL_LOGS_PII_CLI_DIR tem de estar definido pelo CTest");
+    QVERIFY2(QDir().mkpath(pastaPii), "a pasta de logs da CLI tem de existir");
+    QFile logPii(pastaPii + QStringLiteral("/emitir_e2e_descritor_aleatoria.log"));
+    QVERIFY2(logPii.open(QIODevice::WriteOnly), "o log do e2e tem de abrir na pasta de logs da CLI");
+    logPii.write(execucao.saida);
+    QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("credencial.nao_carregou"), "a senha aleatória tem de chegar ao carregador e falhar lá");
+    QVERIFY2(!execucao.saida.contains(aleatoria), "a senha do descritor não pode aparecer na saída");
+    QVERIFY2(execucao.sobra.isEmpty(), "a CLI tem de ler o descritor até o fim");
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)

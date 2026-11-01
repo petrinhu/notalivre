@@ -26,9 +26,28 @@ private slots:
     // Configuração ou banco (NL-3.8, código 10): chave ausente, arquivo ilegível, caminho do certificado ilegível e algoritmo
     // de assinatura fora da lista (NL-2.10a, emenda 4). Nenhum deles sai como recusa comum.
     void configuracaoSaiComDez();
+    // NL-2.27 (DA-2.68, DA-2.16): erro de entrada da senha (sem terminal, terminal em segundo plano, descritor recusado, senha
+    // vazia ou acima do teto) sai com 2, por entrada explícita; não cai na recusa comum de 1.
+    void codigosDoSegredoSaemComDois();
+    // NL-2.27 (DA-2.68): Produção sem autorização headless sai com 11, por entrada explícita.
+    void headlessSemAutorizacaoSaiComOnze();
 };
 
 using nl::mid::composicao::codigoDeSaidaDaEmissao;
+
+void TstCodigoSaida::codigosDoSegredoSaemComDois()
+{
+    for (const char* codigo : {"cofre.senha_ausente", "cofre.terminal_em_segundo_plano", "cofre.descritor_invalido",
+                               "cofre.descritor_terminal", "cofre.descritor_legivel_por_outros", "cofre.senha_vazia",
+                               "cofre.senha_acima_do_teto", "cofre.descritor_falha_de_leitura"}) {
+        QCOMPARE(codigoDeSaidaDaEmissao(codigo), 2);
+    }
+}
+
+void TstCodigoSaida::headlessSemAutorizacaoSaiComOnze()
+{
+    QCOMPARE(codigoDeSaidaDaEmissao("headless.sem_autorizacao"), 11);
+}
 
 void TstCodigoSaida::codigosDeDocumentoSaemComQuatro()
 {
