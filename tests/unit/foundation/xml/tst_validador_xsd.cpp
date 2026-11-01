@@ -34,6 +34,8 @@
 
 namespace {
 
+using nl::teste::valorDaDistroAtual;
+
 const QString kDiretorioXsd = QStringLiteral(NL_XSD_PRODREST_DIR);
 const QString kManifesto = QStringLiteral(NL_XSD_PRODREST_MANIFESTO);
 const QString kRaiz = QStringLiteral(NL_XSD_PRODREST_RAIZ);
