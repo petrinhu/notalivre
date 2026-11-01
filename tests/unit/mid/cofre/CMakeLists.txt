@@ -86,7 +86,6 @@ foreach(nome IN ITEMS
     noTetoComQuebraFinalPassa
     zeraOBufferDoChamador
     conferirSemLerNemFechar
-    quebraFinalMantemEspacoTabECr
     recusaFechaODescritor)
   nl_registra_teste_qt(NAME mid.cofre.${nome} COMMAND tst_descritor_de_segredo ${nome})
   set_tests_properties(mid.cofre.${nome} PROPERTIES

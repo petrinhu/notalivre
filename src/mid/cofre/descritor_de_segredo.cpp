@@ -83,6 +83,11 @@ std::expected<nl::foundation::pkcs12::SenhaSegura, ErroDoSegredo> lerSenhaDoDesc
 {
     BufferZerado zerado{buffer};
     if (auto recusa = conferirDescritor(fd)) {
+        // NL-2.27, I4 (revisão de segurança): a recusa também fecha o descritor (DA-2.16). Inválido (0 a 2, não aberto) não é
+        // descritor que a leitura possa fechar com segurança: fica com o chamador.
+        if (*recusa != ErroDoSegredo::DescritorInvalido) {
+            ::close(fd);
+        }
         return std::unexpected(*recusa);
     }
     auto lidos = lerAteOTeto(fd, buffer);
