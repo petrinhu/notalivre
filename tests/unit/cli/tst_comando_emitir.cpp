@@ -3,14 +3,17 @@
 // Testes das travas de `notalivre emitir` antes da senha (NL-2.9, DA-2.5, spec 4.12): Produção bloqueada e CNPJ digitado.
 // NL-2.10b (emenda 3): --serie e --numero entram na DPS, e série ou nDps conflitantes saem com 2.
 // NL-2.10b (emenda 2, A1 e BAIXA-6): âncoras e [xsd] definidos em Produção saem com 10; número fracionário ou textual sai com 4.
-// Estes casos recusam antes de ler a senha, então não dependem de terminal. Cada teste aponta XDG_CONFIG_HOME para uma
-// configuração temporária.
+// Estes casos recusam antes de ler a senha. Como a conferência da entrada da senha (NL-2.27) roda antes da configuração, cada chamada
+// leva um descritor de teste (um pipe que nenhum caso lê): sem ele, a falta de terminal de controle sairia com 2 antes da regra
+// que o teste quer provar. Cada teste aponta XDG_CONFIG_HOME para uma configuração temporária.
 #include "argumentos_emitir.h"
 #include "comando_emitir.h"
 
 #include <nl/mid/composicao/registro_cli.h>
 
 #include <sstream>
+
+#include <unistd.h>
 
 #include <QByteArray>
 #include <QDir>
@@ -23,12 +26,31 @@
 
 namespace {
 
+// Descritor de teste da senha (NL-2.27): um pipe com bytes que nenhum caso lê. Vive o tempo do processo de teste. Devolve -1 se o
+// pipe não pôde ser criado: o caso então falha, em vez de passar por engano.
+int descritorDeTeste()
+{
+    static int par[2] = {-1, -1};
+    static const bool pronto = [] {
+        if (pipe(par) != 0) {
+            return false;
+        }
+        const char segredo[] = "segredo-de-teste-nao-lido\n";
+        return write(par[1], segredo, sizeof segredo - 1) == static_cast<ssize_t>(sizeof segredo - 1);
+    }();
+    return pronto ? par[0] : -1;
+}
+
 // Configuração temporária, apontada por XDG_CONFIG_HOME. A pasta fica viva enquanto o objeto existir.
 int emitirComRegistro(const QStringList& argumentos)
 {
+    QStringList completos = argumentos;
+    if (!completos.contains(QStringLiteral("--senha-certificado-fd"))) {
+        completos << QStringLiteral("--senha-certificado-fd") << QString::number(descritorDeTeste());
+    }
     std::ostringstream destino;
     auto registro = nl::mid::composicao::criarLogDaCli(destino);
-    return nl::cli::executarEmitir(argumentos, *registro);
+    return nl::cli::executarEmitir(completos, *registro);
 }
 
 // Padrão: Produção com [emissao] falso e sem [xsd] nem âncoras (fora de Homologação, essas chaves são erro de configuração).
