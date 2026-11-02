@@ -60,8 +60,12 @@ void TstCodigoTribMunicipal::vazioRecusa()
 
 void TstCodigoTribMunicipal::igualdadePeloTexto()
 {
-    QCOMPARE(CodigoTribMunicipal::de(u"501"), CodigoTribMunicipal::de(u"501"));
-    QVERIFY(CodigoTribMunicipal::de(u"501") != CodigoTribMunicipal::de(u"502"));
+    const auto a = CodigoTribMunicipal::de(u"501");
+    const auto b = CodigoTribMunicipal::de(u"501");
+    const auto c = CodigoTribMunicipal::de(u"502");
+    QVERIFY(a.has_value() && b.has_value() && c.has_value());
+    QVERIFY(*a == *b);
+    QVERIFY(*a != *c);
 }
 
 QTEST_GUILESS_MAIN(TstCodigoTribMunicipal)

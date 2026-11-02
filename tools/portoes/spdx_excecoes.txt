@@ -25,4 +25,3 @@ tests/e2e/dps_validar/entradas/ctribmun_501.json|JSON não comporta comentário,
 tests/e2e/dps_validar/entradas/ctribmun_000.json|JSON não comporta comentário, então não tem cabeçalho SPDX: é entrada de dados do arnês NL-2.10h (sem código); licença do repositório (LICENSE, GPL-3.0-or-later)
 tests/e2e/dps_validar/entradas/ctribmun_dois_digitos.json|JSON não comporta comentário, então não tem cabeçalho SPDX: é entrada de dados do arnês NL-2.10h (sem código); licença do repositório (LICENSE, GPL-3.0-or-later)
 tests/e2e/dps_validar/entradas/ctribmun_letra.json|JSON não comporta comentário, então não tem cabeçalho SPDX: é entrada de dados do arnês NL-2.10h (sem código); licença do repositório (LICENSE, GPL-3.0-or-later)
-tests/e2e/dps_validar/entradas/ctribmun_mei.json|JSON não comporta comentário, então não tem cabeçalho SPDX: é entrada de dados do arnês NL-2.10h (sem código); licença do repositório (LICENSE, GPL-3.0-or-later)

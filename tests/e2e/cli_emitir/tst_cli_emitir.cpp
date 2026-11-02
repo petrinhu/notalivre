@@ -686,66 +686,25 @@ void TstCliEmitir::cliRecusaDpsInvalidaSemPost()
 
 void TstCliEmitir::cliEmiteComCTribMunPeloServidorFalso()
 {
-    // NL-2.10h (H1): mesmo caminho de cliEmiteDpsAceitaPeloServidorFalso, com entrada de ME/EPP que traz cTribMun 501.
+    // NL-2.10h (H1): entrada de ME/EPP com cTribMun 501 sai assinada (rsa-sha256, sem a trava de SHA-1 do fedora44) e o servidor
+    // falso a aceita: a revalidação do XSD e o oráculo passam com o elemento presente. A presença e a ordem no XML são provadas
+    // por tst_dps_validar (cTribMunEntraNoXmlEntreCTribNacECNbs) e pelo codec (tst_codec_dps).
     QTemporaryDir configDir;
     QVERIFY(configDir.isValid());
-    QDir().mkpath(configDir.filePath(QStringLiteral("notalivre")));
-
-    ServidorFalso servidor;
+    ServidorFalso servidor(QString(), QStringLiteral("/SefinNacional"));
     QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
-
-    const QString config = QStringLiteral(
-        "[sefin]\n"
-        "url = https://127.0.0.1:%1\n"
-        "prefixo = /SefinNacional\n"
-        "ancoras_tls = %2/ac.pem\n"
-        "[certificado]\n"
-        "ancoras = %2/ac.pem\n"
-        "caminho = %2/cnpj_ok.pfx\n"
-        "[xsd]\n"
-        "diretorio = %3\n"
-        "manifesto = %4\n"
-        "[emissao]\n"
-        "producao_liberada = false\n")
-                             .arg(servidor.porta())
-                             .arg(kCertificados)
-                             .arg(kXsd)
-                             .arg(kManifesto);
-    QFile arquivoConfig(configDir.filePath(QStringLiteral("notalivre/config.ini")));
-    QVERIFY(arquivoConfig.open(QIODevice::WriteOnly | QIODevice::Text));
-    arquivoConfig.write(config.toUtf8());
-    arquivoConfig.close();
-
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"));
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
     QVERIFY2(!senha.isEmpty(), "a senha da fixture sintética tem de existir");
-    QFile referencia(qEnvironmentVariable("NL_SEGREDOS_PII_REF"));
-    QVERIFY2(referencia.open(QIODevice::WriteOnly | QIODevice::Text), "o arquivo de segredos da execução tem de abrir");
-    referencia.write("# segredos desta execução\nsenha|" + senha + "\n");
-    referencia.close();
-
-    const QString esperado = esperadoDaDistro();
-    QVERIFY2(!esperado.isEmpty(), "a distro desta máquina tem de estar em tabela_sha1_por_distro.txt");
-
-    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/ctribmun_501.json"), QStringLiteral("--serie"),
-                                 QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"),
-                                 QStringLiteral("homologacao")};
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/ctribmun_501.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
-
-    const QString pastaPii = qEnvironmentVariable("NL_LOGS_PII_CLI_DIR");
-    QVERIFY2(!pastaPii.isEmpty(), "NL_LOGS_PII_CLI_DIR tem de estar definido pelo CTest");
-    QVERIFY2(QDir().mkpath(pastaPii), "a pasta de logs da CLI tem de existir");
-    QFile logPii(pastaPii + QStringLiteral("/emitir_ctribmun_e2e.log"));
-    QVERIFY2(logPii.open(QIODevice::WriteOnly), "o log do e2e tem de abrir na pasta de logs da CLI");
-    logPii.write(execucao.saida);
-
-    if (esperado == QStringLiteral("algoritmo_bloqueado")) {
-        QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
-        QVERIFY2(execucao.saida.contains("assinatura.algoritmo_bloqueado"), "nesta distro, a assinatura SHA-1 tem de ser recusada pelo código da tabela");
-        return;
-    }
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída do terminal: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+    QVERIFY2(servidor.caminhosAoFechar().contains(QStringLiteral("/SefinNacional/nfse")), "o POST tinha de chegar em /SefinNacional/nfse");
 }
 
 void TstCliEmitir::cliRecusaCTribMunZeroSemPost()

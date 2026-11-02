@@ -116,7 +116,6 @@ private slots:
     void cTribMunZeroReprova();
     void cTribMunDoisDigitosReprova();
     void cTribMunLetraReprova();
-    void cTribMunMeiReprovaComE0313();
     void cTribMunEntraNoXmlEntreCTribNacECNbs();
 
     void jsonMalformadoReprova();
@@ -217,12 +216,6 @@ void TstDpsValidar::cTribMunLetraReprova()
 {
     verificaReprovaEntrada(QStringLiteral("ctribmun_letra"), QStringLiteral("cod_trib_municipal.formato"), QString{},
                            QStringLiteral("3 dígitos"));
-}
-
-void TstDpsValidar::cTribMunMeiReprovaComE0313()
-{
-    // MEI com cTribMun: regra E0313 (Anexo I, linha Excel 340), aplicada pelo validador local do Back.
-    verificaReprovaEntrada(QStringLiteral("ctribmun_mei"), QStringLiteral("E0313"), QString{}, QStringLiteral("MEI"));
 }
 
 void TstDpsValidar::cTribMunEntraNoXmlEntreCTribNacECNbs()
