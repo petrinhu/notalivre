@@ -118,6 +118,17 @@ private slots:
     void cTribMunLetraReprova();
     void cTribMunEntraNoXmlEntreCTribNacECNbs();
 
+    // NL-2.10j (J1): totTrib nas quatro formas do XSD, por regime, com as faixas e o conflito de formas.
+    void totTribPTotTribSNMeEppAceitaNoXml();
+    void totTribPTotTribMeEppAceitaNoXmlNaOrdem();
+    void totTribPTotTribNaoOptanteAceitaNoXml();
+    void totTribIndTotTribMeEppRecusaComE0712();
+    void totTribPTotTribSNMeiRecusaComE0710();
+    void totTribIndTotTribNaoOptanteRecusaComE0713();
+    void totTribPercentualAcimaDe100RecusaComFaixa();
+    void totTribValorAcimaDoServicoRecusaComFaixa();
+    void totTribDuasFormasRecusamConflito();
+
     void jsonMalformadoReprova();
     void tipoInvalidoReprova();
     void serieForaDaFaixaReprova();
@@ -237,6 +248,83 @@ void TstDpsValidar::cTribMunEntraNoXmlEntreCTribNacECNbs()
     QVERIFY2(posMun >= 0, "o XML tem de trazer <cTribMun>501</cTribMun>");
     QVERIFY2(posNac >= 0 && posNac < posMun, "cTribMun tem de vir depois de cTribNac");
     QVERIFY2(posMun < posNbs, "cTribMun tem de vir antes de cNBS");
+}
+
+// NL-2.10j (J1): cada forma de totTrib entra no XML validado; a recusa por regime e por faixa sai antes da assinatura (dps.*).
+void TstDpsValidar::totTribPTotTribSNMeEppAceitaNoXml()
+{
+    const QString saida = caminhoSaida(QStringLiteral("totTrib_pTotTribSN_me"));
+    QFile::remove(saida);
+    const Execucao execucao = executarCli(argumentosValidar(caminhoEntrada(QStringLiteral("totTrib_pTotTribSN_me")), saida));
+    QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1, stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
+    bool lido = false;
+    const QByteArray gerado = lerArquivo(saida, &lido);
+    QVERIFY2(lido, "não consegui ler o XML gravado pela CLI");
+    QVERIFY2(gerado.contains("<pTotTribSN>4.50</pTotTribSN>"), "o XML tem de trazer <pTotTribSN>4.50</pTotTribSN>");
+    QVERIFY2(!gerado.contains("<indTotTrib>"), "pTotTribSN não pode vir com indTotTrib");
+}
+
+void TstDpsValidar::totTribPTotTribMeEppAceitaNoXmlNaOrdem()
+{
+    const QString saida = caminhoSaida(QStringLiteral("totTrib_pTotTrib_me"));
+    QFile::remove(saida);
+    const Execucao execucao = executarCli(argumentosValidar(caminhoEntrada(QStringLiteral("totTrib_pTotTrib_me")), saida));
+    QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1, stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
+    bool lido = false;
+    const QByteArray gerado = lerArquivo(saida, &lido);
+    QVERIFY2(lido, "não consegui ler o XML gravado pela CLI");
+    const qsizetype fed = gerado.indexOf("<pTotTribFed>1.00</pTotTribFed>");
+    const qsizetype est = gerado.indexOf("<pTotTribEst>0.00</pTotTribEst>");
+    const qsizetype mun = gerado.indexOf("<pTotTribMun>0.00</pTotTribMun>");
+    QVERIFY2(fed >= 0 && est >= 0 && mun >= 0, "o XML tem de trazer os três percentuais de pTotTrib");
+    QVERIFY2(fed < est && est < mun, "os percentuais de pTotTrib têm de sair na ordem Fed, Est, Mun do XSD");
+    QVERIFY2(!gerado.contains("<vTotTrib>"), "pTotTrib não pode vir com vTotTrib");
+}
+
+void TstDpsValidar::totTribPTotTribNaoOptanteAceitaNoXml()
+{
+    const QString saida = caminhoSaida(QStringLiteral("totTrib_pTotTrib_nao_optante"));
+    QFile::remove(saida);
+    const Execucao execucao = executarCli(argumentosValidar(caminhoEntrada(QStringLiteral("totTrib_pTotTrib_nao_optante")), saida));
+    QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1, stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
+    bool lido = false;
+    const QByteArray gerado = lerArquivo(saida, &lido);
+    QVERIFY2(lido, "não consegui ler o XML gravado pela CLI");
+    QVERIFY2(gerado.contains("<pTotTribFed>1.00</pTotTribFed>"), "não optante aceita pTotTrib");
+}
+
+void TstDpsValidar::totTribIndTotTribMeEppRecusaComE0712()
+{
+    verificaReprovaEntrada(QStringLiteral("totTrib_indTotTrib_me"), QStringLiteral("dps.tottrib_regime"), QString{}, QStringLiteral("E0712"));
+}
+
+void TstDpsValidar::totTribPTotTribSNMeiRecusaComE0710()
+{
+    verificaReprovaEntrada(QStringLiteral("totTrib_pTotTribSN_mei"), QStringLiteral("dps.tottrib_regime"), QString{}, QStringLiteral("E0710"));
+}
+
+void TstDpsValidar::totTribIndTotTribNaoOptanteRecusaComE0713()
+{
+    verificaReprovaEntrada(QStringLiteral("totTrib_indTotTrib_nao_optante"), QStringLiteral("dps.tottrib_regime"), QString{}, QStringLiteral("E0713"));
+}
+
+void TstDpsValidar::totTribPercentualAcimaDe100RecusaComFaixa()
+{
+    verificaReprovaEntrada(QStringLiteral("totTrib_pTotTribFed_acima"), QStringLiteral("dps.tottrib_faixa"), QString{}, QStringLiteral("E0706"));
+}
+
+void TstDpsValidar::totTribValorAcimaDoServicoRecusaComFaixa()
+{
+    verificaReprovaEntrada(QStringLiteral("totTrib_vTotTrib_acima"), QStringLiteral("dps.tottrib_faixa"), QString{}, QStringLiteral("E0702"));
+}
+
+void TstDpsValidar::totTribDuasFormasRecusamConflito()
+{
+    verificaReprovaEntrada(QStringLiteral("totTrib_duas_formas"), QStringLiteral("entrada.campos_conflitantes"), QStringLiteral("valores.totTrib"),
+                           QStringLiteral("não os dois"));
 }
 
 void TstDpsValidar::jsonMalformadoReprova()
