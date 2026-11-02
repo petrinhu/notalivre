@@ -99,6 +99,13 @@ std::vector<CasoDeViolacao> casosDeViolacao()
         o.tpOper = false;
         casos.push_back({"E0903", o});
     }
+    {
+        // NL-2.10h (H1): MEI com cTribMun (regra E0313, linha Excel 340).
+        teste::Opcoes o;
+        o.opSimpNac = "2";
+        o.cTribMun = std::string{"501"};
+        casos.push_back({"E0313", o});
+    }
     return casos;
 }
 
@@ -191,7 +198,7 @@ void TstValidadorLocal::padraoDetectaCadaCodigoDoConjunto()
     const teste::CatalogoFalso catalogo;
     const auto validador = ValidadorLocal::padrao(catalogo);
     const auto casos = casosDeViolacao();
-    QCOMPARE(casos.size(), std::size_t{12});
+    QCOMPARE(casos.size(), std::size_t{13});
     for (const auto& caso : casos) {
         const auto dps = teste::dpsCom(caso.opcoes);
         QVERIFY2(dps.has_value(), caso.codigo);

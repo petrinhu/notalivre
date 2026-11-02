@@ -162,7 +162,7 @@ inline std::optional<nb::DadosDps> dadosMei(const QString& cnpj, const QString& 
         .subst = std::nullopt,
         .prest = nb::Prestador::montar(nb::Inscricao{*cnpjPrest}, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, *regime),
         .toma = std::nullopt,
-        .serv = nb::Servico::montar(*cLocPrestacao, *cTribNac, *descricao, std::nullopt),
+        .serv = nb::Servico::montar(*cLocPrestacao, *cTribNac, std::nullopt, *descricao, std::nullopt),
         .valores = nb::ValoresServico::montar(*vServ, nb::Tributacao::montar(*municipal, nb::TotalTributos{*indTot})),
         .ibscbs = std::nullopt,
     };
@@ -217,7 +217,7 @@ inline std::optional<nb::DadosDps> dadosSimplesIbsCbs()
         return std::nullopt;
     }
     dados->prest = nb::Prestador::montar(dados->prest.inscricao(), *im, *xNome, *endereco, std::nullopt, std::nullopt, *regime);
-    dados->serv = nb::Servico::montar(dados->serv.cLocPrestacao(), dados->serv.cTribNac(), dados->serv.xDescServ(), *cNbs);
+    dados->serv = nb::Servico::montar(dados->serv.cLocPrestacao(), dados->serv.cTribNac(), std::nullopt, dados->serv.xDescServ(), *cNbs);
     dados->valores = nb::ValoresServico::montar(*vServ, nb::Tributacao::montar(*municipal, nb::TotalTributos{monetarios}));
     dados->ibscbs = *ibs;
     return dados;
@@ -226,6 +226,18 @@ inline std::optional<nb::DadosDps> dadosSimplesIbsCbs()
 inline std::optional<nb::Dps> dpsSimplesIbsCbs()
 {
     return montarDps(dadosSimplesIbsCbs());
+}
+
+/// Simples Nacional (ME/EPP) com cTribMun 501 (NL-2.10h, H1): o grupo serv leva cTribMun entre cTribNac e cNBS.
+inline std::optional<nb::Dps> dpsSimplesComCTribMun()
+{
+    auto dados = dadosSimplesIbsCbs();
+    const auto cTribMun = ok(nb::CodigoTribMunicipal::de(u"501"));
+    if (!dados || !cTribMun) {
+        return std::nullopt;
+    }
+    dados->serv = nb::Servico::montar(dados->serv.cLocPrestacao(), dados->serv.cTribNac(), *cTribMun, dados->serv.xDescServ(), dados->serv.cNBS());
+    return montarDps(dados);
 }
 
 /// MEI com tomador pessoa física sem endereço (o endereço do tomador é opcional no XSD).
