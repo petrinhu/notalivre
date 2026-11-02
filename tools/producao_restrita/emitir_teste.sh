@@ -24,8 +24,8 @@
 #     https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/anexo_b-nbs2-lista_servico_nacional-snnfse-v1-01-20260122.xlsx
 #     (SHA-256 e74b0be8ad204e458932efb1716225a3fb5703a84e5475ce5c4c6789d1c61b1a, aba LISTA.SERV.NAC.).
 #
-# Regras que o script cumpre: o caminho do .pfx nunca é impresso, copiado, listado nem gravado em log; a inscrição e a IM
-# não vão a arquivo versionado nem a saída (NL-2.10g); nenhuma chamada vai à Produção; nada é apagado por este script; só há tentativa 2
+# Regras que o script cumpre: o caminho do .pfx nunca é impresso, copiado, listado nem gravado em log; ele só é guardado, se o usuário escolher, no arquivo de lembrar (0600, numa pasta 0700 em $XDG_STATE_HOME), e o --esquecer o apaga.
+# A inscrição e a IM não vão a arquivo versionado nem a saída (NL-2.10g); nenhuma chamada vai à Produção; nada é apagado por este script; só há tentativa 2
 # (base) se a Sefin responder 404, e tentativa 3 (algoritmo rsa-sha256) se ela responder E0714.
 
 set -u
@@ -359,6 +359,7 @@ BA_OPSIMP=""
 BA_MUN=""
 BA_ATIVA=""
 LEMBRAR_EXCLUIR=""
+PFX_USADO=""
 LEMBRAR_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/notalivre-teste"
 LEMBRAR="$LEMBRAR_DIR/lembrar"
 AVISO_HISTORICO='Aviso: o número de CPF ou CNPJ digitado na linha de comando fica gravado no histórico do terminal e, enquanto o script roda, aparece para outros usuários desta máquina na lista de processos. Para não deixar esse rastro, rode sem --cpf e sem --cnpj: a janela pede o número. Começar o comando com um espaço só tira a linha do histórico se o seu terminal estiver configurado para isso.'
@@ -615,6 +616,17 @@ anunciar_origens() {
     printf 'município: %s, %s\n' "$MUN_EMI" "$(texto_origem "${ORIG[municipio]:-padrao}")"
 }
 
+# DA-2.94 (CISO): confere o caminho guardado do .pfx sem abri-lo (lstat, por testes de bash): absoluto, arquivo comum,
+# não é link simbólico e é do usuário. Qualquer falha manda à janela; nada disso imprime o caminho.
+pfx_guardado_ok() {
+    local p="$1"
+    case "$p" in
+        /*) ;;
+        *) return 1 ;;
+    esac
+    [ ! -L "$p" ] && [ -f "$p" ] && [ -O "$p" ]
+}
+
 # Arquivo de lembrar (C5, DA-2.91): $XDG_STATE_HOME/notalivre-teste/lembrar, 0600 numa pasta 0700. O CPF nunca entra.
 lembrar_valido() {
     local chave="$1" v="$2"
@@ -627,6 +639,7 @@ lembrar_valido() {
         cnpj) cnpj_valido "$v" ;;
         im) valida_texto_fechado 15 "$v" ;;
         data) [[ "$v" =~ ^[0-9-]{8,10}$ ]] ;;
+        pfx) [[ "$v" == /* && ${#v} -le 4096 && "$v" != *[[:cntrl:]]* ]] ;;
         origem_*) [[ "$v" =~ ^(consulta|opcao|lembrado|padrao)$ ]] ;;
         *) return 1 ;;
     esac
@@ -668,9 +681,11 @@ gravar_lembrar() {
     novo[sem_im]=$SEM_IM
     if [ "$INSC_TIPO" = cnpj ]; then novo[cnpj]=$INSC_VALOR; fi
     if [ "$SEM_IM" = 0 ] && [ -n "$IM" ]; then novo[im]=$IM; fi
+    # DA-2.94: o caminho do .pfx usado vai só para o arquivo de lembrar (0600, pasta 0700); nunca é impresso.
+    if [ -n "${PFX_USADO:-}" ]; then novo[pfx]=$PFX_USADO; fi
     novo[data]=$(date +%Y-%m-%d)
     mkdir -p -- "$LEMBRAR_DIR" && chmod 700 "$LEMBRAR_DIR" || return 1
-    for chave in opsimpnac regaptribsn regesptrib municipio ctribnac sem_im cnpj im data; do
+    for chave in opsimpnac regaptribsn regesptrib municipio ctribnac sem_im cnpj im pfx data; do
         [ -n "${novo[$chave]+x}" ] || continue
         case " $LEMBRAR_EXCLUIR " in *" $chave "*) continue ;; esac
         case "$chave" in
@@ -749,7 +764,11 @@ Cada opção vale como --opcao valor ou --opcao=valor.
   --ret-issqn N   retenção do ISSQN: só 1 neste script (não há tomador). Padrão 1.
   --valor V       valor do serviço, como 10,00 (ponto ou vírgula). Padrão 10,00.
   --descricao T   descrição do serviço, de 1 a 2000 caracteres: letras, números, espaço e . , ; : - / ( ) %.
-  --esquecer      apaga o que o script lembrou do emissor e sai, sem emitir.
+  --esquecer      apaga tudo o que o script lembrou (CNPJ, IM, regime e o caminho do certificado) e sai, sem emitir.
+
+O caminho do certificado (.pfx) fica guardado no lembrado, se você escolher na janela. Nas vezes seguintes só a senha é
+pedida. Se o caminho guardado não existir mais, for link simbólico ou não for seu, a janela pergunta de novo.
+O caminho nunca é impresso.
   --help, -h      mostra esta ajuda e sai com 0, sem perguntar nada.
 
 Precedência de cada campo: opção na linha de comando, depois o lembrado, depois a consulta pública (regime e município,
@@ -818,8 +837,18 @@ fluxo() {
     anunciar_origens
 
     # 3.3: o .pfx é escolhido pelo líder e só passa ao document-export. Nunca é impresso nem listado.
-    local pfx
-    pfx=$(perguntar "Escolha o arquivo .pfx do certificado" pfx)
+    # DA-2.94: o caminho guardado no lembrar é usado sem janela se passar na conferência; se não passar, a janela pergunta de novo.
+    local pfx=""
+    if [ -n "${LEM[pfx]+x}" ]; then
+        if pfx_guardado_ok "${LEM[pfx]}"; then
+            pfx=${LEM[pfx]}
+        else
+            printf 'AVISO: o certificado guardado não pode ser usado; escolha o arquivo de novo.\n'
+        fi
+    fi
+    if [ -z "$pfx" ]; then
+        pfx=$(perguntar "Escolha o arquivo .pfx do certificado" pfx)
+    fi
     # INFO-S8: caminho relativo (ou que começa por "-") não entra; o flatpak o leria como opção ou fora do lugar.
     # CISO (BAIXA-S3, condição 1): a mensagem fala só do "certificado escolhido"; o caminho nunca é impresso.
     [ -n "$pfx" ] || falha "certificado escolhido não pôde ser lido. Nada foi emitido."
@@ -829,6 +858,7 @@ fluxo() {
     esac
     [ -f "$pfx" ] && [ -r "$pfx" ] || falha "certificado escolhido não pôde ser lido. Nada foi emitido."
     DOC_PFX=$(flatpak document-export --app="$APP" --forbid-write "$pfx" 2>/dev/null) || DOC_PFX=""
+    PFX_USADO=$pfx
     pfx=""
     case "$DOC_PFX" in
         /run/user/*) ;;
