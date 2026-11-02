@@ -163,7 +163,9 @@ void TstTotTribRegime::percentualSnAte9999Aceita()
 
 void TstTotTribRegime::percentualSnAcimaDe9999Recusa()
 {
-    QCOMPARE(teste::codigoDoErro(nl::back::PercentualTributoSn::de(u"100.00")), QStringLiteral("percentual_sn.formato"));
+    const auto sn = nl::back::PercentualTributoSn::de(u"100.00");
+    QVERIFY(!sn.has_value());
+    QCOMPARE(QString::fromStdString(sn.error().codigo()), QStringLiteral("percentual_sn.formato"));
 }
 
 QTEST_GUILESS_MAIN(TstTotTribRegime)
