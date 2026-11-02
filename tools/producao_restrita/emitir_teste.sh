@@ -1274,6 +1274,29 @@ grupo_fechar() {
     fi
 }
 
+# DA-2.92 (CTO): duas execuções seguidas na mesma pasta. Confere o número depois da primeira (rc1 e ndps1) e o nDps da segunda.
+ensaio_sequencia() {
+    local nome="$1" seq1="$2" seq2="$3" rc1_esp="$4" ndps1_esp="$5" ndps2_esp="$6" dir r1 r2 ndps1 problema=""
+    dir="$RAIZ/$nome"
+    mkdir -p "$dir"
+    printf 'pfxsecreto-ensaio' > "$dir/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ="$seq1" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    ndps1=$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null || echo ausente)
+    env NL_ENSAIO_SEQ="$seq2" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    [ "$r1" -eq "$rc1_esp" ] || problema="$problema rc1=$r1(esperado $rc1_esp)"
+    [ "$ndps1" = "$ndps1_esp" ] || problema="$problema ndps_apos_1=$ndps1(esperado $ndps1_esp)"
+    grep -q "\"nDps\": $ndps2_esp," "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_2_nao_e_$ndps2_esp"
+    if [ -z "$problema" ]; then
+        printf 'ok %s\n' "$nome"
+    else
+        printf 'FALHA %s:%s\n' "$nome" "$problema"
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    CASOS=$(( CASOS + 1 ))
+}
+
 # Dois envios seguidos na mesma pasta: o segundo tem de usar o número seguinte (nunca repete).
 ensaio_dois_envios() {
     local nome=dois_envios_numeros_diferentes dir="$RAIZ/dois_envios_numeros_diferentes" r1 r2 ndps
@@ -1462,6 +1485,10 @@ ensaio() {
     ensaio_caso v_descricao_invalido 1 "de 1 a 2000 caracteres" 0 0 "" NL_ENSAIO_OPCOES='--descricao|Teste "aspas"' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_sem_im_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--sem-im|--cnpj|11222333000181' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_AUSENTE='"im"' NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_sem_im_invalido 1 "não podem vir juntos" 0 0 "" NL_ENSAIO_OPCOES='--sem-im|--im|IMENS-7731' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    # DA-2.92 (CTO): o número é reservado antes da chamada. Ctrl+C no meio do POST (INT, saída 130) gasta o número, e a
+    # execução seguinte usa o próximo. Falha local devolve o número. O primeiro caso fica vermelho antes da implementação.
+    ensaio_sequencia ndps_ctrlc_gasta_o_numero interrompe aceita 130 1 2
+    ensaio_sequencia ndps_falha_local_devolve_o_numero local aceita 1 ausente 1
     # CISO (BAIXA-S3, condição 1): o script não liga o rastreio do shell.
     local marca_xtrace marca_bash
     marca_xtrace="set -$(printf x)"
