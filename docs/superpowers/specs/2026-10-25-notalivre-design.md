@@ -204,6 +204,7 @@
   - o que acontece com a senha no chaveiro quando o usuário troca de certificado;
   - limite de número de emissores por instalação (não fixado).
 - **Custódia:** Narciso (preenchimento de C-level). Brief: nunca embutir certificado nem senha no código.
+- **Dados do emissor no cofre (decisão do líder, 01/11/2026).** Verbatim: "janela do script ou --ie [inscricao estadual] e --cnpj [cnpj] e --cpf [cpf]. Na GUI tudo isso pode ficar salvo no cofre." Na pergunta seguinte, sobre --im, --cnpj, --cpf e --ie, o líder respondeu "1+2" por AskUserQuestion: aceitar --im, --cnpj e --cpf, com a janela perguntando o que faltar; aceitar também --ie, só para guardar, sem ir na nota. Preenchimento do agente, não é ordem do líder: a GUI guarda no cofre o CNPJ ou o CPF, a IM e a IE do emissor. A IE não vai na NFS-e, porque a NFS-e não tem campo de IE. A IM é a inscrição municipal, exigida pela Sefin (E0116). Remissão: 4.16.
 - **Botão "Trocar emissor" do cabeçalho (decisão do líder, 26/10/2026, opção escolhida: "Adiar para NL-4.4/8.5 (Recomendado)").** Até a tela de emissores existir (NL-4.4 e NL-8.5 do plano), o botão fica visível e desabilitado, com dica dizendo que a troca de emissor chega numa versão seguinte.
 
 ### 4.6 Emissão, eventos e consulta
@@ -384,6 +385,7 @@ Propostas do orquestrador, registradas em 25/10/2026 após a revisão com as res
 
 - **Local e formato** (decisão do líder, 01/11/2026, opções escolhidas: "Padrão do Flatpak (Recomendado)" e "JSON (Recomendado)"). As configurações ficam em `$XDG_CONFIG_HOME/notalivre/`. No Flatpak, o caminho é `~/.var/app/io.github.petrinhu.notalivre/config/notalivre/`, sem `--filesystem=home`. O formato é JSON, com versão do formato.
 - **Senhas** (decisão do líder, 01/11/2026, resposta livre, ver abaixo). Senhas nunca vão ao arquivo de configuração; ficam só no cofre.
+- **Dados do emissor** (CNPJ ou CPF, IM e IE): ficam no cofre, nunca no arquivo de configuração (preenchimento do agente, a partir da decisão de 01/11/2026). Ver 4.5.
 - **Exportar e importar** (decisão do líder, 01/11/2026, resposta livre). Verbatim: "Sim, sem senhas. As configs devem ser por usuário." A exportação e a importação não levam senha.
 - **Um arquivo por emissor** (decisão do líder, 01/11/2026, resposta livre). Verbatim: "O arquivo deve ter nome [hash-16].json e o hash deve ser calculado pelo cpf/cnpj." Opção escolhida: "Hash com chave local (Recomendado)". Preenchimento do main, aceito pelo líder na opção: HMAC do CPF/CNPJ normalizado, com uma chave sorteada na instalação e guardada no cofre; o nome tem 16 caracteres hexadecimais; a importação recalcula o nome.
 - **app.json** (decisão do líder, 01/11/2026, opção escolhida: "Sim, app.json (Recomendado)"). Guarda o último emissor usado, o tema e o idioma. O nome `app.json` é preenchimento do main, aceito pelo líder na opção. O último emissor é apontado pelo nome do arquivo, nunca pelo CPF/CNPJ (preenchimento do main, aceito na mesma opção).
