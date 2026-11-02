@@ -1081,6 +1081,8 @@ STUB
 # Stub do kdialog para o ensaio: devolve um .pfx de faz de conta e uma inscrição (CNPJ ou CPF) e uma IM de teste.
 case "$1" in
     --getopenfilename)
+        # DA-2.94: registra que a janela do .pfx abriu (arquivo à parte, para não mexer nas listas de perguntas).
+        echo pfx >> "$NL_ENSAIO_DIR/pfx-perguntado.txt"
         [ "${NL_ENSAIO_PFX_VAZIO:-}" = 1 ] && exit 1
         if [ "${NL_ENSAIO_PFX_RELATIVO:-}" = 1 ]; then
             printf '%s\n' "pfxsecreto-ensaio.p12"
@@ -1153,7 +1155,7 @@ ensaio_caso() {
     shift 6
     local dir="$RAIZ/$nome" entrada rc saidas emit problema="" pfx_nome="pfxsecreto-ensaio.p12" sem_kd=0 par ndps_esp=""
     local semente="" perg_esp="" dps_esp="" dps_ausente="" saida_esp="" segredo="" opcoes_txt="" arq_ausente="" portal_ausente="" cham_esp=""
-    local lem_seed="" lem_modo="" lem_esp="" lem_aus="" cham_aus="" curl_esp="" varrer_disco="" plantar="" lem="$dir/home/.local/state/notalivre-teste/lembrar"
+    local lem_seed="" lem_modo="" lem_esp="" lem_aus="" cham_aus="" curl_esp="" varrer_disco="" plantar="" pfx_janela="" lem="$dir/home/.local/state/notalivre-teste/lembrar"
     mkdir -p "$dir"
     for par in "$@"; do
         case "$par" in
@@ -1178,6 +1180,7 @@ ensaio_caso() {
             NL_ENSAIO_CURL_ESPERADO=*) curl_esp="${par#NL_ENSAIO_CURL_ESPERADO=}" ;;
             NL_ENSAIO_VARRER_DISCO=*) varrer_disco="${par#NL_ENSAIO_VARRER_DISCO=}" ;;
             NL_ENSAIO_PLANTAR_JSON=*) plantar="${par#NL_ENSAIO_PLANTAR_JSON=}" ;;
+            NL_ENSAIO_PFX_JANELA=*) pfx_janela="${par#NL_ENSAIO_PFX_JANELA=}" ;;
         esac
     done
     # NL-2.10g: opções da linha de comando, separadas por | (o valor pode ter espaço ou aspas). Vazio = nenhuma opção.
@@ -1275,6 +1278,16 @@ ensaio_caso() {
         "$dir/base/devolucao" "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
         problema="$problema vazamento_do_valor_da_variante"
     fi
+    # DA-2.94: a janela do .pfx abre (sim) ou não abre (nao) nesta execução.
+    if [ -n "$pfx_janela" ]; then
+        local pfx_got=nao
+        [ -e "$dir/pfx-perguntado.txt" ] && pfx_got=sim
+        [ "$pfx_got" = "$pfx_janela" ] || problema="$problema janela_pfx=$pfx_got(esperado $pfx_janela)"
+    fi
+    # DA-2.94: o caminho do .pfx não aparece nas chamadas, salvo no document-export, que é o caminho já aceito.
+    if [ -f "$dir/chamadas.txt" ] && grep -v -F 'document-export' "$dir/chamadas.txt" | grep -q -F -- "$dir/pfxsecreto"; then
+        problema="$problema caminho_do_pfx_em_chamadas"
+    fi
     # Rodada 2 (revisor, mutante 3a): a resposta crua da BrasilAPI não pode ir a disco. Varre toda a árvore de base e de
     # XDG_STATE_HOME atrás das marcas do stub (razão e sócio fictícios).
     if [ "$varrer_disco" = 1 ] && grep -r -l -F -e RAZAO-FICTICIA -e SOCIO-FICTICIO "$dir/base" "$dir/home" >/dev/null 2>&1; then
@@ -1346,6 +1359,30 @@ grupo_fechar() {
         printf 'FALHA grupo %s: %s variante(s)\n' "$nome" "$falhas_grupo"
         FALHAS=$(( G_FALHAS + 1 ))
     fi
+}
+
+# DA-2.94 (líder, "Guardar o local"): a primeira execução abre a janela do .pfx e guarda o caminho; a segunda não abre.
+ensaio_segunda_sem_pfx() {
+    local nome=pfx_segunda_execucao_sem_janela dir r1 r2 problema=""
+    dir="$RAIZ/$nome"
+    mkdir -p "$dir"
+    printf 'pfxsecreto-ensaio' > "$dir/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    mv -f -- "$dir/pfx-perguntado.txt" "$dir/pfx-perguntado-1.txt" 2>/dev/null || true
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    r2=$?
+    [ "$r1" -eq 0 ] && [ "$r2" -eq 0 ] || problema="$problema rc=$r1/$r2"
+    [ -e "$dir/pfx-perguntado.txt" ] && problema="$problema janela_do_pfx_abriu_na_segunda"
+    grep -q '"nDps": 2,' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_2_nao_e_2"
+    if [ -z "$problema" ]; then
+        printf 'ok %s\n' "$nome"
+    else
+        printf 'FALHA %s:%s\n' "$nome" "$problema"
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    CASOS=$(( CASOS + 1 ))
 }
 
 # DA-2.92 (CTO): duas execuções seguidas na mesma pasta. Confere o número depois da primeira (rc1 e ndps1) e o nDps da segunda.
@@ -1544,7 +1581,7 @@ ensaio() {
     ensaio_caso r14_recusa_e0160_tira_opsimpnac 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_SEQ=E0160 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='use --opsimpnac' NL_ENSAIO_LEMBRAR_AUSENTE='opsimpnac=3'
     ensaio_caso r14_recusa_e0166_tira_regaptribsn 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_OPCOES='--regaptribsn|2' NL_ENSAIO_SEQ=E0166 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='use --regaptribsn' NL_ENSAIO_LEMBRAR_AUSENTE='regaptribsn=2'
     ensaio_caso r14_recusa_e0116_tira_im 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_SEQ=E0116 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='--sem-im' NL_ENSAIO_LEMBRAR_AUSENTE='im=IMENS-7731'
-    ensaio_caso r15_esquecer_apaga 0 "Lembrança apagada" 0 0 "" NL_ENSAIO_OPCOES='--esquecer' NL_ENSAIO_LEMBRAR='cnpj=11222333000181|im=IMENS-7731|opsimpnac=3|origem_opsimpnac=consulta' NL_ENSAIO_ARQUIVO_AUSENTE=home/.local/state/notalivre-teste/lembrar NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_CHAMADA_AUSENTE=flatpak
+    ensaio_caso r15_esquecer_apaga 0 "Lembrança apagada" 0 0 "" NL_ENSAIO_OPCOES='--esquecer' NL_ENSAIO_LEMBRAR='cnpj=11222333000181|im=IMENS-7731|opsimpnac=3|origem_opsimpnac=consulta|pfx=/caminho/guardado/pfxsecreto-ensaio.p12' NL_ENSAIO_ARQUIVO_AUSENTE=home/.local/state/notalivre-teste/lembrar NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_CHAMADA_AUSENTE=flatpak
     ensaio_caso r16_ajuda_help 0 "--opsimpnac" 0 0 "" NL_ENSAIO_OPCOES='--help' NL_ENSAIO_SAIDA_ESPERADA='fica gravado no histórico do terminal' NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_CHAMADA_AUSENTE=flatpak NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7
     ensaio_caso r16_ajuda_h 0 "--opsimpnac" 0 0 "" NL_ENSAIO_OPCOES='-h' NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_CHAMADA_AUSENTE=flatpak NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7
     ensaio_caso r17_varredura_descricao_e_json_so_na_dps 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_OPCOES='--cnpj|11222333000181|--im|IMENS-7731|--descricao|DESCSEG-ENSAIO teste' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"xDescServ": "DESCSEG-ENSAIO teste"'
@@ -1565,6 +1602,18 @@ ensaio() {
     # Rodada 2 (revisor, mutante 12): o parser da consulta lê com python3 -I; um json.py plantado no diretório de trabalho
     # não pode mudar o regime nem o município (o mei tem de sair opSimpNac 2 e cLocEmi 2611606).
     ensaio_caso r19_json_plantado_nao_muda_a_consulta 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=mei NL_ENSAIO_PLANTAR_JSON=1 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "2"|"cLocEmi": "2611606"'
+    # DA-2.94 (líder, "Guardar o local"): a segunda execução não abre a janela do .pfx; o caminho guardado que não passa na
+    # conferência (link simbólico, arquivo sumido, dono de outro usuário) volta à janela e é substituído. Os preparos ficam na pasta do caso.
+    ensaio_segunda_sem_pfx
+    mkdir -p "$RAIZ/p2_link_simbolico"
+    ln -s "$RAIZ/p2_link_simbolico/pfxsecreto-ensaio.p12" "$RAIZ/p2_link_simbolico/link-pfx.p12"
+    ensaio_caso p2_caminho_guardado_link_simbolico 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p2_link_simbolico/link-pfx.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p2_link_simbolico/pfxsecreto-ensaio.p12" NL_ENSAIO_LEMBRAR_AUSENTE='link-pfx.p12'
+    mkdir -p "$RAIZ/p3_arquivo_sumiu"
+    ensaio_caso p3_caminho_guardado_sumiu 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p3_arquivo_sumiu/sumiu.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p3_arquivo_sumiu/pfxsecreto-ensaio.p12"
+    mkdir -p "$RAIZ/p4_outro_dono"
+    printf 'outro\n' > "$RAIZ/p4_outro_dono/outro.p12"
+    chown 65534 "$RAIZ/p4_outro_dono/outro.p12"
+    ensaio_caso p4_caminho_guardado_outro_dono 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p4_outro_dono/outro.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p4_outro_dono/pfxsecreto-ensaio.p12"
     # Rodada 2 (revisor, mutante 3a): depois da consulta, nenhuma marca da resposta crua fica em base nem em home.
     ensaio_caso r18_resposta_crua_fora_do_disco 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_VARRER_DISCO=1
     # Rodada 2 (revisor, mutante 10b): barra invertida na descrição tem de parar antes do número, sem repetir o valor.
