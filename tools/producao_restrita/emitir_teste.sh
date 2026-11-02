@@ -59,6 +59,8 @@ falha() {
 if [ "$MODO" = caso ]; then
     : "${NL_ENSAIO_DIR:?ensaio sem NL_ENSAIO_DIR}"
     HOME="$NL_ENSAIO_DIR/home"
+    XDG_STATE_HOME="$HOME/.local/state"
+    export XDG_STATE_HOME
     BASE="$NL_ENSAIO_DIR/base"
     BUNDLE="$BASE/bundle/run-$BUNDLE_RUN/notalivre.flatpak"
     PATH="$NL_ENSAIO_DIR/bin:$PATH"
@@ -726,7 +728,28 @@ case "$1" in
 esac
 exit 1
 STUB
-    chmod 755 "$dir/bin/flatpak" "$dir/bin/kdialog"
+    # NL-2.10g (G1c): curl de faz de conta. Nunca toca a rede; responde pelo modo em NL_ENSAIO_BRASILAPI. O registro guarda só o
+    # nome do comando, sem a URL (que leva o CNPJ).
+    cat > "$dir/bin/curl" <<'STUB'
+#!/bin/sh
+D="$NL_ENSAIO_DIR"
+echo "curl consulta" >> "$D/chamadas.txt"
+CORPO='"razao_social":"RAZAO-FICTICIA","qsa":[{"nome_socio":"SOCIO-FICTICIO"}]'
+SN='"opcao_pelo_mei":false,"data_exclusao_do_mei":null,"opcao_pelo_simples":true,"data_exclusao_do_simples":null'
+case "${NL_ENSAIO_BRASILAPI:-simples}" in
+    mei) echo "{\"opcao_pelo_mei\":true,\"data_exclusao_do_mei\":null,\"opcao_pelo_simples\":false,\"data_exclusao_do_simples\":null,\"codigo_municipio_ibge\":2611606,\"situacao_cadastral\":2,$CORPO}" ;;
+    simples) echo "{$SN,\"codigo_municipio_ibge\":2611606,\"situacao_cadastral\":2,$CORPO}" ;;
+    nulo) echo "{\"opcao_pelo_mei\":null,\"data_exclusao_do_mei\":null,\"opcao_pelo_simples\":null,\"data_exclusao_do_simples\":null,\"codigo_municipio_ibge\":2611606,\"situacao_cadastral\":2,$CORPO}" ;;
+    exclusao) echo "{\"opcao_pelo_mei\":false,\"data_exclusao_do_mei\":null,\"opcao_pelo_simples\":true,\"data_exclusao_do_simples\":\"2020-01-01\",\"codigo_municipio_ibge\":2611606,\"situacao_cadastral\":2,$CORPO}" ;;
+    municipio) echo "{$SN,\"codigo_municipio_ibge\":3550308,\"situacao_cadastral\":2,$CORPO}" ;;
+    situacao8) echo "{$SN,\"codigo_municipio_ibge\":2611606,\"situacao_cadastral\":8,$CORPO}" ;;
+    rede) exit 6 ;;
+    json) echo '{nao e json' ;;
+    campo) echo "{\"opcao_pelo_simples\":true,\"data_exclusao_do_simples\":null,\"situacao_cadastral\":2,$CORPO}" ;;
+esac
+exit 0
+STUB
+    chmod 755 "$dir/bin/flatpak" "$dir/bin/kdialog" "$dir/bin/curl"
 }
 
 # Versão sem kdialog: escreve só o stub do flatpak; o kdialog fica de fora do PATH do caso.
@@ -742,6 +765,7 @@ ensaio_caso() {
     shift 6
     local dir="$RAIZ/$nome" entrada rc saidas emit problema="" pfx_nome="pfxsecreto-ensaio.p12" sem_kd=0 par ndps_esp=""
     local semente="" perg_esp="" dps_esp="" dps_ausente="" saida_esp="" segredo="" opcoes_txt="" arq_ausente="" portal_ausente="" cham_esp=""
+    local lem_seed="" lem_modo="" lem_esp="" lem_aus="" cham_aus="" lem="$dir/home/.local/state/notalivre-teste/lembrar"
     mkdir -p "$dir"
     for par in "$@"; do
         case "$par" in
@@ -758,9 +782,20 @@ ensaio_caso() {
             NL_ENSAIO_ARQUIVO_AUSENTE=*) arq_ausente="${par#NL_ENSAIO_ARQUIVO_AUSENTE=}" ;;
             NL_ENSAIO_PORTAL_AUSENTE=*) portal_ausente="${par#NL_ENSAIO_PORTAL_AUSENTE=}" ;;
             NL_ENSAIO_CHAMADA_ESPERADA=*) cham_esp="${par#NL_ENSAIO_CHAMADA_ESPERADA=}" ;;
+            NL_ENSAIO_CHAMADA_AUSENTE=*) cham_aus="${par#NL_ENSAIO_CHAMADA_AUSENTE=}" ;;
+            NL_ENSAIO_LEMBRAR=*) lem_seed="${par#NL_ENSAIO_LEMBRAR=}" ;;
+            NL_ENSAIO_LEMBRAR_MODO=*) lem_modo="${par#NL_ENSAIO_LEMBRAR_MODO=}" ;;
+            NL_ENSAIO_LEMBRAR_ESPERADO=*) lem_esp="${par#NL_ENSAIO_LEMBRAR_ESPERADO=}" ;;
+            NL_ENSAIO_LEMBRAR_AUSENTE=*) lem_aus="${par#NL_ENSAIO_LEMBRAR_AUSENTE=}" ;;
         esac
     done
     # NL-2.10g: opções da linha de comando, separadas por | (o valor pode ter espaço ou aspas). Vazio = nenhuma opção.
+    # NL-2.10g (G1c): lembrado semeado (linhas separadas por |), com o modo do arquivo pedido pelo caso.
+    if [ -n "$lem_seed" ]; then
+        mkdir -p "$(dirname "$lem")"
+        printf '%s\n' "$lem_seed" | tr '|' '\n' > "$lem"
+        chmod "${lem_modo:-600}" "$lem"
+    fi
     local -a opcoes=()
     [ -z "$opcoes_txt" ] || IFS='|' read -r -a opcoes <<< "$opcoes_txt"
     printf 'pfxsecreto-ensaio\n' > "$dir/$pfx_nome"
@@ -810,7 +845,7 @@ ensaio_caso() {
     fi
     # NL-2.10g (k, L-17): CPF, IM e IE de fixture também não podem sair da saída, da devolução, da execução nem do registro de chamadas.
     # O registro de chamadas guarda o caminho do .pfx (argumento do document-export); por isso o pfx não entra nesta varredura.
-    if grep -r -l -F -e 12345678909 -e IMENS-7731 -e IEENS-5520 "$dir/saida-do-script.txt" "$dir/chamadas.txt" \
+    if grep -r -l -F -e 12345678909 -e IMENS-7731 -e IEENS-5520 -e DESCSEG-ENSAIO -e RAZAO-FICTICIA -e SOCIO-FICTICIO "$dir/saida-do-script.txt" "$dir/chamadas.txt" \
         "$dir/base/devolucao" "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
         problema="$problema vazamento(CPF, IM ou IE em saída, devolução, execução ou chamadas)"
     fi
@@ -841,6 +876,18 @@ ensaio_caso() {
     if [ -n "$segredo" ] && grep -r -l -F -e "$segredo" "$dir/saida-do-script.txt" "$dir/chamadas.txt" \
         "$dir/base/devolucao" "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
         problema="$problema vazamento_do_valor_da_variante"
+    fi
+    # NL-2.10g (G1c): o arquivo de lembrar, quando existe, é 0600 numa pasta 0700; confere as chaves pedidas e as que não podem estar.
+    if [ -e "$lem" ]; then
+        [ "$(stat -c %a "$lem")" = 600 ] || problema="$problema lembrar_modo_$(stat -c %a "$lem")(esperado 600)"
+        [ "$(stat -c %a "$(dirname "$lem")")" = 700 ] || problema="$problema lembrar_pasta_modo(esperado 700)"
+    fi
+    r=$(trechos "$lem" presente "$lem_esp" 2>/dev/null)
+    [ -z "$r" ] || problema="$problema lembrar$r"
+    r=$(trechos "$lem" ausente "$lem_aus" 2>/dev/null)
+    [ -z "$r" ] || problema="$problema lembrar$r"
+    if [ -n "$cham_aus" ] && grep -q -F -- "$cham_aus" "$dir/chamadas.txt" 2>/dev/null; then
+        problema="$problema chamada_proibida($cham_aus)"
     fi
     # DA-2.89 (B1): a DPS temporária não existe depois da execução, e o portal não lista o documento.
     if [ -n "$arq_ausente" ] && [ -e "$dir/$arq_ausente" ]; then
@@ -1030,6 +1077,59 @@ ensaio() {
         FALHAS=$(( FALHAS + 1 ))
     fi
     grupo_fechar l_forma_separada_ou_igual
+    # NL-2.10g (G1c, rodada): BrasilAPI, arquivo de lembrar, --esquecer, --help e -h, --sem-im, validadores sem janela.
+    # Vermelhos no script anterior; as fixtures são fictícias (RAZAO-FICTICIA e SOCIO-FICTICIO vêm só do stub da BrasilAPI).
+    ensaio_caso r1_consulta_mei 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=mei NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "2"|"regEspTrib": "0"' NL_ENSAIO_DPS_AUSENTE='"regApTribSN"'
+    ensaio_caso r2_consulta_simples 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "3"|"regApTribSN": "1"'
+    ensaio_caso r3_consulta_nula 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=nulo NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"' NL_ENSAIO_DPS_AUSENTE='"regApTribSN"'
+    ensaio_caso r4_consulta_exclusao_simples 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=exclusao NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"'
+    ensaio_caso r5_consulta_rede_falha 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=rede NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "3"' NL_ENSAIO_SAIDA_ESPERADA='consulta pública não respondeu'
+    grupo_abrir
+    ensaio_caso r6_consulta_invalida.json 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=json NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "3"' NL_ENSAIO_SAIDA_ESPERADA='não serve'
+    ensaio_caso r6_consulta_invalida.campo_ausente 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=campo NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "3"' NL_ENSAIO_SAIDA_ESPERADA='não serve'
+    grupo_fechar r6_consulta_invalida
+    ensaio_caso r7_situacao_8_avisa_e_segue 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=situacao8 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "3"' NL_ENSAIO_SAIDA_ESPERADA='não é ativa'
+    ensaio_caso r8_municipio_da_consulta 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=municipio NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cLocEmi": "3550308"|"cLocPrestacao": "3550308"'
+    ensaio_caso r9_cpf_sem_consulta 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cpf|12345678909' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"' NL_ENSAIO_CHAMADA_AUSENTE=curl
+    grupo_abrir
+    ensaio_caso r10_opcao_vence_lembrado.opcao 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|1' NL_ENSAIO_LEMBRAR='opsimpnac=2|origem_opsimpnac=consulta|cnpj=11222333000181|im=IMENS-7731|sem_im=0' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"'
+    ensaio_caso r10_lembrado_vence_consulta.lembrado 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_LEMBRAR='opsimpnac=2|origem_opsimpnac=consulta|cnpj=11222333000181|im=IMENS-7731|sem_im=0' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "2"' NL_ENSAIO_CHAMADA_AUSENTE=curl
+    grupo_fechar r10_precedencia
+    grupo_abrir
+    ensaio_caso r11_so_im_abre.com_cnpj 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=im
+    ensaio_caso r11_so_im_abre.com_im 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso r11_so_im_abre.sem_im 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--sem-im' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso r11_so_im_abre.lembrado 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR='cnpj=11222333000181|im=IMENS-7731|opsimpnac=3|origem_opsimpnac=consulta' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma
+    grupo_fechar r11_so_im_abre
+    ensaio_caso r12_im_vazia_para_com_dica 1 "use --sem-im" 0 0 "" NL_ENSAIO_IM_JANELA= NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=inscricao,im
+    grupo_abrir
+    ensaio_caso r13_lembrar_grava_0600.gravado 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_LEMBRAR_ESPERADO='cnpj=11222333000181|im=IMENS-7731|opsimpnac=3|origem_opsimpnac=consulta' NL_ENSAIO_LEMBRAR_AUSENTE='cpf='
+    ensaio_caso r13_lembrar_644_ignorado.modo 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR='opsimpnac=2|origem_opsimpnac=lembrado' NL_ENSAIO_LEMBRAR_MODO=644 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "3"' NL_ENSAIO_SAIDA_ESPERADA='permissão aberta'
+    ensaio_caso r13_lembrar_linha_fora_ignorado.linha 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR='opsimpnac=3|cpf=12345678909' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "3"' NL_ENSAIO_SAIDA_ESPERADA='linha fora do conjunto' NL_ENSAIO_LEMBRAR_AUSENTE='cpf='
+    grupo_fechar r13_lembrar
+    ensaio_caso r14_recusa_e0160_tira_opsimpnac 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_SEQ=E0160 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='use --opsimpnac' NL_ENSAIO_LEMBRAR_AUSENTE='opsimpnac=3'
+    ensaio_caso r14_recusa_e0166_tira_regaptribsn 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_OPCOES='--regaptribsn|2' NL_ENSAIO_SEQ=E0166 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='use --regaptribsn' NL_ENSAIO_LEMBRAR_AUSENTE='regaptribsn=2'
+    ensaio_caso r14_recusa_e0116_tira_im 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_SEQ=E0116 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='--sem-im' NL_ENSAIO_LEMBRAR_AUSENTE='im=IMENS-7731'
+    ensaio_caso r15_esquecer_apaga 0 "Lembrança apagada" 0 0 "" NL_ENSAIO_OPCOES='--esquecer' NL_ENSAIO_LEMBRAR='cnpj=11222333000181|im=IMENS-7731|opsimpnac=3|origem_opsimpnac=consulta' NL_ENSAIO_ARQUIVO_AUSENTE=home/.local/state/notalivre-teste/lembrar NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_CHAMADA_AUSENTE=flatpak
+    ensaio_caso r16_ajuda_help 0 "--opsimpnac" 0 0 "" NL_ENSAIO_OPCOES='--help' NL_ENSAIO_SAIDA_ESPERADA='fica gravado no histórico do terminal' NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_CHAMADA_AUSENTE=flatpak NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7
+    ensaio_caso r16_ajuda_h 0 "--opsimpnac" 0 0 "" NL_ENSAIO_OPCOES='-h' NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_CHAMADA_AUSENTE=flatpak NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7
+    ensaio_caso r17_varredura_descricao_e_json_so_na_dps 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_OPCOES='--cnpj|11222333000181|--im|IMENS-7731|--descricao|DESCSEG-ENSAIO teste' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"xDescServ": "DESCSEG-ENSAIO teste"'
+    ensaio_caso v_municipio_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--municipio|3550308' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cLocEmi": "3550308"|"cLocPrestacao": "3550308"'
+    ensaio_caso v_municipio_invalido 1 "começar de 1 a 5" 0 0 "" NL_ENSAIO_OPCOES='--municipio|0611606' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso v_ctribnac_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--ctribnac|040102' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cTribNac": "040102"'
+    ensaio_caso v_ctribnac_invalido 1 "9903" 0 0 "" NL_ENSAIO_OPCOES='--ctribnac|990401' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso v_opsimpnac_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|1' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"' NL_ENSAIO_DPS_AUSENTE='"regApTribSN"'
+    ensaio_caso v_opsimpnac_invalido 1 "1 (não optante), 2 (MEI) ou 3" 0 0 "" NL_ENSAIO_OPCOES='--opsimpnac|4' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso v_regaptribsn_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--regaptribsn|2' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"regApTribSN": "2"'
+    ensaio_caso v_regaptribsn_invalido 1 "só vale com a opção 3" 0 0 "" NL_ENSAIO_OPCOES='--opsimpnac|1|--regaptribsn|2' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7
+    ensaio_caso v_regesptrib_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--regaptribsn|2|--regesptrib|1' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"regEspTrib": "1"'
+    ensaio_caso v_regesptrib_invalido 1 "precisa ser 0" 0 0 "" NL_ENSAIO_OPCOES='--regaptribsn|1|--regesptrib|1' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7
+    ensaio_caso v_valor_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--valor|25.50' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"vServ": "25,50"'
+    ensaio_caso v_valor_invalido 1 "maior que zero" 0 0 "" NL_ENSAIO_OPCOES='--valor|0,00' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso v_descricao_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--descricao|Consulta médica (retorno): 50% de desconto' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"xDescServ": "Consulta médica (retorno): 50% de desconto"'
+    ensaio_caso v_descricao_invalido 1 "de 1 a 2000 caracteres" 0 0 "" NL_ENSAIO_OPCOES='--descricao|Teste "aspas"' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso v_sem_im_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--sem-im|--cnpj|11222333000181' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_AUSENTE='"im"' NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso v_sem_im_invalido 1 "não podem vir juntos" 0 0 "" NL_ENSAIO_OPCOES='--sem-im|--im|IMENS-7731' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     # CISO (BAIXA-S3, condição 1): o script não liga o rastreio do shell.
     local marca_xtrace marca_bash
     marca_xtrace="set -$(printf x)"
