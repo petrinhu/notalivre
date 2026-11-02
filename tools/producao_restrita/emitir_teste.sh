@@ -256,13 +256,13 @@ montar_dps() {
     "regime": { "opSimpNac": "$OPSIMP", ${reg_apt_linha}"regEspTrib": "$REG_ESP" }
   },
   "servico": {
-    "cLocPrestacao": "$MUN_EMI",
+    "cLocPrestacao": "$LOC_PREST",
     "cTribNac": "$CTRIBNAC",
     "xDescServ": "$DESC"
   },
   "valores": {
     "vServ": "$VALOR",
-    "tribMun": { "tribISSQN": "1", "tpRetISSQN": "1" },
+    "tribMun": { "tribISSQN": "$TRIB_ISSQN", "tpRetISSQN": "$RET_ISSQN" },
     "totTrib": { "indTotTrib": "0" }
   }
 }
@@ -348,6 +348,9 @@ OPSIMP=3
 REG_APT=1
 REG_ESP=0
 VALOR="10,00"
+LOC_PREST=""
+TRIB_ISSQN=1
+RET_ISSQN=1
 DESC="Medicina: teste de emissão em Produção Restrita"
 MUN_EMI="$MUNICIPIO"
 SEM_IM=0
@@ -411,6 +414,24 @@ validar_ie() {
     printf '%s\n' 'A inscrição estadual não vai na NFS-e e este script não a guarda; a guarda no cofre vem com a interface (spec 4.5).'
 }
 
+# Coordenação (G1c, item 1; seção C2 e C9 da G1b): local da prestação, tipo de tributação do ISSQN e retenção (travada em 1).
+definir_local_prestacao() {
+    [[ "$1" =~ ^([1-5][0-9]{6}|0000000)$ ]] || falha "o local da prestação precisa ser um código IBGE de 7 dígitos (começando de 1 a 5) ou 0000000. Nada foi emitido."
+    LOC_PREST=$1; ORIG[localprestacao]=opcao
+}
+definir_trib_issqn() {
+    [[ "$1" =~ ^[1-4]$ ]] || falha "o tipo de tributação do ISSQN precisa ser 1, 2, 3 ou 4. Nada foi emitido."
+    TRIB_ISSQN=$1; ORIG[trib_issqn]=opcao
+}
+definir_ret_issqn() {
+    [[ "$1" = 1 ]] || falha "a retenção do ISSQN só aceita 1 neste script (não há tomador). Nada foi emitido."
+    RET_ISSQN=$1; ORIG[ret_issqn]=opcao
+}
+# Sem opção, o local da prestação é o do município emissor (C2).
+resolver_local_prestacao() {
+    if [ "${ORIG[localprestacao]:-}" != opcao ]; then LOC_PREST=$MUN_EMI; ORIG[localprestacao]=padrao; fi
+}
+
 # G1c (validadores sem janela): cada valor de opção é conferido na hora e fica com origem "opcao".
 valida_municipio() { [[ "$1" =~ ^[1-5][0-9]{6}$ ]]; }
 valida_ctribnac() { [[ "$1" =~ ^[0-9]{6}$ && "$1" != 9903* && "$1" != 990401 ]]; }
@@ -452,9 +473,9 @@ ler_opcoes() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --sem-im) nome=sem-im; valor=1; shift ;;
-            --cnpj=*|--cpf=*|--im=*|--ie=*|--municipio=*|--ctribnac=*|--opsimpnac=*|--regaptribsn=*|--regesptrib=*|--valor=*|--descricao=*)
+            --cnpj=*|--cpf=*|--im=*|--ie=*|--municipio=*|--ctribnac=*|--opsimpnac=*|--regaptribsn=*|--regesptrib=*|--valor=*|--descricao=*|--local-prestacao=*|--trib-issqn=*|--ret-issqn=*)
                 nome="${1%%=*}"; valor="${1#*=}"; shift ;;
-            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao)
+            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao|--local-prestacao|--trib-issqn|--ret-issqn)
                 [ "$#" -ge 2 ] || falha "a opção $1 pede um valor. Nada foi emitido."
                 nome="$1"; valor="$2"; shift 2 ;;
             *) falha "opção desconhecida (use --help para ver as opções). Nada foi emitido." ;;
@@ -482,6 +503,9 @@ ler_opcoes() {
     if [ -n "${OPT[regesptrib]+x}" ]; then definir_regesptrib "${OPT[regesptrib]}"; fi
     if [ -n "${OPT[valor]+x}" ]; then definir_valor "${OPT[valor]}"; fi
     if [ -n "${OPT[descricao]+x}" ]; then definir_descricao "${OPT[descricao]}"; fi
+    if [ -n "${OPT[local-prestacao]+x}" ]; then definir_local_prestacao "${OPT[local-prestacao]}"; fi
+    if [ -n "${OPT[trib-issqn]+x}" ]; then definir_trib_issqn "${OPT[trib-issqn]}"; fi
+    if [ -n "${OPT[ret-issqn]+x}" ]; then definir_ret_issqn "${OPT[ret-issqn]}"; fi
     if [ -n "${OPT[regaptribsn]+x}" ] && [ -n "${OPT[opsimpnac]+x}" ] && [ "$OPSIMP" != 3 ]; then
         falha "--regaptribsn só vale com a opção 3 do Simples (ME/EPP). Nada foi emitido."
     fi
@@ -698,7 +722,7 @@ procura_flag() {
         shift
         [ "$a" = "$alvo" ] && return 0
         case "$a" in
-            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao)
+            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao|--local-prestacao|--trib-issqn|--ret-issqn)
                 [ "$#" -gt 0 ] && shift ;;
         esac
     done
@@ -720,6 +744,9 @@ Cada opção vale como --opcao valor ou --opcao=valor.
   --opsimpnac N   regime do Simples: 1 não optante, 2 MEI, 3 ME/EPP. Padrão: o da consulta, ou 3.
   --regaptribsn N regime de apuração (1, 2 ou 3), só com a opção 3. Padrão 1.
   --regesptrib N  regime especial (0, 1, 2, 3, 4, 5, 6 ou 9). Padrão 0.
+  --local-prestacao N  código IBGE do local da prestação (7 dígitos) ou 0000000. Padrão: o do município emissor.
+  --trib-issqn N  tipo de tributação do ISSQN (1, 2, 3 ou 4). Padrão 1.
+  --ret-issqn N   retenção do ISSQN: só 1 neste script (não há tomador). Padrão 1.
   --valor V       valor do serviço, como 10,00 (ponto ou vírgula). Padrão 10,00.
   --descricao T   descrição do serviço, de 1 a 2000 caracteres: letras, números, espaço e . , ; : - / ( ) %.
   --esquecer      apaga o que o script lembrou do emissor e sai, sem emitir.
@@ -781,6 +808,7 @@ fluxo() {
         consultar_brasilapi
     fi
     resolver_campos
+    resolver_local_prestacao
     # IM (C4): só a IM abre a janela, e só se não veio por --im, não está lembrada e não há --sem-im.
     if [ "$SEM_IM" = 0 ] && [ -z "$IM" ] && [ -n "${LEM[im]+x}" ]; then definir_im "${LEM[im]}"; fi
     if [ "$SEM_IM" = 0 ] && [ -z "$IM" ]; then
@@ -1344,6 +1372,11 @@ ensaio_dois_envios() {
 }
 
 ensaio() {
+    # Coordenação (G1c, item 3): o ensaio exige python3 (o parser da consulta à BrasilAPI). Sem ele, para no começo, sem pular caso.
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "PARADA: o ensaio exige python3 (consulta à BrasilAPI)"
+        exit 1
+    fi
     # INFO-S6: o ensaio escreve só dentro da base do programa, numa pasta datada que fica no lugar (nada é apagado).
     RAIZ="$BASE/ensaio-$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$RAIZ" || { echo "PARADA: não consegui criar a pasta do ensaio"; exit 1; }
