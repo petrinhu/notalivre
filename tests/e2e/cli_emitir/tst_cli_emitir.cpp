@@ -684,29 +684,6 @@ void TstCliEmitir::cliRecusaDpsInvalidaSemPost()
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
 }
 
-void TstCliEmitir::cliEmiteComCTribMunPeloServidorFalso()
-{
-    // NL-2.10h (H1): entrada de ME/EPP com cTribMun 501 sai assinada (rsa-sha256, sem a trava de SHA-1 do fedora44) e o servidor
-    // falso a aceita: a revalidação do XSD e o oráculo passam com o elemento presente. A presença e a ordem no XML são provadas
-    // por tst_dps_validar (cTribMunEntraNoXmlEntreCTribNacECNbs) e pelo codec (tst_codec_dps).
-    QTemporaryDir configDir;
-    QVERIFY(configDir.isValid());
-    ServidorFalso servidor(QString(), QStringLiteral("/SefinNacional"));
-    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
-    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
-                          QStringLiteral("rsa-sha256"));
-    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
-    QVERIFY2(!senha.isEmpty(), "a senha da fixture sintética tem de existir");
-    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/ctribmun_501.json"),
-                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
-                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
-    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
-    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída do terminal: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
-    QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
-    QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
-    QVERIFY2(servidor.caminhosAoFechar().contains(QStringLiteral("/SefinNacional/nfse")), "o POST tinha de chegar em /SefinNacional/nfse");
-}
-
 void TstCliEmitir::cliRecusaCTribMunZeroSemPost()
 {
     // NL-2.10h (H1): cTribMun 000 é recusado no leitor, antes da assinatura e do envio: zero requisições ao servidor falso.
@@ -911,6 +888,29 @@ void TstCliEmitir::prefixoDaConfiguracaoVaiNaUrl()
     const QStringList caminhos = servidor.caminhosAoFechar();
     QVERIFY2(caminhos.contains(QStringLiteral("/SefinNacional/nfse")),
              qPrintable(QStringLiteral("o POST tinha de chegar em /SefinNacional/nfse; chegou em: [%1]").arg(caminhos.join(QLatin1Char(',')))));
+}
+
+void TstCliEmitir::cliEmiteComCTribMunPeloServidorFalso()
+{
+    // NL-2.10h (H1): entrada de ME/EPP com cTribMun 501 sai assinada (rsa-sha256, sem a trava de SHA-1 do fedora44) e o servidor
+    // falso a aceita: a revalidação do XSD e o oráculo passam com o elemento presente. A presença e a ordem no XML são provadas
+    // por tst_dps_validar (cTribMunEntraNoXmlEntreCTribNacECNbs) e pelo codec (tst_codec_dps).
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor(QString(), QStringLiteral("/SefinNacional"));
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    QVERIFY2(!senha.isEmpty(), "a senha da fixture sintética tem de existir");
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/ctribmun_501.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída do terminal: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
+    QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+    QVERIFY2(servidor.caminhosAoFechar().contains(QStringLiteral("/SefinNacional/nfse")), "o POST tinha de chegar em /SefinNacional/nfse");
 }
 
 void TstCliEmitir::prefixoAusenteSaiComDez()
