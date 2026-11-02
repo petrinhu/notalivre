@@ -1323,12 +1323,18 @@ ensaio_caso() {
     # DA-2.94: o caminho do .pfx não aparece nas chamadas, salvo no document-export, que é o caminho já aceito.
     # Rodada 4 (revisor, R4-B1): a exceção é só a linha exata do document-export ("flatpak document-export --app=..." com o caminho
     # como último argumento). Qualquer outra linha de chamadas que tenha o caminho reprova, mesmo que tenha a palavra document-export.
+    # Rodada 5 (revisor, R4-B1 e inferência fechada): a única linha de chamadas que pode ter o caminho é, por igualdade da linha
+    # inteira, "flatpak document-export --app=<APP> --forbid-write <caminho>". O caminho é o da janela ($dir/<pfx_nome>) ou o guardado
+    # que o caso semeou (pfx=...). Nenhuma outra forma passa.
     if [ -f "$dir/chamadas.txt" ]; then
+        local pfx_semeado="" prefixo_doc="flatpak document-export --app=$APP --forbid-write "
+        pfx_semeado=$(printf '%s' "$lem_seed" | tr '|' '\n' | sed -n 's/^pfx=//p')
         while IFS= read -r linha_pfx; do
-            case "$linha_pfx" in
-                "flatpak document-export --app="*" --forbid-write $dir/pfxsecreto"*) ;;
-                *) problema="$problema caminho_do_pfx_fora_do_document_export" ;;
-            esac
+            if [ "$linha_pfx" = "$prefixo_doc$dir/$pfx_nome" ] || { [ -n "$pfx_semeado" ] && [ "$linha_pfx" = "$prefixo_doc$pfx_semeado" ]; }; then
+                :
+            else
+                problema="$problema caminho_do_pfx_fora_do_document_export"
+            fi
         done < <(grep -F -- "$dir/pfxsecreto" "$dir/chamadas.txt" 2>/dev/null || true)
     fi
     # Rodada 2 (revisor, mutante 3a): a resposta crua da BrasilAPI não pode ir a disco. Varre toda a árvore de base e de
