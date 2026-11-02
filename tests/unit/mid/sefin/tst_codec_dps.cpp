@@ -113,6 +113,8 @@ private slots:
     void xDescServContaPontosDeCodigo();
     void xDescServSoEspacosReprova();
     void cepComZeroAEsquerdaSai8Digitos();
+    void cnpjEmitenteComZeroInicialSaiIntacto();
+    void cpfTomadorComZeroInicialSaiIntacto();
     // Valores exatos do cabeçalho da DPS (b, revisão): literais escritos à mão, um slot por campo.
     void dhEmiValorExato();
     void nDpsValorExato();
@@ -402,6 +404,28 @@ void TstCodecDps::fixturesDpsIguaisAoCodec()
 }
 
 // A geração das fixtures saiu deste executável de teste (DA-2.61): é a ferramenta tests/tools/gera_fixtures_dps, fora do CTest.
+
+void TstCodecDps::cnpjEmitenteComZeroInicialSaiIntacto()
+{
+    // Fixture fictícia 01234567890107: o zero da frente é dígito e tem de sair no XML, sem virar número nem perder posição.
+    const auto dps = casos::dpsMeiCnpjComZeroInicial();
+    QVERIFY2(dps.has_value(), "builder do emitente com CNPJ de zero à frente recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(xml.contains("<CNPJ>01234567890107</CNPJ>"), "CNPJ do emitente com zero à frente saiu alterado");
+    const Veredito veredito = validar(xml);
+    QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
+
+void TstCodecDps::cpfTomadorComZeroInicialSaiIntacto()
+{
+    // Fixture fictícia 01234567890: o CPF com zero à frente tem de sair com 11 dígitos no XML.
+    const auto dps = casos::dpsTomadorCpfComZeroInicial();
+    QVERIFY2(dps.has_value(), "builder do tomador com CPF de zero à frente recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(xml.contains("<CPF>01234567890</CPF>"), "CPF do tomador com zero à frente saiu alterado");
+    const Veredito veredito = validar(xml);
+    QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
 
 QTEST_GUILESS_MAIN(TstCodecDps)
 #include "tst_codec_dps.moc"

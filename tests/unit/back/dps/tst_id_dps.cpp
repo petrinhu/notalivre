@@ -57,6 +57,9 @@ private slots:
     void idDpsComCnpjAlfanumericoUsaTipo2();
     void idDpsCasaComPatternDoXsd();
     void idDpsComCnpjNumericoCasaComPatternDoXsd();
+    void idDpsComCnpjZeroInicialMantemZeros();
+    void idDpsComCnpjDoisZerosIniciaisMantemZeros();
+    void idDpsComCpfZeroInicialMantemOsTresZerosEDoIs();
 };
 
 void TstIdDps::idDpsTem45Posicoes()
@@ -115,6 +118,44 @@ void TstIdDps::idDpsComCnpjNumericoCasaComPatternDoXsd()
     QVERIFY(id.has_value());
     QVERIFY(padraoXsd().match(id->texto()).hasMatch());
     QCOMPARE(id->texto().size(), qsizetype{45});
+}
+
+void TstIdDps::idDpsComCnpjZeroInicialMantemZeros()
+{
+    // Fixture fictícia 01234567890107 (DV pelo módulo 11, calculado no contêiner). A inscrição tipo 2 ocupa as 14 posições sem cortar o zero da frente.
+    const auto cnpj = Cnpj::de(u"01234567890107");
+    QVERIFY(cnpj.has_value());
+    const auto id = IdDps::montar(*CodigoMunicipio::de(kMunicipioExemplo), Inscricao{*cnpj}, *Serie::de(1), *NumeroDps::de(1));
+    QVERIFY(id.has_value());
+    QCOMPARE(id->texto(), QStringLiteral("DPS4305108") + QStringLiteral("2") + QStringLiteral("01234567890107")
+                              + QStringLiteral("00001") + QStringLiteral("000000000000001"));
+    QCOMPARE(id->texto().mid(11, 14), QStringLiteral("01234567890107"));
+    QVERIFY(padraoXsd().match(id->texto()).hasMatch());
+}
+
+void TstIdDps::idDpsComCnpjDoisZerosIniciaisMantemZeros()
+{
+    // Fixture fictícia 00012345678978: dois zeros à frente, nas posições 12 e 13 do Id (índices 11 e 12).
+    const auto cnpj = Cnpj::de(u"00012345678978");
+    QVERIFY(cnpj.has_value());
+    const auto id = IdDps::montar(*CodigoMunicipio::de(kMunicipioExemplo), Inscricao{*cnpj}, *Serie::de(1), *NumeroDps::de(1));
+    QVERIFY(id.has_value());
+    QCOMPARE(id->texto().mid(10, 15), QStringLiteral("200012345678978"));
+    QVERIFY(padraoXsd().match(id->texto()).hasMatch());
+}
+
+void TstIdDps::idDpsComCpfZeroInicialMantemOsTresZerosEDoIs()
+{
+    // Fixture fictícia CPF 01234567890 (DV pelo módulo 11, calculado no contêiner). O Id tem de ser "000" + CPF de 11 dígitos, com o zero do CPF preservado:
+    // 00001234567890 (14 posições), sem perder os 3 zeros de preenchimento nem o zero que já é do CPF.
+    const auto cpf = Cpf::de(u"01234567890");
+    QVERIFY(cpf.has_value());
+    const auto id = IdDps::montar(*CodigoMunicipio::de(kMunicipioExemplo), Inscricao{*cpf}, *Serie::de(1), *NumeroDps::de(1));
+    QVERIFY(id.has_value());
+    QCOMPARE(id->texto(), QStringLiteral("DPS4305108") + QStringLiteral("1") + QStringLiteral("00001234567890")
+                              + QStringLiteral("00001") + QStringLiteral("000000000000001"));
+    QCOMPARE(id->texto().size(), qsizetype{45});
+    QVERIFY(padraoXsd().match(id->texto()).hasMatch());
 }
 
 QTEST_GUILESS_MAIN(TstIdDps)

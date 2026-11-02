@@ -1221,6 +1221,11 @@ D="$NL_ENSAIO_DIR"
 echo "curl consulta" >> "$D/chamadas.txt"
 # Rodada 2 (revisor, mutante 11): os argumentos ficam num arquivo à parte, para o ensaio conferir --proto =https.
 printf '%s\n' "$*" >> "$D/curl-argumentos.txt"
+# NL-2.10h (H4): com NL_ENSAIO_URL_ESPERADA, o curl só responde se a URL traz exatamente esse caminho (CNPJ com zeros, sem conversão
+# numérica); qualquer outra URL falha como rede, e a consulta cai nos padrões.
+if [ -n "${NL_ENSAIO_URL_ESPERADA:-}" ]; then
+    case "$*" in *"$NL_ENSAIO_URL_ESPERADA"*) ;; *) exit 22 ;; esac
+fi
 CORPO='"razao_social":"RAZAO-FICTICIA","qsa":[{"nome_socio":"SOCIO-FICTICIO"}]'
 SN='"opcao_pelo_mei":false,"data_exclusao_do_mei":null,"opcao_pelo_simples":true,"data_exclusao_do_simples":null'
 case "${NL_ENSAIO_BRASILAPI:-simples}" in
@@ -1797,6 +1802,17 @@ ensaio() {
     ensaio_ctribmun_janela h1_janela_depois_de_e0312 E0312 aceita "" sim 0 2
     ensaio_ctribmun_janela h1_janela_sem_recusa_nao_abre aceita aceita "" nao 0 2
     ensaio_ctribmun_janela h1_janela_cancelada_para_antes_do_numero E0312 aceita NL_ENSAIO_CTRIBMUN_CANCELA=1 sim 1 1
+    # NL-2.10h (H4): CNPJ e CPF com zero à esquerda. O zero é dígito: não some no envio, no lembrar, na consulta nem na janela.
+    # Fixtures fictícias com DV pelo módulo 11 (calculados no contêiner). A consulta (BrasilAPI) só responde para a URL com os zeros.
+    ensaio_caso h4_cnpj_zero_inicial_consulta_url 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=mei NL_ENSAIO_OPCOES='--cnpj|01234567890107|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cnpj": "01234567890107"|"opSimpNac": "2"' NL_ENSAIO_DPS_AUSENTE='"cpf"' NL_ENSAIO_URL_ESPERADA=/api/cnpj/v1/01234567890107 NL_ENSAIO_CURL_ESPERADO='--proto =https|https://brasilapi.com.br/api/cnpj/v1/01234567890107'
+    ensaio_caso h4_cnpj_dois_zeros_consulta_url 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=mei NL_ENSAIO_OPCOES='--cnpj|00012345678978|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cnpj": "00012345678978"|"opSimpNac": "2"' NL_ENSAIO_DPS_AUSENTE='"cpf"' NL_ENSAIO_URL_ESPERADA=/api/cnpj/v1/00012345678978 NL_ENSAIO_CURL_ESPERADO='--proto =https|https://brasilapi.com.br/api/cnpj/v1/00012345678978'
+    ensaio_caso h4_cpf_zero_inicial_aceito 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cpf|01234567890|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cpf": "01234567890"' NL_ENSAIO_DPS_AUSENTE='"cnpj"'
+    ensaio_caso h4_cnpj_zero_dv_errado_para_antes 1 "CNPJ" 0 0 "" NL_ENSAIO_INSCRICAO=01234567890108 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso h4_cpf_zero_dv_errado_para_antes 1 "CPF" 0 0 "" NL_ENSAIO_INSCRICAO=01234567891 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso h4_janela_cnpj_zero_inicial.catorze 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_INSCRICAO=01234567890107 NL_ENSAIO_SEQ=aceita NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=8 NL_ENSAIO_PERGUNTAS=inscricao,im NL_ENSAIO_DPS_ESPERADA='"cnpj": "01234567890107"' NL_ENSAIO_DPS_AUSENTE='"cpf"'
+    ensaio_caso h4_janela_cpf_zero_inicial.onze 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_INSCRICAO=01234567890 NL_ENSAIO_SEQ=aceita NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=8 NL_ENSAIO_PERGUNTAS=inscricao,im NL_ENSAIO_DPS_ESPERADA='"cpf": "01234567890"' NL_ENSAIO_DPS_AUSENTE='"cnpj"'
+    ensaio_caso h4_lembrar_grava_cnpj_com_zero_inicial.gravado 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|01234567890107|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_LEMBRAR_ESPERADO='cnpj=01234567890107|im=IMENS-7731' NL_ENSAIO_LEMBRAR_AUSENTE='cnpj=1234567890107'
+    ensaio_caso h4_lembrar_le_cnpj_com_zero_inicial 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR='cnpj=01234567890107|im=IMENS-7731|opsimpnac=3|origem_opsimpnac=consulta' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cnpj": "01234567890107"' NL_ENSAIO_DPS_AUSENTE='"cpf"'
     ensaio_caso v_opsimpnac_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|1' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"' NL_ENSAIO_DPS_AUSENTE='"regApTribSN"'
     ensaio_caso v_opsimpnac_invalido 1 "1 (não optante), 2 (MEI) ou 3" 0 0 "" NL_ENSAIO_OPCOES='--opsimpnac|4' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_regaptribsn_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--regaptribsn|2' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"regApTribSN": "2"'

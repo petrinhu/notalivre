@@ -177,6 +177,7 @@ private slots:
     void initTestCase();
     void senhaNuncaApareceNoLog();
     void cpfDoEmitenteMascaradoNoIdDps();
+    void idDpsComZerosAEsquerdaMascaradoSemVazarInscricao();
     void cnpjDoPrestadorMascaradoNoIdDps();
     void envelopeBase64NaoVaiAoLog();
     void campoSemDeclaracaoDescartadoEContado();
@@ -226,6 +227,24 @@ void TstLog::senhaNuncaApareceNoLog()
     QVERIFY2(saida.find(senha) == std::string::npos, "a senha apareceu no log");
     QVERIFY2(saida.find(token) == std::string::npos, "o token apareceu no log");
     QCOMPARE(sessao.log.descartados(), std::size_t{2});
+}
+
+void TstLog::idDpsComZerosAEsquerdaMascaradoSemVazarInscricao()
+{
+    // Fixtures fictícias com zero à frente (DV pelo módulo 11, calculados no contêiner). O zero faz parte da inscrição:
+    // a máscara tem de cobrir as 14 posições inteiras, sem deixar os dígitos (nem o zero da frente) saírem no log.
+    const std::string cnpj = "01234567890107";
+    const std::string cpf = "01234567890";
+    Sessao sessao;
+    QVERIFY(sessao.log.registrar(Nivel::Info, "dps.gerada", umCampo("idDps", idDps('2', cnpj))).has_value());
+    QVERIFY(sessao.log.registrar(Nivel::Info, "dps.gerada", umCampo("idDps", idDps('1', "000" + cpf))).has_value());
+    const std::string saida = sessao.destino.str();
+    QVERIFY2(saida.find(idDps('2', std::string(14, '#'))) != std::string::npos,
+             "o Id com CNPJ de zero à frente precisa sair com as 14 posições mascaradas");
+    QVERIFY2(saida.find(idDps('1', std::string(14, '#'))) != std::string::npos,
+             "o Id com CPF de zero à frente precisa sair com as 14 posições mascaradas");
+    QVERIFY2(saida.find(cnpj) == std::string::npos, "o CNPJ com zero à frente apareceu no log");
+    QVERIFY2(saida.find(cpf) == std::string::npos, "o CPF com zero à frente apareceu no log");
 }
 
 void TstLog::cpfDoEmitenteMascaradoNoIdDps()

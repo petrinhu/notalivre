@@ -34,6 +34,8 @@ private slots:
     void cpfDvErradoRejeitado();
     void cpfTamanhoErradoRejeitado();
     void cpfFormatoRejeitado();
+    void cpfComZeroInicialPreservaZero();
+    void cpfComZeroInicialDvErradoRejeitado();
 };
 
 void TstCpf::cpfComMascaraNormalizado()
@@ -88,6 +90,25 @@ void TstCpf::cpfTamanhoErradoRejeitado()
         QVERIFY(!cpf.has_value());
         QCOMPARE(QString::fromStdString(cpf.error().codigo()), QStringLiteral("cpf.tamanho"));
     }
+}
+
+void TstCpf::cpfComZeroInicialPreservaZero()
+{
+    // Fixture fictícia (base 012345678, DVs 90 pelo módulo 11, calculados no contêiner): o zero da frente é dígito e tem de sair no texto.
+    // Com a máscara, o zero aparece na primeira posição: 012.345.678-90.
+    const auto cpf = Cpf::de(u"012.345.678-90");
+    QVERIFY(cpf.has_value());
+    QCOMPARE(cpf->texto(), QStringLiteral("01234567890"));
+    QCOMPARE(cpf->texto().size(), qsizetype{11});
+    QCOMPARE(cpf->comMascara(), QStringLiteral("012.345.678-90"));
+}
+
+void TstCpf::cpfComZeroInicialDvErradoRejeitado()
+{
+    // Mesma fixture com o último dígito trocado: a rejeição vem do DV, não do zero à frente.
+    const auto cpf = Cpf::de(u"01234567891");
+    QVERIFY(!cpf.has_value());
+    QCOMPARE(QString::fromStdString(cpf.error().codigo()), QStringLiteral("cpf.dv"));
 }
 
 void TstCpf::cpfFormatoRejeitado()

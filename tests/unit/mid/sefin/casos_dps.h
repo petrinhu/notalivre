@@ -253,6 +253,25 @@ inline std::optional<nb::Dps> dpsTomadorCpfSemEndereco()
     return montarDps(dados);
 }
 
+/// MEI com CNPJ de emitente que começa com zero (fixture fictícia, DV pelo módulo 11): o zero tem de sair no XML.
+inline std::optional<nb::Dps> dpsMeiCnpjComZeroInicial()
+{
+    return montarDps(dadosMei(QStringLiteral("01234567890107"), QStringLiteral("Consultoria em tecnologia")));
+}
+
+/// MEI com tomador pessoa física cujo CPF começa com zero (fixture fictícia, DV pelo módulo 11).
+inline std::optional<nb::Dps> dpsTomadorCpfComZeroInicial()
+{
+    auto dados = dadosMei(QStringLiteral("11222333000181"), QStringLiteral("Consultoria em tecnologia"));
+    const auto cpf = ok(nb::Cpf::de(u"01234567890"));
+    const auto xNome = ok(nb::NomeRazaoSocial::de(u"Cliente Pessoa Fisica", "xNome"));
+    if (!dados || !cpf || !xNome) {
+        return std::nullopt;
+    }
+    dados->toma = nb::Tomador::montar(nb::IdentificacaoPessoa{*cpf}, std::nullopt, *xNome, std::nullopt, std::nullopt, std::nullopt);
+    return montarDps(dados);
+}
+
 /// MEI com tomador no exterior identificado por cNaoNIF (código 2, não exigência do NIF).
 inline std::optional<nb::Dps> dpsTomadorCNaoNif()
 {
