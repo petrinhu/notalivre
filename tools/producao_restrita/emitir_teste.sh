@@ -765,7 +765,11 @@ dica_recusa() {
         # NL-2.10h (H1, D3): E0312 cobre o código complementar e o nacional; E0313 e E0314 pedem o código municipal; a janela abre depois.
         E0312) LEMBRAR_EXCLUIR="$LEMBRAR_EXCLUIR ctribnac"; PEDIR_NOVO=1
                campo_recusado ctribmun "use --ctribmun, o município pode exigir o código complementar, ou --ctribnac" ;;
-        E0313|E0314) PEDIR_NOVO=1; campo_recusado ctribmun "use --ctribmun" ;;
+        # NL-2.10h (H1, QA A2, decisão do main): com MEI, a dica manda NÃO informar --ctribmun (o script não envia para MEI).
+        E0313) PEDIR_NOVO=1
+               if [ "$OPSIMP" = 2 ]; then campo_recusado ctribmun "com MEI, não informe --ctribmun"
+               else campo_recusado ctribmun "a Sefin trata o emitente como MEI: confira o regime e não informe --ctribmun"; fi ;;
+        E0314) PEDIR_NOVO=1; campo_recusado ctribmun "use --ctribmun" ;;
         E0315) campo_recusado ctribmun "use --ctribmun" ;;
     esac
 }
