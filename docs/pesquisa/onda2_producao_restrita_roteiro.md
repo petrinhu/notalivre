@@ -10,11 +10,29 @@ bash <caminho>/tools/producao_restrita/emitir_teste.sh
 
 Troque `<caminho>` pela pasta do projeto no seu computador (a pasta que contém `tools`).
 
-O script faz sozinho todos os passos técnicos deste roteiro (o passo a passo manual está no apêndice técnico, mais abaixo). Ele pergunta, nesta ordem:
+O script faz sozinho todos os passos técnicos deste roteiro (o passo a passo manual está no apêndice técnico, mais abaixo).
 
-1. o CNPJ do emissor, com 14 dígitos e sem pontos, numa janela;
-2. o arquivo do certificado `.pfx`, escolhido numa janela;
-3. a senha do certificado, digitada no próprio terminal, onde ela não aparece na tela. O script não lê nem guarda a senha.
+**Na primeira vez**, o script pergunta, em janelas:
+
+1. o CNPJ da empresa, com 14 dígitos e sem pontos (se a empresa for de CPF, informe o CPF);
+2. a Inscrição Municipal (IM) da empresa;
+3. o arquivo do certificado `.pfx`;
+4. a senha do certificado, numa janela própria, e não no terminal. O script não lê nem guarda a senha.
+
+Depois de receber o CNPJ, o script consulta a BrasilAPI, uma consulta pública, e descobre sozinho se a empresa é do Simples Nacional, é MEI ou não é optante. Para isso, o CNPJ vai à BrasilAPI.
+
+Se a primeira tentativa parar antes de a Sefin responder, nada fica guardado, e a próxima vez pergunta tudo de novo.
+
+**Nas seguintes**, o script usa o CNPJ e a IM que ficaram guardados e não pergunta mais por eles. O arquivo `.pfx` e a senha continuam sendo pedidos a cada vez. O CPF nunca fica guardado: com CPF, o script pergunta o CPF de novo.
+
+- `--esquecer` apaga o que ficou guardado, sem emitir nada.
+- `--help` mostra todas as opções.
+
+**Onde achar a Inscrição Municipal.** A IM é o número de inscrição da empresa na Prefeitura. Você encontra no cadastro mobiliário da Prefeitura do Recife, ou no Emissor Nacional, em nfse.gov.br. Se a IM não estiver registrada para o município de Recife no cadastro da Produção Restrita, a Sefin recusa a nota, e a mensagem do script diz o que fazer.
+
+**Aviso sobre CPF e CNPJ na linha de comando.** O script mostra este aviso quando você usa `--cpf` ou `--cnpj`, e também no `--help`:
+
+> Aviso: o número de CPF ou CNPJ digitado na linha de comando fica gravado no histórico do terminal e, enquanto o script roda, aparece para outros usuários desta máquina na lista de processos. Para não deixar esse rastro, rode sem --cpf e sem --cnpj: a janela pede o número. Começar o comando com um espaço só tira a linha do histórico se o seu terminal estiver configurado para isso.
 
 No fim ele mostra uma destas frases: "Nota de teste aceita", com a chave de acesso; ou "A Sefin recusou; avise o Claude". Se a emissão parar antes de chegar à Sefin, ele mostra o código de saída e manda avisar o Claude.
 
@@ -23,6 +41,28 @@ As saídas ficam em `/var/tmp/notalivre-nl210/teste-lider/execucao-<data>/`, e a
 Enquanto o script roda, o nome do arquivo do certificado pode aparecer por instantes na lista de processos do computador (a mesma lista que o comando `ps` mostra). O script não grava esse nome em nenhum arquivo de log.
 
 Não apague o arquivo `/var/tmp/notalivre-nl210/ultimo-ndps.txt`. Ele guarda o último número de DPS usado. Se ele sumir, o próximo envio volta a usar o número 1, e a Sefin pode recusar por número repetido.
+
+**Lista de opções, para quem quiser.** Cada opção vale como `--opcao valor` ou `--opcao=valor`. Se você não passar uma opção, o script usa o que ficou guardado, a consulta pública ou o padrão, e pergunta só o que faltar.
+
+| Opção | O que faz |
+|---|---|
+| `--cnpj N` | CNPJ do emissor, com 14 dígitos e DV. Sem ele, e sem CNPJ guardado, a janela pede CNPJ ou CPF. |
+| `--cpf N` | CPF do emissor, com 11 dígitos e DV. O CPF nunca fica guardado. |
+| `--im T` | Inscrição municipal: de 1 a 15 letras, números, ponto, barra ou traço. |
+| `--sem-im` | A empresa não tem inscrição municipal no CNC: a DPS sai sem IM. |
+| `--ie T` | Inscrição estadual, de 1 a 20 caracteres. Só confere: não vai na NFS-e e não é guardada. |
+| `--municipio N` | Código IBGE do município emissor, com 7 dígitos, começando de 1 a 5. Padrão: o da consulta, ou 2611606. |
+| `--ctribnac N` | Código de tributação nacional, com 6 dígitos (não 9903xx nem 990401). Padrão 040101. |
+| `--opsimpnac N` | Regime do Simples: 1 não optante, 2 MEI, 3 ME/EPP. Padrão: o da consulta, ou 3. |
+| `--regaptribsn N` | Regime de apuração (1, 2 ou 3), só com a opção 3 do Simples. Padrão 1. |
+| `--regesptrib N` | Regime especial (0, 1, 2, 3, 4, 5, 6 ou 9). Padrão 0. |
+| `--local-prestacao N` | Código IBGE do local da prestação (7 dígitos), ou 0000000. Padrão: o do município emissor. |
+| `--trib-issqn N` | Tipo de tributação do ISSQN (1, 2, 3 ou 4). Padrão 1. |
+| `--ret-issqn N` | Retenção do ISSQN: só 1 neste script, porque não há tomador. Padrão 1. |
+| `--valor V` | Valor do serviço, como 10,00 (ponto ou vírgula). Padrão 10,00. |
+| `--descricao T` | Descrição do serviço, de 1 a 2000 caracteres: letras, números, espaço e . , ; : - / ( ) %. |
+| `--esquecer` | Apaga o que o script guardou do emissor e sai, sem emitir. |
+| `--help`, `-h` | Mostra a ajuda e sai, sem perguntar nada. |
 
 **Para o agente:** `bash <caminho>/tools/producao_restrita/emitir_teste.sh --ensaio` roda todos os casos com stubs, dentro de um contêiner, sem flatpak e sem Sefin.
 
