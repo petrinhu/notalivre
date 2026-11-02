@@ -537,8 +537,18 @@ case "$1" in
         printf '%s\n' "$NL_ENSAIO_DIR/${NL_ENSAIO_PFX_NOME:-pfxsecreto-ensaio.p12}"
         exit 0 ;;
     --inputbox)
-        printf '%s\n' "${NL_ENSAIO_CNPJ:-11222333000181}"
-        exit 0 ;;
+        # NL-2.10g: a janela da inscrição e a da IM são distinguidas pelo texto; cada pergunta fica registrada (só o tipo).
+        case "$2" in
+            *"inscrição municipal"*)
+                echo im >> "$NL_ENSAIO_DIR/perguntas.txt"
+                [ -n "${NL_ENSAIO_IM_CANCELA:-}" ] && exit 1
+                printf '%s\n' "${NL_ENSAIO_IM_JANELA-IMENS-7731}"
+                exit 0 ;;
+            *)
+                echo inscricao >> "$NL_ENSAIO_DIR/perguntas.txt"
+                printf '%s\n' "${NL_ENSAIO_INSCRICAO:-${NL_ENSAIO_CNPJ:-11222333000181}}"
+                exit 0 ;;
+        esac ;;
     --password)
         # NL-2.27 (I9): guarda o texto que o script mostrou, para o ensaio conferir que é o genérico.
         printf '%s\n' "$2" >> "$NL_ENSAIO_DIR/kdialog-texto.txt"
@@ -567,15 +577,31 @@ ensaio_caso() {
     local nome="$1" rc_esp="$2" txt_esp="$3" saidas_esp="$4" emit_esp="$5" cfg_esp="$6"
     shift 6
     local dir="$RAIZ/$nome" entrada rc saidas emit problema="" pfx_nome="pfxsecreto-ensaio.p12" sem_kd=0 par ndps_esp=""
+    local semente="" perg_esp="" dps_esp="" dps_ausente="" saida_esp="" segredo="" opcoes_txt=""
     mkdir -p "$dir"
     for par in "$@"; do
         case "$par" in
             NL_ENSAIO_SEM_KDIALOG=1) sem_kd=1 ;;
             NL_ENSAIO_PFX_NOME=*) pfx_nome="${par#NL_ENSAIO_PFX_NOME=}" ;;
             NL_ENSAIO_NDPS_ESPERADO=*) ndps_esp="${par#NL_ENSAIO_NDPS_ESPERADO=}" ;;
+            NL_ENSAIO_SEMENTE=*) semente="${par#NL_ENSAIO_SEMENTE=}" ;;
+            NL_ENSAIO_PERGUNTAS=*) perg_esp="${par#NL_ENSAIO_PERGUNTAS=}" ;;
+            NL_ENSAIO_DPS_ESPERADA=*) dps_esp="${par#NL_ENSAIO_DPS_ESPERADA=}" ;;
+            NL_ENSAIO_DPS_AUSENTE=*) dps_ausente="${par#NL_ENSAIO_DPS_AUSENTE=}" ;;
+            NL_ENSAIO_SAIDA_ESPERADA=*) saida_esp="${par#NL_ENSAIO_SAIDA_ESPERADA=}" ;;
+            NL_ENSAIO_SEGREDO=*) segredo="${par#NL_ENSAIO_SEGREDO=}" ;;
+            NL_ENSAIO_OPCOES=*) opcoes_txt="${par#NL_ENSAIO_OPCOES=}" ;;
         esac
     done
+    # NL-2.10g: opções da linha de comando, separadas por | (o valor pode ter espaço ou aspas). Vazio = nenhuma opção.
+    local -a opcoes=()
+    [ -z "$opcoes_txt" ] || IFS='|' read -r -a opcoes <<< "$opcoes_txt"
     printf 'pfxsecreto-ensaio\n' > "$dir/$pfx_nome"
+    # NL-2.10g: semente do contador, para provar que a parada antes da Sefin não o mexe.
+    if [ -n "$semente" ]; then
+        mkdir -p "$dir/base"
+        printf '%s\n' "$semente" > "$dir/base/ultimo-ndps.txt"
+    fi
     entrada=/dev/null
     if [ "$sem_kd" -eq 1 ]; then
         escrever_stubs_sem_kdialog "$dir"
@@ -584,7 +610,7 @@ ensaio_caso() {
     else
         escrever_stubs "$dir"
     fi
-    env "$@" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < "$entrada" > "$dir/saida-do-script.txt" 2>&1
+    env "$@" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso "${opcoes[@]}" < "$entrada" > "$dir/saida-do-script.txt" 2>&1
     rc=$?
     saidas=$(ls "$dir"/base/teste-lider/execucao-*/saida-tentativa-*.txt 2>/dev/null | wc -l | tr -d ' ')
     emit=$(grep -c ' emitir ' "$dir/chamadas.txt" 2>/dev/null || true)
@@ -611,9 +637,10 @@ ensaio_caso() {
     if [ -f "$cfg_arq" ]; then
         [ "$(stat -c %a "$cfg_arq")" = 600 ] || problema="$problema config.ini_modo_$(stat -c %a "$cfg_arq")(esperado 600)"
     fi
-    if grep -r -l -F -e pfxsecreto -e 11222333000181 -e 1122233300018A "$dir/saida-do-script.txt" "$dir/base/devolucao" \
-        "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
-        problema="$problema vazamento(pfx ou CNPJ em saída, devolução ou execução)"
+    # NL-2.10g (k, L-17): CPF, IM e IE de fixture também não podem sair da saída, da devolução, da execução nem do registro de chamadas.
+    if grep -r -l -F -e pfxsecreto -e 11222333000181 -e 1122233300018A -e 12345678909 -e IMENS-7731 -e IEENS-5520 \
+        "$dir/saida-do-script.txt" "$dir/chamadas.txt" "$dir/base/devolucao" "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
+        problema="$problema vazamento(pfx, CNPJ, CPF, IM ou IE em saída, devolução, execução ou chamadas)"
     fi
     # NL-2.27 (I9, revisão de segurança): o texto da janela do kdialog é o genérico, sem CNPJ nem nome de arquivo.
     if [ -f "$dir/kdialog-texto.txt" ]; then
@@ -625,6 +652,24 @@ ensaio_caso() {
         "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
         problema="$problema vazamento_da_senha"
     fi
+    # NL-2.10g: perguntas da janela, trechos da DPS e da saída, e o segredo da variante (valor inválido) fora da DPS.
+    if [ -n "$perg_esp" ]; then
+        local perg
+        perg=$(paste -sd, "$dir/perguntas.txt" 2>/dev/null) || true
+        [ -n "$perg" ] || perg=nenhuma
+        [ "$perg" = "$perg_esp" ] || problema="$problema perguntas=$perg(esperado $perg_esp)"
+    fi
+    local r
+    r=$(trechos "$dir/base/teste-lider/dps-teste.json" presente "$dps_esp")
+    [ -z "$r" ] || problema="$problema dps$r"
+    r=$(trechos "$dir/base/teste-lider/dps-teste.json" ausente "$dps_ausente")
+    [ -z "$r" ] || problema="$problema dps$r"
+    r=$(trechos "$dir/saida-do-script.txt" presente "$saida_esp")
+    [ -z "$r" ] || problema="$problema saida$r"
+    if [ -n "$segredo" ] && grep -r -l -F -e "$segredo" "$dir/saida-do-script.txt" "$dir/chamadas.txt" \
+        "$dir/base/devolucao" "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
+        problema="$problema vazamento_do_valor_da_variante"
+    fi
     if [ -z "$problema" ]; then
         printf 'ok %s\n' "$nome"
     else
@@ -632,6 +677,41 @@ ensaio_caso() {
         FALHAS=$(( FALHAS + 1 ))
     fi
     CASOS=$(( CASOS + 1 ))
+}
+
+# Trechos separados por | que têm de estar (presente) ou não estar (ausente) num arquivo. Imprime " falta(...)" ou " sobra(...)"
+# por trecho que falhou; saída vazia = ok. Os trechos são fixtures de ensaio, nunca dado real.
+trechos() {
+    local arq="$1" modo="$2" lista="$3" trecho
+    local -a itens=()
+    [ -n "$lista" ] || return 0
+    IFS='|' read -r -a itens <<< "$lista"
+    for trecho in "${itens[@]}"; do
+        if [ "$modo" = presente ]; then
+            grep -q -F -- "$trecho" "$arq" 2>/dev/null || printf ' falta(%s)' "$trecho"
+        else
+            grep -q -F -- "$trecho" "$arq" 2>/dev/null && printf ' sobra(%s)' "$trecho"
+        fi
+    done
+    return 0
+}
+
+# Grupo de variantes: cada variante imprime a sua linha; o grupo conta como um caso só (contagem da ordem NL-2.10g).
+grupo_abrir() {
+    G_CASOS=$CASOS
+    G_FALHAS=$FALHAS
+}
+
+grupo_fechar() {
+    local nome="$1" falhas_grupo=$(( FALHAS - G_FALHAS ))
+    CASOS=$(( G_CASOS + 1 ))
+    if [ "$falhas_grupo" -eq 0 ]; then
+        printf 'ok grupo %s\n' "$nome"
+        FALHAS=$G_FALHAS
+    else
+        printf 'FALHA grupo %s: %s variante(s)\n' "$nome" "$falhas_grupo"
+        FALHAS=$(( G_FALHAS + 1 ))
+    fi
 }
 
 # Dois envios seguidos na mesma pasta: o segundo tem de usar o número seguinte (nunca repete).
@@ -700,6 +780,56 @@ ensaio() {
     ensaio_caso pfx_com_espaco_aspas_cifrao 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 "NL_ENSAIO_PFX_NOME=pfxsecreto com 'aspas' e \$HOME.p12"
     ensaio_caso pfx_relativo_recusado_antes_de_emitir 1 "absoluto" 0 0 "" NL_ENSAIO_PFX_RELATIVO=1 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
     ensaio_caso cnpj_com_letra_para_antes_de_emitir 1 "CNPJ" 0 0 "" NL_ENSAIO_CNPJ=1122233300018A NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
+    # NL-2.10g (G1, casos a a l): inscrição municipal (IM), CPF ou CNPJ por opção, e a janela para o que faltar. As fixtures são
+    # fictícias: CNPJ 11222333000181, CPF 12345678909 (DV válido, o de 123456789), IM IMENS-7731, IE IEENS-5520.
+    local AVISO_CPF='fica gravado no histórico do terminal'
+    # a. sem opções: a janela pede a inscrição e a IM; a DPS tem "im" no prestador; o número só é consumido depois.
+    ensaio_caso a_sem_opcao_pede_im_e_numero_depois 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=inscricao,im NL_ENSAIO_DPS_ESPERADA='"cnpj": "11222333000181"|"im": "IMENS-7731"'
+    # b. --im por opção: a IM não é perguntada; "im" na DPS.
+    ensaio_caso b_im_por_opcao_nao_pergunta 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=inscricao NL_ENSAIO_DPS_ESPERADA='"im": "IMENS-7731"'
+    # c. IM vazia ou cancelada: para antes de consumir número (contador semeado em 7 e intacto), nada enviado.
+    grupo_abrir
+    ensaio_caso c_im_vazia_ou_cancelada.vazia 1 "inscrição municipal" 0 0 "" NL_ENSAIO_IM_JANELA= NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=inscricao,im
+    ensaio_caso c_im_vazia_ou_cancelada.cancelada 1 "inscrição municipal" 0 0 "" NL_ENSAIO_IM_CANCELA=1 NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=inscricao,im
+    grupo_fechar c_im_vazia_ou_cancelada
+    # d. IM com 16 caracteres, com aspas, com barra invertida ou com espaço no meio: para, sem repetir o valor.
+    grupo_abrir
+    ensaio_caso d_im_fora_do_conjunto.dezesseis 1 "inscrição municipal" 0 0 "" NL_ENSAIO_IM_JANELA=ABCDEFGHIJKLMNOP NL_ENSAIO_SEGREDO=ABCDEFGHIJKLMNOP NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=inscricao,im
+    ensaio_caso d_im_fora_do_conjunto.aspas 1 "inscrição municipal" 0 0 "" NL_ENSAIO_OPCOES='--im|IM"1' NL_ENSAIO_SEGREDO='IM"1' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso d_im_fora_do_conjunto.barra 1 "inscrição municipal" 0 0 "" NL_ENSAIO_IM_JANELA='IM\1' NL_ENSAIO_SEGREDO='IM\1' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=inscricao,im
+    ensaio_caso d_im_fora_do_conjunto.espaco 1 "inscrição municipal" 0 0 "" NL_ENSAIO_OPCOES='--im=IM 1' NL_ENSAIO_SEGREDO='IM 1' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    grupo_fechar d_im_fora_do_conjunto
+    # e. --cpf com DV certo: DPS com "cpf" e sem "cnpj"; aviso impresso (texto do CISO, DA-2.87).
+    ensaio_caso e_cpf_dv_certo_dps_cpf_e_aviso 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cpf|12345678909' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=im NL_ENSAIO_DPS_ESPERADA='"cpf": "12345678909"|"im": "IMENS-7731"' NL_ENSAIO_DPS_AUSENTE='"cnpj"' NL_ENSAIO_SAIDA_ESPERADA="$AVISO_CPF"
+    # f. --cpf com DV errado e com 11 dígitos iguais: para antes de consumir número.
+    grupo_abrir
+    ensaio_caso f_cpf_dv_errado.dv 1 "CPF" 0 0 "" NL_ENSAIO_OPCOES='--cpf|12345678900' NL_ENSAIO_SEGREDO=12345678900 NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso f_cpf_11_digitos_iguais.iguais 1 "CPF" 0 0 "" NL_ENSAIO_OPCOES='--cpf|11111111111' NL_ENSAIO_SEGREDO=11111111111 NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    grupo_fechar f_cpf_invalido
+    # g. --cnpj e --cpf juntos: para antes de consumir número.
+    ensaio_caso g_cnpj_e_cpf_juntos_para_sem_numero 1 "use só um" 0 0 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--cpf|12345678909' NL_ENSAIO_SEGREDO=12345678909 NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    # h. janela: 11 dígitos vira CPF, 14 vira CNPJ, outro tamanho para antes do número.
+    grupo_abrir
+    ensaio_caso h_janela_11_digitos_vira_cpf.onze 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_INSCRICAO=12345678909 NL_ENSAIO_SEQ=aceita NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=8 NL_ENSAIO_PERGUNTAS=inscricao,im NL_ENSAIO_DPS_ESPERADA='"cpf": "12345678909"|"im": "IMENS-7731"' NL_ENSAIO_DPS_AUSENTE='"cnpj"'
+    ensaio_caso h_janela_14_digitos_vira_cnpj.catorze 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=8 NL_ENSAIO_PERGUNTAS=inscricao,im NL_ENSAIO_DPS_ESPERADA='"cnpj": "11222333000181"' NL_ENSAIO_DPS_AUSENTE='"cpf"'
+    ensaio_caso h_janela_outro_tamanho_para.treze 1 "14 dígitos" 0 0 "" NL_ENSAIO_INSCRICAO=1234567890123 NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=inscricao
+    grupo_fechar h_janela_por_tamanho
+    # i. --ie: aceita, não aparece na DPS nem em saída nenhuma, aviso impresso (texto da ordem, D4).
+    ensaio_caso i_ie_aceita_sem_dps_com_aviso 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--ie|IEENS-5520|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=inscricao NL_ENSAIO_DPS_AUSENTE='"ie"|IEENS-5520' NL_ENSAIO_SAIDA_ESPERADA='A inscrição estadual não vai na NFS-e'
+    # j. opção desconhecida: para sem repetir o valor.
+    ensaio_caso j_opcao_desconhecida_para_sem_repetir 1 "opção desconhecida" 0 0 "" NL_ENSAIO_OPCOES='--cpfx|12345678909' NL_ENSAIO_SEGREDO=12345678909 NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    # k. varredura: CPF, IM e IE de fixture só aparecem na DPS (a saída, a devolução, a execução e as chamadas ficam limpas).
+    ensaio_caso k_varredura_fixtures_so_na_dps 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cpf|12345678909|--im|IMENS-7731|--ie|IEENS-5520' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_DPS_ESPERADA='"cpf": "12345678909"|"im": "IMENS-7731"'
+    # l. --opcao=valor e --opcao valor dão a mesma DPS (sem contar dhEmi, que é a hora da execução).
+    grupo_abrir
+    ensaio_caso l_forma_separada_ou_igual.separada 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso l_forma_separada_ou_igual.igual 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj=11222333000181|--im=IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma
+    if ! cmp -s <(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.separada/base/teste-lider/dps-teste.json") \
+                <(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.igual/base/teste-lider/dps-teste.json") 2>/dev/null; then
+        printf 'FALHA l_forma_separada_ou_igual: as duas DPS diferem\n'
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    grupo_fechar l_forma_separada_ou_igual
     # CISO (BAIXA-S3, condição 1): o script não liga o rastreio do shell.
     local marca_xtrace marca_bash
     marca_xtrace="set -$(printf x)"
