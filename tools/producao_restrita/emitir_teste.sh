@@ -37,10 +37,10 @@ umask 077
 APP=io.github.petrinhu.notalivre
 RUNTIME=org.kde.Platform//6.11
 # Pacote do CI: único lugar do script com o run e o SHA-256 do notalivre.flatpak. Fonte: artefato notalivre-bundle do run
-# 41362487894 (commit 22cdb30, branch onda-2), baixado com gh run download (digest do zip bf64796c188e477a490080ce4e5c0fcf30005dd053fb9a2bd83ec84fc246d2a5,
-# conferido na API do GitHub). O main troca estas duas linhas quando o pacote do CI muda (NL-2.10f).
-BUNDLE_RUN=41362487894
-BUNDLE_SHA=2c2372581c392b0088faa6271bb40a9333f658b047ba6398e5acef23a90164c0
+# 41452411280 (commit d3d948f, branch onda-2, com o cTribMun), baixado com gh run download (digest do zip ec0038924c83a5c8102a270602a25b3a2624903dffdb3f2c18999c86cf1b55e6,
+# conferido na API do GitHub). O main troca estas duas linhas quando o pacote do CI muda (NL-2.10i).
+BUNDLE_RUN=41452411280
+BUNDLE_SHA=2888ffb1a30e7ad2cf77f3c2e2ebcc85749e2c1e1a0719073438d953f1f53cef
 BASE=/var/tmp/notalivre-nl210
 BUNDLE="$BASE/bundle/run-$BUNDLE_RUN/notalivre.flatpak"
 MUNICIPIO=2611606
