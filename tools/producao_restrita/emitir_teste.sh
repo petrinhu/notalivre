@@ -637,10 +637,15 @@ ensaio_caso() {
     if [ -f "$cfg_arq" ]; then
         [ "$(stat -c %a "$cfg_arq")" = 600 ] || problema="$problema config.ini_modo_$(stat -c %a "$cfg_arq")(esperado 600)"
     fi
+    if grep -r -l -F -e pfxsecreto -e 11222333000181 -e 1122233300018A "$dir/saida-do-script.txt" "$dir/base/devolucao" \
+        "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
+        problema="$problema vazamento(pfx ou CNPJ em saída, devolução ou execução)"
+    fi
     # NL-2.10g (k, L-17): CPF, IM e IE de fixture também não podem sair da saída, da devolução, da execução nem do registro de chamadas.
-    if grep -r -l -F -e pfxsecreto -e 11222333000181 -e 1122233300018A -e 12345678909 -e IMENS-7731 -e IEENS-5520 \
-        "$dir/saida-do-script.txt" "$dir/chamadas.txt" "$dir/base/devolucao" "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
-        problema="$problema vazamento(pfx, CNPJ, CPF, IM ou IE em saída, devolução, execução ou chamadas)"
+    # O registro de chamadas guarda o caminho do .pfx (argumento do document-export); por isso o pfx não entra nesta varredura.
+    if grep -r -l -F -e 12345678909 -e IMENS-7731 -e IEENS-5520 "$dir/saida-do-script.txt" "$dir/chamadas.txt" \
+        "$dir/base/devolucao" "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
+        problema="$problema vazamento(CPF, IM ou IE em saída, devolução, execução ou chamadas)"
     fi
     # NL-2.27 (I9, revisão de segurança): o texto da janela do kdialog é o genérico, sem CNPJ nem nome de arquivo.
     if [ -f "$dir/kdialog-texto.txt" ]; then
@@ -812,7 +817,7 @@ ensaio() {
     grupo_abrir
     ensaio_caso h_janela_11_digitos_vira_cpf.onze 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_INSCRICAO=12345678909 NL_ENSAIO_SEQ=aceita NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=8 NL_ENSAIO_PERGUNTAS=inscricao,im NL_ENSAIO_DPS_ESPERADA='"cpf": "12345678909"|"im": "IMENS-7731"' NL_ENSAIO_DPS_AUSENTE='"cnpj"'
     ensaio_caso h_janela_14_digitos_vira_cnpj.catorze 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=8 NL_ENSAIO_PERGUNTAS=inscricao,im NL_ENSAIO_DPS_ESPERADA='"cnpj": "11222333000181"' NL_ENSAIO_DPS_AUSENTE='"cpf"'
-    ensaio_caso h_janela_outro_tamanho_para.treze 1 "14 dígitos" 0 0 "" NL_ENSAIO_INSCRICAO=1234567890123 NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=inscricao
+    ensaio_caso h_janela_outro_tamanho_para.treze 1 "ou 11 (CPF)" 0 0 "" NL_ENSAIO_INSCRICAO=1234567890123 NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=inscricao
     grupo_fechar h_janela_por_tamanho
     # i. --ie: aceita, não aparece na DPS nem em saída nenhuma, aviso impresso (texto da ordem, D4).
     ensaio_caso i_ie_aceita_sem_dps_com_aviso 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--ie|IEENS-5520|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=inscricao NL_ENSAIO_DPS_AUSENTE='"ie"|IEENS-5520' NL_ENSAIO_SAIDA_ESPERADA='A inscrição estadual não vai na NFS-e'
@@ -822,8 +827,8 @@ ensaio() {
     ensaio_caso k_varredura_fixtures_so_na_dps 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cpf|12345678909|--im|IMENS-7731|--ie|IEENS-5520' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_DPS_ESPERADA='"cpf": "12345678909"|"im": "IMENS-7731"'
     # l. --opcao=valor e --opcao valor dão a mesma DPS (sem contar dhEmi, que é a hora da execução).
     grupo_abrir
-    ensaio_caso l_forma_separada_ou_igual.separada 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma
-    ensaio_caso l_forma_separada_ou_igual.igual 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj=11222333000181|--im=IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso l_forma_separada_ou_igual.separada 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_DPS_ESPERADA='"cnpj": "11222333000181"|"im": "IMENS-7731"'
+    ensaio_caso l_forma_separada_ou_igual.igual 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj=11222333000181|--im=IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_DPS_ESPERADA='"cnpj": "11222333000181"|"im": "IMENS-7731"'
     if ! cmp -s <(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.separada/base/teste-lider/dps-teste.json") \
                 <(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.igual/base/teste-lider/dps-teste.json") 2>/dev/null; then
         printf 'FALHA l_forma_separada_ou_igual: as duas DPS diferem\n'
