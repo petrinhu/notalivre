@@ -1371,7 +1371,7 @@ ensaio_segunda_sem_pfx() {
     env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
     r1=$?
     mv -f -- "$dir/pfx-perguntado.txt" "$dir/pfx-perguntado-1.txt" 2>/dev/null || true
-    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
     r2=$?
     [ "$r1" -eq 0 ] && [ "$r2" -eq 0 ] || problema="$problema rc=$r1/$r2"
     [ -e "$dir/pfx-perguntado.txt" ] && problema="$problema janela_do_pfx_abriu_na_segunda"
@@ -1605,15 +1605,15 @@ ensaio() {
     # DA-2.94 (líder, "Guardar o local"): a segunda execução não abre a janela do .pfx; o caminho guardado que não passa na
     # conferência (link simbólico, arquivo sumido, dono de outro usuário) volta à janela e é substituído. Os preparos ficam na pasta do caso.
     ensaio_segunda_sem_pfx
-    mkdir -p "$RAIZ/p2_link_simbolico"
-    ln -s "$RAIZ/p2_link_simbolico/pfxsecreto-ensaio.p12" "$RAIZ/p2_link_simbolico/link-pfx.p12"
-    ensaio_caso p2_caminho_guardado_link_simbolico 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p2_link_simbolico/link-pfx.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p2_link_simbolico/pfxsecreto-ensaio.p12" NL_ENSAIO_LEMBRAR_AUSENTE='link-pfx.p12'
-    mkdir -p "$RAIZ/p3_arquivo_sumiu"
-    ensaio_caso p3_caminho_guardado_sumiu 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p3_arquivo_sumiu/sumiu.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p3_arquivo_sumiu/pfxsecreto-ensaio.p12"
-    mkdir -p "$RAIZ/p4_outro_dono"
-    printf 'outro\n' > "$RAIZ/p4_outro_dono/outro.p12"
-    chown 65534 "$RAIZ/p4_outro_dono/outro.p12"
-    ensaio_caso p4_caminho_guardado_outro_dono 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p4_outro_dono/outro.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p4_outro_dono/pfxsecreto-ensaio.p12"
+    mkdir -p "$RAIZ/p2_caminho_guardado_link_simbolico"
+    ln -s "$RAIZ/p2_caminho_guardado_link_simbolico/pfxsecreto-ensaio.p12" "$RAIZ/p2_caminho_guardado_link_simbolico/link-pfx.p12"
+    ensaio_caso p2_caminho_guardado_link_simbolico 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p2_caminho_guardado_link_simbolico/link-pfx.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p2_caminho_guardado_link_simbolico/pfxsecreto-ensaio.p12" NL_ENSAIO_LEMBRAR_AUSENTE='link-pfx.p12'
+    mkdir -p "$RAIZ/p3_caminho_guardado_sumiu"
+    ensaio_caso p3_caminho_guardado_sumiu 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p3_caminho_guardado_sumiu/sumiu.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p3_caminho_guardado_sumiu/pfxsecreto-ensaio.p12"
+    mkdir -p "$RAIZ/p4_caminho_guardado_outro_dono"
+    printf 'outro\n' > "$RAIZ/p4_caminho_guardado_outro_dono/outro.p12"
+    chown 65534 "$RAIZ/p4_caminho_guardado_outro_dono/outro.p12"
+    ensaio_caso p4_caminho_guardado_outro_dono 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p4_caminho_guardado_outro_dono/outro.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p4_caminho_guardado_outro_dono/pfxsecreto-ensaio.p12"
     # Rodada 2 (revisor, mutante 3a): depois da consulta, nenhuma marca da resposta crua fica em base nem em home.
     ensaio_caso r18_resposta_crua_fora_do_disco 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_VARRER_DISCO=1
     # Rodada 2 (revisor, mutante 10b): barra invertida na descrição tem de parar antes do número, sem repetir o valor.
