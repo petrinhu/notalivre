@@ -4,6 +4,9 @@
 
 #include <nl/back/dps/dps.h>
 
+#include <nl/back/dps/total_tributos_faixa.h>
+#include <nl/back/dps/total_tributos_regime.h>
+
 #include <utility>
 
 namespace nl::back {
@@ -16,6 +19,13 @@ std::expected<Dps, nl::base::Erro> Dps::montar(DadosDps dados)
     }
     if (!dados.dCompet.isValid()) {
         return std::unexpected(nl::base::Erro{"dps.dcompet", std::string{"Dps.infDPS.dCompet"}, "data de competência inválida"});
+    }
+    // NL-2.10j (J1): a forma de totTrib tem de caber no regime e nas faixas antes de qualquer envio ou reserva de número.
+    if (auto erro = verificarTotTribRegime(dados)) {
+        return std::unexpected(*erro);
+    }
+    if (auto erro = verificarTotTribFaixa(dados)) {
+        return std::unexpected(*erro);
     }
     auto id = IdDps::montar(dados.cLocEmi, dados.prest.inscricao(), dados.serie, dados.nDps);
     if (!id) {
