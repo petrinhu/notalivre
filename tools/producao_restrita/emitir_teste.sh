@@ -1471,7 +1471,7 @@ ensaio() {
     grupo_fechar r6_consulta_invalida
     ensaio_caso r7_situacao_8_avisa_e_segue 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=situacao8 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "3"' NL_ENSAIO_SAIDA_ESPERADA='não é ativa'
     ensaio_caso r8_municipio_da_consulta 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=municipio NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cLocEmi": "3550308"|"cLocPrestacao": "3550308"'
-    ensaio_caso r9_cpf_sem_consulta 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cpf|12345678909' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"' NL_ENSAIO_CHAMADA_AUSENTE=curl
+    ensaio_caso r9_cpf_sem_consulta 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cpf|12345678909' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"' NL_ENSAIO_CHAMADA_AUSENTE=curl NL_ENSAIO_LEMBRAR_AUSENTE='cpf=|cpf=12345678909|cnpj='
     grupo_abrir
     ensaio_caso r10_opcao_vence_lembrado.opcao 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|1' NL_ENSAIO_LEMBRAR='opsimpnac=2|origem_opsimpnac=consulta|cnpj=11222333000181|im=IMENS-7731|sem_im=0' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"'
     ensaio_caso r10_lembrado_vence_consulta.lembrado 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_LEMBRAR='opsimpnac=2|origem_opsimpnac=consulta|cnpj=11222333000181|im=IMENS-7731|sem_im=0' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "2"' NL_ENSAIO_CHAMADA_AUSENTE=curl
@@ -1511,6 +1511,13 @@ ensaio() {
     ensaio_caso v_descricao_invalido 1 "de 1 a 2000 caracteres" 0 0 "" NL_ENSAIO_OPCOES='--descricao|Teste "aspas"' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_sem_im_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--sem-im|--cnpj|11222333000181' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_AUSENTE='"im"' NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_sem_im_invalido 1 "não podem vir juntos" 0 0 "" NL_ENSAIO_OPCOES='--sem-im|--im|IMENS-7731' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    # Coordenação (G1c, item 1): --local-prestacao e --trib-issqn entram; --ret-issqn só aceita 1 (retenção travada em 1, C9).
+    ensaio_caso s1_local_prestacao_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--local-prestacao|0000000' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cLocPrestacao": "0000000"|"cLocEmi": "2611606"'
+    ensaio_caso s2_local_prestacao_invalido 1 "ou 0000000" 0 0 "" NL_ENSAIO_OPCOES='--local-prestacao|261160' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso s3_trib_issqn_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--trib-issqn|2' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"tribISSQN": "2"|"tpRetISSQN": "1"'
+    ensaio_caso s4_trib_issqn_invalido 1 "1, 2, 3 ou 4" 0 0 "" NL_ENSAIO_OPCOES='--trib-issqn|5' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso s5_ret_issqn_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--ret-issqn|1' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"tpRetISSQN": "1"'
+    ensaio_caso s6_ret_issqn_invalido 1 "só aceita 1" 0 0 "" NL_ENSAIO_OPCOES='--ret-issqn|2' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     # DA-2.92 (CTO): o número é reservado antes da chamada. Ctrl+C no meio do POST (INT, saída 130) gasta o número, e a
     # execução seguinte usa o próximo. Falha local devolve o número. O primeiro caso fica vermelho antes da implementação.
     ensaio_sequencia ndps_ctrlc_gasta_o_numero interrompe aceita 130 1 2
