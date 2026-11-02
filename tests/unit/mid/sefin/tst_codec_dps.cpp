@@ -101,6 +101,10 @@ private slots:
     void dpsSimplesComCTribMunValidaNoXsd();
     void cTribMunEntreCTribNacECNbs();
     void semCTribMunNaoSaiElemento();
+    // NL-2.10j (J1): cada forma de totTrib que o regime aceita sai no XML e valida no XSD; pTotTrib na ordem Fed, Est, Mun.
+    void dpsSimplesComPTotTribValidaNoXsd();
+    void dpsSimplesComPTotTribSnValidaNoXsd();
+    void pTotTribNaOrdemDoXsd();
     void dpsTomadorCpfSemEnderecoValida();
     void dpsTomadorCNaoNifValida();
     void dpsCompletaComOpcionaisValidaNoXsd();
@@ -177,6 +181,40 @@ void TstCodecDps::semCTribMunNaoSaiElemento()
     const auto dps = casos::dpsSimplesIbsCbs();
     QVERIFY2(dps.has_value(), "builder do Simples com IBS/CBS recusou a entrada");
     QVERIFY2(!prod::CodecDps::serializar(*dps).contains("<cTribMun"), "cTribMun ausente na entrada não pode sair no XML");
+}
+
+void TstCodecDps::dpsSimplesComPTotTribValidaNoXsd()
+{
+    const auto dps = casos::dpsSimplesComPTotTrib();
+    QVERIFY2(dps.has_value(), "builder do Simples com pTotTrib recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(xml.contains("<pTotTribFed>1.00</pTotTribFed>"), "pTotTrib não serializado");
+    const Veredito veredito = validar(xml);
+    QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
+
+void TstCodecDps::dpsSimplesComPTotTribSnValidaNoXsd()
+{
+    const auto dps = casos::dpsSimplesComPTotTribSn();
+    QVERIFY2(dps.has_value(), "builder do Simples com pTotTribSN recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(xml.contains("<pTotTribSN>4.50</pTotTribSN>"), "pTotTribSN não serializado");
+    QVERIFY2(!xml.contains("<indTotTrib>"), "pTotTribSN não pode vir com indTotTrib");
+    const Veredito veredito = validar(xml);
+    QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
+
+void TstCodecDps::pTotTribNaOrdemDoXsd()
+{
+    // Ordem do TCTribTotalPercent: pTotTribFed, pTotTribEst, pTotTribMun (tiposComplexos_v1.01.xsd, TCTribTotalPercent).
+    const auto dps = casos::dpsSimplesComPTotTrib();
+    QVERIFY2(dps.has_value(), "builder do Simples com pTotTrib recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    const qsizetype fed = xml.indexOf("<pTotTribFed>");
+    const qsizetype est = xml.indexOf("<pTotTribEst>");
+    const qsizetype mun = xml.indexOf("<pTotTribMun>");
+    QVERIFY2(fed >= 0 && est >= 0 && mun >= 0, "os três percentuais de pTotTrib têm de sair");
+    QVERIFY2(fed < est && est < mun, "pTotTrib tem de sair na ordem Fed, Est, Mun");
 }
 
 void TstCodecDps::dpsTomadorCpfSemEnderecoValida()

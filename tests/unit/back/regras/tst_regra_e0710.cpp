@@ -32,19 +32,22 @@ void TstRegraE0710::passaMeiComTotalIndicador()
 
 void TstRegraE0710::reprovaMeiComPercentualSn()
 {
+    // NL-2.10j (J1): a montagem da DPS já recusa MEI com pTotTribSN (dps.tottrib_regime, E0710). A regra não tem DPS para
+    // avaliar nessa combinação: o teste da recusa está em tst_tottrib_regime (meiComPTotTribSnRecusaComE0710).
     teste::Opcoes opcoes;
     opcoes.opSimpNac = "2";
-    opcoes.totTribSn = true;
-    const auto dps = teste::dpsCom(opcoes);
-    QVERIFY(dps.has_value());
-    QCOMPARE(teste::codigoDe(RegraE0710{}.verificar(*dps)), QStringLiteral("E0710"));
+    opcoes.totTrib = teste::FormaTotTrib::sn;
+    QVERIFY(!teste::dpsCom(opcoes).has_value());
+    const auto erro = teste::erroDeMontagemCom(opcoes);
+    QVERIFY(erro.has_value());
+    QCOMPARE(QString::fromStdString(erro->codigo()), QStringLiteral("dps.tottrib_regime"));
 }
 
 void TstRegraE0710::passaMeEppComPercentualSn()
 {
     teste::Opcoes opcoes;
     opcoes.opSimpNac = "3";
-    opcoes.totTribSn = true;
+    opcoes.totTrib = teste::FormaTotTrib::sn;
     const auto dps = teste::dpsCom(opcoes);
     QVERIFY(dps.has_value());
     QVERIFY(!RegraE0710{}.verificar(*dps).has_value());

@@ -82,12 +82,6 @@ std::vector<CasoDeViolacao> casosDeViolacao()
     }
     {
         teste::Opcoes o;
-        o.opSimpNac = "2";
-        o.totTribSn = true;
-        casos.push_back({"E0710", o});
-    }
-    {
-        teste::Opcoes o;
         o.ibscbs = true;
         o.dCompet = QDate{2025, 12, 31};
         casos.push_back({"E0850", o});
@@ -198,7 +192,7 @@ void TstValidadorLocal::padraoDetectaCadaCodigoDoConjunto()
     const teste::CatalogoFalso catalogo;
     const auto validador = ValidadorLocal::padrao(catalogo);
     const auto casos = casosDeViolacao();
-    QCOMPARE(casos.size(), std::size_t{13});
+    QCOMPARE(casos.size(), std::size_t{12});
     for (const auto& caso : casos) {
         const auto dps = teste::dpsCom(caso.opcoes);
         QVERIFY2(dps.has_value(), caso.codigo);
