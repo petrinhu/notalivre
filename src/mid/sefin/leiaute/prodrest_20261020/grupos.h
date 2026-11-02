@@ -29,7 +29,7 @@ void escrevePrestador(QXmlStreamWriter& w, const nl::back::Prestador& prestador)
 /// toma (TCInfoPessoa): identificação (CNPJ, CPF, NIF ou cNaoNIF), IM, xNome, endereço, contato.
 void escreveTomador(QXmlStreamWriter& w, const nl::back::Tomador& tomador);
 
-/// serv (TCServ): locPrest e cServ (cTribNac, cNBS, xDescServ).
+/// serv (TCServ): locPrest e cServ (cTribNac, cTribMun, cNBS, xDescServ).
 void escreveServico(QXmlStreamWriter& w, const nl::back::Servico& servico);
 
 /// valores (TCInfoValores): vServPrest e trib (tribMun e totTrib).

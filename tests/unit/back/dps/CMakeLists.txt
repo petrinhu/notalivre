@@ -23,6 +23,10 @@ add_executable(tst_codigos_leiaute tst_codigos_leiaute.cpp)
 target_link_libraries(tst_codigos_leiaute PRIVATE Qt6::Test nl_back nl_warnings)
 nl_registra_teste_qt(NAME tst_codigos_leiaute COMMAND tst_codigos_leiaute)
 
+add_executable(tst_codigo_trib_municipal tst_codigo_trib_municipal.cpp)
+target_link_libraries(tst_codigo_trib_municipal PRIVATE Qt6::Test nl_back nl_warnings)
+nl_registra_teste_qt(NAME tst_codigo_trib_municipal COMMAND tst_codigo_trib_municipal)
+
 add_executable(tst_descricao_servico tst_descricao_servico.cpp)
 target_link_libraries(tst_descricao_servico PRIVATE Qt6::Test nl_back nl_warnings)
 nl_registra_teste_qt(NAME tst_descricao_servico COMMAND tst_descricao_servico)

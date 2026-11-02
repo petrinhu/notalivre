@@ -225,7 +225,7 @@ limpar_dps() {
 
 # Monta a DPS do roteiro (3.8) com o número dado e libera o arquivo para o programa.
 montar_dps() {
-    local n="$1" dh dc prest_chave im_linha="" reg_apt_linha=""
+    local n="$1" dh dc prest_chave im_linha="" reg_apt_linha="" ctribmun_linha=""
     # NL-2.10g: o prestador leva CNPJ ou CPF (nunca os dois) e a IM. Os valores são fechados por validação, sem aspas nem barras.
     if [ "$INSC_TIPO" = cpf ]; then
         prest_chave="\"cpf\": \"$INSC_VALOR\","
@@ -235,6 +235,8 @@ montar_dps() {
     # G1c (C3): regApTribSN só com opSimpNac 3 (RN 245 e 246); sem IM quando o emissor não tem registro (--sem-im).
     if [ "$OPSIMP" = 3 ]; then reg_apt_linha="\"regApTribSN\": \"$REG_APT\", "; fi
     if [ "$SEM_IM" = 0 ]; then im_linha="\"im\": \"$IM\","; fi
+    # NL-2.10h (H1): cTribMun só entra quando há valor (nunca 000, nunca para MEI: validado antes do número).
+    if [ -n "$CTRIBMUN" ]; then ctribmun_linha="\"cTribMun\": \"$CTRIBMUN\", "; fi
     dh="$(date -u -d '-3 hours' '+%Y-%m-%dT%H:%M:%S')-03:00"
     dc="$(date -u -d '-3 hours' '+%Y-%m-01')"
     case "$dh" in
@@ -260,7 +262,7 @@ montar_dps() {
   "servico": {
     "cLocPrestacao": "$LOC_PREST",
     "cTribNac": "$CTRIBNAC",
-    "xDescServ": "$DESC"
+    ${ctribmun_linha}"xDescServ": "$DESC"
   },
   "valores": {
     "vServ": "$VALOR",
@@ -362,6 +364,9 @@ BA_MUN=""
 BA_ATIVA=""
 LEMBRAR_EXCLUIR=""
 PFX_USADO=""
+CTRIBMUN=""
+PEDIR_CTRIBMUN=0
+PEDIR_NOVO=0
 LEMBRAR_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/notalivre-teste"
 LEMBRAR="$LEMBRAR_DIR/lembrar"
 AVISO_HISTORICO='Aviso: o número de CPF ou CNPJ digitado na linha de comando fica gravado no histórico do terminal e, enquanto o script roda, aparece para outros usuários desta máquina na lista de processos. Para não deixar esse rastro, rode sem --cpf e sem --cnpj: a janela pede o número. Começar o comando com um espaço só tira a linha do histórico se o seu terminal estiver configurado para isso.'
@@ -438,6 +443,8 @@ resolver_local_prestacao() {
 # G1c (validadores sem janela): cada valor de opção é conferido na hora e fica com origem "opcao".
 valida_municipio() { [[ "$1" =~ ^[1-5][0-9]{6}$ ]]; }
 valida_ctribnac() { [[ "$1" =~ ^[0-9]{6}$ && "$1" != 9903* && "$1" != 990401 ]]; }
+# NL-2.10h (H1): cTribMun de 3 dígitos, nunca 000 (regra E0315). A regra de MEI (E0313) é conferida em validar_ctribmun.
+valida_ctribmun() { [[ "$1" =~ ^[0-9]{3}$ && "$1" != 000 ]]; }
 definir_municipio() {
     valida_municipio "$1" || falha "o código IBGE do município precisa ter 7 dígitos e começar de 1 a 5. Nada foi emitido."
     MUN_EMI=$1; ORIG[municipio]=opcao
@@ -445,6 +452,15 @@ definir_municipio() {
 definir_ctribnac() {
     valida_ctribnac "$1" || falha "o código de tributação nacional precisa ter 6 dígitos e não pode começar por 9903 nem ser 990401. Nada foi emitido."
     CTRIBNAC=$1; ORIG[ctribnac]=opcao
+}
+definir_ctribmun() {
+    valida_ctribmun "$1" || falha "o código de tributação municipal precisa ter 3 dígitos e não pode ser 000. Nada foi emitido."
+    CTRIBMUN=$1; ORIG[ctribmun]=opcao
+}
+# Código digitado na janela (depois de uma recusa): recusa vazia ou inválida para antes de consumir número.
+definir_ctribmun_janela() {
+    valida_ctribmun "$1" || falha "o código complementar municipal precisa ter 3 dígitos e não pode ser 000. Nada foi emitido."
+    CTRIBMUN=$1; ORIG[ctribmun]=janela
 }
 definir_opsimpnac() {
     [[ "$1" =~ ^[123]$ ]] || falha "o regime do Simples precisa ser 1 (não optante), 2 (MEI) ou 3 (ME/EPP). Nada foi emitido."
@@ -476,9 +492,9 @@ ler_opcoes() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --sem-im) nome=sem-im; valor=1; shift ;;
-            --cnpj=*|--cpf=*|--im=*|--ie=*|--municipio=*|--ctribnac=*|--opsimpnac=*|--regaptribsn=*|--regesptrib=*|--valor=*|--descricao=*|--local-prestacao=*|--trib-issqn=*|--ret-issqn=*)
+            --cnpj=*|--cpf=*|--im=*|--ie=*|--municipio=*|--ctribnac=*|--ctribmun=*|--opsimpnac=*|--regaptribsn=*|--regesptrib=*|--valor=*|--descricao=*|--local-prestacao=*|--trib-issqn=*|--ret-issqn=*)
                 nome="${1%%=*}"; valor="${1#*=}"; shift ;;
-            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao|--local-prestacao|--trib-issqn|--ret-issqn)
+            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--ctribmun|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao|--local-prestacao|--trib-issqn|--ret-issqn)
                 [ "$#" -ge 2 ] || falha "a opção $1 pede um valor. Nada foi emitido."
                 nome="$1"; valor="$2"; shift 2 ;;
             *) falha "opção desconhecida (use --help para ver as opções). Nada foi emitido." ;;
@@ -501,6 +517,7 @@ ler_opcoes() {
     if [ -n "${OPT[sem-im]+x}" ]; then SEM_IM=1; ORIG[sem_im]=opcao; fi
     if [ -n "${OPT[municipio]+x}" ]; then definir_municipio "${OPT[municipio]}"; fi
     if [ -n "${OPT[ctribnac]+x}" ]; then definir_ctribnac "${OPT[ctribnac]}"; fi
+    if [ -n "${OPT[ctribmun]+x}" ]; then definir_ctribmun "${OPT[ctribmun]}"; fi
     if [ -n "${OPT[opsimpnac]+x}" ]; then definir_opsimpnac "${OPT[opsimpnac]}"; fi
     if [ -n "${OPT[regaptribsn]+x}" ]; then definir_regaptribsn "${OPT[regaptribsn]}"; fi
     if [ -n "${OPT[regesptrib]+x}" ]; then definir_regesptrib "${OPT[regesptrib]}"; fi
@@ -585,6 +602,27 @@ resolver_campos() {
         if [ -n "${LEM[ctribnac]+x}" ]; then CTRIBNAC=${LEM[ctribnac]}; ORIG[ctribnac]=lembrado
         else CTRIBNAC=040101; ORIG[ctribnac]=padrao; fi
     fi
+    # NL-2.10h: cTribMun só vem por opção ou lembrado; sem nenhum dos dois não há padrão (a janela pergunta, se for o caso).
+    if [ "${ORIG[ctribmun]:-}" != opcao ] && [ -n "${LEM[ctribmun]+x}" ]; then CTRIBMUN=${LEM[ctribmun]}; ORIG[ctribmun]=lembrado; fi
+}
+
+# NL-2.10h (H1, regra E0313): MEI não pode ter cTribMun. Opção para MEI para antes de consumir número; lembrado ou janela não
+# valem para MEI e são descartados sem pergunta.
+validar_ctribmun() {
+    [ "$OPSIMP" = 2 ] || return 0
+    if [ "${ORIG[ctribmun]:-}" = opcao ]; then
+        falha "o código de tributação municipal não vale para MEI (regra E0313): tire --ctribmun. Nada foi emitido."
+    fi
+    CTRIBMUN=""
+}
+
+# NL-2.10h (H1): a janela do cTribMun abre só depois de uma recusa E0312, E0313 ou E0314 na execução anterior (flag pedir_ctribmun
+# no arquivo de lembrar), sem valor por opção nem lembrado, e nunca para MEI. Cancelada ou vazia para antes de consumir número.
+janela_ctribmun() {
+    [ "$PEDIR_CTRIBMUN" = 1 ] || return 0
+    [ -z "$CTRIBMUN" ] || return 0
+    [ "$OPSIMP" != 2 ] || return 0
+    definir_ctribmun_janela "$(perguntar "Código complementar municipal do serviço (3 dígitos, o final do código que aparece no Emissor Nacional, por exemplo 501 em 04.01.01.501)." ctribmun)"
 }
 
 # Confere a combinação de regime com os valores finais (RN 245, 248 e 249): antes de consumir número.
@@ -602,6 +640,7 @@ texto_origem() {
         opcao) printf 'da linha de comando' ;;
         lembrado) printf 'lembrado' ;;
         consulta) printf 'da consulta pública' ;;
+        janela) printf 'digitado na janela' ;;
         *) printf 'padrão' ;;
     esac
 }
@@ -616,6 +655,7 @@ anunciar_origens() {
     esac
     printf 'regime: %s, %s\n' "$regime" "$(texto_origem "${ORIG[opsimpnac]:-padrao}")"
     printf 'município: %s, %s\n' "$MUN_EMI" "$(texto_origem "${ORIG[municipio]:-padrao}")"
+    if [ -n "$CTRIBMUN" ]; then printf 'código complementar municipal: %s, %s\n' "$CTRIBMUN" "$(texto_origem "${ORIG[ctribmun]:-padrao}")"; fi
 }
 
 # DA-2.94 (CISO): confere o caminho guardado do .pfx sem abri-lo (lstat, por testes de bash): absoluto, arquivo comum,
@@ -637,12 +677,14 @@ lembrar_valido() {
         regesptrib) [[ "$v" =~ ^(0|1|2|3|4|5|6|9)$ ]] ;;
         municipio) valida_municipio "$v" ;;
         ctribnac) valida_ctribnac "$v" ;;
+        ctribmun) valida_ctribmun "$v" ;;
+        pedir_ctribmun) [[ "$v" =~ ^[01]$ ]] ;;
         sem_im) [[ "$v" =~ ^[01]$ ]] ;;
         cnpj) cnpj_valido "$v" ;;
         im) valida_texto_fechado 15 "$v" ;;
         data) [[ "$v" =~ ^[0-9-]{8,10}$ ]] ;;
         pfx) [[ "$v" == /* && ${#v} -le 4096 && "$v" != *[[:cntrl:]]* ]] ;;
-        origem_*) [[ "$v" =~ ^(consulta|opcao|lembrado|padrao)$ ]] ;;
+        origem_*) [[ "$v" =~ ^(consulta|opcao|lembrado|padrao|janela)$ ]] ;;
         *) return 1 ;;
     esac
 }
@@ -680,6 +722,9 @@ gravar_lembrar() {
     novo[regesptrib]=$REG_ESP
     novo[municipio]=$MUN_EMI
     novo[ctribnac]=$CTRIBNAC
+    if [ -n "$CTRIBMUN" ]; then novo[ctribmun]=$CTRIBMUN; fi
+    # NL-2.10h: a flag da janela vale só depois da resposta da Sefin que a pediu; qualquer outra resposta a limpa (não é escrita).
+    if [ "$PEDIR_NOVO" = 1 ]; then novo[pedir_ctribmun]=1; fi
     novo[sem_im]=$SEM_IM
     if [ "$INSC_TIPO" = cnpj ]; then novo[cnpj]=$INSC_VALOR; fi
     if [ "$SEM_IM" = 0 ] && [ -n "$IM" ]; then novo[im]=$IM; fi
@@ -687,11 +732,11 @@ gravar_lembrar() {
     if [ -n "${PFX_USADO:-}" ]; then novo[pfx]=$PFX_USADO; fi
     novo[data]=$(date +%Y-%m-%d)
     mkdir -p -- "$LEMBRAR_DIR" && chmod 700 "$LEMBRAR_DIR" || return 1
-    for chave in opsimpnac regaptribsn regesptrib municipio ctribnac sem_im cnpj im pfx data; do
+    for chave in opsimpnac regaptribsn regesptrib municipio ctribnac ctribmun pedir_ctribmun sem_im cnpj im pfx data; do
         [ -n "${novo[$chave]+x}" ] || continue
         case " $LEMBRAR_EXCLUIR " in *" $chave "*) continue ;; esac
         case "$chave" in
-            opsimpnac|regaptribsn|regesptrib|municipio|ctribnac|sem_im)
+            opsimpnac|regaptribsn|regesptrib|municipio|ctribnac|ctribmun|sem_im)
                 [ "${ORIG[$chave]:-padrao}" != padrao ] || continue
                 printf '%s=%s\n' "$chave" "${novo[$chave]}"
                 printf 'origem_%s=%s\n' "$chave" "${ORIG[$chave]}" ;;
@@ -716,7 +761,16 @@ dica_recusa() {
         E0174|E0175|E0177) campo_recusado regesptrib "use --regesptrib 0" ;;
         E0116|E0119|E0120|E0125) campo_recusado im "use --im com a inscrição municipal certa, ou --sem-im se a empresa não tem registro no CNC" ;;
         E0037|E0038|E0084) campo_recusado municipio "use --municipio com o código IBGE do município emissor" ;;
-        E0310|E0312) campo_recusado ctribnac "use --ctribnac com um código de tributação do município" ;;
+        E0310) campo_recusado ctribnac "use --ctribnac com um código de tributação do município" ;;
+        # NL-2.10h (H1, D3): E0312 cobre o código complementar e o nacional; E0313 e E0314 pedem o código municipal; a janela abre depois.
+        E0312) LEMBRAR_EXCLUIR="$LEMBRAR_EXCLUIR ctribnac"; PEDIR_NOVO=1
+               campo_recusado ctribmun "use --ctribmun, o município pode exigir o código complementar, ou --ctribnac" ;;
+        # NL-2.10h (H1, QA A2, decisão do main): com MEI, a dica manda NÃO informar --ctribmun (o script não envia para MEI).
+        E0313) PEDIR_NOVO=1
+               if [ "$OPSIMP" = 2 ]; then campo_recusado ctribmun "com MEI, não informe --ctribmun"
+               else campo_recusado ctribmun "a Sefin trata o emitente como MEI: confira o regime e não informe --ctribmun"; fi ;;
+        E0314) PEDIR_NOVO=1; campo_recusado ctribmun "use --ctribmun" ;;
+        E0315) campo_recusado ctribmun "use --ctribmun" ;;
     esac
 }
 
@@ -739,7 +793,7 @@ procura_flag() {
         shift
         [ "$a" = "$alvo" ] && return 0
         case "$a" in
-            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao|--local-prestacao|--trib-issqn|--ret-issqn)
+            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--ctribmun|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao|--local-prestacao|--trib-issqn|--ret-issqn)
                 [ "$#" -gt 0 ] && shift ;;
         esac
     done
@@ -758,6 +812,8 @@ Cada opção vale como --opcao valor ou --opcao=valor.
   --ie T          inscrição estadual (de 1 a 20 caracteres): só confere; não vai na NFS-e e não é guardada.
   --municipio N   código IBGE do município emissor (7 dígitos, começa de 1 a 5). Padrão: o da consulta, ou 2611606.
   --ctribnac N    código de tributação nacional (6 dígitos; não 9903xx nem 990401). Padrão 040101.
+  --ctribmun N    código complementar municipal (3 dígitos, nunca 000; não vale para MEI). Sem ele, a janela só pergunta
+                  depois de uma recusa E0312, E0313 ou E0314 da execução anterior.
   --opsimpnac N   regime do Simples: 1 não optante, 2 MEI, 3 ME/EPP. Padrão: o da consulta, ou 3.
   --regaptribsn N regime de apuração (1, 2 ou 3), só com a opção 3. Padrão 1.
   --regesptrib N  regime especial (0, 1, 2, 3, 4, 5, 6 ou 9). Padrão 0.
@@ -830,11 +886,14 @@ fluxo() {
     fi
     resolver_campos
     resolver_local_prestacao
+    PEDIR_CTRIBMUN=${LEM[pedir_ctribmun]:-0}
+    validar_ctribmun
     # IM (C4): só a IM abre a janela, e só se não veio por --im, não está lembrada e não há --sem-im.
     if [ "$SEM_IM" = 0 ] && [ -z "$IM" ] && [ -n "${LEM[im]+x}" ]; then definir_im "${LEM[im]}"; fi
     if [ "$SEM_IM" = 0 ] && [ -z "$IM" ]; then
         definir_im "$(perguntar "Digite a inscrição municipal (IM) do emissor, no cadastro da Prefeitura: de 1 a 15 letras, números, ponto, barra ou traço." im)"
     fi
+    janela_ctribmun
     validar_regime
     anunciar_origens
 
@@ -1129,6 +1188,12 @@ case "$1" in
                 echo im >> "$NL_ENSAIO_DIR/perguntas.txt"
                 [ -n "${NL_ENSAIO_IM_CANCELA:-}" ] && exit 1
                 printf '%s\n' "${NL_ENSAIO_IM_JANELA-IMENS-7731}"
+                exit 0 ;;
+            *"complementar municipal"*)
+                # NL-2.10h (H1): janela do cTribMun; cancelada ou com valor de ensaio (501 por padrão).
+                echo ctribmun >> "$NL_ENSAIO_DIR/perguntas.txt"
+                [ -n "${NL_ENSAIO_CTRIBMUN_CANCELA:-}" ] && exit 1
+                printf '%s\n' "${NL_ENSAIO_CTRIBMUN_JANELA-501}"
                 exit 0 ;;
             *)
                 echo inscricao >> "$NL_ENSAIO_DIR/perguntas.txt"
@@ -1497,6 +1562,64 @@ ensaio_dois_envios() {
     CASOS=$(( CASOS + 1 ))
 }
 
+# NL-2.10h (H1): janela do cTribMun só depois de uma recusa E0312, E0313 ou E0314 na execução anterior, sem valor por opção
+# nem lembrado. Duas execuções na mesma pasta: a primeira com $2; a segunda com a sequência "$2,$3" (o stub conta as emissões),
+# mais a variável de ambiente $4, se houver. $5 = sim ou nao (janela aberta na segunda). $6 = rc esperado da segunda. $7 = nDps
+# que fica gravado depois da segunda (prova de que a parada antes da Sefin não gasta número).
+ensaio_ctribmun_janela() {
+    local nome="$1" seq1="$2" seq2="$3" extra="$4" janela_esp="$5" rc2_esp="$6" ndps2_esp="$7" dir r2 janela ndps2 problema=""
+    dir="$RAIZ/$nome"
+    mkdir -p "$dir"
+    mkdir -p "$dir/pfxdir-ensaio"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ="$seq1" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    mv -f -- "$dir/perguntas.txt" "$dir/perguntas-1.txt" 2>/dev/null || true
+    env NL_ENSAIO_SEQ="$seq1,$seq2" NL_ENSAIO_DIR="$dir" $extra bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    r2=$?
+    if grep -q '^ctribmun$' "$dir/perguntas.txt" 2>/dev/null; then janela=sim; else janela=nao; fi
+    ndps2=$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null || echo ausente)
+    [ "$r2" -eq "$rc2_esp" ] || problema="$problema rc2=$r2(esperado $rc2_esp)"
+    [ "$janela" = "$janela_esp" ] || problema="$problema janela=$janela(esperada $janela_esp)"
+    [ "$ndps2" = "$ndps2_esp" ] || problema="$problema ndps_apos_2=$ndps2(esperado $ndps2_esp)"
+    if [ "$rc2_esp" -eq 0 ] && [ "$janela_esp" = sim ]; then
+        grep -q '"cTribMun": "501"' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ctribmun_501_ausente_na_dps"
+    fi
+    if [ "$rc2_esp" -eq 0 ] && [ "$janela_esp" = nao ]; then
+        grep -q '"cTribMun"' "$dir/dps-emitida.json" 2>/dev/null && problema="$problema ctribmun_sem_janela"
+    fi
+    if [ -z "$problema" ]; then
+        printf 'ok %s\n' "$nome"
+    else
+        printf 'FALHA %s:%s\n' "$nome" "$problema"
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    CASOS=$(( CASOS + 1 ))
+}
+
+# NL-2.10h (H1, QA A3/M5): o cTribMun dado por opção grava no lembrar, e a execução seguinte, sem opção nem janela, usa o valor gravado.
+ensaio_ctribmun_gravado() {
+    local nome="$1" dir r1 r2 problema=""
+    dir="$RAIZ/$nome"
+    mkdir -p "$dir"
+    mkdir -p "$dir/pfxdir-ensaio"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso --ctribmun 501 < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    mv -f -- "$dir/perguntas.txt" "$dir/perguntas-1.txt" 2>/dev/null || true
+    env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    r2=$?
+    [ "$r1" -eq 0 ] && [ "$r2" -eq 0 ] || problema="$problema rc=$r1/$r2"
+    grep -q '"cTribMun": "501"' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ctribmun_501_nao_lido_do_lembrar"
+    grep -q '^ctribmun$' "$dir/perguntas.txt" 2>/dev/null && problema="$problema janela_abriu_sem_recusa"
+    if [ -z "$problema" ]; then
+        printf 'ok %s\n' "$nome"
+    else
+        printf 'FALHA %s:%s\n' "$nome" "$problema"
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    CASOS=$(( CASOS + 1 ))
+}
+
 ensaio() {
     # Coordenação (G1c, item 3): o ensaio exige python3 (o parser da consulta à BrasilAPI). Sem ele, para no começo, sem pular caso.
     if ! command -v python3 >/dev/null 2>&1; then
@@ -1658,6 +1781,22 @@ ensaio() {
     ensaio_caso v_municipio_invalido 1 "começar de 1 a 5" 0 0 "" NL_ENSAIO_OPCOES='--municipio|0611606' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_ctribnac_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--ctribnac|040102' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cTribNac": "040102"'
     ensaio_caso v_ctribnac_invalido 1 "9903" 0 0 "" NL_ENSAIO_OPCOES='--ctribnac|990401' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    # NL-2.10h (H1): --ctribmun NNN (3 dígitos, nunca 000, proibido com MEI). A recusa acontece antes de consumir número.
+    ensaio_caso h1_ctribmun_opcao_vai_na_dps 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--ctribmun|501' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cTribMun": "501"'
+    ensaio_caso h1_ctribmun_zero_para_antes_do_numero 1 "não pode ser 000" 0 0 "" NL_ENSAIO_OPCOES='--ctribmun|000' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso h1_ctribmun_mei_para_antes_do_numero 1 "MEI" 0 0 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--opsimpnac|2|--ctribmun|501' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso h1_ctribmun_lembrado_vence_ausencia 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR='cnpj=11222333000181|im=IMENS-7731|opsimpnac=3|origem_opsimpnac=consulta|ctribmun=501|origem_ctribmun=lembrado' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cTribMun": "501"'
+    ensaio_caso h1_ctribmun_opcao_vence_lembrado 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--ctribmun|502' NL_ENSAIO_LEMBRAR='cnpj=11222333000181|im=IMENS-7731|opsimpnac=3|origem_opsimpnac=consulta|ctribmun=501|origem_ctribmun=lembrado' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cTribMun": "502"'
+    ensaio_caso h1_ctribmun_ausente_nao_gera_chave 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_AUSENTE='"cTribMun"'
+    ensaio_caso h1_e0312_dica_cita_ctribmun 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_SEQ=E0312 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='use --ctribmun'
+    ensaio_caso h1_e0314_dica_cita_ctribmun 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_SEQ=E0314 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='use --ctribmun'
+    # NL-2.10h (H1, QA A2, decisão do main): com MEI, a dica do E0313 manda NÃO informar --ctribmun.
+    ensaio_caso h1_e0313_mei_dica_nao_informe 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--opsimpnac|2' NL_ENSAIO_SEQ=E0313 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='com MEI, não informe --ctribmun'
+    # NL-2.10h (H1, QA A3/M5): o cTribMun gravado no lembrar volta na execução seguinte, sem opção.
+    ensaio_ctribmun_gravado h1_ctribmun_gravado_lido_na_seguinte
+    ensaio_ctribmun_janela h1_janela_depois_de_e0312 E0312 aceita "" sim 0 2
+    ensaio_ctribmun_janela h1_janela_sem_recusa_nao_abre aceita aceita "" nao 0 2
+    ensaio_ctribmun_janela h1_janela_cancelada_para_antes_do_numero E0312 aceita NL_ENSAIO_CTRIBMUN_CANCELA=1 sim 1 1
     ensaio_caso v_opsimpnac_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|1' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"' NL_ENSAIO_DPS_AUSENTE='"regApTribSN"'
     ensaio_caso v_opsimpnac_invalido 1 "1 (não optante), 2 (MEI) ou 3" 0 0 "" NL_ENSAIO_OPCOES='--opsimpnac|4' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_regaptribsn_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--regaptribsn|2' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"regApTribSN": "2"'

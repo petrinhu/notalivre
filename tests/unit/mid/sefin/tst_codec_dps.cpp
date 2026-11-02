@@ -97,6 +97,10 @@ class TstCodecDps : public QObject
 private slots:
     void dpsMeiMinimaValidaNoXsd();
     void dpsSimplesComIbsCbsValidaNoXsd();
+    // NL-2.10h (H1): cTribMun 501 sai entre cTribNac e cNBS e o XML valida no XSD; sem cTribMun, o elemento não sai.
+    void dpsSimplesComCTribMunValidaNoXsd();
+    void cTribMunEntreCTribNacECNbs();
+    void semCTribMunNaoSaiElemento();
     void dpsTomadorCpfSemEnderecoValida();
     void dpsTomadorCNaoNifValida();
     void dpsCompletaComOpcionaisValidaNoXsd();
@@ -141,6 +145,36 @@ void TstCodecDps::dpsSimplesComIbsCbsValidaNoXsd()
     QVERIFY2(xml.contains("<CST>000</CST>"), "grupo IBS/CBS não serializado");
     const Veredito veredito = validar(xml);
     QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
+
+void TstCodecDps::dpsSimplesComCTribMunValidaNoXsd()
+{
+    const auto dps = casos::dpsSimplesComCTribMun();
+    QVERIFY2(dps.has_value(), "builder do Simples com cTribMun recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(xml.contains("<cTribMun>501</cTribMun>"), "cTribMun não serializado");
+    const Veredito veredito = validar(xml);
+    QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
+
+void TstCodecDps::cTribMunEntreCTribNacECNbs()
+{
+    // Ordem do XSD (tiposComplexos_v1.01.xsd:1478): cTribNac, cTribMun, cNBS. Fora dessa ordem o XSD reprova.
+    const auto dps = casos::dpsSimplesComCTribMun();
+    QVERIFY2(dps.has_value(), "builder do Simples com cTribMun recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    const qsizetype posNac = xml.indexOf("<cTribNac>");
+    const qsizetype posMun = xml.indexOf("<cTribMun>501</cTribMun>");
+    const qsizetype posNbs = xml.indexOf("<cNBS>123456789</cNBS>");
+    QVERIFY2(posNac >= 0 && posMun >= 0 && posNbs >= 0, "cTribNac, cTribMun e cNBS têm de sair no XML");
+    QVERIFY2(posNac < posMun && posMun < posNbs, "cTribMun tem de sair entre cTribNac e cNBS");
+}
+
+void TstCodecDps::semCTribMunNaoSaiElemento()
+{
+    const auto dps = casos::dpsSimplesIbsCbs();
+    QVERIFY2(dps.has_value(), "builder do Simples com IBS/CBS recusou a entrada");
+    QVERIFY2(!prod::CodecDps::serializar(*dps).contains("<cTribMun"), "cTribMun ausente na entrada não pode sair no XML");
 }
 
 void TstCodecDps::dpsTomadorCpfSemEnderecoValida()

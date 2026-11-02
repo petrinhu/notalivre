@@ -17,6 +17,7 @@ target_sources(nl_back PRIVATE
     codigo_pais.cpp
     codigo_situacao_tributaria.cpp
     codigo_trib_nacional.cpp
+    codigo_trib_municipal.cpp
     descricao_servico.cpp
     dps.cpp
     ibscbs.cpp

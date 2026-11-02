@@ -21,6 +21,7 @@
 #include <nl/back/dps/codigo_classificacao_tributaria.h>
 #include <nl/back/dps/codigo_pais.h>
 #include <nl/back/dps/codigo_situacao_tributaria.h>
+#include <nl/back/dps/codigo_trib_municipal.h>
 #include <nl/back/dps/codigo_trib_nacional.h>
 #include <nl/back/dps/dados_dps.h>
 #include <nl/back/dps/descricao_servico.h>
@@ -66,6 +67,8 @@ struct Opcoes
     std::string tpRetISSQN = "1";
     std::string tribISSQN = "1";
     std::string cTribNac = "170201";
+    /// NL-2.10h (H1): cTribMun opcional; ausente = o elemento não entra na DPS.
+    std::optional<std::string> cTribMun;
     std::string cLocPrestacao = "4305108";
     std::string cnpjPrestador = "11222333000181";
     std::string cnpjTomador = "11444777000161";
@@ -307,7 +310,15 @@ inline std::optional<nl::back::Dps> dpsCom(const Opcoes& o)
         || !toma || !tributacao || !ibs) {
         return std::nullopt;
     }
-    const auto servico = Servico::montar(*cLocPrestacao, *cTribNac, *xDescServ, std::nullopt);
+    std::optional<CodigoTribMunicipal> cTribMun;
+    if (o.cTribMun) {
+        const auto valorCTribMun = valor(CodigoTribMunicipal::de(QString::fromStdString(*o.cTribMun)));
+        if (!valorCTribMun) {
+            return std::nullopt;
+        }
+        cTribMun = *valorCTribMun;
+    }
+    const auto servico = Servico::montar(*cLocPrestacao, *cTribNac, cTribMun, *xDescServ, std::nullopt);
     const auto valores = ValoresServico::montar(*vServ, *tributacao);
     DadosDps dados{
         .tpAmb = *tpAmb,

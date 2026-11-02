@@ -9,6 +9,7 @@
 #include <utility>
 
 #include <nl/back/dps/codigo_nbs.h>
+#include <nl/back/dps/codigo_trib_municipal.h>
 #include <nl/back/dps/codigo_trib_nacional.h>
 #include <nl/back/dps/descricao_servico.h>
 #include <nl/back/identificacao/codigo_municipio.h>
@@ -19,14 +20,15 @@ namespace nl::back {
 class Servico
 {
 public:
-    /// Invariante: os três campos já vêm validados. Sem cLocPrestacao de país (TCLocPrest, escolha): fora da v1, INBOX.
-    static Servico montar(CodigoMunicipio cLocPrestacao, CodigoTribNacional cTribNac, DescricaoServico xDescServ,
-                          std::optional<CodigoNbs> cNBS)
+    /// Invariante: os campos já vêm validados; cTribMun é opcional (NL-2.10h). Sem cLocPrestacao de país (TCLocPrest, escolha): fora da v1, INBOX.
+    static Servico montar(CodigoMunicipio cLocPrestacao, CodigoTribNacional cTribNac, std::optional<CodigoTribMunicipal> cTribMun,
+                          DescricaoServico xDescServ, std::optional<CodigoNbs> cNBS)
     {
-        return Servico{std::move(cLocPrestacao), std::move(cTribNac), std::move(xDescServ), std::move(cNBS)};
+        return Servico{std::move(cLocPrestacao), std::move(cTribNac), std::move(cTribMun), std::move(xDescServ), std::move(cNBS)};
     }
 
     const std::optional<CodigoNbs>& cNBS() const noexcept { return cNBS_; }
+    const std::optional<CodigoTribMunicipal>& cTribMun() const noexcept { return cTribMun_; }
 
     const CodigoMunicipio& cLocPrestacao() const noexcept { return cLocPrestacao_; }
     const CodigoTribNacional& cTribNac() const noexcept { return cTribNac_; }
@@ -35,13 +37,16 @@ public:
     bool operator==(const Servico& outro) const = default;
 
 private:
-    Servico(CodigoMunicipio cLocPrestacao, CodigoTribNacional cTribNac, DescricaoServico xDescServ, std::optional<CodigoNbs> cNBS)
-        : cLocPrestacao_{std::move(cLocPrestacao)}, cTribNac_{std::move(cTribNac)}, xDescServ_{std::move(xDescServ)}, cNBS_{std::move(cNBS)}
+    Servico(CodigoMunicipio cLocPrestacao, CodigoTribNacional cTribNac, std::optional<CodigoTribMunicipal> cTribMun,
+            DescricaoServico xDescServ, std::optional<CodigoNbs> cNBS)
+        : cLocPrestacao_{std::move(cLocPrestacao)}, cTribNac_{std::move(cTribNac)}, cTribMun_{std::move(cTribMun)},
+          xDescServ_{std::move(xDescServ)}, cNBS_{std::move(cNBS)}
     {
     }
 
     CodigoMunicipio cLocPrestacao_;
     CodigoTribNacional cTribNac_;
+    std::optional<CodigoTribMunicipal> cTribMun_;
     DescricaoServico xDescServ_;
     std::optional<CodigoNbs> cNBS_;
 };
