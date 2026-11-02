@@ -921,6 +921,10 @@ ensaio() {
     grupo_fechar d_im_fora_do_conjunto
     # e. --cpf com DV certo: DPS com "cpf" e sem "cnpj"; aviso impresso (texto do CISO, DA-2.87).
     ensaio_caso e_cpf_dv_certo_dps_cpf_e_aviso 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cpf|12345678909' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=im NL_ENSAIO_DPS_ESPERADA='"cpf": "12345678909"|"im": "IMENS-7731"' NL_ENSAIO_DPS_AUSENTE='"cnpj"' NL_ENSAIO_SAIDA_ESPERADA="$AVISO_CPF"
+    # Rodada de revisão B2: o texto completo da DA-2.87 sai com --cnpj e com --cpf (o aviso vale para os dois ramos).
+    local AVISO_TEXTO='Aviso: o número de CPF ou CNPJ digitado na linha de comando fica gravado no histórico do terminal e, enquanto o script roda, aparece para outros usuários desta máquina na lista de processos. Para não deixar esse rastro, rode sem --cpf e sem --cnpj: a janela pede o número. Começar o comando com um espaço só tira a linha do histórico se o seu terminal estiver configurado para isso.'
+    ensaio_caso b2_aviso_completo_com_cnpj 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA="$AVISO_TEXTO"
+    ensaio_caso b2_aviso_completo_com_cpf 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cpf|12345678909|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA="$AVISO_TEXTO"
     # f. --cpf com DV errado e com 11 dígitos iguais: para antes de consumir número.
     grupo_abrir
     ensaio_caso f_cpf_dv_errado.dv 1 "CPF" 0 0 "" NL_ENSAIO_OPCOES='--cpf|12345678900' NL_ENSAIO_SEGREDO=12345678900 NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
@@ -936,6 +940,11 @@ ensaio() {
     grupo_fechar h_janela_por_tamanho
     # i. --ie: aceita, não aparece na DPS nem em saída nenhuma, aviso impresso (texto da ordem, D4).
     ensaio_caso i_ie_aceita_sem_dps_com_aviso 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--ie|IEENS-5520|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=inscricao NL_ENSAIO_DPS_AUSENTE='"ie"|IEENS-5520' NL_ENSAIO_SAIDA_ESPERADA='A inscrição estadual não vai na NFS-e'
+    # Rodada de revisão L1: a --ie recusa com mais de 20 caracteres e com caractere fora do conjunto; para antes do número e sem repetir.
+    grupo_abrir
+    ensaio_caso l1_ie_mais_de_20.vinte_e_um 1 "inscrição estadual precisa ter de 1 a 20" 0 0 "" NL_ENSAIO_OPCOES='--ie|IEENSAIO-0123456789AB' NL_ENSAIO_SEGREDO='IEENSAIO-0123456789AB' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso l1_ie_fora_do_conjunto.arroba 1 "inscrição estadual precisa ter de 1 a 20" 0 0 "" NL_ENSAIO_OPCOES='--ie|IE@ENSAIO-1' NL_ENSAIO_SEGREDO='IE@ENSAIO-1' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    grupo_fechar l1_ie_recusada
     # j. opção desconhecida: para sem repetir o valor.
     ensaio_caso j_opcao_desconhecida_para_sem_repetir 1 "opção desconhecida" 0 0 "" NL_ENSAIO_OPCOES='--cpfx|12345678909' NL_ENSAIO_SEGREDO=12345678909 NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     # k. varredura: CPF, IM e IE de fixture só aparecem na DPS (a saída, a devolução, a execução e as chamadas ficam limpas).
