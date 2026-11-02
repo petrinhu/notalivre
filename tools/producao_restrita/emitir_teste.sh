@@ -1339,12 +1339,19 @@ ensaio_caso() {
             [ -n "$pfx_base_semeado" ] && marcas+=("$pfx_base_semeado")
         fi
         for m in "${marcas[@]}"; do args_grep+=(-e "$m"); done
+        # DA-2.95 (CISO, opção B): a varredura aceita o marcador do pfx em exatamente DUAS linhas, por igualdade da linha inteira:
+        # o document-export (caminho do host) e o config certificado (caminho do portal, /run/user/1000/doc/cd34/<nome>, que o stub
+        # gera). A opção (C), tirar o nome do argv do notalivre-cli, fica na INBOX, com destino na NL-4.4. Qualquer outra linha reprova.
+        local prefixo_cli="flatpak run --command=notalivre-cli $APP config certificado /run/user/1000/doc/cd34/" ok
         while IFS= read -r linha_pfx; do
-            if [ "$linha_pfx" = "$prefixo_doc$dir/$pfx_nome" ] || { [ -n "$pfx_semeado" ] && [ "$linha_pfx" = "$prefixo_doc$pfx_semeado" ]; }; then
-                :
-            else
-                problema="$problema marcador_do_pfx_fora_do_document_export"
+            ok=0
+            [ "$linha_pfx" = "$prefixo_doc$dir/$pfx_nome" ] && ok=1
+            [ "$linha_pfx" = "$prefixo_cli$pfx_nome" ] && ok=1
+            if [ -n "$pfx_semeado" ]; then
+                [ "$linha_pfx" = "$prefixo_doc$pfx_semeado" ] && ok=1
+                [ "$linha_pfx" = "$prefixo_cli$pfx_base_semeado" ] && ok=1
             fi
+            [ "$ok" = 1 ] || problema="$problema marcador_do_pfx_fora_das_duas_linhas"
         done < <(grep -F "${args_grep[@]}" -- "$dir/chamadas.txt" 2>/dev/null || true)
     fi
     # Rodada 2 (revisor, mutante 3a): a resposta crua da BrasilAPI não pode ir a disco. Varre toda a árvore de base e de
