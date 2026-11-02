@@ -1321,8 +1321,15 @@ ensaio_caso() {
     achados_pfx=$(grep -r -l -F -- "$dir/pfxsecreto" "$dir/base" "$dir/home" 2>/dev/null | grep -v -F -- "$lem" || true)
     [ -z "$achados_pfx" ] || problema="$problema caminho_do_pfx_fora_do_lembrar"
     # DA-2.94: o caminho do .pfx não aparece nas chamadas, salvo no document-export, que é o caminho já aceito.
-    if [ -f "$dir/chamadas.txt" ] && grep -v -F 'document-export' "$dir/chamadas.txt" | grep -q -F -- "$dir/pfxsecreto"; then
-        problema="$problema caminho_do_pfx_em_chamadas"
+    # Rodada 4 (revisor, R4-B1): a exceção é só a linha exata do document-export ("flatpak document-export --app=..." com o caminho
+    # como último argumento). Qualquer outra linha de chamadas que tenha o caminho reprova, mesmo que tenha a palavra document-export.
+    if [ -f "$dir/chamadas.txt" ]; then
+        while IFS= read -r linha_pfx; do
+            case "$linha_pfx" in
+                "flatpak document-export --app="*" --forbid-write $dir/pfxsecreto"*) ;;
+                *) problema="$problema caminho_do_pfx_fora_do_document_export" ;;
+            esac
+        done < <(grep -F -- "$dir/pfxsecreto" "$dir/chamadas.txt" 2>/dev/null || true)
     fi
     # Rodada 2 (revisor, mutante 3a): a resposta crua da BrasilAPI não pode ir a disco. Varre toda a árvore de base e de
     # XDG_STATE_HOME atrás das marcas do stub (razão e sócio fictícios).
