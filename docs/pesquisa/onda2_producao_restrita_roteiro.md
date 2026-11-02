@@ -38,7 +38,7 @@ No fim ele mostra uma destas frases: "Nota de teste aceita", com a chave de aces
 
 As saídas ficam em `/var/tmp/notalivre-nl210/teste-lider/execucao-<data>/`, e as cópias para devolução em `/var/tmp/notalivre-nl210/devolucao/execucao-<data>/`. Não envie esses arquivos a ninguém. (A pasta do certificado nunca aparece nas saídas.)
 
-Enquanto o script roda, o nome do arquivo do certificado pode aparecer por instantes na lista de processos do computador (a mesma lista que o comando `ps` mostra). O script não grava esse nome em nenhum arquivo de log. Num computador com um único usuário, o risco é baixo. A correção vem numa etapa futura.
+Enquanto o script roda, o nome do arquivo do certificado pode aparecer por instantes na lista de processos do computador (a mesma lista que o comando `ps` mostra). O script não grava esse nome em nenhum arquivo de log. Num computador com um único usuário, o risco é baixo. A correção vem numa etapa futura. O teste confere que o nome do certificado e a pasta onde ele está não aparecem fora dos dois usos aceitos; as pastas acima dela não são conferidas, porque são genéricas.
 
 Não apague o arquivo `/var/tmp/notalivre-nl210/ultimo-ndps.txt`. Ele guarda o último número de DPS usado. Se ele sumir, o próximo envio volta a usar o número 1, e a Sefin pode recusar por número repetido.
 
