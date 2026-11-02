@@ -4,7 +4,8 @@
 #
 # Emissão de teste do líder em Produção Restrita, em um comando só (NL-2.10; decisão do líder de 01/11/2026:
 # "Um comando só (Recomendado)"). Faz as seções 3.1 a 3.11 e a 4 de docs/pesquisa/onda2_producao_restrita_roteiro.md:
-# confere o programa, escolhe o .pfx numa janela, pede o CNPJ, monta a DPS, emite e devolve o resultado.
+# confere o programa, escolhe o .pfx numa janela, pede a inscrição (CNPJ ou CPF) e a IM quando não vieram por opção, monta a DPS,
+# emite e devolve o resultado.
 # A senha é pedida pelo kdialog (janela própria) e entregue à CLI pelo descritor 3 (--senha-certificado-fd 3, NL-2.27). Este
 # script não a lê, não a guarda em variável e não a passa por argv nem por env; sem kdialog ele para antes de consumir número.
 #
@@ -23,8 +24,8 @@
 #     https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/anexo_b-nbs2-lista_servico_nacional-snnfse-v1-01-20260122.xlsx
 #     (SHA-256 e74b0be8ad204e458932efb1716225a3fb5703a84e5475ce5c4c6789d1c61b1a, aba LISTA.SERV.NAC.).
 #
-# Regras que o script cumpre: o caminho do .pfx nunca é impresso, copiado, listado nem gravado em log; o CNPJ não vai a
-# arquivo versionado; nenhuma chamada vai à Produção; nada é apagado por este script; só há tentativa 2
+# Regras que o script cumpre: o caminho do .pfx nunca é impresso, copiado, listado nem gravado em log; a inscrição e a IM
+# não vão a arquivo versionado nem a saída (NL-2.10g); nenhuma chamada vai à Produção; nada é apagado por este script; só há tentativa 2
 # (base) se a Sefin responder 404, e tentativa 3 (algoritmo rsa-sha256) se ela responder E0714.
 
 set -u
@@ -640,7 +641,7 @@ exit 1
 STUB
     cat > "$dir/bin/kdialog" <<'STUB'
 #!/bin/sh
-# Stub do kdialog para o ensaio: devolve um .pfx de faz de conta e um CNPJ de teste.
+# Stub do kdialog para o ensaio: devolve um .pfx de faz de conta e uma inscrição (CNPJ ou CPF) e uma IM de teste.
 case "$1" in
     --getopenfilename)
         [ "${NL_ENSAIO_PFX_VAZIO:-}" = 1 ] && exit 1
