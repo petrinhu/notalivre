@@ -43,6 +43,9 @@ private slots:
     void normalizacaoExaustivaEhIdempotente();
     void cnpjTodoZeroRejeitado();
     void cnpjRaizZeroOutraOrdemAceita();
+    void cnpjComZeroInicialPreservaZeros();
+    void cnpjComDoisZerosIniciaisPreservaZeros();
+    void cnpjComZeroInicialDvErradoRejeitado();
 };
 
 void TstCnpj::cnpjNumericoValidoAceito()
@@ -171,6 +174,35 @@ void TstCnpj::cnpjDvErradoRejeitado()
         QVERIFY(!cnpj.has_value());
         QCOMPARE(QString::fromStdString(cnpj.error().codigo()), QStringLiteral("cnpj.dv"));
     }
+}
+
+void TstCnpj::cnpjComZeroInicialPreservaZeros()
+{
+    // Fixture fictícia (base 012345678901, DVs 07 pelo módulo 11, calculados no contêiner): o zero da frente é dígito, não preenchimento.
+    // Um CNPJ que começa com 0 tem de sair com 14 caracteres, zero incluído, para não perder a identidade no envio.
+    const auto cnpj = Cnpj::de(u"01234567890107");
+    QVERIFY(cnpj.has_value());
+    QCOMPARE(cnpj->texto(), QStringLiteral("01234567890107"));
+    QCOMPARE(cnpj->texto().size(), qsizetype{14});
+    QCOMPARE(cnpj->texto().at(0), QChar{u'0'});
+}
+
+void TstCnpj::cnpjComDoisZerosIniciaisPreservaZeros()
+{
+    // Fixture fictícia com 00 à frente (base 000123456789, DVs 78 pelo módulo 11, calculados no contêiner).
+    const auto cnpj = Cnpj::de(u"00012345678978");
+    QVERIFY(cnpj.has_value());
+    QCOMPARE(cnpj->texto(), QStringLiteral("00012345678978"));
+    QCOMPARE(cnpj->texto().size(), qsizetype{14});
+    QCOMPARE(cnpj->comMascara(), QStringLiteral("00.012.345/6789-78"));
+}
+
+void TstCnpj::cnpjComZeroInicialDvErradoRejeitado()
+{
+    // Mesma fixture com o último dígito trocado: a regra do zero à frente não pode afrouxar o DV.
+    const auto cnpj = Cnpj::de(u"01234567890108");
+    QVERIFY(!cnpj.has_value());
+    QCOMPARE(QString::fromStdString(cnpj.error().codigo()), QStringLiteral("cnpj.dv"));
 }
 
 void TstCnpj::cnpjExibidoComMascaraOficial()
