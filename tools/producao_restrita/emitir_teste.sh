@@ -1592,6 +1592,30 @@ ensaio_ctribmun_janela() {
     CASOS=$(( CASOS + 1 ))
 }
 
+# NL-2.10h (H1, QA A3/M5): o cTribMun dado por opção grava no lembrar, e a execução seguinte, sem opção nem janela, usa o valor gravado.
+ensaio_ctribmun_gravado() {
+    local nome="$1" dir r1 r2 problema=""
+    dir="$RAIZ/$nome"
+    mkdir -p "$dir"
+    mkdir -p "$dir/pfxdir-ensaio"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso --ctribmun 501 < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    mv -f -- "$dir/perguntas.txt" "$dir/perguntas-1.txt" 2>/dev/null || true
+    env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    r2=$?
+    [ "$r1" -eq 0 ] && [ "$r2" -eq 0 ] || problema="$problema rc=$r1/$r2"
+    grep -q '"cTribMun": "501"' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ctribmun_501_nao_lido_do_lembrar"
+    grep -q '^ctribmun$' "$dir/perguntas.txt" 2>/dev/null && problema="$problema janela_abriu_sem_recusa"
+    if [ -z "$problema" ]; then
+        printf 'ok %s\n' "$nome"
+    else
+        printf 'FALHA %s:%s\n' "$nome" "$problema"
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    CASOS=$(( CASOS + 1 ))
+}
+
 ensaio() {
     # Coordenação (G1c, item 3): o ensaio exige python3 (o parser da consulta à BrasilAPI). Sem ele, para no começo, sem pular caso.
     if ! command -v python3 >/dev/null 2>&1; then
@@ -1762,6 +1786,10 @@ ensaio() {
     ensaio_caso h1_ctribmun_ausente_nao_gera_chave 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_AUSENTE='"cTribMun"'
     ensaio_caso h1_e0312_dica_cita_ctribmun 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_SEQ=E0312 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='use --ctribmun'
     ensaio_caso h1_e0314_dica_cita_ctribmun 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_SEQ=E0314 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='use --ctribmun'
+    # NL-2.10h (H1, QA A2, decisão do main): com MEI, a dica do E0313 manda NÃO informar --ctribmun.
+    ensaio_caso h1_e0313_mei_dica_nao_informe 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--opsimpnac|2' NL_ENSAIO_SEQ=E0313 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='com MEI, não informe --ctribmun'
+    # NL-2.10h (H1, QA A3/M5): o cTribMun gravado no lembrar volta na execução seguinte, sem opção.
+    ensaio_ctribmun_gravado h1_ctribmun_gravado_lido_na_seguinte
     ensaio_ctribmun_janela h1_janela_depois_de_e0312 E0312 aceita "" sim 0 2
     ensaio_ctribmun_janela h1_janela_sem_recusa_nao_abre aceita aceita "" nao 0 2
     ensaio_ctribmun_janela h1_janela_cancelada_para_antes_do_numero E0312 aceita NL_ENSAIO_CTRIBMUN_CANCELA=1 sim 1 1
