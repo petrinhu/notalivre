@@ -91,3 +91,10 @@ endforeach()
 # Manifesto do XSD divergente do pin embutido (NL-2.10b, BAIXA-4): a revalidação recusa antes de abrir o esquema.
 nl_registra_teste_qt(NAME mid.composicao.validarXmlRecusaManifestoDivergente COMMAND tst_validar_xml validarXmlRecusaManifestoDivergente)
 set_tests_properties(mid.composicao.validarXmlRecusaManifestoDivergente PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+# Leitor da inscrição da CLI (NL-2.10h, H4): CNPJ e CPF com zero à esquerda como texto; número JSON recusado.
+add_executable(tst_leitor_inscricao tst_leitor_inscricao.cpp)
+target_include_directories(tst_leitor_inscricao PRIVATE ${CMAKE_SOURCE_DIR}/src/mid/composicao)
+target_link_libraries(tst_leitor_inscricao PRIVATE Qt6::Core Qt6::Test nl_mid nl_back nl_foundation_base nl_warnings)
+nl_registra_teste_qt(NAME mid.composicao.leitorInscricao COMMAND tst_leitor_inscricao)
+set_tests_properties(mid.composicao.leitorInscricao PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 9 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
