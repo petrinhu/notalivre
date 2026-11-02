@@ -16,16 +16,16 @@ O script faz sozinho todos os passos técnicos deste roteiro (o passo a passo ma
 
 1. o CNPJ da empresa, com 14 dígitos e sem pontos (se a empresa for de CPF, informe o CPF);
 2. a Inscrição Municipal (IM) da empresa;
-3. o arquivo do certificado `.pfx`;
+3. o arquivo do certificado `.pfx`. O caminho dele fica guardado para as próximas vezes; o certificado e a senha não ficam;
 4. a senha do certificado, numa janela própria, e não no terminal. O script não lê nem guarda a senha.
 
 Depois de receber o CNPJ, o script consulta a BrasilAPI, uma consulta pública, e descobre sozinho se a empresa é do Simples Nacional, é MEI ou não é optante. Para isso, o CNPJ vai à BrasilAPI.
 
 Se a primeira tentativa parar antes de a Sefin responder, nada fica guardado, e a próxima vez pergunta tudo de novo.
 
-**Nas seguintes**, o script usa o CNPJ e a IM que ficaram guardados e não pergunta mais por eles. O arquivo `.pfx` e a senha continuam sendo pedidos a cada vez. O CPF nunca fica guardado: com CPF, o script pergunta o CPF de novo.
+**Nas seguintes**, o script usa o CNPJ, a IM e o caminho do certificado que ficaram guardados, e não pergunta mais por eles. Pede só a senha do certificado. Se o arquivo guardado não existir mais, for um link simbólico ou não for seu, a janela pergunta o `.pfx` de novo. O CPF nunca fica guardado: com CPF, o script pergunta o CPF de novo.
 
-- `--esquecer` apaga o que ficou guardado, sem emitir nada.
+- `--esquecer` apaga o que ficou guardado (CNPJ, IM e o caminho do certificado), sem emitir nada.
 - `--help` mostra todas as opções.
 
 **Onde achar a Inscrição Municipal.** A IM é o número de inscrição da empresa na Prefeitura. Você encontra no cadastro mobiliário da Prefeitura do Recife, ou no Emissor Nacional, em nfse.gov.br. Se a IM não estiver registrada para o município de Recife no cadastro da Produção Restrita, a Sefin recusa a nota, e a mensagem do script diz o que fazer.
@@ -61,7 +61,7 @@ Não apague o arquivo `/var/tmp/notalivre-nl210/ultimo-ndps.txt`. Ele guarda o �
 | `--ret-issqn N` | Retenção do ISSQN: só 1 neste script, porque não há tomador. Padrão 1. |
 | `--valor V` | Valor do serviço, como 10,00 (ponto ou vírgula). Padrão 10,00. |
 | `--descricao T` | Descrição do serviço, de 1 a 2000 caracteres: letras, números, espaço e . , ; : - / ( ) %. |
-| `--esquecer` | Apaga o que o script guardou do emissor e sai, sem emitir. |
+| `--esquecer` | Apaga tudo o que o script guardou (CNPJ, IM e o caminho do certificado) e sai, sem emitir. |
 | `--help`, `-h` | Mostra a ajuda e sai, sem perguntar nada. |
 
 **Para o agente:** `bash <caminho>/tools/producao_restrita/emitir_teste.sh --ensaio` roda todos os casos com stubs, dentro de um contêiner, sem flatpak e sem Sefin.
@@ -69,8 +69,8 @@ Não apague o arquivo `/var/tmp/notalivre-nl210/ultimo-ndps.txt`. Ele guarda o �
 ---
 
 **Situação:** pronto para o líder. Uma verificação fica aberta e declarada (seção 6, item 4): o seu teste é a prova.
-**Data:** 31/10/2026.
-**Código:** branch `onda-2`, commit `13848877306783356cad864897e6c735bab13ff1` (merge da NL-2.10c). Esta fatia está sobre ele.
+**Data:** 01/11/2026.
+**Código:** o pacote do run `41362487894` foi feito sobre o commit `22cdb30b` (merge da NL-2.10e na onda-2). O app não mudou desde esse commit. O script `tools/producao_restrita/emitir_teste.sh` está na fatia NL-2.10g (branch `fatia/NL-2.10g`, ainda fora da onda-2), e nada no empacotamento do Flatpak o referencia.
 **Pacote a instalar:** veja a seção "Pacote a instalar", logo abaixo.
 
 Nos comandos abaixo, o que está entre `< >` é um texto que você troca pelo seu valor. O caminho do seu certificado nunca aparece neste roteiro: use sempre `<caminho do seu .pfx>`.
@@ -90,6 +90,7 @@ Um registro só. Confira antes de instalar.
 - **SHA-256 completo do arquivo `notalivre.flatpak`:** `2c2372581c392b0088faa6271bb40a9333f658b047ba6398e5acef23a90164c0`
 - **Caminho do arquivo:** `/var/tmp/notalivre-nl210/bundle/run-41362487894/notalivre.flatpak`
 - **Tamanho:** 648336 bytes
+- **App desde este commit:** nenhum arquivo de `src/`, `apps/`, `flatpak/` ou `CMakeLists.txt` mudou entre `22cdb30b` e o commit `8e856d2` do script (conferido em 01/11/2026). O run `41362487894` continua sendo o pacote certo.
 
 Antes de instalar, rode:
 
