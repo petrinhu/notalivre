@@ -200,13 +200,16 @@ limpar_dps() {
 
 # Monta a DPS do roteiro (3.8) com o número dado e libera o arquivo para o programa.
 montar_dps() {
-    local n="$1" dh dc prest_chave
+    local n="$1" dh dc prest_chave im_linha="" reg_apt_linha=""
     # NL-2.10g: o prestador leva CNPJ ou CPF (nunca os dois) e a IM. Os valores são fechados por validação, sem aspas nem barras.
     if [ "$INSC_TIPO" = cpf ]; then
         prest_chave="\"cpf\": \"$INSC_VALOR\","
     else
         prest_chave="\"cnpj\": \"$INSC_VALOR\","
     fi
+    # G1c (C3): regApTribSN só com opSimpNac 3 (RN 245 e 246); sem IM quando o emissor não tem registro (--sem-im).
+    if [ "$OPSIMP" = 3 ]; then reg_apt_linha="\"regApTribSN\": \"$REG_APT\", "; fi
+    if [ "$SEM_IM" = 0 ]; then im_linha="\"im\": \"$IM\","; fi
     dh="$(date -u -d '-3 hours' '+%Y-%m-%dT%H:%M:%S')-03:00"
     dc="$(date -u -d '-3 hours' '+%Y-%m-01')"
     case "$dh" in
@@ -223,19 +226,19 @@ montar_dps() {
   "serie": $SERIE,
   "nDps": $n,
   "dCompet": "$dc",
-  "cLocEmi": "$MUNICIPIO",
+  "cLocEmi": "$MUN_EMI",
   "prestador": {
     $prest_chave
-    "im": "$IM",
-    "regime": { "opSimpNac": "3", "regEspTrib": "0" }
+    $im_linha
+    "regime": { "opSimpNac": "$OPSIMP", ${reg_apt_linha}"regEspTrib": "$REG_ESP" }
   },
   "servico": {
-    "cLocPrestacao": "$MUNICIPIO",
+    "cLocPrestacao": "$MUN_EMI",
     "cTribNac": "$CTRIBNAC",
-    "xDescServ": "Medicina: teste de emissão em Produção Restrita"
+    "xDescServ": "$DESC"
   },
   "valores": {
-    "vServ": "10,00",
+    "vServ": "$VALOR",
     "tribMun": { "tribISSQN": "1", "tpRetISSQN": "1" },
     "totTrib": { "indTotTrib": "0" }
   }
@@ -316,6 +319,22 @@ INSC_TIPO=""
 INSC_VALOR=""
 IM=""
 declare -A OPT=()
+# G1c: valores dos campos e sua origem (opcao, lembrado, consulta ou padrao). A origem decide o que o lembrado guarda.
+declare -A ORIG=() LEM=()
+OPSIMP=3
+REG_APT=1
+REG_ESP=0
+VALOR="10,00"
+DESC="Medicina: teste de emissão em Produção Restrita"
+MUN_EMI="$MUNICIPIO"
+SEM_IM=0
+BA_OK=0
+BA_OPSIMP=""
+BA_MUN=""
+BA_ATIVA=""
+LEMBRAR_EXCLUIR=""
+LEMBRAR_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/notalivre-teste"
+LEMBRAR="$LEMBRAR_DIR/lembrar"
 AVISO_HISTORICO='Aviso: o número de CPF ou CNPJ digitado na linha de comando fica gravado no histórico do terminal e, enquanto o script roda, aparece para outros usuários desta máquina na lista de processos. Para não deixar esse rastro, rode sem --cpf e sem --cnpj: a janela pede o número. Começar o comando com um espaço só tira a linha do histórico se o seu terminal estiver configurado para isso.'
 
 # Tira espaços das pontas.
@@ -357,7 +376,7 @@ definir_inscricao() {
 definir_im() {
     local v
     v=$(aparar "$1")
-    valida_texto_fechado 15 "$v" || falha "a inscrição municipal precisa ter de 1 a 15 caracteres: letras, números, ponto, barra ou traço, e não pode ser vazia. Nada foi emitido."
+    valida_texto_fechado 15 "$v" || falha "a inscrição municipal precisa ter de 1 a 15 caracteres: letras, números, ponto, barra ou traço, e não pode ser vazia; se a empresa não tem inscrição municipal, use --sem-im. Nada foi emitido."
     IM=$v
 }
 
@@ -369,15 +388,53 @@ validar_ie() {
     printf '%s\n' 'A inscrição estadual não vai na NFS-e e este script não a guarda; a guarda no cofre vem com a interface (spec 4.5).'
 }
 
+# G1c (validadores sem janela): cada valor de opção é conferido na hora e fica com origem "opcao".
+valida_municipio() { [[ "$1" =~ ^[1-5][0-9]{6}$ ]]; }
+valida_ctribnac() { [[ "$1" =~ ^[0-9]{6}$ && "$1" != 9903* && "$1" != 990401 ]]; }
+definir_municipio() {
+    valida_municipio "$1" || falha "o código IBGE do município precisa ter 7 dígitos e começar de 1 a 5. Nada foi emitido."
+    MUN_EMI=$1; ORIG[municipio]=opcao
+}
+definir_ctribnac() {
+    valida_ctribnac "$1" || falha "o código de tributação nacional precisa ter 6 dígitos e não pode começar por 9903 nem ser 990401. Nada foi emitido."
+    CTRIBNAC=$1; ORIG[ctribnac]=opcao
+}
+definir_opsimpnac() {
+    [[ "$1" =~ ^[123]$ ]] || falha "o regime do Simples precisa ser 1 (não optante), 2 (MEI) ou 3 (ME/EPP). Nada foi emitido."
+    OPSIMP=$1; ORIG[opsimpnac]=opcao
+}
+definir_regaptribsn() {
+    [[ "$1" =~ ^[123]$ ]] || falha "o regime de apuração (regApTribSN) precisa ser 1, 2 ou 3. Nada foi emitido."
+    REG_APT=$1; ORIG[regaptribsn]=opcao
+}
+definir_regesptrib() {
+    [[ "$1" =~ ^(0|1|2|3|4|5|6|9)$ ]] || falha "o regime especial precisa ser 0, 1, 2, 3, 4, 5, 6 ou 9. Nada foi emitido."
+    REG_ESP=$1; ORIG[regesptrib]=opcao
+}
+definir_valor() {
+    local v=$1
+    { [[ "$v" =~ ^[0-9]{1,13}[,.][0-9]{2}$ ]] && [[ "${v//[^1-9]/}" ]]; } || falha "o valor precisa estar no formato 10,00 (até 13 dígitos e 2 casas, com ponto ou vírgula) e ser maior que zero. Nada foi emitido."
+    VALOR=${v/./,}; ORIG[valor]=opcao
+}
+definir_descricao() {
+    local v=$1 re
+    local LC_ALL=C.UTF-8
+    re='^[A-Za-z0-9áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ .,;:/()%-]{1,2000}$'
+    [[ "$v" =~ $re ]] || falha "a descrição precisa ter de 1 a 2000 caracteres: letras (com ou sem acento), números, espaço e . , ; : - / ( ) %. Nada foi emitido."
+    DESC=$v; ORIG[descricao]=opcao
+}
+
 ler_opcoes() {
     local nome valor
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            --cnpj=*|--cpf=*|--im=*|--ie=*) nome="${1%%=*}"; valor="${1#*=}"; shift ;;
-            --cnpj|--cpf|--im|--ie)
+            --sem-im) nome=sem-im; valor=1; shift ;;
+            --cnpj=*|--cpf=*|--im=*|--ie=*|--municipio=*|--ctribnac=*|--opsimpnac=*|--regaptribsn=*|--regesptrib=*|--valor=*|--descricao=*)
+                nome="${1%%=*}"; valor="${1#*=}"; shift ;;
+            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao)
                 [ "$#" -ge 2 ] || falha "a opção $1 pede um valor. Nada foi emitido."
                 nome="$1"; valor="$2"; shift 2 ;;
-            *) falha "opção desconhecida (use --cnpj, --cpf, --im ou --ie). Nada foi emitido." ;;
+            *) falha "opção desconhecida (use --help para ver as opções). Nada foi emitido." ;;
         esac
         nome="${nome#--}"
         [ -z "${OPT[$nome]+x}" ] || falha "a opção --$nome foi dada mais de uma vez. Nada foi emitido."
@@ -393,10 +450,265 @@ ler_opcoes() {
     if [ -n "${OPT[cpf]+x}" ]; then definir_inscricao "${OPT[cpf]}" cpf; fi
     if [ -n "${OPT[im]+x}" ]; then definir_im "${OPT[im]}"; fi
     if [ -n "${OPT[ie]+x}" ]; then validar_ie "${OPT[ie]}"; fi
+    if [ -n "${OPT[sem-im]+x}" ] && [ -n "${OPT[im]+x}" ]; then falha "--sem-im e --im não podem vir juntos. Nada foi emitido."; fi
+    if [ -n "${OPT[sem-im]+x}" ]; then SEM_IM=1; ORIG[sem_im]=opcao; fi
+    if [ -n "${OPT[municipio]+x}" ]; then definir_municipio "${OPT[municipio]}"; fi
+    if [ -n "${OPT[ctribnac]+x}" ]; then definir_ctribnac "${OPT[ctribnac]}"; fi
+    if [ -n "${OPT[opsimpnac]+x}" ]; then definir_opsimpnac "${OPT[opsimpnac]}"; fi
+    if [ -n "${OPT[regaptribsn]+x}" ]; then definir_regaptribsn "${OPT[regaptribsn]}"; fi
+    if [ -n "${OPT[regesptrib]+x}" ]; then definir_regesptrib "${OPT[regesptrib]}"; fi
+    if [ -n "${OPT[valor]+x}" ]; then definir_valor "${OPT[valor]}"; fi
+    if [ -n "${OPT[descricao]+x}" ]; then definir_descricao "${OPT[descricao]}"; fi
+    if [ -n "${OPT[regaptribsn]+x}" ] && [ -n "${OPT[opsimpnac]+x}" ] && [ "$OPSIMP" != 3 ]; then
+        falha "--regaptribsn só vale com a opção 3 do Simples (ME/EPP). Nada foi emitido."
+    fi
     return 0
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
+# G1c: consulta pública (BrasilAPI) só com CNPJ, sem --opsimpnac e sem regime lembrado. Só o regime e o município saem dela,
+# e o JSON é lido por python3 -I na entrada padrão: a saída é só o regime, o município e a situação (nunca nome, nunca sócio).
+PARSER_BRASILAPI='import json, sys
+try:
+    d = json.load(sys.stdin)
+    mei = d["opcao_pelo_mei"] is True and d["data_exclusao_do_mei"] in (None, "")
+    sn = d["opcao_pelo_simples"] is True and d["data_exclusao_do_simples"] in (None, "")
+    mun = str(d["codigo_municipio_ibge"])
+    if len(mun) != 7 or not mun.isdigit():
+        raise ValueError
+    ativa = 1 if str(d["situacao_cadastral"]) in ("2", "ATIVA") else 0
+    print(2 if mei else 3 if sn else 1, mun, ativa)
+except Exception:
+    sys.exit(1)
+'
+
+# Sem curl ou python3, sem resposta, ou resposta que não serve: avisa em uma linha e segue com os padrões (nunca para).
+consultar_brasilapi() {
+    local json saida
+    BA_OK=0
+    if ! command -v curl >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+        printf 'AVISO: curl ou python3 ausente: a consulta pública não foi feita; uso os padrões.\n'
+        return 0
+    fi
+    json=$(curl -fsS --max-time 10 --proto =https "https://brasilapi.com.br/api/cnpj/v1/$INSC_VALOR" 2>/dev/null) || json=""
+    if [ -z "$json" ]; then
+        printf 'AVISO: a consulta pública não respondeu; uso os padrões.\n'
+        return 0
+    fi
+    saida=$(printf '%s' "$json" | python3 -I -c "$PARSER_BRASILAPI" 2>/dev/null) || saida=""
+    if [ -z "$saida" ]; then
+        printf 'AVISO: a resposta da consulta pública não serve; uso os padrões.\n'
+        return 0
+    fi
+    read -r BA_OPSIMP BA_MUN BA_ATIVA <<< "$saida"
+    BA_OK=1
+    if [ "$BA_ATIVA" != 1 ]; then
+        printf 'AVISO: a situação cadastral do CNPJ na consulta pública não é ativa; a Sefin decide.\n'
+    fi
+}
+
+# Precedência de cada campo (C1): opção, depois lembrado, depois consulta (regime e município), depois padrão.
+resolver_campos() {
+    if [ "${ORIG[sem_im]:-}" != opcao ]; then
+        if [ -z "${OPT[im]+x}" ] && [ -n "${LEM[sem_im]+x}" ]; then SEM_IM=${LEM[sem_im]}; ORIG[sem_im]=lembrado; fi
+    fi
+    if [ "${ORIG[opsimpnac]:-}" != opcao ]; then
+        if [ -n "${LEM[opsimpnac]+x}" ]; then OPSIMP=${LEM[opsimpnac]}; ORIG[opsimpnac]=lembrado
+        elif [ "$BA_OK" = 1 ]; then OPSIMP=$BA_OPSIMP; ORIG[opsimpnac]=consulta
+        elif [ "$INSC_TIPO" = cpf ]; then OPSIMP=1; ORIG[opsimpnac]=padrao
+        else OPSIMP=3; ORIG[opsimpnac]=padrao; fi
+    fi
+    if [ "${ORIG[municipio]:-}" != opcao ]; then
+        if [ -n "${LEM[municipio]+x}" ]; then MUN_EMI=${LEM[municipio]}; ORIG[municipio]=lembrado
+        elif [ "$BA_OK" = 1 ]; then MUN_EMI=$BA_MUN; ORIG[municipio]=consulta
+        else MUN_EMI=$MUNICIPIO; ORIG[municipio]=padrao; fi
+    fi
+    if [ "${ORIG[regaptribsn]:-}" != opcao ]; then
+        if [ -n "${LEM[regaptribsn]+x}" ]; then REG_APT=${LEM[regaptribsn]}; ORIG[regaptribsn]=lembrado
+        else REG_APT=1; ORIG[regaptribsn]=padrao; fi
+    fi
+    if [ "${ORIG[regesptrib]:-}" != opcao ]; then
+        if [ -n "${LEM[regesptrib]+x}" ]; then REG_ESP=${LEM[regesptrib]}; ORIG[regesptrib]=lembrado
+        else REG_ESP=0; ORIG[regesptrib]=padrao; fi
+    fi
+    if [ "${ORIG[ctribnac]:-}" != opcao ]; then
+        if [ -n "${LEM[ctribnac]+x}" ]; then CTRIBNAC=${LEM[ctribnac]}; ORIG[ctribnac]=lembrado
+        else CTRIBNAC=040101; ORIG[ctribnac]=padrao; fi
+    fi
+}
+
+# Confere a combinação de regime com os valores finais (RN 245, 248 e 249): antes de consumir número.
+validar_regime() {
+    if [ "$OPSIMP" = 2 ] && [ "$REG_ESP" != 0 ]; then
+        falha "o regime especial de MEI (regEspTrib) só pode ser 0. Nada foi emitido."
+    fi
+    if [ "$OPSIMP" = 3 ] && [ "$REG_APT" = 1 ] && [ "$REG_ESP" != 0 ]; then
+        falha "com a opção 3 e regApTribSN 1, o regime especial (regEspTrib) precisa ser 0. Nada foi emitido."
+    fi
+}
+
+texto_origem() {
+    case "$1" in
+        opcao) printf 'da linha de comando' ;;
+        lembrado) printf 'lembrado' ;;
+        consulta) printf 'da consulta pública' ;;
+        *) printf 'padrão' ;;
+    esac
+}
+
+# Diz de onde veio o regime e o município (C1). Nada de CNPJ, CPF, IM nem nome.
+anunciar_origens() {
+    local regime
+    case "$OPSIMP" in
+        1) regime="não optante" ;;
+        2) regime=MEI ;;
+        *) regime="ME/EPP" ;;
+    esac
+    printf 'regime: %s, %s\n' "$regime" "$(texto_origem "${ORIG[opsimpnac]:-padrao}")"
+    printf 'município: %s, %s\n' "$MUN_EMI" "$(texto_origem "${ORIG[municipio]:-padrao}")"
+}
+
+# Arquivo de lembrar (C5, DA-2.91): $XDG_STATE_HOME/notalivre-teste/lembrar, 0600 numa pasta 0700. O CPF nunca entra.
+lembrar_valido() {
+    local chave="$1" v="$2"
+    case "$chave" in
+        opsimpnac|regaptribsn) [[ "$v" =~ ^[123]$ ]] ;;
+        regesptrib) [[ "$v" =~ ^(0|1|2|3|4|5|6|9)$ ]] ;;
+        municipio) valida_municipio "$v" ;;
+        ctribnac) valida_ctribnac "$v" ;;
+        sem_im) [[ "$v" =~ ^[01]$ ]] ;;
+        cnpj) cnpj_valido "$v" ;;
+        im) valida_texto_fechado 15 "$v" ;;
+        data) [[ "$v" =~ ^[0-9-]{8,10}$ ]] ;;
+        origem_*) [[ "$v" =~ ^(consulta|opcao|lembrado|padrao)$ ]] ;;
+        *) return 1 ;;
+    esac
+}
+
+# Lê o lembrado. Permissão aberta, outro dono ou linha fora do conjunto: ignora tudo e avisa.
+lembrar_carregar() {
+    local linha chave valor modo dono
+    LEM=()
+    [ -e "$LEMBRAR" ] || return 0
+    modo=$(stat -c %a -- "$LEMBRAR" 2>/dev/null)
+    dono=$(stat -c %u -- "$LEMBRAR" 2>/dev/null)
+    if [ "$modo" != 600 ] || [ "$dono" != "$(id -u)" ]; then
+        printf 'AVISO: o arquivo de lembrar tem permissão aberta ou outro dono: ignorado.\n'
+        return 0
+    fi
+    while IFS= read -r linha || [ -n "$linha" ]; do
+        chave=${linha%%=*}
+        valor=${linha#*=}
+        if [ "$chave" = "$linha" ] || ! lembrar_valido "$chave" "$valor"; then
+            printf 'AVISO: o arquivo de lembrar tem uma linha fora do conjunto: ignorado.\n'
+            LEM=()
+            return 0
+        fi
+        LEM[$chave]=$valor
+    done < "$LEMBRAR"
+    return 0
+}
+
+# Grava o que vale para a próxima vez (depois da resposta da Sefin). Valor padrão não é gravado; campo recusado não entra.
+gravar_lembrar() {
+    local tmp="$LEMBRAR.tmp" chave
+    local -A novo=()
+    novo[opsimpnac]=$OPSIMP
+    if [ "$OPSIMP" = 3 ]; then novo[regaptribsn]=$REG_APT; fi
+    novo[regesptrib]=$REG_ESP
+    novo[municipio]=$MUN_EMI
+    novo[ctribnac]=$CTRIBNAC
+    novo[sem_im]=$SEM_IM
+    if [ "$INSC_TIPO" = cnpj ]; then novo[cnpj]=$INSC_VALOR; fi
+    if [ "$SEM_IM" = 0 ] && [ -n "$IM" ]; then novo[im]=$IM; fi
+    novo[data]=$(date +%Y-%m-%d)
+    mkdir -p -- "$LEMBRAR_DIR" && chmod 700 "$LEMBRAR_DIR" || return 1
+    for chave in opsimpnac regaptribsn regesptrib municipio ctribnac sem_im cnpj im data; do
+        [ -n "${novo[$chave]+x}" ] || continue
+        case " $LEMBRAR_EXCLUIR " in *" $chave "*) continue ;; esac
+        case "$chave" in
+            opsimpnac|regaptribsn|regesptrib|municipio|ctribnac|sem_im)
+                [ "${ORIG[$chave]:-padrao}" != padrao ] || continue
+                printf '%s=%s\n' "$chave" "${novo[$chave]}"
+                printf 'origem_%s=%s\n' "$chave" "${ORIG[$chave]}" ;;
+            *) printf '%s=%s\n' "$chave" "${novo[$chave]}" ;;
+        esac
+    done > "$tmp" || return 1
+    chmod 600 "$tmp" && mv -f -- "$tmp" "$LEMBRAR"
+}
+
+campo_recusado() {
+    LEMBRAR_EXCLUIR="$LEMBRAR_EXCLUIR $1"
+    printf 'na próxima tentativa, %s.\n' "$2"
+}
+
+# Recusa da Sefin ligada a um campo (C6): uma linha de dica e o campo sai do lembrado.
+dica_recusa() {
+    local codigo
+    codigo=$(grep -o 'sefin\.E[0-9][0-9][0-9][0-9]' "$SAIDA_ATUAL" | tail -n 1 | cut -d. -f2)
+    case "$codigo" in
+        E0160) campo_recusado opsimpnac "use --opsimpnac 1, 2 ou 3, conforme o cadastro do Simples na competência" ;;
+        E0162|E0166) campo_recusado regaptribsn "use --regaptribsn 1, 2 ou 3 (com a opção 3 do Simples)" ;;
+        E0174|E0175|E0177) campo_recusado regesptrib "use --regesptrib 0" ;;
+        E0116|E0119|E0120|E0125) campo_recusado im "use --im com a inscrição municipal certa, ou --sem-im se a empresa não tem registro no CNC" ;;
+        E0037|E0038|E0084) campo_recusado municipio "use --municipio com o código IBGE do município emissor" ;;
+        E0310|E0312) campo_recusado ctribnac "use --ctribnac com um código de tributação do município" ;;
+    esac
+}
+
+# --esquecer: apaga o arquivo de lembrar pelo caminho conferido e sai com 0, sem emitir, sem janela e sem flatpak.
+esquecer_lembrar() {
+    if [ "$LEMBRAR" = "$LEMBRAR_DIR/lembrar" ] && [ -e "$LEMBRAR" ]; then
+        rm -f -- "$LEMBRAR"
+        printf 'Lembrança apagada: %s\n' "$LEMBRAR"
+    else
+        printf 'Não havia nada lembrado.\n'
+    fi
+}
+
+# Procura uma opção sem valor (--help, -h, --esquecer) fora das posições de valor.
+procura_flag() {
+    local alvo="$1" a
+    shift
+    while [ "$#" -gt 0 ]; do
+        a=$1
+        shift
+        [ "$a" = "$alvo" ] && return 0
+        case "$a" in
+            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao)
+                [ "$#" -gt 0 ] && shift ;;
+        esac
+    done
+    return 1
+}
+
+ajuda() {
+    cat <<'AJUDA'
+Uso: emitir_teste.sh [opções]. Sem opção, o script usa o que foi lembrado e a consulta pública, e pergunta só o que falta.
+Cada opção vale como --opcao valor ou --opcao=valor.
+
+  --cnpj N        CNPJ do emissor (14 dígitos com DV). Sem ele, e sem CNPJ lembrado, a janela pede CNPJ ou CPF.
+  --cpf N         CPF do emissor (11 dígitos com DV). O CPF nunca fica lembrado.
+  --im T          inscrição municipal: de 1 a 15 letras, números, ponto, barra ou traço.
+  --sem-im        a empresa não tem inscrição municipal no CNC: a DPS sai sem IM.
+  --ie T          inscrição estadual (de 1 a 20 caracteres): só confere; não vai na NFS-e e não é guardada.
+  --municipio N   código IBGE do município emissor (7 dígitos, começa de 1 a 5). Padrão: o da consulta, ou 2611606.
+  --ctribnac N    código de tributação nacional (6 dígitos; não 9903xx nem 990401). Padrão 040101.
+  --opsimpnac N   regime do Simples: 1 não optante, 2 MEI, 3 ME/EPP. Padrão: o da consulta, ou 3.
+  --regaptribsn N regime de apuração (1, 2 ou 3), só com a opção 3. Padrão 1.
+  --regesptrib N  regime especial (0, 1, 2, 3, 4, 5, 6 ou 9). Padrão 0.
+  --valor V       valor do serviço, como 10,00 (ponto ou vírgula). Padrão 10,00.
+  --descricao T   descrição do serviço, de 1 a 2000 caracteres: letras, números, espaço e . , ; : - / ( ) %.
+  --esquecer      apaga o que o script lembrou do emissor e sai, sem emitir.
+  --help, -h      mostra esta ajuda e sai com 0, sem perguntar nada.
+
+Precedência de cada campo: opção na linha de comando, depois o lembrado, depois a consulta pública (regime e município,
+só com CNPJ), depois o padrão. O lembrado fica em $XDG_STATE_HOME/notalivre-teste/lembrar (ou ~/.local/state), 0600.
+
+AJUDA
+    printf '%s\n' "$AVISO_HISTORICO"
+}
+
 # Fluxo do líder
 # ---------------------------------------------------------------------------------------------------------------------
 fluxo() {
@@ -434,13 +746,25 @@ fluxo() {
     repasse=$(flatpak run --command=sh "$APP" -c 'cat <&3' 3< <(printf ok) 2>/dev/null) || repasse=""
     [ "$repasse" = ok ] || falha "o Flatpak instalado não repassa descritores ao programa (versão em $RUN_DIR/flatpak-versao.txt). Nada foi emitido."
 
-    # NL-2.10g: inscrição do emissor (CNPJ ou CPF) e IM. O que não veio por opção a janela pergunta. Nada disso consome número.
+    # G1c: o lembrado vem antes de qualquer pergunta. Inscrição: opção, depois o CNPJ lembrado; sem nenhum dos dois, a janela
+    # de inscrição (reserva da G1, decisão do coordenador). Nada disso consome número.
+    lembrar_carregar
+    if [ -z "$INSC_TIPO" ] && [ -n "${LEM[cnpj]+x}" ]; then definir_inscricao "${LEM[cnpj]}" cnpj; fi
     if [ -z "$INSC_TIPO" ]; then
         definir_inscricao "$(perguntar "Digite o CNPJ (14 dígitos) ou o CPF (11 dígitos) do emissor, sem pontos, barras ou traços." inscricao)" ""
     fi
-    if [ -z "$IM" ]; then
+    # Consulta pública (C2): só com CNPJ, sem --opsimpnac e sem regime lembrado. Falha só avisa e segue com os padrões.
+    if [ "$INSC_TIPO" = cnpj ] && [ -z "${OPT[opsimpnac]+x}" ] && [ -z "${LEM[opsimpnac]+x}" ]; then
+        consultar_brasilapi
+    fi
+    resolver_campos
+    # IM (C4): só a IM abre a janela, e só se não veio por --im, não está lembrada e não há --sem-im.
+    if [ "$SEM_IM" = 0 ] && [ -z "$IM" ] && [ -n "${LEM[im]+x}" ]; then definir_im "${LEM[im]}"; fi
+    if [ "$SEM_IM" = 0 ] && [ -z "$IM" ]; then
         definir_im "$(perguntar "Digite a inscrição municipal (IM) do emissor, no cadastro da Prefeitura: de 1 a 15 letras, números, ponto, barra ou traço." im)"
     fi
+    validar_regime
+    anunciar_origens
 
     # 3.3: o .pfx é escolhido pelo líder e só passa ao document-export. Nunca é impresso nem listado.
     local pfx
@@ -510,6 +834,14 @@ fluxo() {
                 break ;;
         esac
     done
+
+    # G1c (C5, C6): depois da resposta da Sefin (aceita ou recusa), grava o que vale para a próxima vez; a recusa ligada a um
+    # campo tira esse campo do lembrado e imprime a dica. Local e incerta não gravam.
+    if [ "$RESULTADO" = aceita ] || [ "$RESULTADO" = sefin ]; then
+        LEMBRAR_EXCLUIR=""
+        if [ "$RESULTADO" = sefin ]; then dica_recusa; fi
+        gravar_lembrar || printf 'AVISO: não consegui gravar o que foi lembrado.\n'
+    fi
 
     # Resultado e devolução (seção 4).
     local dev_run="$DEVOLUCAO/execucao-$RUN_TS"
@@ -1150,6 +1482,9 @@ case "$MODO" in
     caso|normal)
         # NL-2.10g: as opções são lidas e conferidas antes de qualquer passo do fluxo (o modo caso passa o próprio flag antes).
         [ "$MODO" = caso ] && shift
+        # G1c: --help e -h vêm antes de tudo (sem pré-voo, sem janela, sem número); --esquecer sai logo depois.
+        if procura_flag --help "$@" || procura_flag -h "$@"; then ajuda; exit 0; fi
+        if procura_flag --esquecer "$@"; then esquecer_lembrar; exit 0; fi
         ler_opcoes "$@"
         fluxo; exit $? ;;
 esac
