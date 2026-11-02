@@ -519,6 +519,8 @@ D="$NL_ENSAIO_DIR"
 echo "flatpak $*" >> "$D/chamadas.txt"
 emitir_stub() {
     local n resultado
+    # Cópia da DPS que o programa leu (a DPS real some ao fim do script, DA-2.89): o ensaio confere o conteúdo por aqui.
+    cp "$D/base/teste-lider/dps-teste.json" "$D/dps-emitida.json" 2>/dev/null || true
     n=$(( $(cat "$D/emitidas.txt" 2>/dev/null || echo 0) + 1 ))
     printf '%s' "$n" > "$D/emitidas.txt"
     # Senha pelo descritor (NL-2.27): confere só que o fd 3 está aberto e que a linha tem --senha-certificado-fd 3. Não lê o fd.
@@ -587,6 +589,14 @@ emitir_stub() {
         local)
             echo "certificado.caminho_ilegivel: ensaio"
             exit 2 ;;
+        interrompe)
+            # DA-2.89: o usuário interrompe o script enquanto o programa roda (SIGINT ao pai, que é o script).
+            kill -INT "$PPID"
+            exit 130 ;;
+        E0[0-9][0-9][0-9])
+            # Recusa com código da Sefin ligado a um campo (NL-2.10g, rodada G1c, item 14).
+            echo "emissão recusada (sefin.$resultado): ensaio"
+            exit 1 ;;
         *)
             echo "emissão recusada (sefin.E1234): código de ensaio"
             exit 1 ;;
@@ -607,8 +617,22 @@ case "$1" in
         esac
         exit 0 ;;
     document-export)
+        # DA-2.89: o portal lista cada exportação (id por arquivo: a DPS é ab12, o resto cd34); document-unexport a tira da lista.
         for ultimo in "$@"; do :; done
-        printf '/run/user/1000/doc/ab12/%s\n' "$(basename "$ultimo")"
+        base_doc=$(basename "$ultimo")
+        case "$base_doc" in
+            dps-teste.json) id_doc=ab12 ;;
+            *) id_doc=cd34 ;;
+        esac
+        printf '%s %s\n' "$id_doc" "$base_doc" >> "$D/portal.txt"
+        printf '/run/user/1000/doc/%s/%s\n' "$id_doc" "$base_doc"
+        exit 0 ;;
+    document-unexport)
+        for ultimo in "$@"; do :; done
+        if [ -f "$D/portal.txt" ]; then
+            grep -v -F "$ultimo " "$D/portal.txt" > "$D/portal.tmp"
+            mv -f "$D/portal.tmp" "$D/portal.txt"
+        fi
         exit 0 ;;
     run)
         case "$*" in
@@ -692,7 +716,7 @@ ensaio_caso() {
     local nome="$1" rc_esp="$2" txt_esp="$3" saidas_esp="$4" emit_esp="$5" cfg_esp="$6"
     shift 6
     local dir="$RAIZ/$nome" entrada rc saidas emit problema="" pfx_nome="pfxsecreto-ensaio.p12" sem_kd=0 par ndps_esp=""
-    local semente="" perg_esp="" dps_esp="" dps_ausente="" saida_esp="" segredo="" opcoes_txt=""
+    local semente="" perg_esp="" dps_esp="" dps_ausente="" saida_esp="" segredo="" opcoes_txt="" arq_ausente="" portal_ausente="" cham_esp=""
     mkdir -p "$dir"
     for par in "$@"; do
         case "$par" in
@@ -706,6 +730,9 @@ ensaio_caso() {
             NL_ENSAIO_SAIDA_ESPERADA=*) saida_esp="${par#NL_ENSAIO_SAIDA_ESPERADA=}" ;;
             NL_ENSAIO_SEGREDO=*) segredo="${par#NL_ENSAIO_SEGREDO=}" ;;
             NL_ENSAIO_OPCOES=*) opcoes_txt="${par#NL_ENSAIO_OPCOES=}" ;;
+            NL_ENSAIO_ARQUIVO_AUSENTE=*) arq_ausente="${par#NL_ENSAIO_ARQUIVO_AUSENTE=}" ;;
+            NL_ENSAIO_PORTAL_AUSENTE=*) portal_ausente="${par#NL_ENSAIO_PORTAL_AUSENTE=}" ;;
+            NL_ENSAIO_CHAMADA_ESPERADA=*) cham_esp="${par#NL_ENSAIO_CHAMADA_ESPERADA=}" ;;
         esac
     done
     # NL-2.10g: opções da linha de comando, separadas por | (o valor pode ter espaço ou aspas). Vazio = nenhuma opção.
@@ -780,9 +807,9 @@ ensaio_caso() {
         [ "$perg" = "$perg_esp" ] || problema="$problema perguntas=$perg(esperado $perg_esp)"
     fi
     local r
-    r=$(trechos "$dir/base/teste-lider/dps-teste.json" presente "$dps_esp")
+    r=$(trechos "$dir/dps-emitida.json" presente "$dps_esp")
     [ -z "$r" ] || problema="$problema dps$r"
-    r=$(trechos "$dir/base/teste-lider/dps-teste.json" ausente "$dps_ausente")
+    r=$(trechos "$dir/dps-emitida.json" ausente "$dps_ausente")
     [ -z "$r" ] || problema="$problema dps$r"
     r=$(trechos "$dir/saida-do-script.txt" presente "$saida_esp")
     [ -z "$r" ] || problema="$problema saida$r"
@@ -790,6 +817,15 @@ ensaio_caso() {
         "$dir/base/devolucao" "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
         problema="$problema vazamento_do_valor_da_variante"
     fi
+    # DA-2.89 (B1): a DPS temporária não existe depois da execução, e o portal não lista o documento.
+    if [ -n "$arq_ausente" ] && [ -e "$dir/$arq_ausente" ]; then
+        problema="$problema arquivo_ainda_existe($arq_ausente)"
+    fi
+    if [ -n "$portal_ausente" ] && grep -q -F -- "$portal_ausente" "$dir/portal.txt" 2>/dev/null; then
+        problema="$problema portal_ainda_lista($portal_ausente)"
+    fi
+    r=$(trechos "$dir/chamadas.txt" presente "$cham_esp")
+    [ -z "$r" ] || problema="$problema chamadas$r"
     if [ -z "$problema" ]; then
         printf 'ok %s\n' "$nome"
     else
@@ -845,7 +881,7 @@ ensaio_dois_envios() {
     env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
     r2=$?
     ndps=$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null)
-    if [ "$r1" -eq 0 ] && [ "$r2" -eq 0 ] && [ "$ndps" = 2 ] && grep -q '"nDps": 2,' "$dir/base/teste-lider/dps-teste.json"; then
+    if [ "$r1" -eq 0 ] && [ "$r2" -eq 0 ] && [ "$ndps" = 2 ] && grep -q '"nDps": 2,' "$dir/dps-emitida.json"; then
         printf 'ok %s\n' "$nome"
     else
         printf 'FALHA %s: rc=%s/%s ultimo_ndps=%s\n' "$nome" "$r1" "$r2" "$ndps"
@@ -921,6 +957,13 @@ ensaio() {
     grupo_fechar d_im_fora_do_conjunto
     # e. --cpf com DV certo: DPS com "cpf" e sem "cnpj"; aviso impresso (texto do CISO, DA-2.87).
     ensaio_caso e_cpf_dv_certo_dps_cpf_e_aviso 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cpf|12345678909' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=im NL_ENSAIO_DPS_ESPERADA='"cpf": "12345678909"|"im": "IMENS-7731"' NL_ENSAIO_DPS_AUSENTE='"cnpj"' NL_ENSAIO_SAIDA_ESPERADA="$AVISO_CPF"
+    # DA-2.89 (CISO, rodada de revisão B1): a DPS temporária (com CPF, CNPJ e IM) some ao fim, depois de sucesso, falha e
+    # interrupção; o portal não lista mais o documento e o unexport aparece antes. Vermelho no script anterior.
+    grupo_abrir
+    ensaio_caso b1_dps_some_depois_sucesso.sucesso 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_ARQUIVO_AUSENTE=base/teste-lider/dps-teste.json NL_ENSAIO_PORTAL_AUSENTE=dps-teste.json NL_ENSAIO_CHAMADA_ESPERADA=document-unexport
+    ensaio_caso b1_dps_some_depois_falha.falha 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_SEQ=outro NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_ARQUIVO_AUSENTE=base/teste-lider/dps-teste.json NL_ENSAIO_PORTAL_AUSENTE=dps-teste.json NL_ENSAIO_CHAMADA_ESPERADA=document-unexport
+    ensaio_caso b1_dps_some_depois_interrompida.interrompida 130 "" 1 1 "" NL_ENSAIO_SEQ=interrompe NL_ENSAIO_ARQUIVO_AUSENTE=base/teste-lider/dps-teste.json NL_ENSAIO_PORTAL_AUSENTE=dps-teste.json NL_ENSAIO_CHAMADA_ESPERADA=document-unexport
+    grupo_fechar b1_dps_temporaria_some
     # Rodada de revisão B2: o texto completo da DA-2.87 sai com --cnpj e com --cpf (o aviso vale para os dois ramos).
     local AVISO_TEXTO='Aviso: o número de CPF ou CNPJ digitado na linha de comando fica gravado no histórico do terminal e, enquanto o script roda, aparece para outros usuários desta máquina na lista de processos. Para não deixar esse rastro, rode sem --cpf e sem --cnpj: a janela pede o número. Começar o comando com um espaço só tira a linha do histórico se o seu terminal estiver configurado para isso.'
     ensaio_caso b2_aviso_completo_com_cnpj 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA="$AVISO_TEXTO"
@@ -955,8 +998,8 @@ ensaio() {
     ensaio_caso l_forma_separada_ou_igual.igual 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj=11222333000181|--im=IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_DPS_ESPERADA='"cnpj": "11222333000181"|"im": "IMENS-7731"'
     # Rodada de revisão B3: comparação em bash, sem cmp (fedora44 e manjaro não trazem cmp nem diff). Arquivo ausente dá vazio e falha.
     local dps_a dps_b
-    dps_a=$(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.separada/base/teste-lider/dps-teste.json" 2>/dev/null)
-    dps_b=$(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.igual/base/teste-lider/dps-teste.json" 2>/dev/null)
+    dps_a=$(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.separada/dps-emitida.json" 2>/dev/null)
+    dps_b=$(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.igual/dps-emitida.json" 2>/dev/null)
     if [ -z "$dps_a" ] || [ "$dps_a" != "$dps_b" ]; then
         printf 'FALHA l_forma_separada_ou_igual: as duas DPS diferem\n'
         FALHAS=$(( FALHAS + 1 ))
