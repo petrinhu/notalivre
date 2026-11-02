@@ -29,6 +29,8 @@
 # (base) se a Sefin responder 404, e tentativa 3 (algoritmo rsa-sha256) se ela responder E0714.
 
 set -u
+# Rodada 3 (revisor): caminho absoluto do próprio script, antes de qualquer cd do harness (o ensaio roda por caminho relativo também).
+SELF_ABS=$(readlink -f -- "$0" 2>/dev/null || printf '%s' "$0")
 # CISO (BAIXA-S3): tudo que o script cria sai com permissão só do dono (0600 para arquivos, 0700 para pastas).
 umask 077
 
@@ -1240,7 +1242,7 @@ ensaio_caso() {
     # (o python3 sem -I o importaria). O caso exige que a consulta não mude.
     if [ "$plantar" = 1 ]; then
         printf '%s\n' 'def load(f):' '    return {"opcao_pelo_mei": False, "data_exclusao_do_mei": None, "opcao_pelo_simples": False,' '            "data_exclusao_do_simples": None, "codigo_municipio_ibge": 1234567, "situacao_cadastral": 2}' > "$dir/json.py"
-        (cd "$dir" && env "$@" NL_ENSAIO_DIR="$dir" bash "$(readlink -f "$0")" --ensaio-caso "${opcoes[@]}" < "$entrada" > "$dir/saida-do-script.txt" 2>&1)
+        (cd "$dir" && env "$@" NL_ENSAIO_DIR="$dir" bash "$SELF_ABS" --ensaio-caso "${opcoes[@]}" < "$entrada" > "$dir/saida-do-script.txt" 2>&1)
     else
         env "$@" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso "${opcoes[@]}" < "$entrada" > "$dir/saida-do-script.txt" 2>&1
     fi
@@ -1314,6 +1316,10 @@ ensaio_caso() {
         [ -e "$dir/pfx-perguntado.txt" ] && pfx_got=sim
         [ "$pfx_got" = "$pfx_janela" ] || problema="$problema janela_pfx=$pfx_got(esperado $pfx_janela)"
     fi
+    # Rodada 3 (revisor, R3-B2): o caminho do .pfx não fica em nenhum arquivo de base nem de home (XDG_STATE_HOME está dentro de home),
+    # exceto o arquivo de lembrar (o único lugar permitido). O document-export fica em chamadas.txt e não entra aqui.
+    achados_pfx=$(grep -r -l -F -- "$dir/pfxsecreto" "$dir/base" "$dir/home" 2>/dev/null | grep -v -F -- "$lem" || true)
+    [ -z "$achados_pfx" ] || problema="$problema caminho_do_pfx_fora_do_lembrar"
     # DA-2.94: o caminho do .pfx não aparece nas chamadas, salvo no document-export, que é o caminho já aceito.
     if [ -f "$dir/chamadas.txt" ] && grep -v -F 'document-export' "$dir/chamadas.txt" | grep -q -F -- "$dir/pfxsecreto"; then
         problema="$problema caminho_do_pfx_em_chamadas"
@@ -1636,14 +1642,19 @@ ensaio() {
     # conferência (link simbólico, arquivo sumido, dono de outro usuário) volta à janela e é substituído. Os preparos ficam na pasta do caso.
     ensaio_segunda_sem_pfx
     mkdir -p "$RAIZ/p2_caminho_guardado_link_simbolico"
-    ln -s "$RAIZ/p2_caminho_guardado_link_simbolico/pfxsecreto-ensaio.p12" "$RAIZ/p2_caminho_guardado_link_simbolico/link-pfx.p12"
-    ensaio_caso p2_caminho_guardado_link_simbolico 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p2_caminho_guardado_link_simbolico/link-pfx.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p2_caminho_guardado_link_simbolico/pfxsecreto-ensaio.p12" NL_ENSAIO_LEMBRAR_AUSENTE='link-pfx.p12'
+    ln -s "$RAIZ/p2_caminho_guardado_link_simbolico/pfxsecreto-ensaio.p12" "$RAIZ/p2_caminho_guardado_link_simbolico/pfxsecreto-link.p12"
+    ensaio_caso p2_caminho_guardado_link_simbolico 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p2_caminho_guardado_link_simbolico/pfxsecreto-link.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p2_caminho_guardado_link_simbolico/pfxsecreto-ensaio.p12" NL_ENSAIO_LEMBRAR_AUSENTE='pfxsecreto-link.p12'
     mkdir -p "$RAIZ/p3_caminho_guardado_sumiu"
-    ensaio_caso p3_caminho_guardado_sumiu 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p3_caminho_guardado_sumiu/sumiu.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p3_caminho_guardado_sumiu/pfxsecreto-ensaio.p12"
-    mkdir -p "$RAIZ/p4_caminho_guardado_outro_dono"
-    printf 'outro\n' > "$RAIZ/p4_caminho_guardado_outro_dono/outro.p12"
-    chown 65534 "$RAIZ/p4_caminho_guardado_outro_dono/outro.p12"
-    ensaio_caso p4_caminho_guardado_outro_dono 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p4_caminho_guardado_outro_dono/outro.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p4_caminho_guardado_outro_dono/pfxsecreto-ensaio.p12"
+    ensaio_caso p3_caminho_guardado_sumiu 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/p3_caminho_guardado_sumiu/pfxsecreto-sumiu.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p3_caminho_guardado_sumiu/pfxsecreto-ensaio.p12"
+    # Rodada 3 (revisor, R3-B3): o dono diferente é /etc/hosts (root, legível); funciona como uid 1000, sem chown. O caminho guardado não pode sair na saída.
+    ensaio_caso p4_caminho_guardado_outro_dono 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=/etc/hosts|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PFX_JANELA=sim NL_ENSAIO_LEMBRAR_ESPERADO="pfx=$RAIZ/p4_caminho_guardado_outro_dono/pfxsecreto-ensaio.p12" NL_ENSAIO_SEGREDO='/etc/hosts'
+    # Rodada 3 (revisor, R3-B1): falha de senha e falha da CLI com o .pfx guardado válido. O marcador pfxsecreto não pode sair em saída, devolução ou execução.
+    mkdir -p "$RAIZ/r20_falha_de_senha_com_pfx_guardado"
+    printf 'pfxsecreto-guardado' > "$RAIZ/r20_falha_de_senha_com_pfx_guardado/pfxsecreto-guardado.p12"
+    ensaio_caso r20_falha_de_senha_com_pfx_guardado 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/r20_falha_de_senha_com_pfx_guardado/pfxsecreto-guardado.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_KDIALOG_CANCELA=1 NL_ENSAIO_SEQ=aceita NL_ENSAIO_PFX_JANELA=nao NL_ENSAIO_NDPS_ESPERADO=ausente
+    mkdir -p "$RAIZ/r21_falha_da_cli_com_pfx_guardado"
+    printf 'pfxsecreto-guardado' > "$RAIZ/r21_falha_da_cli_com_pfx_guardado/pfxsecreto-guardado.p12"
+    ensaio_caso r21_falha_da_cli_com_pfx_guardado 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_LEMBRAR="pfx=$RAIZ/r21_falha_da_cli_com_pfx_guardado/pfxsecreto-guardado.p12|cnpj=11222333000181|im=IMENS-7731" NL_ENSAIO_SEQ=local NL_ENSAIO_PFX_JANELA=nao NL_ENSAIO_NDPS_ESPERADO=ausente
     # Rodada 2 (revisor, mutante 3a): depois da consulta, nenhuma marca da resposta crua fica em base nem em home.
     ensaio_caso r18_resposta_crua_fora_do_disco 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_VARRER_DISCO=1
     # Rodada 2 (revisor, mutante 10b): barra invertida na descrição tem de parar antes do número, sem repetir o valor.
