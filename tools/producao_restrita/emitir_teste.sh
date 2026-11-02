@@ -944,8 +944,11 @@ ensaio() {
     grupo_abrir
     ensaio_caso l_forma_separada_ou_igual.separada 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_DPS_ESPERADA='"cnpj": "11222333000181"|"im": "IMENS-7731"'
     ensaio_caso l_forma_separada_ou_igual.igual 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj=11222333000181|--im=IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_DPS_ESPERADA='"cnpj": "11222333000181"|"im": "IMENS-7731"'
-    if ! cmp -s <(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.separada/base/teste-lider/dps-teste.json") \
-                <(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.igual/base/teste-lider/dps-teste.json") 2>/dev/null; then
+    # Rodada de revisão B3: comparação em bash, sem cmp (fedora44 e manjaro não trazem cmp nem diff). Arquivo ausente dá vazio e falha.
+    local dps_a dps_b
+    dps_a=$(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.separada/base/teste-lider/dps-teste.json" 2>/dev/null)
+    dps_b=$(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.igual/base/teste-lider/dps-teste.json" 2>/dev/null)
+    if [ -z "$dps_a" ] || [ "$dps_a" != "$dps_b" ]; then
         printf 'FALHA l_forma_separada_ou_igual: as duas DPS diferem\n'
         FALHAS=$(( FALHAS + 1 ))
     fi
