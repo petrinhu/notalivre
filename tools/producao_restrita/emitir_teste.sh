@@ -1130,6 +1130,12 @@ case "$1" in
                 [ -n "${NL_ENSAIO_IM_CANCELA:-}" ] && exit 1
                 printf '%s\n' "${NL_ENSAIO_IM_JANELA-IMENS-7731}"
                 exit 0 ;;
+            *"complementar municipal"*)
+                # NL-2.10h (H1): janela do cTribMun; cancelada ou com valor de ensaio (501 por padrão).
+                echo ctribmun >> "$NL_ENSAIO_DIR/perguntas.txt"
+                [ -n "${NL_ENSAIO_CTRIBMUN_CANCELA:-}" ] && exit 1
+                printf '%s\n' "${NL_ENSAIO_CTRIBMUN_JANELA-501}"
+                exit 0 ;;
             *)
                 echo inscricao >> "$NL_ENSAIO_DIR/perguntas.txt"
                 printf '%s\n' "${NL_ENSAIO_INSCRICAO:-${NL_ENSAIO_CNPJ:-11222333000181}}"
@@ -1497,6 +1503,40 @@ ensaio_dois_envios() {
     CASOS=$(( CASOS + 1 ))
 }
 
+# NL-2.10h (H1): janela do cTribMun só depois de uma recusa E0312, E0313 ou E0314 na execução anterior, sem valor por opção
+# nem lembrado. Duas execuções na mesma pasta: a primeira com $2; a segunda com a sequência "$2,$3" (o stub conta as emissões),
+# mais a variável de ambiente $4, se houver. $5 = sim ou nao (janela aberta na segunda). $6 = rc esperado da segunda. $7 = nDps
+# que fica gravado depois da segunda (prova de que a parada antes da Sefin não gasta número).
+ensaio_ctribmun_janela() {
+    local nome="$1" seq1="$2" seq2="$3" extra="$4" janela_esp="$5" rc2_esp="$6" ndps2_esp="$7" dir r2 janela ndps2 problema=""
+    dir="$RAIZ/$nome"
+    mkdir -p "$dir"
+    mkdir -p "$dir/pfxdir-ensaio"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ="$seq1" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    rm -f -- "$dir/perguntas.txt"
+    env NL_ENSAIO_SEQ="$seq1,$seq2" NL_ENSAIO_DIR="$dir" $extra bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    r2=$?
+    if grep -q '^ctribmun$' "$dir/perguntas.txt" 2>/dev/null; then janela=sim; else janela=nao; fi
+    ndps2=$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null || echo ausente)
+    [ "$r2" -eq "$rc2_esp" ] || problema="$problema rc2=$r2(esperado $rc2_esp)"
+    [ "$janela" = "$janela_esp" ] || problema="$problema janela=$janela(esperada $janela_esp)"
+    [ "$ndps2" = "$ndps2_esp" ] || problema="$problema ndps_apos_2=$ndps2(esperado $ndps2_esp)"
+    if [ "$rc2_esp" -eq 0 ] && [ "$janela_esp" = sim ]; then
+        grep -q '"cTribMun": "501"' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ctribmun_501_ausente_na_dps"
+    fi
+    if [ "$rc2_esp" -eq 0 ] && [ "$janela_esp" = nao ]; then
+        grep -q '"cTribMun"' "$dir/dps-emitida.json" 2>/dev/null && problema="$problema ctribmun_sem_janela"
+    fi
+    if [ -z "$problema" ]; then
+        printf 'ok %s\n' "$nome"
+    else
+        printf 'FALHA %s:%s\n' "$nome" "$problema"
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    CASOS=$(( CASOS + 1 ))
+}
+
 ensaio() {
     # Coordenação (G1c, item 3): o ensaio exige python3 (o parser da consulta à BrasilAPI). Sem ele, para no começo, sem pular caso.
     if ! command -v python3 >/dev/null 2>&1; then
@@ -1658,6 +1698,18 @@ ensaio() {
     ensaio_caso v_municipio_invalido 1 "começar de 1 a 5" 0 0 "" NL_ENSAIO_OPCOES='--municipio|0611606' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_ctribnac_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--ctribnac|040102' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cTribNac": "040102"'
     ensaio_caso v_ctribnac_invalido 1 "9903" 0 0 "" NL_ENSAIO_OPCOES='--ctribnac|990401' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    # NL-2.10h (H1): --ctribmun NNN (3 dígitos, nunca 000, proibido com MEI). A recusa acontece antes de consumir número.
+    ensaio_caso h1_ctribmun_opcao_vai_na_dps 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--ctribmun|501' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cTribMun": "501"'
+    ensaio_caso h1_ctribmun_zero_para_antes_do_numero 1 "não pode ser 000" 0 0 "" NL_ENSAIO_OPCOES='--ctribmun|000' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso h1_ctribmun_mei_para_antes_do_numero 1 "MEI" 0 0 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--opsimpnac|2|--ctribmun|501' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso h1_ctribmun_lembrado_vence_ausencia 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_LEMBRAR='cnpj=11222333000181|im=IMENS-7731|opsimpnac=3|origem_opsimpnac=consulta|ctribmun=501|origem_ctribmun=lembrado' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cTribMun": "501"'
+    ensaio_caso h1_ctribmun_opcao_vence_lembrado 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--ctribmun|502' NL_ENSAIO_LEMBRAR='cnpj=11222333000181|im=IMENS-7731|opsimpnac=3|origem_opsimpnac=consulta|ctribmun=501|origem_ctribmun=lembrado' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"cTribMun": "502"'
+    ensaio_caso h1_ctribmun_ausente_nao_gera_chave 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_AUSENTE='"cTribMun"'
+    ensaio_caso h1_e0312_dica_cita_ctribmun 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_SEQ=E0312 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='use --ctribmun'
+    ensaio_caso h1_e0314_dica_cita_ctribmun 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_SEQ=E0314 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='use --ctribmun'
+    ensaio_ctribmun_janela h1_janela_depois_de_e0312 E0312 aceita "" sim 0 2
+    ensaio_ctribmun_janela h1_janela_sem_recusa_nao_abre aceita aceita "" nao 0 2
+    ensaio_ctribmun_janela h1_janela_cancelada_para_antes_do_numero E0312 aceita NL_ENSAIO_CTRIBMUN_CANCELA=1 sim 1 1
     ensaio_caso v_opsimpnac_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|1' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"' NL_ENSAIO_DPS_AUSENTE='"regApTribSN"'
     ensaio_caso v_opsimpnac_invalido 1 "1 (não optante), 2 (MEI) ou 3" 0 0 "" NL_ENSAIO_OPCOES='--opsimpnac|4' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_regaptribsn_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--regaptribsn|2' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"regApTribSN": "2"'

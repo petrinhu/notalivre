@@ -112,6 +112,13 @@ private slots:
     void cpfInvalidoReprovaComRegra();
     void campoObrigatorioAusenteReprova();
 
+    // NL-2.10h (H1): cTribMun (código de tributação municipal, 3 dígitos, nunca 000, proibido para MEI).
+    void cTribMunZeroReprova();
+    void cTribMunDoisDigitosReprova();
+    void cTribMunLetraReprova();
+    void cTribMunMeiReprovaComE0313();
+    void cTribMunEntraNoXmlEntreCTribNacECNbs();
+
     void jsonMalformadoReprova();
     void tipoInvalidoReprova();
     void serieForaDaFaixaReprova();
@@ -191,6 +198,52 @@ void TstDpsValidar::campoObrigatorioAusenteReprova()
     QVERIFY2(execucao.erro.contains(QStringLiteral("entrada.campo_ausente")), qPrintable(execucao.erro));
     QVERIFY2(execucao.erro.contains(QStringLiteral("servico.cTribNac")), qPrintable(execucao.erro));
     QVERIFY2(!QFile::exists(saida), "entrada reprovada não pode deixar XML gravado");
+}
+
+void TstDpsValidar::cTribMunZeroReprova()
+{
+    // NL-2.10h: 000 é recusado no leitor, com o código do tipo e a regra do Anexo I (E0315, linha Excel 342). Sem XML.
+    verificaReprovaEntrada(QStringLiteral("ctribmun_000"), QStringLiteral("cod_trib_municipal.zero"), QString{},
+                           QStringLiteral("E0315"));
+}
+
+void TstDpsValidar::cTribMunDoisDigitosReprova()
+{
+    verificaReprovaEntrada(QStringLiteral("ctribmun_dois_digitos"), QStringLiteral("cod_trib_municipal.formato"), QString{},
+                           QStringLiteral("3 dígitos"));
+}
+
+void TstDpsValidar::cTribMunLetraReprova()
+{
+    verificaReprovaEntrada(QStringLiteral("ctribmun_letra"), QStringLiteral("cod_trib_municipal.formato"), QString{},
+                           QStringLiteral("3 dígitos"));
+}
+
+void TstDpsValidar::cTribMunMeiReprovaComE0313()
+{
+    // MEI com cTribMun: regra E0313 (Anexo I, linha Excel 340), aplicada pelo validador local do Back.
+    verificaReprovaEntrada(QStringLiteral("ctribmun_mei"), QStringLiteral("E0313"), QString{}, QStringLiteral("MEI"));
+}
+
+void TstDpsValidar::cTribMunEntraNoXmlEntreCTribNacECNbs()
+{
+    // Entrada de ME/EPP com cTribMun 501: o XML validado sai com o elemento entre cTribNac e cNBS (ordem do XSD, tiposComplexos_v1.01.xsd:1478).
+    const QString saida = caminhoSaida(QStringLiteral("ctribmun_501"));
+    QFile::remove(saida);
+
+    const Execucao execucao = executarCli(argumentosValidar(caminhoEntrada(QStringLiteral("ctribmun_501")), saida));
+    QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1, stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
+
+    bool lido = false;
+    const QByteArray gerado = lerArquivo(saida, &lido);
+    QVERIFY2(lido, "não consegui ler o XML gravado pela CLI");
+    const qsizetype posNac = gerado.indexOf("<cTribNac>040101</cTribNac>");
+    const qsizetype posMun = gerado.indexOf("<cTribMun>501</cTribMun>");
+    const qsizetype posNbs = gerado.indexOf("<cNBS>123456789</cNBS>");
+    QVERIFY2(posMun >= 0, "o XML tem de trazer <cTribMun>501</cTribMun>");
+    QVERIFY2(posNac >= 0 && posNac < posMun, "cTribMun tem de vir depois de cTribNac");
+    QVERIFY2(posMun < posNbs, "cTribMun tem de vir antes de cNBS");
 }
 
 void TstDpsValidar::jsonMalformadoReprova()

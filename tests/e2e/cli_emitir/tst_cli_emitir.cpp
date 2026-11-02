@@ -487,6 +487,9 @@ private slots:
     void senhaNaoApareceEmArgvNemLog();
     // DPS de entrada que não confere no leiaute: sai com 4, e o servidor falso recebe zero requisições (DA-2.51, mutante H).
     void cliRecusaDpsInvalidaSemPost();
+    // NL-2.10h (H1): cTribMun 501 de ME/EPP sai assinado e é aceito pelo servidor falso (XSD confere a ordem); cTribMun 000 para antes do envio.
+    void cliEmiteComCTribMunPeloServidorFalso();
+    void cliRecusaCTribMunZeroSemPost();
     // E0014 na primeira tentativa com o mesmo infDPS: a CLI recupera a chave e sai com 0 (DA-2.58).
     void e0014DaMesmaDpsRecuperaAChave();
     // E0014 com infDPS diferente para o mesmo Id: DPS duplicada, código 5, sem renumerar (DA-2.58).
@@ -677,6 +680,89 @@ void TstCliEmitir::cliRecusaDpsInvalidaSemPost()
     // entrada for pulada (mutante H), a reprovação vem só depois de assinar, como xsd.pos_assinatura, e o teste reprova.
     QVERIFY2(execucao.saida.contains("xsd.invalido"), "a DPS tem de sair reprovada pela validação de entrada, antes da assinatura");
     QVERIFY2(!execucao.saida.contains("xsd.pos_assinatura"), "a reprovação não pode vir da revalidação depois de assinar");
+    QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+    QCOMPARE(servidor.requisicoesAoFechar(), 0);
+}
+
+void TstCliEmitir::cliEmiteComCTribMunPeloServidorFalso()
+{
+    // NL-2.10h (H1): mesmo caminho de cliEmiteDpsAceitaPeloServidorFalso, com entrada de ME/EPP que traz cTribMun 501.
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    QDir().mkpath(configDir.filePath(QStringLiteral("notalivre")));
+
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+
+    const QString config = QStringLiteral(
+        "[sefin]\n"
+        "url = https://127.0.0.1:%1\n"
+        "prefixo = /SefinNacional\n"
+        "ancoras_tls = %2/ac.pem\n"
+        "[certificado]\n"
+        "ancoras = %2/ac.pem\n"
+        "caminho = %2/cnpj_ok.pfx\n"
+        "[xsd]\n"
+        "diretorio = %3\n"
+        "manifesto = %4\n"
+        "[emissao]\n"
+        "producao_liberada = false\n")
+                             .arg(servidor.porta())
+                             .arg(kCertificados)
+                             .arg(kXsd)
+                             .arg(kManifesto);
+    QFile arquivoConfig(configDir.filePath(QStringLiteral("notalivre/config.ini")));
+    QVERIFY(arquivoConfig.open(QIODevice::WriteOnly | QIODevice::Text));
+    arquivoConfig.write(config.toUtf8());
+    arquivoConfig.close();
+
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    QVERIFY2(!senha.isEmpty(), "a senha da fixture sintética tem de existir");
+    QFile referencia(qEnvironmentVariable("NL_SEGREDOS_PII_REF"));
+    QVERIFY2(referencia.open(QIODevice::WriteOnly | QIODevice::Text), "o arquivo de segredos da execução tem de abrir");
+    referencia.write("# segredos desta execução\nsenha|" + senha + "\n");
+    referencia.close();
+
+    const QString esperado = esperadoDaDistro();
+    QVERIFY2(!esperado.isEmpty(), "a distro desta máquina tem de estar em tabela_sha1_por_distro.txt");
+
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/ctribmun_501.json"), QStringLiteral("--serie"),
+                                 QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"),
+                                 QStringLiteral("homologacao")};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+
+    const QString pastaPii = qEnvironmentVariable("NL_LOGS_PII_CLI_DIR");
+    QVERIFY2(!pastaPii.isEmpty(), "NL_LOGS_PII_CLI_DIR tem de estar definido pelo CTest");
+    QVERIFY2(QDir().mkpath(pastaPii), "a pasta de logs da CLI tem de existir");
+    QFile logPii(pastaPii + QStringLiteral("/emitir_ctribmun_e2e.log"));
+    QVERIFY2(logPii.open(QIODevice::WriteOnly), "o log do e2e tem de abrir na pasta de logs da CLI");
+    logPii.write(execucao.saida);
+
+    if (esperado == QStringLiteral("algoritmo_bloqueado")) {
+        QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+        QVERIFY2(execucao.saida.contains("assinatura.algoritmo_bloqueado"), "nesta distro, a assinatura SHA-1 tem de ser recusada pelo código da tabela");
+        return;
+    }
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída do terminal: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
+    QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+}
+
+void TstCliEmitir::cliRecusaCTribMunZeroSemPost()
+{
+    // NL-2.10h (H1): cTribMun 000 é recusado no leitor, antes da assinatura e do envio: zero requisições ao servidor falso.
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/ctribmun_000.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo != 0, qPrintable(QStringLiteral("cTribMun 000 tinha de ser recusado; saída: %1").arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("cod_trib_municipal.zero"), "a recusa tem de trazer o código do tipo cTribMun");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
 }
