@@ -175,6 +175,27 @@ gravar_ndps() {
     printf '%s\n' "$1" > "$NDPS_ARQ"
 }
 
+# DA-2.89 (CISO, rodada de revisão B1): a exportação da DPS sai do portal (document-unexport) e o id passa pelo caminho do
+# documento exportado. Usado antes de cada nova exportação e pelo trap de saída.
+desexportar_dps() {
+    local id_doc
+    if [ -n "$DOC_DPS" ]; then
+        id_doc=${DOC_DPS#/run/user/*/doc/}
+        id_doc=${id_doc%%/*}
+        flatpak document-unexport --app="$APP" "$id_doc" >/dev/null 2>&1 || true
+        DOC_DPS=""
+    fi
+}
+
+# DA-2.89: ao sair (sucesso, falha ou interrupção) a DPS sai do portal e é apagada pelo caminho literal conferido, nunca por glob.
+# SIGKILL não roda trap: nesse caso a tentativa seguinte sobrescreve e limpa (montar_dps).
+limpar_dps() {
+    desexportar_dps
+    if [ "$DPS_ARQ" = "$TESTE_DIR/dps-teste.json" ] && [ -e "$DPS_ARQ" ]; then
+        rm -f -- "$TESTE_DIR/dps-teste.json"
+    fi
+}
+
 # Monta a DPS do roteiro (3.8) com o número dado e libera o arquivo para o programa.
 montar_dps() {
     local n="$1" dh dc prest_chave
@@ -222,6 +243,7 @@ EOF
     chmod 600 "$DPS_ARQ"
     grep -q "\"nDps\": $n," "$DPS_ARQ" && grep -q "\"serie\": $SERIE," "$DPS_ARQ" \
         || falha "a DPS não tem o --serie e o --numero desta tentativa. Nada foi emitido."
+    desexportar_dps
     DOC_DPS=$(flatpak document-export --app="$APP" --forbid-write "$DPS_ARQ" 2>/dev/null) || DOC_DPS=""
     case "$DOC_DPS" in
         /run/user/*) ;;
@@ -376,6 +398,9 @@ ler_opcoes() {
 # Fluxo do líder
 # ---------------------------------------------------------------------------------------------------------------------
 fluxo() {
+    # DA-2.89: o trap de saída limpa a DPS em qualquer saída; interrupção (INT, TERM) vira saída com 130 e passa pelo trap.
+    trap limpar_dps EXIT
+    trap 'exit 130' INT TERM
     mkdir -p "$TESTE_DIR" "$DEVOLUCAO" || falha "não consegui criar a pasta de trabalho em $BASE."
     mkdir -p "$RUN_DIR" && chmod 700 "$RUN_DIR" || falha "não consegui criar a pasta desta execução."
     touch "$RUN_DIR/.inicio"
