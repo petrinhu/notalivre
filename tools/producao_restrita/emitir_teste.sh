@@ -177,6 +177,29 @@ gravar_ndps() {
     printf '%s\n' "$1" > "$NDPS_ARQ"
 }
 
+# DA-2.92: guarda o estado do contador antes da reserva, para devolver o número só na falha local.
+NDPS_ANTES_EXISTIA=0
+NDPS_ANTES_VALOR=""
+reservar_ndps() {
+    if [ -f "$NDPS_ARQ" ]; then
+        NDPS_ANTES_EXISTIA=1
+        NDPS_ANTES_VALOR=$(cat "$NDPS_ARQ")
+    else
+        NDPS_ANTES_EXISTIA=0
+        NDPS_ANTES_VALOR=""
+    fi
+    gravar_ndps "$1"
+}
+
+# Falha local (nada foi à rede): o contador volta ao que era antes da reserva. Caminho literal, nunca glob.
+devolver_ndps() {
+    if [ "$NDPS_ANTES_EXISTIA" = 1 ]; then
+        printf '%s\n' "$NDPS_ANTES_VALOR" > "$NDPS_ARQ"
+    else
+        rm -f -- "$BASE/ultimo-ndps.txt"
+    fi
+}
+
 # DA-2.89 (CISO, rodada de revisão B1): a exportação da DPS sai do portal (document-unexport) e o id passa pelo caminho do
 # documento exportado. Usado antes de cada nova exportação e pelo trap de saída.
 desexportar_dps() {
@@ -805,11 +828,14 @@ fluxo() {
         tentativa=$(( tentativa + 1 ))
         proximo_ndps
         montar_dps "$NDPS_ATUAL"
+        # DA-2.92 (CTO): o número é reservado antes da chamada à CLI, depois de todos os pré-voos. Interrupção, morte por
+        # sinal e incerta gastam o número; só a falha local (nada foi à rede) devolve o valor anterior.
+        reservar_ndps "$NDPS_ATUAL" || falha "não consegui reservar o número $NDPS_ATUAL. Nada foi emitido."
         printf 'Tentativa %s: enviando a DPS de número %s.\n' "$tentativa" "$NDPS_ATUAL"
         emitir_tentativa "$tentativa" "$NDPS_ATUAL"
         classificar "$EMITIU_RC" "$SAIDA_ATUAL"
-        if [ "$RESULTADO" != local ]; then
-            gravar_ndps "$NDPS_ATUAL" || falha "a tentativa chegou à Sefin, mas o número $NDPS_ATUAL não foi gravado: avise o Claude antes de emitir de novo."
+        if [ "$RESULTADO" = local ]; then
+            devolver_ndps
         fi
         case "$RESULTADO" in
             aceita)
