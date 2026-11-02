@@ -9,6 +9,8 @@
 # script não a lê, não a guarda em variável e não a passa por argv nem por env; sem kdialog ele para antes de consumir número.
 #
 # Para o líder:                  bash tools/producao_restrita/emitir_teste.sh
+# Com opções (NL-2.10g):         bash tools/producao_restrita/emitir_teste.sh --im T [--cnpj N | --cpf N] [--ie T]
+#   o que faltar (inscrição, IM) a janela pergunta; --opcao=valor vale igual. Com --cpf ou --cnpj, o script avisa do histórico.
 # Ensaio (contêiner, sem flatpak e sem Sefin):   bash tools/producao_restrita/emitir_teste.sh --ensaio
 #
 # Fontes dos dois códigos fixos (conferidas em 01/11/2026):
@@ -111,6 +113,20 @@ cnpj_valido() {
     [ "${c:12:1}" -eq "$d1" ] && [ "${c:13:1}" -eq "$d2" ]
 }
 
+# Confere um CPF de 11 dígitos pelos dois dígitos verificadores; recusa 11 dígitos iguais (como o Back, NL-2.10g).
+cpf_valido() {
+    local c="$1" i soma d1 d2
+    [[ "$c" =~ ^[0-9]{11}$ ]] || return 1
+    [[ "$c" =~ ^(.)\1{10}$ ]] && return 1
+    soma=0
+    for i in 0 1 2 3 4 5 6 7 8; do soma=$(( soma + ${c:i:1} * (10 - i) )); done
+    d1=$(( soma * 10 % 11 )); [ "$d1" -eq 10 ] && d1=0
+    soma=0
+    for i in 0 1 2 3 4 5 6 7 8 9; do soma=$(( soma + ${c:i:1} * (11 - i) )); done
+    d2=$(( soma * 10 % 11 )); [ "$d2" -eq 10 ] && d2=0
+    [ "${c:9:1}" -eq "$d1" ] && [ "${c:10:1}" -eq "$d2" ]
+}
+
 # Pergunta ao líder pela janela (kdialog, exigido pelo pré-voo). O valor nunca é impresso nem gravado.
 perguntar() {
     local texto="$1" modo="$2"
@@ -160,7 +176,13 @@ gravar_ndps() {
 
 # Monta a DPS do roteiro (3.8) com o número dado e libera o arquivo para o programa.
 montar_dps() {
-    local n="$1" dh dc
+    local n="$1" dh dc prest_chave
+    # NL-2.10g: o prestador leva CNPJ ou CPF (nunca os dois) e a IM. Os valores são fechados por validação, sem aspas nem barras.
+    if [ "$INSC_TIPO" = cpf ]; then
+        prest_chave="\"cpf\": \"$INSC_VALOR\","
+    else
+        prest_chave="\"cnpj\": \"$INSC_VALOR\","
+    fi
     dh="$(date -u -d '-3 hours' '+%Y-%m-%dT%H:%M:%S')-03:00"
     dc="$(date -u -d '-3 hours' '+%Y-%m-01')"
     case "$dh" in
@@ -179,7 +201,8 @@ montar_dps() {
   "dCompet": "$dc",
   "cLocEmi": "$MUNICIPIO",
   "prestador": {
-    "cnpj": "$CNPJ",
+    $prest_chave
+    "im": "$IM",
     "regime": { "opSimpNac": "3", "regEspTrib": "0" }
   },
   "servico": {
@@ -261,6 +284,94 @@ classificar() {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
+# Opções (NL-2.10g, DA-2.86 e DA-2.87): --cnpj, --cpf, --im e --ie, na forma "--opcao valor" ou "--opcao=valor". Tudo é conferido
+# em ler_opcoes, antes de qualquer instalação, pergunta ou número. Nenhum valor é impresso em saída, log ou erro.
+# ---------------------------------------------------------------------------------------------------------------------
+INSC_TIPO=""
+INSC_VALOR=""
+IM=""
+declare -A OPT=()
+AVISO_HISTORICO='Aviso: o número de CPF ou CNPJ digitado na linha de comando fica gravado no histórico do terminal e, enquanto o script roda, aparece para outros usuários desta máquina na lista de processos. Para não deixar esse rastro, rode sem --cpf e sem --cnpj: a janela pede o número. Começar o comando com um espaço só tira a linha do histórico se o seu terminal estiver configurado para isso.'
+
+# Tira espaços das pontas.
+aparar() {
+    local v="$1"
+    v="${v#"${v%%[![:space:]]*}"}"
+    v="${v%"${v##*[![:space:]]}"}"
+    printf '%s' "$v"
+}
+
+# Conjunto fechado (I2, D3, D4): só [0-9A-Za-z./-], de 1 até MAX caracteres. LC_ALL=C: nada fora do ASCII passa.
+valida_texto_fechado() {
+    local max="$1" v="$2" re
+    local LC_ALL=C
+    re="^[0-9A-Za-z./-]{1,$max}$"
+    [[ "$v" =~ $re ]]
+}
+
+# CNPJ (14 dígitos, DV) ou CPF (11 dígitos, DV). Sem tipo, decide pelo tamanho (janela). Define INSC_TIPO e INSC_VALOR.
+definir_inscricao() {
+    local valor tipo="$2"
+    valor=${1//[[:space:]]/}
+    if [ -z "$tipo" ]; then
+        case "${#valor}" in
+            14) tipo=cnpj ;;
+            11) tipo=cpf ;;
+            *) falha "o documento do emissor precisa ter 14 dígitos (CNPJ) ou 11 (CPF). Nada foi emitido." ;;
+        esac
+    fi
+    case "$tipo" in
+        cnpj) cnpj_valido "$valor" || falha "o CNPJ não tem 14 dígitos ou o dígito verificador não confere. Nada foi emitido." ;;
+        cpf) cpf_valido "$valor" || falha "o CPF não tem 11 dígitos ou o dígito verificador não confere. Nada foi emitido." ;;
+    esac
+    INSC_TIPO=$tipo
+    INSC_VALOR=$valor
+}
+
+# IM: de 1 a 15 caracteres do conjunto fechado; vazia (ou cancelada na janela) para antes de consumir número (D3).
+definir_im() {
+    local v
+    v=$(aparar "$1")
+    valida_texto_fechado 15 "$v" || falha "a inscrição municipal precisa ter de 1 a 15 caracteres: letras, números, ponto, barra ou traço, e não pode ser vazia. Nada foi emitido."
+    IM=$v
+}
+
+# IE (D4): só confere o tamanho (1 a 20) e o conjunto fechado; não vai na DPS nem é guardada.
+validar_ie() {
+    local v
+    v=$(aparar "$1")
+    valida_texto_fechado 20 "$v" || falha "a inscrição estadual precisa ter de 1 a 20 caracteres: letras, números, ponto, barra ou traço. Nada foi emitido."
+    printf '%s\n' 'A inscrição estadual não vai na NFS-e e este script não a guarda; a guarda no cofre vem com a interface (spec 4.5).'
+}
+
+ler_opcoes() {
+    local nome valor
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --cnpj=*|--cpf=*|--im=*|--ie=*) nome="${1%%=*}"; valor="${1#*=}"; shift ;;
+            --cnpj|--cpf|--im|--ie)
+                [ "$#" -ge 2 ] || falha "a opção $1 pede um valor. Nada foi emitido."
+                nome="$1"; valor="$2"; shift 2 ;;
+            *) falha "opção desconhecida (use --cnpj, --cpf, --im ou --ie). Nada foi emitido." ;;
+        esac
+        nome="${nome#--}"
+        [ -z "${OPT[$nome]+x}" ] || falha "a opção --$nome foi dada mais de uma vez. Nada foi emitido."
+        OPT[$nome]=$valor
+    done
+    if [ -n "${OPT[cnpj]+x}" ] && [ -n "${OPT[cpf]+x}" ]; then
+        falha "use só um: --cnpj ou --cpf, não os dois. Nada foi emitido."
+    fi
+    if [ -n "${OPT[cnpj]+x}" ] || [ -n "${OPT[cpf]+x}" ]; then
+        printf '%s\n' "$AVISO_HISTORICO"
+    fi
+    if [ -n "${OPT[cnpj]+x}" ]; then definir_inscricao "${OPT[cnpj]}" cnpj; fi
+    if [ -n "${OPT[cpf]+x}" ]; then definir_inscricao "${OPT[cpf]}" cpf; fi
+    if [ -n "${OPT[im]+x}" ]; then definir_im "${OPT[im]}"; fi
+    if [ -n "${OPT[ie]+x}" ]; then validar_ie "${OPT[ie]}"; fi
+    return 0
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
 # Fluxo do líder
 # ---------------------------------------------------------------------------------------------------------------------
 fluxo() {
@@ -295,10 +406,13 @@ fluxo() {
     repasse=$(flatpak run --command=sh "$APP" -c 'cat <&3' 3< <(printf ok) 2>/dev/null) || repasse=""
     [ "$repasse" = ok ] || falha "o Flatpak instalado não repassa descritores ao programa (versão em $RUN_DIR/flatpak-versao.txt). Nada foi emitido."
 
-    # CNPJ do emissor: pedido ao líder, conferido pelo dígito verificador, nunca impresso nem gravado fora da DPS.
-    CNPJ=$(perguntar "Digite o CNPJ do emissor: 14 dígitos, sem pontos, barras ou traços." cnpj)
-    CNPJ=${CNPJ//[[:space:]]/}
-    cnpj_valido "$CNPJ" || falha "o CNPJ não tem 14 dígitos ou o dígito verificador não confere. Nada foi emitido."
+    # NL-2.10g: inscrição do emissor (CNPJ ou CPF) e IM. O que não veio por opção a janela pergunta. Nada disso consome número.
+    if [ -z "$INSC_TIPO" ]; then
+        definir_inscricao "$(perguntar "Digite o CNPJ (14 dígitos) ou o CPF (11 dígitos) do emissor, sem pontos, barras ou traços." inscricao)" ""
+    fi
+    if [ -z "$IM" ]; then
+        definir_im "$(perguntar "Digite a inscrição municipal (IM) do emissor, no cadastro da Prefeitura: de 1 a 15 letras, números, ponto, barra ou traço." im)"
+    fi
 
     # 3.3: o .pfx é escolhido pelo líder e só passa ao document-export. Nunca é impresso nem listado.
     local pfx
@@ -852,5 +966,9 @@ ensaio() {
 
 case "$MODO" in
     ensaio) ensaio; exit $? ;;
-    caso|normal) fluxo; exit $? ;;
+    caso|normal)
+        # NL-2.10g: as opções são lidas e conferidas antes de qualquer passo do fluxo (o modo caso passa o próprio flag antes).
+        [ "$MODO" = caso ] && shift
+        ler_opcoes "$@"
+        fluxo; exit $? ;;
 esac

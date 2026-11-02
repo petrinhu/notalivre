@@ -124,6 +124,7 @@
 - NL-2.44 (INBOX, ressalva R2-1 da revisão do QA da NL-2.38, baixa, limite declarado): 0x8'FF mascara a chamada na mesma linha; `int h = 0x8'FF; system("ls");` passa. Sem caso no autoteste. Correção possível: tratar 8' como separador quando seguido de dígito hexadecimal, com caso no autoteste. Fonte: /var/tmp/notalivre-logs/NL-2.38-qa.md, rodada 2.
 - NL-2.45 (INBOX, ressalva R2-2 da revisão do QA da NL-2.38, baixa): o portão não varre .js em apps/gui (só .qml entrou em QML_EXTENSOES). Hoje não há .js no commit; se entrar um, o literal passa. Fonte: /var/tmp/notalivre-logs/NL-2.38-qa.md, rodada 2.
 - NL-2.46 (INBOX, observação de cobertura da rodada 2 da NL-2.38): o autoteste perdeu o caso positivo de Qt.openUrlExternally ao sair com a DA-2.85, e nenhum controle automático garante a permissão de abrir URL. Caminho do QA: um caso que afirme violacoes=0 para um .qml com Qt.openUrlExternally. Fonte: /var/tmp/notalivre-logs/NL-2.38-qa.md, rodada 2.
+- NL-2.10g (INBOX, ordem de serviço do CTO, DA-2.86 a ratificar, a partir da ordem do líder de 01/11/2026): inscrição municipal, CPF ou CNPJ por opção e janela para o que faltar no script da emissão de teste (G1: opções --im, --cnpj, --cpf e --ie; aviso do histórico com o texto do CISO, DA-2.87). Pendente verificação.
 - (sem ID): descritor da senha: aceitar só pipe/FIFO ou arquivo comum do usuário sem permissão para grupo e outros; dispositivo, socket e diretório saem com 2 e cofre.descritor_invalido; leitura com tempo-limite e código próprio (DA-2.71). Destino: NL-3.9.
 
 ## Backlog
