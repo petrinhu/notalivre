@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Leitor do serviço (NL-1.7): cLocPrestacao, cTribNac, xDescServ obrigatórios e cNBS opcional.
+// Leitor do serviço (NL-1.7): cLocPrestacao, cTribNac, xDescServ obrigatórios; cTribMun (NL-2.10h) e cNBS opcionais.
 #include "campos_json.h"
 #include "leitores_comuns.h"
 #include "leitores_dps.h"
 
 #include <nl/back/dps/codigo_nbs.h>
+#include <nl/back/dps/codigo_trib_municipal.h>
 #include <nl/back/dps/codigo_trib_nacional.h>
 #include <nl/back/dps/descricao_servico.h>
 #include <nl/back/identificacao/codigo_municipio.h>
@@ -40,6 +41,15 @@ std::expected<nb::Servico, nl::base::Erro> lerServico(const QJsonObject& raiz)
         return std::unexpected(cTribNac.error());
     }
 
+    const auto cTribMunTexto = campos::textoOpcional(*servico, caminho, "cTribMun");
+    if (!cTribMunTexto) {
+        return std::unexpected(cTribMunTexto.error());
+    }
+    const auto cTribMun = converterOpcional<nb::CodigoTribMunicipal>(*cTribMunTexto, &nb::CodigoTribMunicipal::de);
+    if (!cTribMun) {
+        return std::unexpected(cTribMun.error());
+    }
+
     const auto xDescServTexto = campos::textoObrigatorio(*servico, caminho, "xDescServ");
     if (!xDescServTexto) {
         return std::unexpected(xDescServTexto.error());
@@ -58,7 +68,7 @@ std::expected<nb::Servico, nl::base::Erro> lerServico(const QJsonObject& raiz)
         return std::unexpected(cNbs.error());
     }
 
-    return nb::Servico::montar(*cLocPrestacao, *cTribNac, *xDescServ, *cNbs);
+    return nb::Servico::montar(*cLocPrestacao, *cTribNac, *cTribMun, *xDescServ, *cNbs);
 }
 
 } // namespace nl::mid::composicao::leitores

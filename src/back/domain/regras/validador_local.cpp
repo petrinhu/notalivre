@@ -13,6 +13,7 @@
 #include <nl/back/regras/regra_e0241.h>
 #include <nl/back/regras/regra_e0246.h>
 #include <nl/back/regras/regra_e0302.h>
+#include <nl/back/regras/regra_e0313.h>
 #include <nl/back/regras/regra_e0390.h>
 #include <nl/back/regras/regra_e0532.h>
 #include <nl/back/regras/regra_e0583.h>
@@ -33,6 +34,7 @@ ValidadorLocal ValidadorLocal::padrao(const CatalogoLocalidades& catalogo)
     regras.push_back(std::make_unique<RegraE0241>());
     regras.push_back(std::make_unique<RegraE0246>(catalogo));
     regras.push_back(std::make_unique<RegraE0302>(catalogo));
+    regras.push_back(std::make_unique<RegraE0313>());
     regras.push_back(std::make_unique<RegraE0390>());
     regras.push_back(std::make_unique<RegraE0532>());
     regras.push_back(std::make_unique<RegraE0583>());
