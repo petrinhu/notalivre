@@ -766,7 +766,7 @@ Cada opção vale como --opcao valor ou --opcao=valor.
   --descricao T   descrição do serviço, de 1 a 2000 caracteres: letras, números, espaço e . , ; : - / ( ) %.
   --esquecer      apaga tudo o que o script lembrou (CNPJ, IM, regime e o caminho do certificado) e sai, sem emitir.
 
-O caminho do certificado (.pfx) fica guardado no lembrado, se você escolher na janela. Nas vezes seguintes só a senha é
+O caminho do certificado (.pfx) fica guardado no lembrado, nunca o certificado nem a senha; --esquecer apaga. Nas vezes seguintes só a senha é
 pedida. Se o caminho guardado não existir mais, for link simbólico ou não for seu, a janela pergunta de novo.
 O caminho nunca é impresso.
   --help, -h      mostra esta ajuda e sai com 0, sem perguntar nada.
