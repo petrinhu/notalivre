@@ -1153,7 +1153,7 @@ ensaio_caso() {
     shift 6
     local dir="$RAIZ/$nome" entrada rc saidas emit problema="" pfx_nome="pfxsecreto-ensaio.p12" sem_kd=0 par ndps_esp=""
     local semente="" perg_esp="" dps_esp="" dps_ausente="" saida_esp="" segredo="" opcoes_txt="" arq_ausente="" portal_ausente="" cham_esp=""
-    local lem_seed="" lem_modo="" lem_esp="" lem_aus="" cham_aus="" curl_esp="" lem="$dir/home/.local/state/notalivre-teste/lembrar"
+    local lem_seed="" lem_modo="" lem_esp="" lem_aus="" cham_aus="" curl_esp="" varrer_disco="" plantar="" lem="$dir/home/.local/state/notalivre-teste/lembrar"
     mkdir -p "$dir"
     for par in "$@"; do
         case "$par" in
@@ -1176,6 +1176,8 @@ ensaio_caso() {
             NL_ENSAIO_LEMBRAR_ESPERADO=*) lem_esp="${par#NL_ENSAIO_LEMBRAR_ESPERADO=}" ;;
             NL_ENSAIO_LEMBRAR_AUSENTE=*) lem_aus="${par#NL_ENSAIO_LEMBRAR_AUSENTE=}" ;;
             NL_ENSAIO_CURL_ESPERADO=*) curl_esp="${par#NL_ENSAIO_CURL_ESPERADO=}" ;;
+            NL_ENSAIO_VARRER_DISCO=*) varrer_disco="${par#NL_ENSAIO_VARRER_DISCO=}" ;;
+            NL_ENSAIO_PLANTAR_JSON=*) plantar="${par#NL_ENSAIO_PLANTAR_JSON=}" ;;
         esac
     done
     # NL-2.10g: opções da linha de comando, separadas por | (o valor pode ter espaço ou aspas). Vazio = nenhuma opção.
@@ -1201,7 +1203,14 @@ ensaio_caso() {
     else
         escrever_stubs "$dir"
     fi
-    env "$@" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso "${opcoes[@]}" < "$entrada" > "$dir/saida-do-script.txt" 2>&1
+    # Rodada 2 (revisor, mutante 12): com NL_ENSAIO_PLANTAR_JSON=1, um json.py falso fica no diretório de trabalho do parser
+    # (o python3 sem -I o importaria). O caso exige que a consulta não mude.
+    if [ "$plantar" = 1 ]; then
+        printf '%s\n' 'def load(f):' '    return {"opcao_pelo_mei": False, "data_exclusao_do_mei": None, "opcao_pelo_simples": False,' '            "data_exclusao_do_simples": None, "codigo_municipio_ibge": 1234567, "situacao_cadastral": 2}' > "$dir/json.py"
+        (cd "$dir" && env "$@" NL_ENSAIO_DIR="$dir" bash "$(readlink -f "$0")" --ensaio-caso "${opcoes[@]}" < "$entrada" > "$dir/saida-do-script.txt" 2>&1)
+    else
+        env "$@" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso "${opcoes[@]}" < "$entrada" > "$dir/saida-do-script.txt" 2>&1
+    fi
     rc=$?
     saidas=$(ls "$dir"/base/teste-lider/execucao-*/saida-tentativa-*.txt 2>/dev/null | wc -l | tr -d ' ')
     emit=$(grep -c ' emitir ' "$dir/chamadas.txt" 2>/dev/null || true)
@@ -1265,6 +1274,11 @@ ensaio_caso() {
     if [ -n "$segredo" ] && grep -r -l -F -e "$segredo" "$dir/saida-do-script.txt" "$dir/chamadas.txt" \
         "$dir/base/devolucao" "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
         problema="$problema vazamento_do_valor_da_variante"
+    fi
+    # Rodada 2 (revisor, mutante 3a): a resposta crua da BrasilAPI não pode ir a disco. Varre toda a árvore de base e de
+    # XDG_STATE_HOME atrás das marcas do stub (razão e sócio fictícios).
+    if [ "$varrer_disco" = 1 ] && grep -r -l -F -e RAZAO-FICTICIA -e SOCIO-FICTICIO "$dir/base" "$dir/home" >/dev/null 2>&1; then
+        problema="$problema resposta_da_consulta_em_disco"
     fi
     # Rodada 2 (revisor, mutante 11): a chamada ao curl tem de ser com --proto =https.
     r=$(trechos "$dir/curl-argumentos.txt" presente "$curl_esp")
@@ -1548,6 +1562,13 @@ ensaio() {
     ensaio_caso v_valor_invalido 1 "maior que zero" 0 0 "" NL_ENSAIO_OPCOES='--valor|0,00' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_descricao_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--descricao|Consulta médica (retorno): 50% de desconto' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"xDescServ": "Consulta médica (retorno): 50% de desconto"'
     ensaio_caso v_descricao_invalido 1 "de 1 a 2000 caracteres" 0 0 "" NL_ENSAIO_OPCOES='--descricao|Teste "aspas"' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    # Rodada 2 (revisor, mutante 12): o parser da consulta lê com python3 -I; um json.py plantado no diretório de trabalho
+    # não pode mudar o regime nem o município (o mei tem de sair opSimpNac 2 e cLocEmi 2611606).
+    ensaio_caso r19_json_plantado_nao_muda_a_consulta 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=mei NL_ENSAIO_PLANTAR_JSON=1 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "2"|"cLocEmi": "2611606"'
+    # Rodada 2 (revisor, mutante 3a): depois da consulta, nenhuma marca da resposta crua fica em base nem em home.
+    ensaio_caso r18_resposta_crua_fora_do_disco 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_VARRER_DISCO=1
+    # Rodada 2 (revisor, mutante 10b): barra invertida na descrição tem de parar antes do número, sem repetir o valor.
+    ensaio_caso r10b_descricao_com_barra_invertida 1 "de 1 a 2000 caracteres" 0 0 "" NL_ENSAIO_OPCOES='--descricao|Teste \ barra' NL_ENSAIO_SEGREDO='Teste \ barra' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_sem_im_valido 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--sem-im|--cnpj|11222333000181' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_AUSENTE='"im"' NL_ENSAIO_PERGUNTAS=nenhuma
     ensaio_caso v_sem_im_invalido 1 "não podem vir juntos" 0 0 "" NL_ENSAIO_OPCOES='--sem-im|--im|IMENS-7731' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
     # Coordenação (G1c, item 1): --local-prestacao e --trib-issqn entram; --ret-issqn só aceita 1 (retenção travada em 1, C9).
