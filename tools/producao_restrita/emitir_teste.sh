@@ -1326,16 +1326,26 @@ ensaio_caso() {
     # Rodada 5 (revisor, R4-B1 e inferência fechada): a única linha de chamadas que pode ter o caminho é, por igualdade da linha
     # inteira, "flatpak document-export --app=<APP> --forbid-write <caminho>". O caminho é o da janela ($dir/<pfx_nome>) ou o guardado
     # que o caso semeou (pfx=...). Nenhuma outra forma passa.
+    # Rodada 6 (revisor, R5-B1 e R5-B2): a checagem procura o MARCADOR do nome do arquivo (pfxsecreto, o nome do pfx da janela e o nome
+    # do pfx semeado, por exemplo hosts), não o caminho inteiro. Qualquer linha de chamadas.txt com marcador tem de ser exatamente a
+    # linha do document-export; as outras reprovam, mesmo com o caminho partido em dois argumentos ou só o nome do arquivo.
     if [ -f "$dir/chamadas.txt" ]; then
-        local pfx_semeado="" prefixo_doc="flatpak document-export --app=$APP --forbid-write "
+        local pfx_semeado="" prefixo_doc="flatpak document-export --app=$APP --forbid-write " pfx_base_semeado="" linha_pfx m
+        local -a marcas=(pfxsecreto) args_grep=()
         pfx_semeado=$(printf '%s' "$lem_seed" | tr '|' '\n' | sed -n 's/^pfx=//p')
+        [ -n "$pfx_nome" ] && marcas+=("$pfx_nome")
+        if [ -n "$pfx_semeado" ]; then
+            pfx_base_semeado=$(basename -- "$pfx_semeado")
+            [ -n "$pfx_base_semeado" ] && marcas+=("$pfx_base_semeado")
+        fi
+        for m in "${marcas[@]}"; do args_grep+=(-e "$m"); done
         while IFS= read -r linha_pfx; do
             if [ "$linha_pfx" = "$prefixo_doc$dir/$pfx_nome" ] || { [ -n "$pfx_semeado" ] && [ "$linha_pfx" = "$prefixo_doc$pfx_semeado" ]; }; then
                 :
             else
-                problema="$problema caminho_do_pfx_fora_do_document_export"
+                problema="$problema marcador_do_pfx_fora_do_document_export"
             fi
-        done < <(grep -F -- "$dir/pfxsecreto" "$dir/chamadas.txt" 2>/dev/null || true)
+        done < <(grep -F "${args_grep[@]}" -- "$dir/chamadas.txt" 2>/dev/null || true)
     fi
     # Rodada 2 (revisor, mutante 3a): a resposta crua da BrasilAPI não pode ir a disco. Varre toda a árvore de base e de
     # XDG_STATE_HOME atrás das marcas do stub (razão e sócio fictícios).
