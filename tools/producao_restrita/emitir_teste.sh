@@ -1120,6 +1120,8 @@ STUB
 #!/bin/sh
 D="$NL_ENSAIO_DIR"
 echo "curl consulta" >> "$D/chamadas.txt"
+# Rodada 2 (revisor, mutante 11): os argumentos ficam num arquivo à parte, para o ensaio conferir --proto =https.
+printf '%s\n' "$*" >> "$D/curl-argumentos.txt"
 CORPO='"razao_social":"RAZAO-FICTICIA","qsa":[{"nome_socio":"SOCIO-FICTICIO"}]'
 SN='"opcao_pelo_mei":false,"data_exclusao_do_mei":null,"opcao_pelo_simples":true,"data_exclusao_do_simples":null'
 case "${NL_ENSAIO_BRASILAPI:-simples}" in
@@ -1151,7 +1153,7 @@ ensaio_caso() {
     shift 6
     local dir="$RAIZ/$nome" entrada rc saidas emit problema="" pfx_nome="pfxsecreto-ensaio.p12" sem_kd=0 par ndps_esp=""
     local semente="" perg_esp="" dps_esp="" dps_ausente="" saida_esp="" segredo="" opcoes_txt="" arq_ausente="" portal_ausente="" cham_esp=""
-    local lem_seed="" lem_modo="" lem_esp="" lem_aus="" cham_aus="" lem="$dir/home/.local/state/notalivre-teste/lembrar"
+    local lem_seed="" lem_modo="" lem_esp="" lem_aus="" cham_aus="" curl_esp="" lem="$dir/home/.local/state/notalivre-teste/lembrar"
     mkdir -p "$dir"
     for par in "$@"; do
         case "$par" in
@@ -1173,6 +1175,7 @@ ensaio_caso() {
             NL_ENSAIO_LEMBRAR_MODO=*) lem_modo="${par#NL_ENSAIO_LEMBRAR_MODO=}" ;;
             NL_ENSAIO_LEMBRAR_ESPERADO=*) lem_esp="${par#NL_ENSAIO_LEMBRAR_ESPERADO=}" ;;
             NL_ENSAIO_LEMBRAR_AUSENTE=*) lem_aus="${par#NL_ENSAIO_LEMBRAR_AUSENTE=}" ;;
+            NL_ENSAIO_CURL_ESPERADO=*) curl_esp="${par#NL_ENSAIO_CURL_ESPERADO=}" ;;
         esac
     done
     # NL-2.10g: opções da linha de comando, separadas por | (o valor pode ter espaço ou aspas). Vazio = nenhuma opção.
@@ -1263,6 +1266,9 @@ ensaio_caso() {
         "$dir/base/devolucao" "$dir"/base/teste-lider/execucao-* >/dev/null 2>&1; then
         problema="$problema vazamento_do_valor_da_variante"
     fi
+    # Rodada 2 (revisor, mutante 11): a chamada ao curl tem de ser com --proto =https.
+    r=$(trechos "$dir/curl-argumentos.txt" presente "$curl_esp")
+    [ -z "$r" ] || problema="$problema curl$r"
     # NL-2.10g (G1c): o arquivo de lembrar, quando existe, é 0600 numa pasta 0700; confere as chaves pedidas e as que não podem estar.
     if [ -e "$lem" ]; then
         [ "$(stat -c %a "$lem")" = 600 ] || problema="$problema lembrar_modo_$(stat -c %a "$lem")(esperado 600)"
@@ -1494,7 +1500,7 @@ ensaio() {
     # NL-2.10g (G1c, rodada): BrasilAPI, arquivo de lembrar, --esquecer, --help e -h, --sem-im, validadores sem janela.
     # Vermelhos no script anterior; as fixtures são fictícias (RAZAO-FICTICIA e SOCIO-FICTICIO vêm só do stub da BrasilAPI).
     ensaio_caso r1_consulta_mei 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=mei NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "2"|"regEspTrib": "0"' NL_ENSAIO_DPS_AUSENTE='"regApTribSN"'
-    ensaio_caso r2_consulta_simples 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "3"|"regApTribSN": "1"'
+    ensaio_caso r2_consulta_simples 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=simples NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "3"|"regApTribSN": "1"' NL_ENSAIO_CURL_ESPERADO='--proto =https|https://brasilapi.com.br/api/cnpj/v1/'
     ensaio_caso r3_consulta_nula 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=nulo NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"' NL_ENSAIO_DPS_AUSENTE='"regApTribSN"'
     ensaio_caso r4_consulta_exclusao_simples 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=exclusao NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "1"'
     ensaio_caso r5_consulta_rede_falha 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_BRASILAPI=rede NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"opSimpNac": "3"' NL_ENSAIO_SAIDA_ESPERADA='consulta pública não respondeu'
