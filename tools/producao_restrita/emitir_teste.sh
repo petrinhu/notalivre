@@ -1625,6 +1625,48 @@ ensaio_ctribmun_gravado() {
     CASOS=$(( CASOS + 1 ))
 }
 
+# NL-2.10j, J2: --ptottribsn dado por opção grava no lembrar, e a execução seguinte (sem opção) manda o mesmo valor em pTotTribSN.
+ensaio_ptottribsn_gravado() {
+    local nome="$1" valor="$2" dir r1 r2 problema=""
+    dir="$RAIZ/$nome"
+    mkdir -p "$dir/pfxdir-ensaio"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso --opsimpnac 3 --ptottribsn "$valor" < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    mv -f -- "$dir/perguntas.txt" "$dir/perguntas-1.txt" 2>/dev/null || true
+    env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    r2=$?
+    [ "$r1" -eq 0 ] && [ "$r2" -eq 0 ] || problema="$problema rc=$r1/$r2"
+    grep -q '"pTotTribSN": "7.35"' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ptottribsn_nao_lido_do_lembrar"
+    if [ -z "$problema" ]; then
+        printf 'ok %s\n' "$nome"
+    else
+        printf 'FALHA %s:%s\n' "$nome" "$problema"
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    CASOS=$(( CASOS + 1 ))
+}
+
+# NL-2.10j, J2 (DA-2.99, "o percentual não sai em log fora da DPS"): o valor digitado não aparece em nenhum arquivo do caso, salvo a DPS.
+ensaio_ptottribsn_sem_vazamento() {
+    local nome="$1" dir r problema="" achados
+    dir="$RAIZ/$nome"
+    mkdir -p "$dir/pfxdir-ensaio"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso --opsimpnac 3 --ptottribsn 7,35 < /dev/null > "$dir/saida-1.txt" 2>&1
+    r=$?
+    [ "$r" -eq 0 ] || problema="$problema rc=$r"
+    achados=$(grep -r -l -F -e '7,35' -e '7.35' "$dir" 2>/dev/null | grep -v -F -e "$dir/dps-emitida.json" -e "$dir/base/teste-lider/dps-teste.json" || true)
+    [ -z "$achados" ] || problema="$problema percentual_fora_da_dps"
+    if [ -z "$problema" ]; then
+        printf 'ok %s\n' "$nome"
+    else
+        printf 'FALHA %s:%s\n' "$nome" "$problema"
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    CASOS=$(( CASOS + 1 ))
+}
+
 ensaio() {
     # Coordenação (G1c, item 3): o ensaio exige python3 (o parser da consulta à BrasilAPI). Sem ele, para no começo, sem pular caso.
     if ! command -v python3 >/dev/null 2>&1; then
@@ -1799,6 +1841,19 @@ ensaio() {
     ensaio_caso h1_e0313_mei_dica_nao_informe 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--opsimpnac|2' NL_ENSAIO_SEQ=E0313 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='com MEI, não informe --ctribmun'
     # NL-2.10h (H1, QA A3/M5): o cTribMun gravado no lembrar volta na execução seguinte, sem opção.
     ensaio_ctribmun_gravado h1_ctribmun_gravado_lido_na_seguinte
+    # NL-2.10j, J2 (DA-2.99): totTrib por regime. ME/EPP manda pTotTribSN com --ptottribsn; sem ele, pTotTrib 0,00 e aviso; MEI manda
+    # indTotTrib 0; não optante manda pTotTrib; --ptottribsn com 1 ou 2 e valor fora do formato recusado antes do número.
+    ensaio_caso h2_me_sem_opcao_ptottrib_zero_e_aviso 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|3' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"pTotTribFed": "0.00"|"pTotTribMun": "0.00"' NL_ENSAIO_DPS_AUSENTE='"indTotTrib"|"pTotTribSN"' NL_ENSAIO_SAIDA_ESPERADA='não foi informado'
+    ensaio_caso h2_me_com_ptottribsn_manda_pTotTribSN 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|3|--ptottribsn|7,35' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"pTotTribSN": "7.35"' NL_ENSAIO_DPS_AUSENTE='"pTotTribFed"|"indTotTrib"'
+    ensaio_ptottribsn_gravado h2_ptottribsn_gravado_lido_na_seguinte 7,35
+    ensaio_ptottribsn_sem_vazamento h2_percentual_nao_vaza_fora_da_dps
+    ensaio_caso h2_mei_manda_indtottrib_zero 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|2' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"indTotTrib": "0"' NL_ENSAIO_DPS_AUSENTE='"pTotTribFed"|"pTotTribSN"'
+    ensaio_caso h2_nao_optante_manda_pTotTrib 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|1' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"pTotTribFed": "0.00"' NL_ENSAIO_DPS_AUSENTE='"indTotTrib"|"pTotTribSN"'
+    ensaio_caso h2_nao_optante_com_ptottribsn_recusado 1 "--ptottribsn" 0 0 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--opsimpnac|1|--ptottribsn|7,35' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso h2_mei_com_ptottribsn_recusado 1 "--ptottribsn" 0 0 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--opsimpnac|2|--ptottribsn|7,35' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso h2_ptottribsn_acima_da_faixa_recusado 1 "0,00 e 99,99" 0 0 "" NL_ENSAIO_OPCOES='--opsimpnac|3|--ptottribsn|100' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso h2_ptottribsn_tres_casas_recusado 1 "0,00 e 99,99" 0 0 "" NL_ENSAIO_OPCOES='--opsimpnac|3|--ptottribsn|7,345' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
+    ensaio_caso h2_e0712_simulado_imprime_dica 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|3' NL_ENSAIO_SEQ=E0712 NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_SAIDA_ESPERADA='--ptottribsn'
     ensaio_ctribmun_janela h1_janela_depois_de_e0312 E0312 aceita "" sim 0 2
     ensaio_ctribmun_janela h1_janela_sem_recusa_nao_abre aceita aceita "" nao 0 2
     ensaio_ctribmun_janela h1_janela_cancelada_para_antes_do_numero E0312 aceita NL_ENSAIO_CTRIBMUN_CANCELA=1 sim 1 1
