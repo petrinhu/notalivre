@@ -70,7 +70,7 @@ Não apague o arquivo `/var/tmp/notalivre-nl210/ultimo-ndps.txt`. Ele guarda o �
 
 **Situação:** pronto para o líder. Uma verificação fica aberta e declarada (seção 6, item 4): o seu teste é a prova.
 **Data:** 01/11/2026.
-**Código:** o pacote do run `41452411280` foi feito sobre o commit `d3d948f5` (merge da NL-2.10h na onda-2). O app mudou desde o pacote anterior (run `41362487894`, commit `22cdb30b`): o cTribMun entrou no leitor, no domínio, no codec e na regra E0313 (`762de67`). O script `tools/producao_restrita/emitir_teste.sh` está na fatia NL-2.10g (branch `fatia/NL-2.10g`, ainda fora da onda-2), e nada no empacotamento do Flatpak o referencia.
+**Código:** o pacote do run `41575930687` foi feito sobre o commit `073bd62` (merge da NL-2.10j J2 na onda-2). O app mudou desde o pacote anterior (run `41452411280`, commit `d3d948f5`): a J1 (`a450244`, NL-2.10j) trouxe o total de tributos nas quatro formas do XSD, com regime e faixas no domínio (14 arquivos de `src/` e `apps/`, +282 e -89 linhas). A J2 (`073bd62`) mudou só o script. O script `tools/producao_restrita/emitir_teste.sh` está na fatia NL-2.10g (branch `fatia/NL-2.10g`, ainda fora da onda-2), e nada no empacotamento do Flatpak o referencia.
 **Pacote a instalar:** veja a seção "Pacote a instalar", logo abaixo.
 
 Nos comandos abaixo, o que está entre `< >` é um texto que você troca pelo seu valor. O caminho do seu certificado nunca aparece neste roteiro: use sempre `<caminho do seu .pfx>`.
@@ -83,24 +83,24 @@ Nos comandos abaixo, o que está entre `< >` é um texto que você troca pelo se
 
 Um registro só. Confira antes de instalar.
 
-- **Run do CI:** `41452411280` (verde, incluindo `flatpak` e o smoke no host do runner)
-- **Commit:** `d3d948f5b4d7fc8829f2fd14a1a9d57d9bdb5607` (merge da NL-2.10h na onda-2)
+- **Run do CI:** `41575930687` (verde, incluindo `flatpak` e o smoke no host do runner)
+- **Commit:** `073bd624cea05d6e85f3cd0635c7b449ba9f3d8a` (merge da NL-2.10j J2 na onda-2)
 - **Artefato:** `notalivre-bundle`
-- **Digest do ZIP do artefato, pela API do GitHub:** `sha256:ec0038924c83a5c8102a270602a25b3a2624903dffdb3f2c18999c86cf1b55e6`
-- **SHA-256 completo do arquivo `notalivre.flatpak`:** `2888ffb1a30e7ad2cf77f3c2e2ebcc85749e2c1e1a0719073438d953f1f53cef`
-- **Caminho do arquivo:** `/var/tmp/notalivre-nl210/bundle/run-41452411280/notalivre.flatpak`
-- **Tamanho:** 649784 bytes
-- **Mudança do app neste pacote:** o cTribMun entrou no app (`762de67`, NL-2.10h): 13 arquivos de `src/` e `apps/`, +156 e -10 linhas, em relação ao commit `22cdb30b` do pacote anterior. Por isso o run `41362487894` deixou de ser o pacote certo.
+- **Digest do ZIP do artefato, pela API do GitHub:** `sha256:d43056d8da4f94e74a91dd12badcbb7637bd7a9451b0710928f5da1fa21b28fc`
+- **SHA-256 completo do arquivo `notalivre.flatpak`:** `05e7e73cf04e16b6ade13813e821bc9cf195a0f86dc9082787a4e69f12e15f93`
+- **Caminho do arquivo:** `/var/tmp/notalivre-nl210/bundle/run-41575930687/notalivre.flatpak`
+- **Tamanho:** 656376 bytes
+- **Mudança do app neste pacote:** o total de tributos nas quatro formas do XSD, com regime e faixas no domínio, entrou no app (J1, `a450244`, NL-2.10j): 14 arquivos de `src/` e `apps/`, +282 e -89 linhas, em relação ao commit `d3d948f5` do pacote anterior. A J2 (`073bd62`) mudou só o script. Por isso o run `41452411280` deixou de ser o pacote certo.
 
 Antes de instalar, rode:
 
 ```
-sha256sum /var/tmp/notalivre-nl210/bundle/run-41452411280/notalivre.flatpak
+sha256sum /var/tmp/notalivre-nl210/bundle/run-41575930687/notalivre.flatpak
 ```
 
-O resultado tem de ser exatamente `2888ffb1a30e7ad2cf77f3c2e2ebcc85749e2c1e1a0719073438d953f1f53cef`. Se for outro, não instale e avise o agente. O job do CI não imprime esse SHA-256 no log; o valor foi calculado pelo agente sobre o arquivo baixado do artefato, e o digest do ZIP confere com a API.
+O resultado tem de ser exatamente `05e7e73cf04e16b6ade13813e821bc9cf195a0f86dc9082787a4e69f12e15f93`. Se for outro, não instale e avise o agente. O job do CI não imprime esse SHA-256 no log; o valor foi calculado pelo agente sobre o arquivo baixado do artefato, e o digest do ZIP confere com a API.
 
-**Este pacote substitui o anterior** (run `41362487894`, commit `22cdb30b`, SHA-256 `2c237258…`). Use só este.
+**Este pacote substitui o anterior** (run `41452411280`, commit `d3d948f5`, SHA-256 `2888ffb1…`). Use só este.
 
 ---
 
@@ -129,15 +129,15 @@ Quem roda os comandos é você, no seu computador, com o seu certificado. O agen
 ### 3.1 Conferir o arquivo do programa
 
 ```
-sha256sum /var/tmp/notalivre-nl210/bundle/run-41452411280/notalivre.flatpak
+sha256sum /var/tmp/notalivre-nl210/bundle/run-41575930687/notalivre.flatpak
 ```
 
-O resultado tem de ser exatamente `2888ffb1a30e7ad2cf77f3c2e2ebcc85749e2c1e1a0719073438d953f1f53cef`. Se for outro, pare e avise o agente.
+O resultado tem de ser exatamente `05e7e73cf04e16b6ade13813e821bc9cf195a0f86dc9082787a4e69f12e15f93`. Se for outro, pare e avise o agente.
 
 ### 3.2 Instalar o programa
 
 ```
-flatpak install --user --bundle /var/tmp/notalivre-nl210/bundle/run-41452411280/notalivre.flatpak
+flatpak install --user --bundle /var/tmp/notalivre-nl210/bundle/run-41575930687/notalivre.flatpak
 ```
 
 Se o sistema pedir o ambiente de execução do KDE 6.11 e você ainda não o tiver, instale com `flatpak install --user flathub org.kde.Platform//6.11` e repita este passo.
