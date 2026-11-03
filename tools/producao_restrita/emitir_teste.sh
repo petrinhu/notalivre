@@ -1443,7 +1443,7 @@ ensaio_caso() {
     # Rodada 9 (revisor, LEAK_DIR): a varredura procura DUAS marcas, sem trocar uma pela outra: o nome do pfx em qualquer pasta
     # ($dir/pfxsecreto) e a pasta que o contém ($dir/pfxdir). DA-2.97 (CISO): esta varredura cobre o nome do .pfx e a pasta que o
     # contém, não os ancestrais de $dir. O V_PAI (diretório pai do caso no argv) é residual declarado e vai para a INBOX, com a NL-3.13.
-    achados_pfx=$(grep -r -l -F -e "$dir/pfxsecreto" -e "$dir/pfxdir" "$dir/base" "$dir/home" 2>/dev/null | grep -v -F -- "$lem" || true)
+    achados_pfx=$(grep -r -l -F -e "$dir/pfxsecreto" -e "$dir/pfxdir" "$dir/base" "$dir/home" 2>/dev/null | grep -v -x -F -- "$lem" || true)
     [ -z "$achados_pfx" ] || problema="$problema caminho_do_pfx_fora_do_lembrar"
     # DA-2.94: o caminho do .pfx não aparece nas chamadas, salvo no document-export, que é o caminho já aceito.
     # Rodada 4 (revisor, R4-B1): a exceção é só a linha exata do document-export ("flatpak document-export --app=..." com o caminho
@@ -1709,7 +1709,7 @@ ensaio_ptottribsn_sem_vazamento() {
     r=$?
     [ "$r" -eq 0 ] || problema="$problema rc=$r"
     # D3: o lembrar guarda o --ptottribsn (arquivo 0600, o único lugar permitido fora da DPS); a varredura cobre o resto do caso.
-    achados=$(grep -r -l -F -e '7,35' -e '7.35' "$dir" 2>/dev/null | grep -v -F -e "$dir/dps-emitida.json" -e "$dir/base/teste-lider/dps-teste.json" -e "$dir/home/.local/state/notalivre-teste/lembrar" || true)
+    achados=$(grep -r -l -F -e '7,35' -e '7.35' "$dir" 2>/dev/null | grep -v -x -F -e "$dir/dps-emitida.json" -e "$dir/base/teste-lider/dps-teste.json" -e "$dir/home/.local/state/notalivre-teste/lembrar" || true)
     [ -z "$achados" ] || problema="$problema percentual_fora_da_dps"
     if [ -z "$problema" ]; then
         printf 'ok %s\n' "$nome"
