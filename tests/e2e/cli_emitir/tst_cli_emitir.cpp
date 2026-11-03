@@ -17,7 +17,9 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <pty.h>
+#include <array>
 #include <csignal>
+#include <utility>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -493,6 +495,8 @@ private slots:
     void cliEmiteComPTotTribSNMeEppPeloServidorFalso();
     void cliEmiteIndTotTribMeiPeloServidorFalso();
     void cliRecusaIndTotTribMeEppSemPost();
+    // NL-2.10j, J1-r2 (DA-2.101): percentual mal formado de totTrib é erro de entrada: sai com 4 antes do envio, nunca com 70.
+    void cliRecusaPercentualMalFormadoSaiCom4();
     void cliRecusaCTribMunZeroSemPost();
     // E0014 na primeira tentativa com o mesmo infDPS: a CLI recupera a chave e sai com 0 (DA-2.58).
     void e0014DaMesmaDpsRecuperaAChave();
@@ -723,6 +727,31 @@ void TstCliEmitir::cliRecusaIndTotTribMeEppSemPost()
     QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("dps.tottrib_regime"), "a recusa tem de trazer o código do regime do totTrib");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+    QCOMPARE(servidor.requisicoesAoFechar(), 0);
+}
+
+void TstCliEmitir::cliRecusaPercentualMalFormadoSaiCom4()
+{
+    // NL-2.10j, J1-r2 (DA-2.101): pTotTrib e pTotTribSN mal formados saem com 4 (culpa do documento), antes da assinatura e do envio.
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const std::array<std::pair<QString, QString>, 2> casos{{
+        {QStringLiteral("totTrib_pTotTrib_mal_formado.json"), QStringLiteral("percentual.formato")},
+        {QStringLiteral("totTrib_pTotTribSn_mal_formado.json"), QStringLiteral("percentual_sn.formato")},
+    }};
+    for (const auto& [arquivo, codigo] : casos) {
+        const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/") + arquivo,
+                                     QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                     QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+        const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+        QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("%1: rc=%2; saída: %3").arg(arquivo).arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+        QVERIFY2(execucao.saida.contains(codigo.toUtf8()), qPrintable(QStringLiteral("a recusa de %1 tem de trazer %2").arg(arquivo, codigo)));
+        QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+    }
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
 }
 

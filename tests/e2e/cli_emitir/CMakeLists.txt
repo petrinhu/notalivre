@@ -82,7 +82,8 @@ set(NL_SLOTS_E2E
     cliRecusaCTribMunZeroSemPost
     cliEmiteComPTotTribSNMeEppPeloServidorFalso
     cliEmiteIndTotTribMeiPeloServidorFalso
-    cliRecusaIndTotTribMeEppSemPost)
+    cliRecusaIndTotTribMeEppSemPost
+    cliRecusaPercentualMalFormadoSaiCom4)
 
 if(NL_FLATPAK_BUILD)
     message(STATUS "e2e cli_emitir: slots com servidor falso ou segredo desligados no build Flatpak (NL-2.15, NL-2.27)")

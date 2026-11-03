@@ -96,3 +96,4 @@ e2e.cliEmitir.cliRecusaCTribMunZeroSemPost | servidor falso em Python com orácu
 e2e.cliEmitir.cliEmiteComPTotTribSNMeEppPeloServidorFalso | servidor falso em Python com oráculo ausente no SDK (NL-2.10j, J1) | coberto no build nativo
 e2e.cliEmitir.cliEmiteIndTotTribMeiPeloServidorFalso | servidor falso em Python com oráculo ausente no SDK (NL-2.10j, J1) | coberto no build nativo
 e2e.cliEmitir.cliRecusaIndTotTribMeEppSemPost | servidor falso em Python com oráculo ausente no SDK (NL-2.10j, J1) | coberto no build nativo
+e2e.cliEmitir.cliRecusaPercentualMalFormadoSaiCom4 | servidor falso em Python com oráculo ausente no SDK (NL-2.10j, J1-r2) | coberto no build nativo
