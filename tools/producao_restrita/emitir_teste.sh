@@ -1708,7 +1708,8 @@ ensaio_ptottribsn_sem_vazamento() {
     env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso --opsimpnac 3 --ptottribsn 7,35 < /dev/null > "$dir/saida-1.txt" 2>&1
     r=$?
     [ "$r" -eq 0 ] || problema="$problema rc=$r"
-    achados=$(grep -r -l -F -e '7,35' -e '7.35' "$dir" 2>/dev/null | grep -v -F -e "$dir/dps-emitida.json" -e "$dir/base/teste-lider/dps-teste.json" || true)
+    # D3: o lembrar guarda o --ptottribsn (arquivo 0600, o único lugar permitido fora da DPS); a varredura cobre o resto do caso.
+    achados=$(grep -r -l -F -e '7,35' -e '7.35' "$dir" 2>/dev/null | grep -v -F -e "$dir/dps-emitida.json" -e "$dir/base/teste-lider/dps-teste.json" -e "$dir/home/.local/state/notalivre-teste/lembrar" || true)
     [ -z "$achados" ] || problema="$problema percentual_fora_da_dps"
     if [ -z "$problema" ]; then
         printf 'ok %s\n' "$nome"
