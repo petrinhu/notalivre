@@ -4,6 +4,8 @@
 // código fora da lista sai como 70, nunca como uma recusa comum.
 #include <nl/mid/composicao/codigo_saida.h>
 
+#include <array>
+
 #include <QtTest>
 
 class TstCodigoSaida : public QObject
@@ -31,9 +33,39 @@ private slots:
     void codigosDoSegredoSaemComDois();
     // NL-2.27 (DA-2.68): Produção sem autorização headless sai com 11, por entrada explícita.
     void headlessSemAutorizacaoSaiComOnze();
+    // NL-2.10j, J1-r2 (DA-2.101, varredura L-17): erro de valor digitado na DPS é culpa do documento (4); erro interno não.
+    void codigosDeValorDaDpsSaemComQuatro();
+    void codigosInternosDeValorSaemComSetenta();
 };
 
 using nl::mid::composicao::codigoDeSaidaDaEmissao;
+
+void TstCodigoSaida::codigosDeValorDaDpsSaemComQuatro()
+{
+    // Códigos produzidos pelos tipos de valor do Back que o leitor da DPS alcança (varredura de git grep "Erro{" em src/back/domain/dps).
+    const std::array<const char*, 35> codigos{
+        "aliquota_issqn.formato", "ambiente.valor", "cclasstrib.formato", "cep.formato", "cep.tamanho", "chave_nfse.formato",
+        "cindop.formato", "cnbs.formato", "cod_trib_municipal.formato", "cod_trib_municipal.zero", "cod_trib_nacional.formato",
+        "cst.formato", "dhemi.formato", "indicadordestinatario.valor", "indtottrib.valor", "municipio.formato", "municipio.tamanho",
+        "nif.motivo", "numero.faixa", "pais.formato", "percentual.formato", "percentual_sn.formato", "ref_nfse.quantidade",
+        "regime.opsimpnac", "regime.regapttribsn", "regime.regapttribsn_sem_meepp", "regime.regesptrib", "retencao.valor",
+        "serie.faixa", "servico.xDescServ.sem_texto", "servico.xDescServ.vazia", "substituicao.motivo", "telefone.formato",
+        "tipooperacao.valor", "tribissqn.valor"};
+    for (const char* codigo : codigos) {
+        QVERIFY2(codigoDeSaidaDaEmissao(codigo) == 4, codigo);
+    }
+}
+
+void TstCodigoSaida::codigosInternosDeValorSaemComSetenta()
+{
+    // Erros que não vêm do digitado: envelope da resposta, estado da numeração, motivo de pulo e a chave de acesso devolvida pela Sefin.
+    const std::array<const char*, 10> internos{
+        "envelope.vazio", "envelope.json", "envelope.chave", "envelope.base64", "numeracao.esgotada", "numeracao.estado_invalido",
+        "numeracao.serie_divergente", "pulo.motivo_vazio", "chave.formato", "chave.tamanho"};
+    for (const char* codigo : internos) {
+        QVERIFY2(codigoDeSaidaDaEmissao(codigo) == 70, codigo);
+    }
+}
 
 void TstCodigoSaida::codigosDoSegredoSaemComDois()
 {
