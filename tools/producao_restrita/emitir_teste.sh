@@ -1900,6 +1900,9 @@ ensaio() {
     ensaio_caso h2_me_com_ptottribsn_manda_pTotTribSN 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|3|--ptottribsn|7,35' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"pTotTribSN": "7.35"' NL_ENSAIO_DPS_AUSENTE='"pTotTribFed"|"indTotTrib"'
     ensaio_ptottribsn_gravado h2_ptottribsn_gravado_lido_na_seguinte 7,35
     ensaio_ptottribsn_sem_vazamento h2_percentual_nao_vaza_fora_da_dps
+    # NL-2.10j, J2-r2 (revisão de segurança, achado F): um --ptottribsn adulterado no arquivo de lembrar faz o arquivo inteiro ser
+    # descartado, com aviso; nada vai à DPS. O valor 7.3 tem uma casa a menos e não passa no formato do lembrar.
+    ensaio_caso j2_lembrar_ptottribsn_adulterado_ignorado 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--opsimpnac|3' NL_ENSAIO_LEMBRAR='cnpj=11222333000181|im=IMENS-7731|opsimpnac=3|origem_opsimpnac=lembrado|ptottribsn=7.3|origem_ptottribsn=lembrado' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"pTotTribFed": "0.00"' NL_ENSAIO_DPS_AUSENTE='"pTotTribSN"' NL_ENSAIO_SAIDA_ESPERADA='linha fora do conjunto'
     ensaio_caso h2_mei_manda_indtottrib_zero 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|2' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"indTotTrib": "0"' NL_ENSAIO_DPS_AUSENTE='"pTotTribFed"|"pTotTribSN"'
     ensaio_caso h2_nao_optante_manda_pTotTrib 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--opsimpnac|1' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"pTotTribFed": "0.00"' NL_ENSAIO_DPS_AUSENTE='"indTotTrib"|"pTotTribSN"'
     ensaio_caso h2_nao_optante_com_ptottribsn_recusado 1 "--ptottribsn" 0 0 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--opsimpnac|1|--ptottribsn|7,35' NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7 NL_ENSAIO_PERGUNTAS=nenhuma
