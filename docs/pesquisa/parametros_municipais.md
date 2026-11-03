@@ -134,7 +134,7 @@ Nenhum dos manuais descreve o JSON de resposta de nenhuma rota de parâmetros. N
 - NÃO ENCONTRADO: códigos de erro HTTP ou de negócio da rota de parâmetros em nenhum dos manuais, no Anexo I ou nos repositórios lidos.
 - NÃO ENCONTRADO: limite de requisições por minuto, por dia ou por certificado.
 - Os códigos E0310 a E0315 do Anexo I são de validação da DPS (POST `/nfse`), não de parâmetros. Não se aplicam diretamente à rota de consulta. Ver seção 8.
-- SECUNDÁRIO: `pynfse-nacional` 0.9.5 diz: "A API de parametrização (alíquotas por serviço) está com problemas no ambiente de homologação." (WebFetch, resumo). Isso é um risco para a fatia H3: a consulta pode falhar em Produção Restrita por motivo da própria API, sem relação com o serviço. O pré-voo de H3 deve degradar com aviso, não bloquear a emissão sem diagnóstico.
+- SECUNDÁRIO: `pynfse-nacional` 0.9.5 diz: "A API de parametrização (alíquotas por serviço) está com problemas no ambiente de homologação." (WebFetch, resumo). Isso é um risco para a fatia H3: a consulta pode falhar em Produção Restrita por motivo da própria API, sem relação com o serviço. INFERÊNCIA: o pré-voo de H3 deve degradar com aviso, não bloquear a emissão sem diagnóstico.
 
 ---
 
@@ -253,7 +253,7 @@ Cada item indica o que foi procurado e onde.
 
 - **H3 não deve escrever a rota como fato.** O caminho pode ser `/{codigoServico}` ou `/aliquotas`, e o host é desconhecido. A primeira consulta real precisa dizer qual delas responde, e isso exige autorização do líder (a consulta real é do líder, pelo script; L-01).
 - **A consulta real, se autorizada, deve ser de uma única rota**, sem gastar número de DPS, e registrar status HTTP e corpo sem dados do líder (CNPJ, CPF, IM). O objetivo é separar as duas hipóteses da ordem: se a rota de parâmetros diz que o serviço não é administrado para 040101, H1 se confirma sem gastar número.
-- **O pré-voo de H3 precisa degradar.** O aviso de `pynfse-nacional` sobre problemas de homologação na API de parametrização, e a falta de códigos de erro documentados, pedem que a ausência de resposta da rota não bloqueie a emissão por si só. A decisão de bloquear ou seguir é do main, por L-01.
+- **O pré-voo de H3 precisa degradar.** O aviso de `pynfse-nacional` sobre problemas de homologação na API de parametrização, e a falta de códigos de erro documentados, pedem que a ausência de resposta da rota não bloqueie a emissão por si só. A decisão de bloquear ou seguir é do líder, por L-01.
 - **Não há base oficial para a lista de cTribMun.** Se a rota de parâmetros não devolver a lista, a opção `--ctribmun` continua sendo a única via, e o relato de 2023 sugere que o portal nacional não tem consulta pública desses códigos.
 - **O acesso ao Swagger pelo líder** resolve as lacunas de formato e de certificado sem consumir a API: o líder pode abrir os dois links do manual no navegador dele (`adn.producaorestrita.nfse.gov.br/contribuintes/docs/index.html` e `/municipios/docs/index.html`) e copiar a definição dos campos e do cabeçalho de autenticação. Isso é leitura de documentação, não chamada à API. Decisão do líder.
 - **H4 (zeros à esquerda)** tem base oficial na seção 9. Fixture com CPF de 11 dígitos precisa mostrar o preenchimento de 14 posições.
