@@ -35,7 +35,13 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
     // xml.com_dtd (NL-2.21, Emenda 2 do CTO): DOCTYPE recusado pelo validador é culpa do documento, sai com 4 por entrada
     // explícita. Sem ela, cairia no padrão 70 (falha interna).
     constexpr std::array<std::string_view, 3> documentoExato{"xsd.invalido", "xsd.pos_assinatura", "xml.com_dtd"};
-    constexpr std::array<std::string_view, 4> documentoPrefixo{"cpf.", "cnpj.", "dps.", "entrada."};
+    // NL-2.10j, J1-r2 (DA-2.101): os tipos de valor do Back que o leitor da DPS alcança (varredura L-17) são culpa do documento: saem com 4.
+    // Ficam fora: envelope., numeracao., pulo. e chave. (chave de acesso devolvida pela Sefin), que são internos.
+    constexpr std::array documentoPrefixo{
+        "cpf.", "cnpj.", "dps.", "entrada.", "aliquota_issqn.", "ambiente.", "cclasstrib.", "cep.", "chave_nfse.", "cindop.",
+        "cnbs.", "cod_trib_municipal.", "cod_trib_nacional.", "cst.", "dhemi.", "indicadordestinatario.", "indtottrib.", "municipio.",
+        "nif.", "numero.", "pais.", "percentual.", "percentual_sn.", "ref_nfse.", "regime.", "retencao.", "serie.", "servico.",
+        "substituicao.", "telefone.", "tipooperacao.", "tribissqn."};
     constexpr std::array<std::string_view, 2> ambienteXsd{"xsd.esquema", "xsd.interno"};
     constexpr std::array<std::string_view, 5> recusaPrefixo{"credencial.", "assinatura.", "confirmacao.", "cofre.", "sefin."};
     // Configuração (NL-2.10a, emenda 4): saída 10 por entrada explícita, antes de qualquer prefixo, porque "assinatura." e
