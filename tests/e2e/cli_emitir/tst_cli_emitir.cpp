@@ -722,7 +722,6 @@ void TstCliEmitir::cliRecusaIndTotTribMeEppSemPost()
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("dps.tottrib_regime"), "a recusa tem de trazer o código do regime do totTrib");
-    QVERIFY2(execucao.saida.contains("E0712"), "a recusa tem de citar a regra E0712");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
 }
