@@ -31,6 +31,10 @@ add_executable(tst_regra_e0313 tst_regra_e0313.cpp)
 target_link_libraries(tst_regra_e0313 PRIVATE Qt6::Test nl_back nl_warnings)
 nl_registra_teste_qt(NAME tst_regra_e0313 COMMAND tst_regra_e0313)
 
+add_executable(tst_tottrib_regime tst_tottrib_regime.cpp)
+target_link_libraries(tst_tottrib_regime PRIVATE Qt6::Test nl_back nl_warnings)
+nl_registra_teste_qt(NAME tst_tottrib_regime COMMAND tst_tottrib_regime)
+
 add_executable(tst_regra_e0390 tst_regra_e0390.cpp)
 target_link_libraries(tst_regra_e0390 PRIVATE Qt6::Test nl_back nl_warnings)
 nl_registra_teste_qt(NAME tst_regra_e0390 COMMAND tst_regra_e0390)
@@ -42,10 +46,6 @@ nl_registra_teste_qt(NAME tst_regra_e0532 COMMAND tst_regra_e0532)
 add_executable(tst_regra_e0583 tst_regra_e0583.cpp)
 target_link_libraries(tst_regra_e0583 PRIVATE Qt6::Test nl_back nl_warnings)
 nl_registra_teste_qt(NAME tst_regra_e0583 COMMAND tst_regra_e0583)
-
-add_executable(tst_regra_e0710 tst_regra_e0710.cpp)
-target_link_libraries(tst_regra_e0710 PRIVATE Qt6::Test nl_back nl_warnings)
-nl_registra_teste_qt(NAME tst_regra_e0710 COMMAND tst_regra_e0710)
 
 add_executable(tst_regra_e0850 tst_regra_e0850.cpp)
 target_link_libraries(tst_regra_e0850 PRIVATE Qt6::Test nl_back nl_warnings)

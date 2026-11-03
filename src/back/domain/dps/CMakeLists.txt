@@ -18,6 +18,8 @@ target_sources(nl_back PRIVATE
     codigo_situacao_tributaria.cpp
     codigo_trib_nacional.cpp
     codigo_trib_municipal.cpp
+    total_tributos_faixa.cpp
+    total_tributos_regime.cpp
     descricao_servico.cpp
     dps.cpp
     ibscbs.cpp

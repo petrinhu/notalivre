@@ -54,7 +54,7 @@ set_tests_properties(mid.composicao.validarXmlRecusaXmlQueNaoConfereNoXsd PROPER
 
 add_executable(tst_codigo_saida tst_codigo_saida.cpp)
 target_link_libraries(tst_codigo_saida PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_base nl_warnings)
-foreach(nome IN ITEMS codigosDeDocumentoSaemComQuatro codigosDeAmbienteXsdSaemComDois codigosDeRecusaSaemComUm dpsDuplicadaSaiComCinco comparacaoIndisponivelSaiComSete codigoDesconhecidoSaiComSetenta configuracaoSaiComDez codigosDoSegredoSaemComDois headlessSemAutorizacaoSaiComOnze)
+foreach(nome IN ITEMS codigosDeValorDaDpsSaemComQuatro codigosInternosDeValorSaemComSetenta codigosDeDocumentoSaemComQuatro codigosDeAmbienteXsdSaemComDois codigosDeRecusaSaemComUm dpsDuplicadaSaiComCinco comparacaoIndisponivelSaiComSete codigoDesconhecidoSaiComSetenta configuracaoSaiComDez codigosDoSegredoSaemComDois headlessSemAutorizacaoSaiComOnze)
     nl_registra_teste_qt(NAME mid.composicao.codigoSaida.${nome} COMMAND tst_codigo_saida ${nome})
     set_tests_properties(mid.composicao.codigoSaida.${nome} PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
@@ -91,6 +91,12 @@ endforeach()
 # Manifesto do XSD divergente do pin embutido (NL-2.10b, BAIXA-4): a revalidação recusa antes de abrir o esquema.
 nl_registra_teste_qt(NAME mid.composicao.validarXmlRecusaManifestoDivergente COMMAND tst_validar_xml validarXmlRecusaManifestoDivergente)
 set_tests_properties(mid.composicao.validarXmlRecusaManifestoDivergente PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+# Leitor do totTrib (NL-2.10j, J1-r2; B-1 da revisão QA): uma forma por grupo, duas formas recusadas, percentual mal formado.
+add_executable(tst_ler_tottrib tst_ler_tottrib.cpp)
+target_include_directories(tst_ler_tottrib PRIVATE ${CMAKE_SOURCE_DIR}/src/mid/composicao)
+target_link_libraries(tst_ler_tottrib PRIVATE Qt6::Core Qt6::Test nl_mid nl_back nl_foundation_base nl_warnings)
+nl_registra_teste_qt(NAME mid.composicao.lerTotTrib COMMAND tst_ler_tottrib)
 
 # Leitor da inscrição da CLI (NL-2.10h, H4): CNPJ e CPF com zero à esquerda como texto; número JSON recusado.
 add_executable(tst_leitor_inscricao tst_leitor_inscricao.cpp)

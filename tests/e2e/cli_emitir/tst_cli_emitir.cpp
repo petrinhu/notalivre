@@ -17,7 +17,9 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <pty.h>
+#include <array>
 #include <csignal>
+#include <utility>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -489,6 +491,12 @@ private slots:
     void cliRecusaDpsInvalidaSemPost();
     // NL-2.10h (H1): cTribMun 501 de ME/EPP sai assinado e é aceito pelo servidor falso (XSD confere a ordem); cTribMun 000 para antes do envio.
     void cliEmiteComCTribMunPeloServidorFalso();
+    // NL-2.10j (J1): totTrib por regime. ME/EPP aceita pTotTribSN; MEI aceita indTotTrib; ME/EPP com indTotTrib para no domínio (E0712) antes do envio.
+    void cliEmiteComPTotTribSNMeEppPeloServidorFalso();
+    void cliEmiteIndTotTribMeiPeloServidorFalso();
+    void cliRecusaIndTotTribMeEppSemPost();
+    // NL-2.10j, J1-r2 (DA-2.101): percentual mal formado de totTrib é erro de entrada: sai com 4 antes do envio, nunca com 70.
+    void cliRecusaPercentualMalFormadoSaiCom4();
     void cliRecusaCTribMunZeroSemPost();
     // E0014 na primeira tentativa com o mesmo infDPS: a CLI recupera a chave e sai com 0 (DA-2.58).
     void e0014DaMesmaDpsRecuperaAChave();
@@ -703,6 +711,50 @@ void TstCliEmitir::cliRecusaCTribMunZeroSemPost()
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
 }
 
+void TstCliEmitir::cliRecusaIndTotTribMeEppSemPost()
+{
+    // NL-2.10j (J1): indTotTrib com ME/EPP (E0712) é recusado pelo domínio, antes da assinatura e do envio: saída 4 e zero requisições.
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/totTrib_indTotTrib_me.json"),
+                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("dps.tottrib_regime"), "a recusa tem de trazer o código do regime do totTrib");
+    QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+    QCOMPARE(servidor.requisicoesAoFechar(), 0);
+}
+
+void TstCliEmitir::cliRecusaPercentualMalFormadoSaiCom4()
+{
+    // NL-2.10j, J1-r2 (DA-2.101): pTotTrib e pTotTribSN mal formados saem com 4 (culpa do documento), antes da assinatura e do envio.
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    ServidorFalso servidor;
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const std::array<std::pair<QString, QString>, 2> casos{{
+        {QStringLiteral("totTrib_pTotTrib_mal_formado.json"), QStringLiteral("percentual.formato")},
+        {QStringLiteral("totTrib_pTotTribSn_mal_formado.json"), QStringLiteral("percentual_sn.formato")},
+    }};
+    for (const auto& [arquivo, codigo] : casos) {
+        const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/") + arquivo,
+                                     QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
+                                     QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+        const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+        QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("%1: rc=%2; saída: %3").arg(arquivo).arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+        QVERIFY2(execucao.saida.contains(codigo.toUtf8()), qPrintable(QStringLiteral("a recusa de %1 tem de trazer %2").arg(arquivo, codigo)));
+        QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+    }
+    QCOMPARE(servidor.requisicoesAoFechar(), 0);
+}
+
 void TstCliEmitir::e0014DaMesmaDpsRecuperaAChave()
 {
     int requisicoes = -1;
@@ -890,11 +942,9 @@ void TstCliEmitir::prefixoDaConfiguracaoVaiNaUrl()
              qPrintable(QStringLiteral("o POST tinha de chegar em /SefinNacional/nfse; chegou em: [%1]").arg(caminhos.join(QLatin1Char(',')))));
 }
 
-void TstCliEmitir::cliEmiteComCTribMunPeloServidorFalso()
+// NL-2.10h/J1: emissão aceita pelo servidor falso com rsa-sha256 (sem a trava de SHA-1 do fedora44). Confere a chave e a rota do POST.
+void emiteAceitaPeloServidorFalso(const QString& arquivoEntrada)
 {
-    // NL-2.10h (H1): entrada de ME/EPP com cTribMun 501 sai assinada (rsa-sha256, sem a trava de SHA-1 do fedora44) e o servidor
-    // falso a aceita: a revalidação do XSD e o oráculo passam com o elemento presente. A presença e a ordem no XML são provadas
-    // por tst_dps_validar (cTribMunEntraNoXmlEntreCTribNacECNbs) e pelo codec (tst_codec_dps).
     QTemporaryDir configDir;
     QVERIFY(configDir.isValid());
     ServidorFalso servidor(QString(), QStringLiteral("/SefinNacional"));
@@ -903,14 +953,33 @@ void TstCliEmitir::cliEmiteComCTribMunPeloServidorFalso()
                           QStringLiteral("rsa-sha256"));
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
     QVERIFY2(!senha.isEmpty(), "a senha da fixture sintética tem de existir");
-    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/ctribmun_501.json"),
-                                 QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
-                                 QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+    const QStringList argumentos{QStringLiteral("emitir"), kEntradas + QStringLiteral("/") + arquivoEntrada, QStringLiteral("--serie"),
+                                 QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"),
+                                 QStringLiteral("homologacao")};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
     QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1; saída do terminal: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("emitida: chave "), "a CLI tem de mostrar a chave da NFS-e emitida");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
     QVERIFY2(servidor.caminhosAoFechar().contains(QStringLiteral("/SefinNacional/nfse")), "o POST tinha de chegar em /SefinNacional/nfse");
+}
+
+void TstCliEmitir::cliEmiteComCTribMunPeloServidorFalso()
+{
+    // NL-2.10h (H1): entrada de ME/EPP com cTribMun 501 sai assinada e o servidor falso a aceita (XSD com o elemento na ordem certa).
+    // A presença e a ordem no XML são provadas por tst_dps_validar e pelo codec (tst_codec_dps).
+    emiteAceitaPeloServidorFalso(QStringLiteral("ctribmun_501.json"));
+}
+
+void TstCliEmitir::cliEmiteComPTotTribSNMeEppPeloServidorFalso()
+{
+    // NL-2.10j (J1): ME/EPP com pTotTribSN (a forma que o Simples aceita) sai assinada e o servidor falso a aceita.
+    emiteAceitaPeloServidorFalso(QStringLiteral("totTrib_pTotTribSN_me.json"));
+}
+
+void TstCliEmitir::cliEmiteIndTotTribMeiPeloServidorFalso()
+{
+    // NL-2.10j (J1): MEI com indTotTrib 0 (a única forma de totTrib que o MEI aceita além dos valores) sai assinada e é aceita.
+    emiteAceitaPeloServidorFalso(QStringLiteral("mei_minima.json"));
 }
 
 void TstCliEmitir::prefixoAusenteSaiComDez()

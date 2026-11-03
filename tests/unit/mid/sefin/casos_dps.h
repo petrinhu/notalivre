@@ -240,6 +240,35 @@ inline std::optional<nb::Dps> dpsSimplesComCTribMun()
     return montarDps(dados);
 }
 
+/// Simples Nacional (ME/EPP) com pTotTrib: os três percentuais, na forma que o regime aceita (NL-2.10j, J1).
+inline std::optional<nb::Dps> dpsSimplesComPTotTrib()
+{
+    auto dados = dadosSimplesIbsCbs();
+    const auto fed = ok(nb::PercentualTributo::de(u"1.00"));
+    const auto est = ok(nb::PercentualTributo::de(u"0.00"));
+    const auto mun = ok(nb::PercentualTributo::de(u"2.00"));
+    if (!dados || !fed || !est || !mun) {
+        return std::nullopt;
+    }
+    const auto percentuais = nb::TributosPercentuais::montar(*fed, *est, *mun);
+    dados->valores = nb::ValoresServico::montar(dados->valores.vServ(),
+                                                nb::Tributacao::montar(dados->valores.trib().tribMun(), nb::TotalTributos{percentuais}));
+    return montarDps(dados);
+}
+
+/// Simples Nacional (ME/EPP) com pTotTribSN, o percentual do Simples (NL-2.10j, J1).
+inline std::optional<nb::Dps> dpsSimplesComPTotTribSn()
+{
+    auto dados = dadosSimplesIbsCbs();
+    const auto pSn = ok(nb::PercentualTributoSn::de(u"4.50"));
+    if (!dados || !pSn) {
+        return std::nullopt;
+    }
+    dados->valores = nb::ValoresServico::montar(dados->valores.vServ(),
+                                                nb::Tributacao::montar(dados->valores.trib().tribMun(), nb::TotalTributos{*pSn}));
+    return montarDps(dados);
+}
+
 /// MEI com tomador pessoa física sem endereço (o endereço do tomador é opcional no XSD).
 inline std::optional<nb::Dps> dpsTomadorCpfSemEndereco()
 {

@@ -17,7 +17,6 @@
 #include <nl/back/regras/regra_e0390.h>
 #include <nl/back/regras/regra_e0532.h>
 #include <nl/back/regras/regra_e0583.h>
-#include <nl/back/regras/regra_e0710.h>
 #include <nl/back/regras/regra_e0850.h>
 #include <nl/back/regras/regra_e0903.h>
 
@@ -34,11 +33,11 @@ ValidadorLocal ValidadorLocal::padrao(const CatalogoLocalidades& catalogo)
     regras.push_back(std::make_unique<RegraE0241>());
     regras.push_back(std::make_unique<RegraE0246>(catalogo));
     regras.push_back(std::make_unique<RegraE0302>(catalogo));
+    // E0710 (MEI com pTotTribSN) não está neste conjunto: a invariante fica na montagem da DPS, em total_tributos_regime.cpp, linhas 36 a 38 (DA-2.100).
     regras.push_back(std::make_unique<RegraE0313>());
     regras.push_back(std::make_unique<RegraE0390>());
     regras.push_back(std::make_unique<RegraE0532>());
     regras.push_back(std::make_unique<RegraE0583>());
-    regras.push_back(std::make_unique<RegraE0710>());
     regras.push_back(std::make_unique<RegraE0850>());
     regras.push_back(std::make_unique<RegraE0903>());
 
