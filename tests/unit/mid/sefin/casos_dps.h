@@ -162,7 +162,7 @@ inline std::optional<nb::DadosDps> dadosMei(const QString& cnpj, const QString& 
         .subst = std::nullopt,
         .prest = nb::Prestador::montar(nb::Inscricao{*cnpjPrest}, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, *regime),
         .toma = std::nullopt,
-        .serv = nb::Servico::montar(*cLocPrestacao, *cTribNac, *descricao, std::nullopt),
+        .serv = nb::Servico::montar(*cLocPrestacao, *cTribNac, std::nullopt, *descricao, std::nullopt),
         .valores = nb::ValoresServico::montar(*vServ, nb::Tributacao::montar(*municipal, nb::TotalTributos{*indTot})),
         .ibscbs = std::nullopt,
     };
@@ -217,7 +217,7 @@ inline std::optional<nb::DadosDps> dadosSimplesIbsCbs()
         return std::nullopt;
     }
     dados->prest = nb::Prestador::montar(dados->prest.inscricao(), *im, *xNome, *endereco, std::nullopt, std::nullopt, *regime);
-    dados->serv = nb::Servico::montar(dados->serv.cLocPrestacao(), dados->serv.cTribNac(), dados->serv.xDescServ(), *cNbs);
+    dados->serv = nb::Servico::montar(dados->serv.cLocPrestacao(), dados->serv.cTribNac(), std::nullopt, dados->serv.xDescServ(), *cNbs);
     dados->valores = nb::ValoresServico::montar(*vServ, nb::Tributacao::montar(*municipal, nb::TotalTributos{monetarios}));
     dados->ibscbs = *ibs;
     return dados;
@@ -228,11 +228,71 @@ inline std::optional<nb::Dps> dpsSimplesIbsCbs()
     return montarDps(dadosSimplesIbsCbs());
 }
 
+/// Simples Nacional (ME/EPP) com cTribMun 501 (NL-2.10h, H1): o grupo serv leva cTribMun entre cTribNac e cNBS.
+inline std::optional<nb::Dps> dpsSimplesComCTribMun()
+{
+    auto dados = dadosSimplesIbsCbs();
+    const auto cTribMun = ok(nb::CodigoTribMunicipal::de(u"501"));
+    if (!dados || !cTribMun) {
+        return std::nullopt;
+    }
+    dados->serv = nb::Servico::montar(dados->serv.cLocPrestacao(), dados->serv.cTribNac(), *cTribMun, dados->serv.xDescServ(), dados->serv.cNBS());
+    return montarDps(dados);
+}
+
+/// Simples Nacional (ME/EPP) com pTotTrib: os três percentuais, na forma que o regime aceita (NL-2.10j, J1).
+inline std::optional<nb::Dps> dpsSimplesComPTotTrib()
+{
+    auto dados = dadosSimplesIbsCbs();
+    const auto fed = ok(nb::PercentualTributo::de(u"1.00"));
+    const auto est = ok(nb::PercentualTributo::de(u"0.00"));
+    const auto mun = ok(nb::PercentualTributo::de(u"2.00"));
+    if (!dados || !fed || !est || !mun) {
+        return std::nullopt;
+    }
+    const auto percentuais = nb::TributosPercentuais::montar(*fed, *est, *mun);
+    dados->valores = nb::ValoresServico::montar(dados->valores.vServ(),
+                                                nb::Tributacao::montar(dados->valores.trib().tribMun(), nb::TotalTributos{percentuais}));
+    return montarDps(dados);
+}
+
+/// Simples Nacional (ME/EPP) com pTotTribSN, o percentual do Simples (NL-2.10j, J1).
+inline std::optional<nb::Dps> dpsSimplesComPTotTribSn()
+{
+    auto dados = dadosSimplesIbsCbs();
+    const auto pSn = ok(nb::PercentualTributoSn::de(u"4.50"));
+    if (!dados || !pSn) {
+        return std::nullopt;
+    }
+    dados->valores = nb::ValoresServico::montar(dados->valores.vServ(),
+                                                nb::Tributacao::montar(dados->valores.trib().tribMun(), nb::TotalTributos{*pSn}));
+    return montarDps(dados);
+}
+
 /// MEI com tomador pessoa física sem endereço (o endereço do tomador é opcional no XSD).
 inline std::optional<nb::Dps> dpsTomadorCpfSemEndereco()
 {
     auto dados = dadosMei(QStringLiteral("11222333000181"), QStringLiteral("Consultoria em tecnologia"));
     const auto cpf = ok(nb::Cpf::de(u"52998224725"));
+    const auto xNome = ok(nb::NomeRazaoSocial::de(u"Cliente Pessoa Fisica", "xNome"));
+    if (!dados || !cpf || !xNome) {
+        return std::nullopt;
+    }
+    dados->toma = nb::Tomador::montar(nb::IdentificacaoPessoa{*cpf}, std::nullopt, *xNome, std::nullopt, std::nullopt, std::nullopt);
+    return montarDps(dados);
+}
+
+/// MEI com CNPJ de emitente que começa com zero (fixture fictícia, DV pelo módulo 11): o zero tem de sair no XML.
+inline std::optional<nb::Dps> dpsMeiCnpjComZeroInicial()
+{
+    return montarDps(dadosMei(QStringLiteral("01234567890107"), QStringLiteral("Consultoria em tecnologia")));
+}
+
+/// MEI com tomador pessoa física cujo CPF começa com zero (fixture fictícia, DV pelo módulo 11).
+inline std::optional<nb::Dps> dpsTomadorCpfComZeroInicial()
+{
+    auto dados = dadosMei(QStringLiteral("11222333000181"), QStringLiteral("Consultoria em tecnologia"));
+    const auto cpf = ok(nb::Cpf::de(u"01234567890"));
     const auto xNome = ok(nb::NomeRazaoSocial::de(u"Cliente Pessoa Fisica", "xNome"));
     if (!dados || !cpf || !xNome) {
         return std::nullopt;

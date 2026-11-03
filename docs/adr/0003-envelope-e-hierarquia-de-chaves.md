@@ -1,6 +1,6 @@
 # ADR 0003: envelope de campo e hierarquia de chaves (ADR-S2, porta P1)
 
-**Status:** PROPOSTO, com recomendação do CISO (N4, 25/10/2026) na seção "Revisão do CISO (25/10/2026)" no fim. Porta P1, a escolha "DEK única ou por emissor", o mecanismo do envelope pelo A1 e o aceite do trade-off da cópia pelo A1 aguardam o líder (ponto L4, plano seção 6.1). Mudanças do CISO marcadas `[alterado pelo CISO, 25/10/2026]`.
+**Status:** A REVISAR PELO CISO depois da decisão do líder de 31/10/2026, 11:41 ("Uma por emissor": cada CPF ou CNPJ tem a própria senha-mestra e o próprio cofre; e a inscrição mascarada entra na derivação junto com a senha, verbatim na spec 4.4). A escolha "DEK única ou por emissor" abaixo fica decidida pelo líder como por emissor; o resto do texto ainda descreve o desenho anterior até a revisão. Antes: PROPOSTO, com recomendação do CISO (N4, 25/10/2026) na seção "Revisão do CISO (25/10/2026)" no fim. Porta P1, a escolha "DEK única ou por emissor", o mecanismo do envelope pelo A1 e o aceite do trade-off da cópia pelo A1 aguardam o líder (ponto L4, plano seção 6.1). Mudanças do CISO marcadas `[alterado pelo CISO, 25/10/2026]`.
 **Data:** 25/10/2026.
 **Origem:** plano, NL-1.9 e porta P1 (seção 1.4); spec 4.4 (decisões do líder: AES-256-GCM por campo, senha-mestra com Argon2id, chaveiro opcional, código de recuperação, cópia da chave pelo A1, senhas separadas).
 **Relacionadas:** ADR-0002 (custódia do A1), ADR-0004 (índice cego), ADR-0006 (Argon2id).

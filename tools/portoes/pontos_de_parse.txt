@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Pontos de parse permitidos da libxml2 (NL-2.21, DA-2.67). Formato: arquivo | função | motivo. Uma linha por (arquivo, função).
+# Conferida por tools/portoes/pontos_de_parse.py por igualdade exata: chamada fora desta lista reprova, e linha sem chamada
+# também. Mudar a lista é ato visível no diff, que a revisão confere contra o parse novo.
+src/foundation/xmldsig/parse_xml_privado.cpp | xmlCreateMemoryParserCtxt | átomo do xmldsig: parse da assinatura, com parada no DOCTYPE e NONET (NL-2.9)
+src/foundation/xml/parse_seguro.cpp | xmlCreateMemoryParserCtxt | gêmeo do validador XSD: parse com parada no DOCTYPE e NONET (NL-2.21)
+src/foundation/xml/esquema.cpp | xmlSchemaNewParserCtxt | XSD fixado por SHA-256 (NL-2.10b), não é XML de usuário

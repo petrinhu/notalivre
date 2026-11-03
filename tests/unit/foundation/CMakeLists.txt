@@ -3,3 +3,8 @@
 # Agrupa os testes unitários da Foundation (base, e os motores que a fatia de cada um acrescentar).
 add_subdirectory(base)
 add_subdirectory(xml)
+add_subdirectory(log)
+add_subdirectory(pkcs12)
+add_subdirectory(gzip)
+add_subdirectory(xmldsig)
+add_subdirectory(transporte)

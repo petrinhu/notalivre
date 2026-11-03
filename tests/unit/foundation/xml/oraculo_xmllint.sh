@@ -8,9 +8,9 @@
 # vazia ou analisados diferente de encontrados. Cada fixture é um processo xmllint (4 hoje, sem recursão).
 set -u
 
-XMLLINT="${1:?uso: oraculo_xmllint.sh <xmllint> <dir_xsd> <dir_fixtures>}"
-XSD_DIR="${2:?dir xsd}"
-FIXTURES="${3:?dir fixtures}"
+XMLLINT="${1:?uso: oraculo_xmllint.sh <xmllint> (XSD e fixtures no ambiente: NL_XSD_DIR, NL_FIXTURES_ORACULO)}"
+XSD_DIR="${NL_XSD_DIR:?dir xsd no ambiente (NL_XSD_DIR, NL-2.14 adendo 5)}"
+FIXTURES="${NL_FIXTURES_ORACULO:?dir fixtures no ambiente (NL_FIXTURES_ORACULO, NL-2.14 adendo 5)}"
 RAIZ_XSD="$XSD_DIR/DPS_v1.01.xsd"
 
 if [ ! -f "$RAIZ_XSD" ]; then

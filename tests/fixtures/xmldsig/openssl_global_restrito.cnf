@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Configuração do teste contextoProprioIgnoraConfiguracaoGlobal (NL-2.3, DA-2.40 e adendo). Carregada pelo OpenSSL do processo
+# do teste via OPENSSL_CONF. Deixa o contexto GLOBAL sem SHA-256 (default_properties exige FIPS, que não está carregado).
+# O OSSL_LIB_CTX próprio do assinador não lê esta configuração, então tem de continuar assinando.
+openssl_conf = openssl_init
+
+[openssl_init]
+alg_section = alg_sec
+
+[alg_sec]
+default_properties = fips=yes

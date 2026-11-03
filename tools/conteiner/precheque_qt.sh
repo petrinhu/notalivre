@@ -45,7 +45,12 @@ if [ "$analisados" -gt 0 ]; then
 fi
 
 echo "precheque_qt: analisados=$analisados faltando_lib=$faltando glibc_incompativel=$glibc"
-if [ "$analisados" -ne "${#ALVOS[@]}" ] || [ "$faltando" -ne 0 ] || [ "$glibc" -ne 0 ]; then
+
+# Cabeçalhos do OpenSSL (NL-2.2): checagem desta mesma etapa, porque o CI e o build_local já rodam este script.
+ossl_rc=0
+bash "$(dirname "${BASH_SOURCE[0]}")/precheque_openssl.sh" || ossl_rc=$?
+
+if [ "$analisados" -ne "${#ALVOS[@]}" ] || [ "$faltando" -ne 0 ] || [ "$glibc" -ne 0 ] || [ "$ossl_rc" -ne 0 ]; then
     exit 1
 fi
 exit 0

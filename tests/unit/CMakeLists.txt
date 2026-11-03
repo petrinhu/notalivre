@@ -4,3 +4,4 @@
 add_subdirectory(foundation)
 add_subdirectory(back)
 add_subdirectory(mid)
+add_subdirectory(cli)

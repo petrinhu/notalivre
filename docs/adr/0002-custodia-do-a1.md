@@ -23,10 +23,10 @@
 3. **Trocar de certificado apaga o contêiner antigo no mesmo ato**, depois de gravar o novo e confirmar a leitura (recomendação do CTO, INBOX do `TODO.md`).
 4. **Uso em memória:**
    - A senha do certificado vai para um buffer dedicado, nunca para `QString` nem `std::string`, e é zerada logo após o uso.
-   - EVP_PKEY, PKCS12 e QSslKey são liberados ao fim de cada operação (assinatura ou conexão).
+   - A `CredencialX509` (NL-2.2) guarda a chave privada (EVP_PKEY) enquanto a credencial vive. Ela não é copiável e tem `descartar()` explícito, que libera a chave e o certificado na hora. O PKCS12 e as cópias intermediárias são liberados logo após o parse, e a senha é zerada logo após o parse (decisão do CISO, 29/10/2026, item 4). O QSslKey do transporte segue a regra da NL-2.5.
    - A chave fica em memória só entre o desbloqueio e um dos gatilhos de bloqueio: 15 minutos parados, bloqueio de tela ou fechamento do app. Emissão em Produção sempre pede a senha (spec 4.5 e 4.12).
    - O "a cada 20 notas" fica desligado por padrão, como decidido pelo líder.
-   - `[alterado pelo CISO, 25/10/2026]` O "buffer dedicado" é memória de segredo do libsodium, que já é dependência do projeto: `sodium_malloc` (ou `sodium_mlock` sobre o buffer), zeragem por `sodium_memzero` e liberação por `sodium_free`. Vale para a senha do certificado, a senha-mestra, a DEK e as KEKs. No início do processo, `RLIMIT_CORE` vai a 0, para que um core dump não grave segredo em disco. Verificação em NL-2.2 (teste do wrapper) e em NL-3.3 (DEK e KEK); não é pré-condição deste aceite.
+   - `[alterado pelo CISO, 25/10/2026]` O buffer dedicado é o tipo `SenhaSegura`: memória fixa por mlock (melhor esforço), zeragem por `OPENSSL_cleanse` e liberação depois da zeragem. Corrigido em 29/10/2026: o libsodium não é dependência hoje; o interior do tipo passa a `sodium_malloc`, `sodium_memzero` e `sodium_free` quando o líder autorizar o libsodium (L-51), pedido que a NL-3.2 já exige. Vale para a senha do certificado, a senha-mestra, a DEK e as KEKs. Verificação do wrapper na NL-2.2 e de DEK e KEK na NL-3.3; não é pré-condição deste aceite. O `RLIMIT_CORE` = 0 não é da NL-2.2 (ver a decisão 5 da revisão).
 5. **Recuperação "1+2" depende do arquivo original.** Ver a escolha A ou B abaixo. `[alterado pelo CISO, 25/10/2026]` Decidido: opção A.
 6. `[alterado pelo CISO, 25/10/2026]` **Senha do certificado em repouso.** Se o usuário guardar a senha do certificado pelo chaveiro (decisão do líder, spec 4.5), ela só pode ficar em repouso cifrada sob a KEK-chaveiro (ADR-0003), nunca sob a DEK. Motivo: se a DEK abrisse a senha do certificado, a senha-mestra passaria a abrir a chave privada (senha-mestra, DEK, senha do certificado, chave privada), e a separação de senhas decidida pelo líder (spec 4.4 e 4.5) cairia. O desenho do armazenamento fica com NL-4.3; esta regra é o limite dele. `[alterado pelo CISO, 25/10/2026]` Ressalva: com o chaveiro ativo ao mesmo tempo para a senha-mestra (ADR-0003, regra 4) e para a senha do certificado, o segredo do portal sozinho chega à DEK e à senha do certificado, e portanto à chave privada. É escolha do usuário, mas a tela de ativação tem que dizer isso com essas palavras, e o teste de NL-4.3 confere que o aviso aparece.
 7. `[alterado pelo CISO, 25/10/2026]` **Depois de qualquer recuperação** (pelo código ou pelo A1), o app exige senha-mestra nova e gera código de recuperação novo antes de liberar o uso, re-envelopa a DEK com os dois e grava o evento na auditoria (ADR-0005, seção 4). Sem isso, quem copiou o `.pfx` uma vez teria acesso silencioso e permanente pelo mesmo caminho, e um código já exposto continuaria válido.
@@ -70,7 +70,7 @@
 
 - A zeragem é de melhor esforço. OpenSSL e Qt podem manter cópias internas. INFERÊNCIA, medir em NL-2.2.
 - O campo de senha em QML guarda o texto como string JS imutável. INFERÊNCIA, sem fonte lida; medir em NL-4.3.
-- QSslKey copia a chave para a conexão TLS. INFERÊNCIA, medir em NL-2.5.
+- QSslKey copia a chave para a conexão TLS. INFERÊNCIA, medir em NL-4.3.
 - `[alterado pelo CISO, 25/10/2026]` **O `.pfx` original costuma ficar no mesmo disco do banco** (pasta de downloads ou de documentos do usuário). INFERÊNCIA sobre o hábito do usuário, sem medição. Quem copia o disco leva o banco e o `.pfx`, e falta só a senha do certificado. A proteção do PKCS#12 contra força bruta offline depende da cifra e da contagem de iterações com que a AC o gerou, e pode ser fraca: há contêineres legados com RC2 ou 3DES (plano linha 58, INFERÊNCIA do CTO a medir em NL-2.2), e a contagem de iterações do PKCS#12 é escolha de quem gerou o arquivo; senha curta cai rápido. O app não muda o `.pfx` do usuário. A mitigação é orientação: o assistente de primeiro uso (NL-8.9) recomenda guardar o `.pfx` fora do computador, depois de importado.
 
 ## Fontes
@@ -81,7 +81,7 @@
 - Plano: `docs/superpowers/plans/2026-10-25-notalivre-plano.md`, linhas 58 e 401 (recomendação do CTO).
 - Spec: `docs/superpowers/specs/2026-10-25-notalivre-design.md`, seções 4.4 e 4.5.
 - `[alterado pelo CISO, 25/10/2026]` PC AC FECOMERCIO MG RFB A1, versão 1.1 de agosto de 2025, lida em 25/10/2026 (texto extraído do PDF): itens 6.1.1.3 e 6.1.5 (RSA de 2048 bits), 6.1.7 (`keyUsage` com digitalSignature, nonRepudiation e keyEncipherment nessa AC), 7.1.2.2 b (Key Usage crítica) e 7.1.2.7 f (mínimo da ICP-Brasil: "deve conter o bit digitalSignature ativado, podendo conter os bits keyEncipherment e nonRepudiation ativados"): https://repositorio.serpro.gov.br/docs/pcacfecomerciomgrfba1.pdf
-- `[alterado pelo CISO, 25/10/2026]` libsodium, memória segura (`sodium_malloc`, `sodium_mlock`, `sodium_memzero`): https://doc.libsodium.org/memory_management (não relida nesta revisão; conferir a API na implementação).
+- `[alterado pelo CISO, 25/10/2026]` Referência para a troca futura do `SenhaSegura` por libsodium (`sodium_malloc`, `sodium_mlock`, `sodium_memzero`), que só entra com autorização do líder (L-51). Não é dependência hoje: https://doc.libsodium.org/memory_management (não relida nesta revisão; conferir a API na implementação).
 
 ## Revisão do CISO (25/10/2026)
 
@@ -95,7 +95,7 @@
 2. **Senha do certificado em repouso só sob a KEK-chaveiro, nunca sob a DEK** (decisão 6). Preserva a separação de senhas decidida pelo líder.
 3. **Recuperação força senha-mestra nova e código novo** (decisão 7), com registro na auditoria.
 4. **Recuperação aceita o A1 vencido** cuja cópia está gravada, localizado pela impressão SHA-256 do certificado (decisão 8).
-5. **Memória de segredo pelo libsodium e `RLIMIT_CORE` = 0** (decisão 4). Torna concreto o "buffer dedicado".
+5. **Memória de segredo por `SenhaSegura` (`OPENSSL_cleanse`, mlock de melhor esforço); libsodium só com autorização do líder (L-51); `RLIMIT_CORE` = 0 fica fora da NL-2.2** (decisão 7 do CISO, 29/10/2026). Torna concreto o "buffer dedicado". A decisão 4 original falava em libsodium como dependência do projeto, o que não era verdade no momento da revisão (corrigido em 29/10/2026).
 6. **O importador registra `keyUsage` e tipo de chave e nunca usa a chave fora do que o certificado autoriza** (decisão 9). O destino de um A1 que não sirva ao envelope é do líder (ADR-0003, ponto 7).
 
 **Por quê:** o modelo de ameaças mostra que o ativo de maior impacto é a chave privada (C1.2, C1.3). Cada mudança fecha um caminho em que um segredo abriria outro que o líder quis separado, ou em que um acesso de uma vez viraria acesso permanente.
@@ -103,3 +103,13 @@
 **Risco residual que registro, e não mitigo por desenho:** o `.pfx` original costuma ficar no mesmo disco do banco, e o PKCS#12 pode ser fraco contra força bruta offline (seção "Riscos residuais"). A mitigação é orientação no assistente de primeiro uso (NL-8.9). Isso alimenta o aceite do trade-off da cópia pelo A1, que é do líder (ponto L4, ADR-0003).
 
 **Nada deste ADR sobe ao líder,** exceto o que já é dele no ADR-0003 (ponto 7 e trade-off N4).
+
+## Decisões do CISO na NL-2.2 (29/10/2026, decisões autônomas, a ratificar pelo líder)
+
+Registradas durante as rodadas da NL-2.2 (integrada em `af45650`); IDs do plano, seção da NL-2.2.
+
+1. **DA-2.31, seam da `SenhaSegura`.** Complementa o item 4 e a decisão 5 da revisão de 25/10/2026: o `OPENSSL_cleanse` roda sempre (`src/foundation/pkcs12/senha_segura.cpp:65`). O teste observa a zeragem por um observador por ponteiro de função, fixado na construção e imutável, chamado depois da zeragem e antes do `munlock` (`senha_segura.cpp:72`). O acesso de teste é a `friend struct AcessoDeTesteSenhaSegura` (`senha_segura.h:39`), definida só em `tests/unit/foundation/pkcs12/acesso_teste_senha.h`, fora do cabeçalho público instalado. A troca do interior por libsodium, autorizada pelo líder em 29/10/2026, mantém o seam.
+2. **DA-2.32, `.pfx` sem MAC.** Com a senha certa, carrega (aceitação escrita do CISO às 15:12 de 29/10/2026). Condição: âncoras sempre externas (`verificador_cadeia.cpp:35-39`) e certificados do arquivo só na pilha não confiável (`verificador_cadeia.cpp:50-54`). Senha errada sem MAC é falha fechada, apresentada como arquivo danificado. No OpenSSL 3.0.x o teste espera a recusa. Risco residual: sem MAC, a integridade do contêiner depende só da cadeia até a âncora externa e da conferência do par.
+3. **DA-2.33, chave em claro.** Contêiner com chave sem cifra (`-keypbe NONE`) é recusado. A conferência entre chave e certificado é função própria (`conferencia_chave.cpp`), testada direto.
+4. **DA-2.34, revogação fora do carregador.** O carregador não consulta revogação. Decisão do líder de 29/10/2026 ("Fora da v1 (Recomendado)"): o certificado revogado é detectado pela recusa da Sefin, mapeada na NL-2.8 (DA-2.29).
+

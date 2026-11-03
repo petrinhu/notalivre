@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Testes da linha de comando de `notalivre emitir` e da exceção do topo (NL-2.9). Slots sem vírgula (L-45).
+# Os fontes da CLI entram direto nos testes, porque o executável notalivre-cli não é biblioteca.
+set(NL_FONTES_CLI ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/comando_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/configuracao_cli.cpp
+)
+
+add_executable(tst_argumentos_emitir tst_argumentos_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp)
+target_include_directories(tst_argumentos_emitir PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
+target_link_libraries(tst_argumentos_emitir PRIVATE Qt6::Core Qt6::Test nl_warnings)
+nl_registra_teste_qt(NAME cli.argumentosEmitir COMMAND tst_argumentos_emitir)
+set_tests_properties(cli.argumentosEmitir PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 6 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+add_executable(tst_comando_emitir tst_comando_emitir.cpp ${NL_FONTES_CLI})
+target_include_directories(tst_comando_emitir PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
+target_link_libraries(tst_comando_emitir PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_warnings)
+nl_registra_teste_qt(NAME cli.comandoEmitir COMMAND tst_comando_emitir)
+set_tests_properties(cli.comandoEmitir PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 16 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+add_executable(tst_excecao_topo tst_excecao_topo.cpp)
+target_link_libraries(tst_excecao_topo PRIVATE Qt6::Core Qt6::Test nl_mid nl_warnings)
+nl_registra_teste_qt(NAME cli.excecaoTopo COMMAND tst_excecao_topo)
+set_tests_properties(cli.excecaoTopo PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+# Portão de PII nos logs da CLI (NL-2.9, ADR-0005 e): os testes da CLI gravam os logs deles na pasta própria, e o mesmo
+# varredor do Log (tests/unit/foundation/log/varredura_logs.py) confere a pasta com os termos da fixture de referência.
+# A limpeza roda antes, para que um log antigo não mascare uma varredura vazia (L-36). Varredura sem .log reprova.
+find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
+set(NL_LOGS_PII_CLI_DIR "${CMAKE_BINARY_DIR}/logs_pii_cli")
+# Segredos desta execução (item 10): o e2e grava o arquivo; o portão lê junto da lista fixa, e reprova se a lista vier vazia.
+set(NL_SEGREDOS_PII_REF "${CMAKE_BINARY_DIR}/segredos_pii_execucao.txt")
+add_test(NAME cli.limpaLogsPii COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/limpa_logs_pii.cmake")
+set_tests_properties(cli.limpaLogsPii PROPERTIES ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${NL_LOGS_PII_CLI_DIR}")
+set_tests_properties(cli.excecaoTopo PROPERTIES DEPENDS cli.limpaLogsPii ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${NL_LOGS_PII_CLI_DIR}")
+# Build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28, DA-2.60): o portão de PII da CLI lê o segredo de referência que o e2e cli_emitir
+# gera, e o e2e fica fora do Flatpak. Sem o e2e, o portão não tem o que varrer; por isso também sai desse build.
+if(NL_FLATPAK_BUILD)
+    message(STATUS "cli: portão de PII dos logs do e2e desligado no build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28)")
+else()
+    add_test(NAME cli.portaoPiiVarreLogsDaCli
+        COMMAND ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/tests/unit/foundation/log/varredura_logs.py"
+            --termos "${CMAKE_SOURCE_DIR}/tests/fixtures/pii/referencia.txt")
+    # NL-2.14 (adendo 5): os caminhos do build vão pelo ambiente, não como argumento depois do script.
+    set_tests_properties(cli.portaoPiiVarreLogsDaCli PROPERTIES DEPENDS "cli.excecaoTopo;e2e.cliEmitir.cliEmiteDpsAceitaPeloServidorFalso;mid.sefin.registroTransporte.eventoTemSoCamposFechados;mid.sefin.registroTransporte.camposNovosSaoFechados;mid.sefin.registroTransporte.versaoForaDoConjuntoVira_outro;mid.sefin.registroTransporte.codigosSslLimitadosEm16;mid.sefin.registroTransporte.valorForaDoConjuntoVira_outro;mid.composicao.manipuladorQt"
+        ENVIRONMENT "NL_VARREDURA_DIR=${NL_LOGS_PII_CLI_DIR};NL_VARREDURA_TERMOS_EXTRA=${NL_SEGREDOS_PII_REF}")
+endif()
+
+# Configuração da CLI (NL-2.9, DA-2.44): arquivo XDG, chaves obrigatórias, Produção nasce falsa.
+add_executable(tst_configuracao_cli tst_configuracao_cli.cpp ${CMAKE_SOURCE_DIR}/apps/cli/configuracao_cli.cpp)
+target_include_directories(tst_configuracao_cli PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
+target_link_libraries(tst_configuracao_cli PRIVATE Qt6::Core Qt6::Test nl_warnings)
+nl_registra_teste_qt(NAME cli.configuracao COMMAND tst_configuracao_cli)
+set_tests_properties(cli.configuracao PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 16 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+# Subcomando `notalivre config certificado <caminho>` (NL-2.10a, passo 6): grava [certificado] caminho no config.ini.
+add_executable(tst_comando_config tst_comando_config.cpp ${CMAKE_SOURCE_DIR}/apps/cli/comando_config.cpp ${CMAKE_SOURCE_DIR}/apps/cli/configuracao_cli.cpp)
+target_include_directories(tst_comando_config PRIVATE ${CMAKE_SOURCE_DIR}/apps/cli)
+target_link_libraries(tst_comando_config PRIVATE Qt6::Core Qt6::Test nl_warnings)
+nl_registra_teste_qt(NAME cli.comandoConfig.configCertificadoGravaACaminho COMMAND tst_comando_config configCertificadoGravaACaminho)
+set_tests_properties(cli.comandoConfig.configCertificadoGravaACaminho PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+nl_registra_teste_qt(NAME cli.comandoConfig.configCertificadoIlegivelSaiComDezSemGravar COMMAND tst_comando_config configCertificadoIlegivelSaiComDezSemGravar)
+set_tests_properties(cli.comandoConfig.configCertificadoIlegivelSaiComDezSemGravar PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+
+# Instalação do bundle (NL-2.10b, passo 1; emenda 1 do CTO): `cmake --install` do build para um prefixo temporário,
+# com o SHA-256 de cada XSD, raiz ICP e binário conferido. Os caminhos de origem vêm do CMake de third_party.
+add_executable(tst_instalacao_bundle tst_instalacao_bundle.cpp)
+target_link_libraries(tst_instalacao_bundle PRIVATE Qt6::Core Qt6::Test nl_warnings)
+target_compile_definitions(tst_instalacao_bundle PRIVATE
+    "NL_CMAKE=\"${CMAKE_COMMAND}\""
+    "NL_DIRETORIO_BUILD=\"${CMAKE_BINARY_DIR}\""
+    "NL_ICP_MANIFESTO=\"${NL_ICP_RAIZES_MANIFESTO}\""
+    "NL_XSD_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\"")
+foreach(nome IN ITEMS raizesIcpInstaladasNoBundle xsdInstaladosNoBundle)
+  nl_registra_teste_qt(NAME cli.bundle.${nome} COMMAND tst_instalacao_bundle ${nome})
+  set_tests_properties(cli.bundle.${nome} PROPERTIES PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed" FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()

@@ -12,10 +12,10 @@ target_sources(nl_back PRIVATE
     regra_e0241.cpp
     regra_e0246.cpp
     regra_e0302.cpp
+    regra_e0313.cpp
     regra_e0390.cpp
     regra_e0532.cpp
     regra_e0583.cpp
-    regra_e0710.cpp
     regra_e0850.cpp
     regra_e0903.cpp
 )

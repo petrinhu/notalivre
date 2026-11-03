@@ -4,13 +4,17 @@
 # Cada alvo declara include dirs e links por alvo (PUBLIC/PRIVATE); nada de include_directories global.
 cmake_minimum_required(VERSION 3.25)
 
-project(NotaLivre VERSION 0.1.0.0 LANGUAGES CXX)
+project(NotaLivre VERSION 0.3.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_AUTOMOC ON)
+
+# Build Flatpak (SDK KDE 6.11, sem xmlsec1): o manifesto liga esta opção. Só desliga os testes de ferramenta externa
+# (tests/tools/servidor_falso); o build nativo fica com a opção desligada e com os find_program REQUIRED.
+option(NL_FLATPAK_BUILD "Build dentro do sandbox Flatpak (SDK KDE 6.11): desliga os testes que pedem ferramenta fora do SDK" OFF)
 
 # Qt 6.11 como mínimo (NL-0.5): o build Flatpak roda contra o SDK KDE 6.11, portão da Onda 9. O CI nativo usa Qt 6.12.
 # API exclusiva do 6.12 quebra o build Flatpak (sabotagem no job mutacao do ci.yml).

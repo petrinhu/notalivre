@@ -17,6 +17,6 @@ set(NL_QML_IMPORTACAO "${CMAKE_BINARY_DIR}/apps/gui/qml")
 set(NL_CAPTURAS "${CMAKE_BINARY_DIR}/capturas")
 file(MAKE_DIRECTORY "${NL_CAPTURAS}")
 
-add_test(NAME tst_qml_gui COMMAND tst_qml_gui)
+nl_registra_teste_qt(NAME tst_qml_gui COMMAND tst_qml_gui)
 set_tests_properties(tst_qml_gui PROPERTIES ENVIRONMENT
     "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QML_XHR_ALLOW_FILE_READ=1;QML_IMPORT_PATH=${NL_QML_IMPORTACAO};NL_CAPTURAS_DIR=${NL_CAPTURAS}")

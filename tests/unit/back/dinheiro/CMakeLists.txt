@@ -3,4 +3,4 @@
 # Testes do valor monetário (NL-1.2): QtTest sob CTest, no padrão de tests/sanidade.
 add_executable(tst_valor tst_valor.cpp)
 target_link_libraries(tst_valor PRIVATE Qt6::Core Qt6::Test nl_back nl_warnings)
-add_test(NAME tst_valor COMMAND tst_valor)
+nl_registra_teste_qt(NAME tst_valor COMMAND tst_valor)

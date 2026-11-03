@@ -278,3 +278,63 @@ O `medir_versoes.sh` do diagnóstico de cada build mostra a mesma linha `libxml2
 4. Teste de `tools/tabelas` em `tests/tools/tabelas/`. O plano não diz o caminho; a escolha é do main confirmar.
 5. `ci.yml` e Dockerfiles não foram editados: ambos já instalam pelos scripts de `instalar/`, e o COPY do script invalida a camada.
 6. As imagens `notalivre/build-<distro>:nl-0.4` foram reconstruídas na mesma tag (o `build_local.sh imagem` não aceita outra). As imagens anteriores não aparecem mais em `docker images -a`; nenhuma poda foi feita por mim. Quem precisar do estado da Onda 0 reconstrói pelo Dockerfile do commit anterior.
+
+## NL-2.0: xmlsec1 nas imagens e build por SHA (27/10/2026)
+
+**Imagens reconstruídas com xmlsec1 (tag `nl-2.0`).** Uma por vez, sob `flock /var/tmp/notalivre-heavy.lock`, por `build_local.sh imagem <distro>`, todas com `rc=0`. Driver serial: `/var/tmp/notalivre-logs/NL-2.0-driver-imagens.log`. Logs de cada build: `/var/tmp/notalivre-logs/NL-2.0-imagem-<distro>.log`. Disco antes de cada build (`btrfs filesystem usage /`): `Device unallocated` 2.09 GiB, `Free (estimated)` mínimo 54 a 58 GiB; sem ENOSPC.
+
+| Distro | Imagem | `xmlsec1 --version` (dentro do contêiner) | `rsa-sha1` em `--list-transforms` | Saída medida |
+| --- | --- | --- | --- | --- |
+| fedora44 | `notalivre/build-fedora44:nl-2.0` | `xmlsec1 1.2.41 (openssl)`, rc 0 | sim | `/var/tmp/notalivre-logs/NL-2.0-xmlsec1-fedora44.txt` |
+| ubuntu26.04 | `notalivre/build-ubuntu26.04:nl-2.0` | `xmlsec1 1.3.9 (openssl)`, rc 0 | sim | `/var/tmp/notalivre-logs/NL-2.0-xmlsec1-ubuntu26.04.txt` |
+| manjaro | `notalivre/build-manjaro:nl-2.0` | `xmlsec1 1.3.12 (openssl)`, rc 0 | sim | `/var/tmp/notalivre-logs/NL-2.0-xmlsec1-manjaro.txt` |
+| mint22.3 | `notalivre/build-mint22.3:nl-2.0` | `xmlsec1 1.2.39 (openssl)`, rc 0 | sim | `/var/tmp/notalivre-logs/NL-2.0-xmlsec1-mint22.3.txt` |
+
+As versões batem com os candidatos medidos no plano (Fedora 1.2.41, Mint 1.2.39, Ubuntu 1.3.9, Manjaro 1.3.12). A listagem de `rsa-sha1` mostra só que o algoritmo consta; se ele assina e confere é o que a NL-2.3 vai provar com `xmlsec1 --verify`.
+
+**Pacotes:** Fedora `xmlsec1` e `xmlsec1-openssl`; Ubuntu 26.04 e Mint 22.3 `xmlsec1`; Manjaro `xmlsec`. O `xmlsec1` é oráculo dos testes e não entra no manifesto Flatpak. O `ci.yml` não foi editado: o job `nativo` já instala pelos scripts de `instalar/`.
+
+**Tag das imagens:** `nl-0.4` virou `nl-2.0` (`imagem_de` em `build_local.sh`). As imagens `nl-0.4` continuam no Docker e não foram apagadas.
+
+**Build por SHA (NL-2.0).** `build_local.sh` extrai o commit com `git archive` para `/var/tmp/notalivre-src-<SHA>-<fatia>`, usa build próprio da fatia, grava `SHA: <40 hex>` na linha 1 do log e o manifesto da fonte em `NL-MANIFESTO-SHA256`. `tools/conteiner/evidencia_sha.sh verificar <log>` reprova log sem SHA no topo, log cujo manifesto diverge do commit (arquivo alheio na fonte) e SHA que não é commit do repositório. O cache do ZIP do XSD agora chega ao contêiner (gêmeo da INBOX). Desvio corrigido: `build_local.sh imagem` honra `NL_LOG` (o desvio 1 da NL-1.0 foi resolvido).
+
+## NL-2.3 passo 0 (29/10/2026)
+
+Objetivo (plano, NL-2.3, DA-2.10): medir se o OpenSSL do runtime KDE 6.11, que é o alvo de entrega (Flatpak, spec 3.3), assina e verifica SHA-1 sem a variável `OPENSSL_ENABLE_SHA1_SIGNATURES`. O bloqueio medido na NL-2.6 é do fedora44 do host, não do runtime.
+
+**Comandos (sempre dentro do contêiner, nunca `flatpak run` no host, L-50).** Imagem `notalivre/flatpak-builder-fedora44:nl-0.5`, sob `flock /var/tmp/notalivre-heavy.lock` com `nice -n 5`, usuário 1000:1000, bind mounts com `:z`. Driver `/var/tmp/notalivre-nl23/driver_passo0.sh`; roteiro `/var/tmp/notalivre-nl23/roteiro_passo0.sh`; segunda medição `/var/tmp/notalivre-nl23/passo0b_policia.sh`. Dentro do contêiner: `flatpak remote-add --user flathub` e `flatpak install --user -y flathub org.kde.Sdk//6.11 org.kde.Platform//6.11`, com `FLATPAK_USER_DIR` numa pasta de trabalho. O `openssl` de cada runtime roda pelo `ld-linux-x86-64.so.2` e pelas bibliotecas do próprio runtime, com `env -i` (sem a variável) e `OPENSSL_CONF` apontando ao `etc/ssl/openssl.cnf` do runtime (caminho de configuração, não a variável de SHA-1). Teste: `openssl dgst -sha1 -sign` e `-verify`, com chave e certificado sintéticos gerados pelo mesmo openssl (`req -x509 -newkey rsa:2048`, 1 dia, CN de teste); controle com `-sha256`. Segunda medição: o mesmo teste com uma cópia do cnf do runtime sem a linha `.include = /etc/crypto-policies/...`.
+
+**FATO (medido)**
+- Flatpak 1.18.4. `org.kde.Sdk//6.11` e `org.kde.Platform//6.11` instalados dentro do contêiner (rc 0 nos dois).
+- Versão do OpenSSL: SDK 3.5.7 (9 Jun 2026); Platform 3.5.7. Ambos com OPENSSLDIR `/etc/pki/tls`, provider default ativo e nenhum outro provider ativo. Confirma o esperado 3.5.7.
+- SHA-1 sem a variável (ausente no ambiente medido): `dgst -sha1 -sign` rc 0 e `dgst -sha1 -verify` rc 0 ("Verified OK") nos dois runtimes. Controle `-sha256` rc 0 nos dois. Com o cnf sem o include absoluto, SHA-1 rc 0 nos dois.
+- `legacy.so` presente nos dois runtimes (`lib/x86_64-linux-gnu/ossl-modules/legacy.so`). O carregamento não foi testado.
+- zlib: o SDK tem `include/zlib.h` e `lib/x86_64-linux-gnu/libz.so`. O Platform não tem `zlib.h`; tem só `libz.so.1`.
+- xmlsec1: ausente no SDK e no Platform.
+- Disco (`btrfs filesystem usage /`): antes, Device unallocated 2.09 GiB e Free (estimated) min 43.88 GiB; depois, 2.09 GiB e min 39.25 GiB. Nenhum ENOSPC.
+- Logs: `/var/tmp/notalivre-logs/NL-2.3-passo0.log` (driver, rc 0) e `/var/tmp/notalivre-logs/NL-2.3-passo0b.log` (política separada).
+
+**INFERÊNCIA (não medida)**
+- A política do contêiner Fedora (`/etc/crypto-policies/back-ends/opensslcnf.config`, perfil DEFAULT) tem `rh-allow-sha1-signatures = no`, e mesmo assim o SHA-1 passou nos runtimes. Hipótese: o OpenSSL do KDE não tem o patch do Fedora que lê essa chave, então o bloqueio do fedora44 do host (NL-2.6) não se repete no runtime. Não foi provado qual cnf entrou na primeira rodada.
+- Consequência: a condição de parada da NL-2.3 ("runtime recusar SHA-1") não se cumpre. Falta medir se o `OSSL_LIB_CTX` próprio do app se comporta igual (DA-2.10) e o teste `assinaSha1NoSdkKdeSemVariavel` no job Flatpak.
+- O runtime medido fica em `/var/tmp/notalivre-nl23/trabalho` para o teste da NL-2.3; a limpeza fica para depois da revisão (L-53).
+
+## NL-2.3 passo 1: OSSL_LIB_CTX próprio em cada distro (DA-2.38)
+
+**Objetivo (DA-2.38):** medir se o `OSSL_LIB_CTX` próprio do assinador (provider default carregado explicitamente, sem
+variável de ambiente) assina `rsa-sha1`. A expectativa por distro sai de `tests/fixtures/xmldsig/tabela_sha1_por_distro.txt`.
+
+**FATO (medido, fedora 44, contêiner local, SDK do build nativo, OpenSSL 3.5.9, xmlsec1 1.2.41):**
+- O teste `xmldsig.medirOsslLibCtxProprio` (tst_assinador_xml.cpp) registrou
+  `MEDICAO id=fedora versao=44 variavel_presente=0 osslctx_proprio=assinatura.algoritmo_bloqueado`.
+- Log: `/var/tmp/notalivre-logs/NL-2.3-r3-verde-fedora44.log` (SHA 9b2f32e; a linha do QINFO está no bloco do slot).
+- Decisão aplicada: a linha `fedora 44 algoritmo_bloqueado` da tabela. No fedora44 o resto da suíte do assinador roda com
+  `rsa-sha256` pelos `ParametrosAssinatura` (DA-2.38), e o dourado do SHA-256 é o mesmo em todas as imagens.
+
+**INFERÊNCIA (não medida ainda):** a recusa vem da política de cripto do Fedora (crypto-policy DEFAULT), que atinge
+também o contexto próprio. A NL-2.6 mediu que a variável libera o `openssl` global; o contexto próprio não foi medido com
+a variável presente, e não precisa: a variável é proibida no app (DA-2.10).
+
+**Esperado nas outras três distros (tabela):** `sha1` (ubuntu 26.04, manjaro rolling, linuxmint 22.3). Medição nelas: a
+mesma linha `MEDICAO` no log de cada build verde da NL-2.3.
+

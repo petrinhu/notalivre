@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Testes do ClienteSefin (NL-2.8): política de retry, catálogo de erros, leitor de erro e cliente contra o servidor
+# falso (tools/servidor_falso, pelo lançador com oráculo). Slots mid.sefin.cliente.<nome>, sem vírgula no nome (L-45).
+find_package(OpenSSL 3.0 REQUIRED)
+find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
+
+add_executable(tst_registro_transporte tst_registro_transporte.cpp)
+target_link_libraries(tst_registro_transporte PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_foundation_transporte nl_warnings)
+foreach(nome IN ITEMS eventoTemSoCamposFechados valorForaDoConjuntoVira_outro camposNovosSaoFechados versaoForaDoConjuntoVira_outro codigosSslLimitadosEm16)
+  nl_registra_teste_qt(NAME mid.sefin.registroTransporte.${nome} COMMAND tst_registro_transporte ${nome})
+  set_tests_properties(mid.sefin.registroTransporte.${nome} PROPERTIES
+                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!"
+                       ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${CMAKE_BINARY_DIR}/logs_pii_cli"
+                       DEPENDS cli.limpaLogsPii)
+endforeach()
+
+add_executable(tst_cliente_sefin tst_cliente_sefin.cpp)
+target_link_libraries(tst_cliente_sefin PRIVATE Qt6::Core Qt6::Network Qt6::Test nl_mid nl_back nl_foundation_pkcs12
+                      nl_foundation_transporte nl_foundation_log OpenSSL::Crypto nl_warnings)
+
+set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
+if(NL_FLATPAK_BUILD)
+    # DA-2.28: o SDK KDE 6.11 não traz xmlsec1. Os slots que assinam a DPS de referência pelo xmlsec1 (dpsAssinada)
+    # ou sobem o servidor com oráculo ficam desligados aqui. A troca pelo AssinadorXml::assinarEnveloped fica na INBOX.
+    message(STATUS "cliente Sefin: slots com xmlsec1 ou com o servidor de oráculo desligados no build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28)")
+    set(NL_SLOTS_CLIENTE
+        leitorAceitaErroEErrosECodigoECodigo
+        catalogoDaMensagemDoCodigoE
+        backoffDobraAteAPrimeiraRepeticao
+        backoffNaoEstouraComExpoenteAlto)
+else()
+    find_program(NL_XMLLINT_CLIENTE xmllint REQUIRED)
+    find_program(NL_XMLSEC1_CLIENTE xmlsec1 REQUIRED)
+    set(NL_SLOTS_CLIENTE
+        sucessoExtraiChaveDe50Posicoes
+        falhaDePostVaiAoLogComEtapaPost
+        falhaDeGetVaiAoLogComEtapaGet
+        ancorasTlsVaziasSaiComCausaDeConfiguracao
+        postTransitorioConsultaDpsAntesDeReenviar
+        dps404E2404LiberaReenvio
+        conflito409ConsultaENaoReenvia
+        rejeicaoE0014NaoRepete
+        certificadoRevogadoMapeadoPelaRejeicaoDaSefin
+        textoLivreDaApiComCpfSoLogaCodigoE
+        getTransitorioRepeteComBackoff
+        leitorAceitaErroEErrosECodigoECodigo
+        catalogoDaMensagemDoCodigoE
+        backoffDobraAteAPrimeiraRepeticao
+        xmlNfseGuardaXmlDescomprimido
+        base64InvalidoRecusado
+        xmlIlegivelNumSucessoNaoLiberaReenvio
+        backoffNaoEstouraComExpoenteAlto
+        posPost2xxSemChaveConsultaDps
+        posPost2xxForaDe200e201ConsultaDps
+        post3xxConsultaDpsAntesDeReenviar
+        erroDefinitivoDepoisDoEnvioViraIndeterminado
+        consultaComCodigoQueNaoE2404ViraIndeterminado
+        naoGeradaReenviaMesmoIdNuncaNumeroNovo
+        e0014NoReenvioConsultaEDevolveAChave
+        conexaoFechadaAntesDoTlsSemBytesEhTransitoria
+        recusaNoHandshakeTls12NaoEscreveCorpoESemConsulta
+        corpoEscritoEConexaoFechadaConsultaAntesDeResponder
+        recusaDoCertificadoNoTls13NuncaReenviaAsCegas
+        conflito409ComConsultaSemResolverViraIndeterminado
+        base64ComIgualNoMeioRecusado
+        conflito409ComMesmoInfDpsRecuperaANota
+        conflito409ComInfDpsDiferenteViraDpsDuplicada
+        codigoEComCpfNaoChegaAoLog
+        codigoEForaDoFormatoFicaVazio
+        base64ComCaractereInvalidoETamanhoValidoRecusado
+        membroExtraDoGzipViraXmlPendente
+        comparadorRealIgualParaMesmaDps
+        comparadorRealDiferenteParaDpsAlterada
+        e0014ComComparadorRealRecuperaANota
+        observadorRecebeCadaRespostaDaEmissao)
+endif()
+set(NL_AMBIENTE_CLIENTE
+    "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_FIXTURES_DPS=${CMAKE_SOURCE_DIR}/tests/fixtures/dps;NL_LANCADOR=${CMAKE_SOURCE_DIR}/tools/servidor_falso/lancador.py;NL_PYTHON3=${Python3_EXECUTABLE};NL_XMLLINT=${NL_XMLLINT_CLIENTE};NL_XMLSEC1=${NL_XMLSEC1_CLIENTE};NL_XSD_PRODREST_DIR=${NL_XSD_PRODREST_DIR}")
+
+foreach(nome IN LISTS NL_SLOTS_CLIENTE)
+  nl_registra_teste_qt(NAME mid.sefin.cliente.${nome} COMMAND tst_cliente_sefin ${nome})
+  set_tests_properties(mid.sefin.cliente.${nome} PROPERTIES
+                       FIXTURES_REQUIRED certificados_teste
+                       ENVIRONMENT "${NL_AMBIENTE_CLIENTE}"
+                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!"
+                       TIMEOUT 120)  # teto explícito por slot: sem ele o CTest espera 1500 s por teste travado
+endforeach()

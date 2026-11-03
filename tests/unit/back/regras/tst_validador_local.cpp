@@ -82,12 +82,6 @@ std::vector<CasoDeViolacao> casosDeViolacao()
     }
     {
         teste::Opcoes o;
-        o.opSimpNac = "2";
-        o.totTribSn = true;
-        casos.push_back({"E0710", o});
-    }
-    {
-        teste::Opcoes o;
         o.ibscbs = true;
         o.dCompet = QDate{2025, 12, 31};
         casos.push_back({"E0850", o});
@@ -98,6 +92,13 @@ std::vector<CasoDeViolacao> casosDeViolacao()
         o.ibscbs = true;
         o.tpOper = false;
         casos.push_back({"E0903", o});
+    }
+    {
+        // NL-2.10h (H1): MEI com cTribMun (regra E0313, linha Excel 340).
+        teste::Opcoes o;
+        o.opSimpNac = "2";
+        o.cTribMun = std::string{"501"};
+        casos.push_back({"E0313", o});
     }
     return casos;
 }

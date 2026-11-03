@@ -80,6 +80,9 @@ void escreveServico(QXmlStreamWriter& w, const nb::Servico& servico)
     w.writeEndElement();
     w.writeStartElement(QStringLiteral("cServ"));
     w.writeTextElement(QStringLiteral("cTribNac"), servico.cTribNac().texto());
+    if (servico.cTribMun()) {
+        w.writeTextElement(QStringLiteral("cTribMun"), servico.cTribMun()->texto());
+    }
     if (servico.cNBS()) {
         w.writeTextElement(QStringLiteral("cNBS"), servico.cNBS()->texto());
     }

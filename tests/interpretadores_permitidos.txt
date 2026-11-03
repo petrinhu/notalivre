@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Allowlist de interpretadores para as exceções da lista de testes (DA-2.61 adendo 5; corrigida em DA-2.63, rodada 6).
+# Cada linha é UM caminho absoluto fixo, comparado por igualdade exata: sem glob, sem basename, sem prefixo.
+# Caminhos medidos nos command do ctest --show-only=json-v1 das quatro imagens (31/10/2026):
+#   fedora44 e manjaro: python3 em /opt/aqt/bin/python3.14, bash em /usr/sbin/bash, cmake em /usr/sbin/cmake
+#   ubuntu26.04 e mint22.3: python3 em /opt/aqt/bin/python3, bash em /usr/bin/bash, cmake em /usr/bin/cmake
+# Flatpak (SDK KDE 6.11, medido por listagem só de leitura do runtime instalado em ~/.local/share/flatpak): bin/python3 aponta
+# para python3.13 e bin/bash, bin/cmake existem; no sandbox, o runtime fica em /usr. Inferência (só o CI prova): o CMake do SDK
+# resolve o Python3 como /usr/bin/python3; por isso entram /usr/bin/python3 e /usr/bin/python3.13.
+/opt/aqt/bin/python3
+/opt/aqt/bin/python3.14
+/usr/bin/bash
+/usr/sbin/bash
+/usr/bin/cmake
+/usr/sbin/cmake
+/usr/bin/python3
+/usr/bin/python3.13

@@ -3,8 +3,17 @@
 # Composição (NL-1.7): fachadas que a CLI pode chamar. A fachada da DPS lê o JSON, monta pelo Back, serializa e valida no XSD.
 # Cada arquivo é um átomo (L-34); os leitores de grupo ficam em arquivos próprios e o header interno é leitores_dps.h.
 target_sources(nl_mid PRIVATE
+    confirmacao_inscricao.cpp
     campos_json.cpp
     dps_validar.cpp
+    emissao_nota.cpp
+    manipulador_qt.cpp
+    guarda_manipulador_qt.cpp
+    registro_cli.cpp
+    codigo_saida.cpp
+    resposta_crua.cpp
+    politica_emissao.cpp
+    emissao_cli.cpp
     ler_dados_dps.cpp
     ler_endereco.cpp
     ler_identificacao.cpp
@@ -18,3 +27,6 @@ target_sources(nl_mid PRIVATE
     ler_tribmun.cpp
     ler_valor.cpp
     ler_valores.cpp)
+
+# Pin do manifesto do XSD (NL-2.10b, BAIXA-4): só dps_validar.cpp lê a definição; o hash é o do SHA256SUMS de third_party.
+target_compile_definitions(nl_mid PRIVATE "NL_XSD_MANIFESTO_SHA256=\"${NL_XSD_PRODREST_MANIFESTO_SHA256}\"")

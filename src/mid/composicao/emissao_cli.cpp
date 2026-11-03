@@ -1,0 +1,454 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+// Fachada do `notalivre emitir` (NL-2.9, DA-2.44). Ver emissao_cli.h. WIP: sem verificação.
+#include <nl/mid/composicao/emissao_cli.h>
+
+#include <nl/back/dps/dps_assinada.h>
+#include <nl/back/dps/id_dps.h>
+#include <nl/back/dps/numero_dps.h>
+#include <nl/back/dps/serie.h>
+#include <nl/back/identificacao/cnpj.h>
+#include <nl/back/identificacao/codigo_municipio.h>
+#include <nl/back/identificacao/cpf.h>
+#include <nl/back/identificacao/inscricao.h>
+#include <nl/back/app/emitir_nota.h>
+#include <nl/foundation/log/log.h>
+#include <nl/mid/sefin/assinatura/assinador_dps_sefin.h>
+#include <nl/mid/sefin/cliente/comparador_infdps_c14n.h>
+#include <nl/mid/composicao/confirmacao_inscricao.h>
+#include <nl/mid/composicao/registro_cli.h>
+#include <nl/mid/cofre/raizes_producao.h>
+#include <nl/mid/cofre/descritor_de_segredo.h>
+#include <nl/mid/cofre/tomada_descritor.h>
+#include <nl/mid/cofre/senha_do_terminal.h>
+#include <nl/mid/cofre/terminal_sem_eco.h>
+#include <nl/foundation/pkcs12/carga_raizes_icp.h>
+#include <nl/mid/composicao/resposta_crua.h>
+
+#include <QDir>
+#include <nl/foundation/pkcs12/ancoras.h>
+#include <nl/foundation/pkcs12/carregador_pkcs12.h>
+#include <nl/foundation/pkcs12/credencial_x509.h>
+#include <nl/foundation/pkcs12/senha_segura.h>
+#include <nl/foundation/transporte/transporte_https.h>
+#include <nl/mid/composicao/emissao_nota.h>
+#include <nl/mid/sefin/cliente/cliente_sefin.h>
+#include <nl/mid/sefin/cliente/politica_retry.h>
+
+#include <QFile>
+#include <QIODevice>
+#include <QSslCertificate>
+#include <QSslConfiguration>
+#include <QSslKey>
+#include <QUrl>
+#include <QXmlStreamReader>
+
+#include <openssl/bio.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+
+#include <chrono>
+#include <iostream>
+#include <optional>
+#include <string>
+#include <vector>
+
+namespace nl::mid::composicao {
+namespace {
+
+namespace bk = nl::back;
+namespace ft = nl::foundation::transporte;
+namespace fp = nl::foundation::pkcs12;
+
+FalhaEmissao falha(std::string codigo, std::string mensagem)
+{
+    return FalhaEmissao{std::move(codigo), std::move(mensagem)};
+}
+
+QByteArray lerArquivo(const QString& caminho)
+{
+    QFile arquivo(caminho);
+    if (!arquivo.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return arquivo.readAll();
+}
+
+// Id da DPS: "DPS" + municipio (7) + tipo (1) + inscricao (14) + serie (5) + numero (15). Os 45 caracteres são
+// reconstruídos pelos tipos validados (IdDps::montar), então um Id mal formado do XML nunca chega ao envio.
+std::expected<bk::IdDps, FalhaEmissao> idDoXml(const QByteArray& xml)
+{
+    QXmlStreamReader leitor(xml);
+    QString id;
+    while (!leitor.atEnd()) {
+        if (leitor.readNextStartElement() && leitor.name() == QLatin1String("infDPS")) {
+            id = leitor.attributes().value(QStringLiteral("Id")).toString();
+            break;
+        }
+    }
+    if (id.size() != 45 || !id.startsWith(QStringLiteral("DPS"))) {
+        return std::unexpected(falha("emissao.id_dps_invalido", "o XML validado não traz o Id da DPS"));
+    }
+    auto municipio = bk::CodigoMunicipio::de(id.mid(3, 7));
+    const QString inscricaoTexto = id.mid(11, 14);
+    const bool cpfComZeros = inscricaoTexto.startsWith(QStringLiteral("000"));
+    std::optional<bk::Inscricao> inscricao;
+    if (cpfComZeros) {
+        if (auto cpf = bk::Cpf::de(inscricaoTexto.mid(3))) {
+            inscricao = bk::Inscricao{*cpf};
+        }
+    } else if (auto cnpj = bk::Cnpj::de(inscricaoTexto)) {
+        inscricao = bk::Inscricao{*cnpj};
+    }
+    auto serie = bk::Serie::de(id.mid(25, 5).toInt());
+    auto numero = bk::NumeroDps::de(id.mid(30, 15).toLongLong());
+    if (!municipio || !inscricao || !serie || !numero) {
+        return std::unexpected(falha("emissao.id_dps_invalido", "o Id da DPS não tem município, inscrição, série ou número válidos"));
+    }
+    auto idDps = bk::IdDps::montar(*municipio, *inscricao, *serie, *numero);
+    if (!idDps) {
+        return std::unexpected(falha("emissao.id_dps_invalido", "o Id da DPS não pode ser montado"));
+    }
+    return *idDps;
+}
+
+// TLS de cliente a partir da credencial: certificado DER; chave PKCS#8 em DER (NL-2.9, item 11). A chave sai do OpenSSL num
+// buffer de memória do BIO, entregue ao QSslKey sem cópia (fromRawData), e o buffer é zerado logo depois.
+ft::ConfiguracaoTls configuracaoTls(const fp::CredencialX509& credencial, const QList<QSslCertificate>& autoridades)
+{
+    ft::ConfiguracaoTls tls;
+    unsigned char* der = nullptr;
+    const int tamanho = i2d_X509(credencial.certificado(), &der);
+    if (tamanho > 0 && der != nullptr) {
+        tls.certificadoCliente = QSslCertificate(QByteArray(reinterpret_cast<const char*>(der), tamanho), QSsl::Der);
+    }
+    OPENSSL_free(der);
+    BIO* saida = BIO_new(BIO_s_mem());
+    if (saida != nullptr && i2d_PKCS8PrivateKey_bio(saida, credencial.chavePrivada(), nullptr, nullptr, 0, nullptr, nullptr) == 1) {
+        char* dados = nullptr;
+        const long n = BIO_get_mem_data(saida, &dados);
+        if (n > 0 && dados != nullptr) {
+            tls.chaveCliente = QSslKey(QByteArray::fromRawData(dados, static_cast<qsizetype>(n)), QSsl::Rsa, QSsl::Der);
+            OPENSSL_cleanse(dados, static_cast<std::size_t>(n));
+        }
+    }
+    BIO_free(saida);
+    tls.autoridades = autoridades;
+    return tls;
+}
+
+FalhaEmissao falhaDoEnvio(const nl::back::FalhaSefin& falhaSefin)
+{
+    // E0014 (DA-2.58): DPS duplicada com outro conteúdo sai como sefin.dps_duplicada (código 5); sem comparação, como
+    // sefin.comparacao_indisponivel (código 7). Nunca como sucesso, nunca como reenvio.
+    if (falhaSefin.motivo == nl::back::MotivoFalhaSefin::DpsDuplicada) {
+        return falha("sefin.dps_duplicada", "a DPS já existe na Sefin com outro conteúdo: nada foi renumerado");
+    }
+    if (falhaSefin.motivo == nl::back::MotivoFalhaSefin::ComparacaoIndisponivel) {
+        return falha("sefin.comparacao_indisponivel", "não foi possível comparar a DPS com a nota já existente");
+    }
+    std::string codigo = falhaSefin.codigoE.empty() ? std::string("sefin.falha") : std::string("sefin.") + falhaSefin.codigoE;
+    return falha(std::move(codigo), falhaSefin.mensagem);
+}
+
+} // namespace
+
+namespace {
+
+// Recusa da emissão: o registro recebe o evento com o Id e o código estável; o Id só entra depois que existe.
+FalhaEmissao recusada(RegistroCli& registro, const bk::IdDps& idDps, FalhaEmissao falhaEmissao)
+{
+    registro.registrarEmissaoRecusada(idDps.texto().toStdString(), falhaEmissao.codigo);
+    return falhaEmissao;
+}
+
+} // namespace
+
+// NL-2.10e (E3, H1): expõe a configuração TLS que a emissão usa, para o teste da chave do A1 chamar a mesma função de produção.
+nl::foundation::transporte::ConfiguracaoTls configuracaoTlsDaCredencial(const fp::CredencialX509& credencial,
+                                                                       const QList<QSslCertificate>& autoridades)
+{
+    return configuracaoTls(credencial, autoridades);
+}
+
+std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& pedido, fp::SenhaSegura&& senha, RegistroCli& registro,
+                                                           const FabricaAssinador& fabrica)
+{
+    // 0. Ambiente (NL-2.10b, MÉDIA-1): o endpoint decide; o ambiente afirmado por quem chama só pode confirmá-lo. Divergente sai
+    // antes de qualquer leitura de DPS, de âncora e de envio, com código interno (70, codigo_saida.cpp).
+    const auto derivado = ambienteDoEndpoint(pedido.urlSefin);
+    if (!derivado) {
+        return std::unexpected(falha(derivado.error().codigo(), derivado.error().mensagem()));
+    }
+    if (pedido.ambiente && *pedido.ambiente != *derivado) {
+        return std::unexpected(falha("emissao.ambiente_divergente", "o ambiente afirmado não confere com o endpoint da configuração"));
+    }
+    // 1. DPS de entrada: JSON validado no XSD. Reprovação vem com o primeiro código do validador.
+    auto xml = DpsValidar::executar(pedido.dpsJson, pedido.esquema);
+    if (!xml) {
+        const std::string codigo = xml.error().erros.empty() ? std::string("dps.invalida") : xml.error().erros.front().codigo();
+        return std::unexpected(falha(codigo, "a DPS de entrada foi reprovada na validação"));
+    }
+    // 2. Id da DPS, a partir do próprio XML validado.
+    auto idDps = idDoXml(*xml);
+    if (!idDps) {
+        return std::unexpected(idDps.error());
+    }
+    // 3. Âncoras e credencial do A1 (a senha é consumida aqui: o carregador a zera).
+    auto ancoras = ancorasDoA1(pedido, std::chrono::system_clock::now());
+    if (!ancoras) {
+        return std::unexpected(ancoras.error());
+    }
+    const QByteArray pfx = lerArquivo(pedido.caminhoCertificado);
+    fp::CarregadorPkcs12 carregador;
+    auto credencial = carregador.carregarConsumindo(pfx, std::move(senha), *ancoras);
+    if (!credencial) {
+        return std::unexpected(recusada(registro, *idDps, falha("credencial.nao_carregou", "o certificado não carregou com a senha informada")));
+    }
+    // 4. Confirmação digitada: tem de bater com o A1 e com o emitente da DPS, antes de assinar e de enviar (NL-2.9, item 2).
+    if (!pedido.confirmacao.isEmpty()) {
+        const QString chaveDoEmitente = idDps->texto().mid(11, 14);
+        if (auto conferido = conferirConfirmacao(pedido.confirmacao, credencial->inscricao(), chaveDoEmitente); !conferido) {
+            return std::unexpected(recusada(registro, *idDps, falha(conferido.error().codigo(), conferido.error().mensagem())));
+        }
+    }
+    // 5. Assinatura pela raiz de composição: a CLI não conhece o adaptador.
+    auto assinador = fabrica(*credencial);
+    if (!assinador) {
+        return std::unexpected(recusada(registro, *idDps, falha("assinatura.sem_assinador", "a fábrica não devolveu assinador")));
+    }
+    EmissaoNota raiz(std::move(assinador));
+    auto assinado = raiz.emitirNota().executar(*xml, idDps->texto());
+    if (!assinado) {
+        return std::unexpected(recusada(registro, *idDps, falha(assinado.error().codigo(), assinado.error().mensagem())));
+    }
+    // 6. O XML assinado é o que vai à Sefin: revalidado no XSD antes do envio (NL-2.9, DA-2.51). Reprovação é código 4 na CLI.
+    if (auto revalidado = DpsValidar::validarXml(*assinado, pedido.esquema); !revalidado) {
+        // Sempre xsd.pos_assinatura: o código do validador fica no log da validação, e a CLI traduz para 4 (DA-2.56).
+        return std::unexpected(recusada(registro, *idDps, falha("xsd.pos_assinatura", "o XML assinado não confere no XSD: nada foi enviado")));
+    }
+    // 7. Envio mTLS pelo cliente Sefin, com o Log do cliente (allowlist da Mid sefin, DA-2.54).
+    const ft::UrlBase base{QUrl(pedido.urlSefin), pedido.prefixoSefin, std::chrono::milliseconds{30000}};
+    // Âncoras do servidor TLS: o PEM de [sefin] ancoras_tls em Homologação, senão as CAs do sistema (NL-2.10b, passo 4).
+    auto autoridadesTls = ancorasTlsDoPedido(pedido);
+    if (!autoridadesTls) {
+        return std::unexpected(autoridadesTls.error());
+    }
+    ft::TransporteHttps transporte(base, configuracaoTls(*credencial, *autoridadesTls));
+    // Análise local (DA-2.59 item 4, NL-2.10c): cada resposta HTTP da Sefin, recusas incluídas, vai ao arquivo da DPS pelo
+    // observador. A falha de gravação não desfaz a emissão, que já aconteceu na Sefin: o gravador guarda o erro, e a chave
+    // segue na saída da CLI.
+    const QString estado = qEnvironmentVariable("XDG_STATE_HOME");
+    const QString pastaAnalise = (estado.isEmpty() ? QDir::homePath() + QStringLiteral("/.local/state") : estado) + QStringLiteral("/notalivre");
+    GravadorRespostaCrua gravador(pastaAnalise, idDps->texto().toStdString());
+    nl::mid::sefin::cliente::ClienteSefin cliente(transporte, *registro.logDoCliente(), nl::mid::sefin::cliente::PoliticaRetry{},
+                                                  std::make_shared<nl::mid::sefin::cliente::ComparadorInfDpsC14n>(), &gravador);
+    auto nota = cliente.emitir(bk::DpsAssinada{*idDps, *assinado});
+    // CISO, INFO-6 (Emenda 2): falha de gravação e teto atingido viram evento no log, na aceita e na recusada.
+    registro.registrarGravacaoDaResposta(gravador);
+    if (!nota) {
+        return std::unexpected(recusada(registro, *idDps, falhaDoEnvio(nota.error())));
+    }
+    registro.registrarEmissaoAceita(idDps->texto().toStdString(), nota->chave.texto().toStdString());
+    return nota->chave.texto();
+}
+
+namespace {
+
+// Ambiente que manda nas âncoras (NL-2.10b, BAIXA-9, emenda 3): o endpoint decide. Endpoint não reconhecido é erro, com o mesmo
+// código que a emissão devolve (emissao.endpoint_desconhecido); nunca cai em um padrão, nem no ambiente afirmado.
+std::expected<Ambiente, FalhaEmissao> ambienteDoPedido(const PedidoEmissao& pedido)
+{
+    const auto derivado = ambienteDoEndpoint(pedido.urlSefin);
+    if (!derivado) {
+        return std::unexpected(falha(derivado.error().codigo(), derivado.error().mensagem()));
+    }
+    return *derivado;
+}
+
+} // namespace
+
+// Âncoras do A1 (NL-2.10b, emenda 5): em Homologação com [certificado] ancoras, o PEM; em qualquer outro caso, as raízes ICP
+// embutidas no bundle. Fora de Homologação o caminho nem é lido (a CLI já recusou a chave com código 10).
+std::expected<fp::Ancoras, FalhaEmissao> ancorasDoA1(const PedidoEmissao& pedido, std::chrono::system_clock::time_point agora)
+{
+    const auto ambiente = ambienteDoPedido(pedido);
+    if (!ambiente) {
+        return std::unexpected(ambiente.error());
+    }
+    if (*ambiente != Ambiente::Homologacao || pedido.caminhoAncoras.isEmpty()) {
+        if (pedido.diretorioRaizesIcp.isEmpty()) {
+            return std::unexpected(falha("configuracao.raizes_diretorio_vazio", "o diretório das raízes ICP do bundle não foi informado"));
+        }
+        auto carga = nl::mid::cofre::carregarRaizesDeProducao(pedido.diretorioRaizesIcp, agora);
+        if (!carga) {
+            return std::unexpected(falha("credencial.ancoras_icp_invalidas", "as raízes ICP do bundle não conferem com o hash embutido"));
+        }
+        return std::move(carga->ancoras);
+    }
+    auto ancoras = fp::Ancoras::dePem(lerArquivo(pedido.caminhoAncoras));
+    if (!ancoras) {
+        return std::unexpected(falha("credencial.ancoras_invalidas", "o arquivo de âncoras não pode ser lido"));
+    }
+    return std::move(*ancoras);
+}
+
+// Âncoras do servidor TLS (NL-2.10b, emenda 4): o PEM de [sefin] ancoras_tls só em Homologação; o resto é o repositório de CAs
+// do sistema do runtime, sem pin e sem bundle próprio (condição do CISO, 31/10/2026).
+std::expected<QList<QSslCertificate>, FalhaEmissao> ancorasTlsDoPedido(const PedidoEmissao& pedido)
+{
+    const auto ambiente = ambienteDoPedido(pedido);
+    if (!ambiente) {
+        return std::unexpected(ambiente.error());
+    }
+    if (*ambiente != Ambiente::Homologacao || pedido.caminhoAncorasTls.isEmpty()) {
+        return QSslConfiguration::systemCaCertificates();
+    }
+    return QSslCertificate::fromData(lerArquivo(pedido.caminhoAncorasTls), QSsl::Pem);
+}
+
+std::optional<QString> lerConfirmacaoPeloTerminal(const QString& prompt)
+{
+    return nl::mid::cofre::lerConfirmacaoDoTerminal(prompt);
+}
+
+namespace {
+
+// Código estável de cada motivo de falha do terminal (NL-2.27, DA-2.68): a CLI traduz o código para a saída, sem ver o terminal.
+FalhaEmissao falhaDoTerminal(nl::mid::cofre::ErroDoTerminal erro)
+{
+    switch (erro) {
+    case nl::mid::cofre::ErroDoTerminal::SemTerminal:
+        return falha("cofre.senha_ausente", "senha ausente: sem terminal de controle, a CLI não lê a senha");
+    case nl::mid::cofre::ErroDoTerminal::EmSegundoPlano:
+        return falha("cofre.terminal_em_segundo_plano",
+                     "a CLI não está em primeiro plano neste terminal, como acontece dentro do Flatpak; entregue a senha por --senha-certificado-fd");
+    case nl::mid::cofre::ErroDoTerminal::SenhaVazia:
+        return falha("cofre.senha_vazia", "a senha digitada no terminal está vazia");
+    case nl::mid::cofre::ErroDoTerminal::FalhaDeLeitura:
+        break;
+    }
+    return falha("cofre.senha_ausente", "senha ausente: a leitura do terminal falhou");
+}
+
+// Código estável de cada motivo de falha do descritor (NL-2.27, DA-2.16). Nenhum conteúdo do descritor entra na mensagem.
+FalhaEmissao falhaDoSegredo(nl::mid::cofre::ErroDoSegredo erro)
+{
+    switch (erro) {
+    case nl::mid::cofre::ErroDoSegredo::DescritorInvalido:
+        return falha("cofre.descritor_invalido", "o descritor da senha não está aberto ou é 0, 1 ou 2");
+    case nl::mid::cofre::ErroDoSegredo::DescritorTerminal:
+        return falha("cofre.descritor_terminal", "o descritor da senha é um terminal: entregue a senha por arquivo ou pipe");
+    case nl::mid::cofre::ErroDoSegredo::LegivelPorOutros:
+        return falha("cofre.descritor_legivel_por_outros", "o arquivo da senha tem permissão para grupo ou outros: use 0600");
+    case nl::mid::cofre::ErroDoSegredo::SenhaVazia:
+        return falha("cofre.senha_vazia", "a senha do descritor está vazia");
+    case nl::mid::cofre::ErroDoSegredo::AcimaDoTeto:
+        return falha("cofre.senha_acima_do_teto", "a senha do descritor passa de 512 bytes");
+    case nl::mid::cofre::ErroDoSegredo::FalhaDeLeitura:
+        break;
+    }
+    return falha("cofre.descritor_falha_de_leitura", "não foi possível ler a senha do descritor");
+}
+
+} // namespace
+
+std::expected<void, FalhaEmissao> conferirEntradaDaSenhaPeloTerminal()
+{
+    if (auto conferido = nl::mid::cofre::conferirTerminalDaSenha(); !conferido) {
+        return std::unexpected(falhaDoTerminal(conferido.error()));
+    }
+    return {};
+}
+
+std::expected<void, FalhaEmissao> conferirEntradaDaSenhaPeloDescritor(int fd)
+{
+    if (auto conferido = nl::mid::cofre::conferirDescritorDeSenha(fd); !conferido) {
+        return std::unexpected(falhaDoSegredo(conferido.error()));
+    }
+    return {};
+}
+
+std::expected<QString, FalhaEmissao> emitirDpsPeloTerminal(const PedidoEmissao& pedido, RegistroCli& registro, const QString& promptSenha)
+{
+    auto senha = nl::mid::cofre::lerSenhaDoTerminal(promptSenha);
+    if (!senha) {
+        return std::unexpected(falhaDoTerminal(senha.error()));
+    }
+    return emitirDpsPelaCli(pedido, std::move(*senha), registro);
+}
+
+namespace {
+
+// Código estável da recusa da tomada (NL-2.27b, DA-2.72, DA-2.73). A mensagem diz só o tipo do descritor e o que fazer: nunca nome nem
+// caminho de arquivo (ADR-0005), e nunca o conteúdo.
+FalhaEmissao falhaDaTomada(const nl::mid::cofre::RecusaDaTomada& recusa, int numeroPedido)
+{
+    const std::string numero = std::to_string(numeroPedido);
+    switch (recusa.motivo) {
+    case nl::mid::cofre::ErroDaTomada::DescritorInvalido:
+        return falha("cofre.descritor_invalido",
+                     "o descritor " + numero + " da senha está fechado na entrada da CLI, ou é 0, 1 ou 2: nada foi lido");
+    case nl::mid::cofre::ErroDaTomada::DescritorTerminal:
+        return falha("cofre.descritor_terminal", "o descritor " + numero + " da senha é um terminal: entregue a senha por arquivo ou pipe");
+    case nl::mid::cofre::ErroDaTomada::LegivelPorOutros:
+        return falha("cofre.descritor_legivel_por_outros",
+                     "o descritor " + numero + " da senha é um " + recusa.tipo +
+                         ": use permissão 0600, ou entregue a senha por pipe");
+    case nl::mid::cofre::ErroDaTomada::FalhaDeTomada:
+        return falha("cofre.descritor_invalido", "não foi possível tomar o descritor " + numero + " da senha");
+    case nl::mid::cofre::ErroDaTomada::DescritorTrocado:
+        break;
+    }
+    return falha("cofre.descritor_trocado", "o descritor " + numero + " da senha mudou entre a entrada da CLI e a leitura");
+}
+
+} // namespace
+
+std::expected<TomadaDaSenha, FalhaEmissao> tomarEntradaDaSenhaPeloDescritor(int numeroPedido)
+{
+    auto tomada = nl::mid::cofre::tomarDescritorDeSenha(numeroPedido);
+    if (!tomada) {
+        return std::unexpected(falhaDaTomada(tomada.error(), numeroPedido));
+    }
+    TomadaDaSenha resultado;
+    resultado.fd = tomada->fd;
+    resultado.dispositivo = static_cast<std::uint64_t>(tomada->dispositivo);
+    resultado.inodo = static_cast<std::uint64_t>(tomada->inodo);
+    return resultado;
+}
+
+std::expected<void, FalhaEmissao> conferirTomadaDaSenha(const TomadaDaSenha& tomada)
+{
+    nl::mid::cofre::TomadaDeDescritor original;
+    original.fd = tomada.fd;
+    original.dispositivo = static_cast<dev_t>(tomada.dispositivo);
+    original.inodo = static_cast<ino_t>(tomada.inodo);
+    if (auto conferida = nl::mid::cofre::conferirTomadaDeDescritor(original); !conferida) {
+        return std::unexpected(falhaDaTomada(conferida.error(), tomada.fd));
+    }
+    return {};
+}
+
+std::expected<QString, FalhaEmissao> emitirDpsPeloDescritor(const PedidoEmissao& pedido, RegistroCli& registro, int fd)
+{
+    auto senha = nl::mid::cofre::lerSenhaDoDescritor(fd);
+    if (!senha) {
+        return std::unexpected(falhaDoSegredo(senha.error()));
+    }
+    return emitirDpsPelaCli(pedido, std::move(*senha), registro);
+}
+
+std::expected<QString, FalhaEmissao> emitirDpsPelaCli(const PedidoEmissao& pedido, fp::SenhaSegura&& senha, RegistroCli& registro)
+{
+    const FabricaAssinador fabrica = [algoritmo = pedido.algoritmo](const fp::CredencialX509& credencial)
+                                         -> std::unique_ptr<nl::back::AssinadorDps> {
+        // Conversão só aqui: o adaptador tem o próprio enum, e a fachada não o expõe à CLI.
+        const auto doAdaptador = algoritmo == AlgoritmoAssinatura::RsaSha256 ? nl::mid::sefin::assinatura::AlgoritmoAssinatura::RsaSha256
+                                                                            : nl::mid::sefin::assinatura::AlgoritmoAssinatura::RsaSha1;
+        return std::make_unique<nl::mid::sefin::assinatura::AssinadorDpsSefin>(credencial, doAdaptador);
+    };
+    return emitirDpsComAssinador(pedido, std::move(senha), registro, fabrica);
+}
+
+} // namespace nl::mid::composicao

@@ -4,4 +4,5 @@
 target_sources(nl_back PRIVATE
     repositorio_numeracao.cpp
     catalogo_localidades.cpp
+    assinador_dps.cpp
 )

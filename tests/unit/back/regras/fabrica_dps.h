@@ -21,6 +21,7 @@
 #include <nl/back/dps/codigo_classificacao_tributaria.h>
 #include <nl/back/dps/codigo_pais.h>
 #include <nl/back/dps/codigo_situacao_tributaria.h>
+#include <nl/back/dps/codigo_trib_municipal.h>
 #include <nl/back/dps/codigo_trib_nacional.h>
 #include <nl/back/dps/dados_dps.h>
 #include <nl/back/dps/descricao_servico.h>
@@ -29,6 +30,11 @@
 #include <nl/back/dps/endereco_exterior.h>
 #include <nl/back/dps/endereco_nacional.h>
 #include <nl/back/dps/ibscbs.h>
+#include <nl/back/dps/percentual_tributo.h>
+#include <nl/back/dps/percentual_tributo_sn.h>
+#include <nl/back/dps/tributos_monetarios.h>
+#include <nl/back/dps/tributos_percentuais.h>
+#include <nl/back/dps/total_tributos.h>
 #include <nl/back/dps/identificacao_pessoa.h>
 #include <nl/back/dps/indicador_destinatario.h>
 #include <nl/back/dps/indicador_total_tributos.h>
@@ -59,6 +65,9 @@ namespace teste {
 /// Tipo de tomador dos casos. "SemEndereco" omite o grupo end; "Exterior" usa endereço no exterior.
 enum class TipoTomador { cnpjComEndereco, cnpjSemEndereco, cpfComEndereco, cpfSemEndereco, nifComEndereco, exteriorComPais, semTomador };
 
+/// Forma do grupo totTrib (NL-2.10j, J1). padrao: indTotTrib para MEI e percentuais zerados para os demais regimes.
+enum class FormaTotTrib { padrao, indicador, monetario, percentual, sn };
+
 /// Campos variáveis da DPS. Padrão: não optante (opSimpNac 1), sem retenção, tomador CNPJ com endereço, competência 2026.
 struct Opcoes
 {
@@ -66,12 +75,20 @@ struct Opcoes
     std::string tpRetISSQN = "1";
     std::string tribISSQN = "1";
     std::string cTribNac = "170201";
+    /// NL-2.10h (H1): cTribMun opcional; ausente = o elemento não entra na DPS.
+    std::optional<std::string> cTribMun;
     std::string cLocPrestacao = "4305108";
     std::string cnpjPrestador = "11222333000181";
     std::string cnpjTomador = "11444777000161";
     TipoTomador tomador = TipoTomador::cnpjComEndereco;
     std::string cPais = "US";
-    bool totTribSn = false;
+    /// NL-2.10j (J1): forma do totTrib e os valores de cada forma (centavos para vTotTrib; texto com ponto para os percentuais).
+    FormaTotTrib totTrib = FormaTotTrib::padrao;
+    std::int64_t vTotTribFedCentavos = 0;
+    std::string pTotTribFed = "1.00";
+    std::string pTotTribEst = "0.00";
+    std::string pTotTribMun = "0.00";
+    std::string pTotTribSn = "4.50";
     bool pAliq = false;
     bool ibscbs = false;
     bool tpOper = false;
@@ -225,6 +242,50 @@ inline std::optional<std::optional<nl::back::Tomador>> tomadorCom(const Opcoes& 
     return std::optional<Tomador>{Tomador::montar(*identificacao, std::nullopt, std::nullopt, endereco, std::nullopt, std::nullopt)};
 }
 
+/// Forma do totTrib dos casos (NL-2.10j). Vazio quando um valor do caso não é válido (a fábrica devolve nullopt).
+inline std::optional<nl::back::TotalTributos> totTribCom(const Opcoes& o)
+{
+    using namespace nl::back;
+    FormaTotTrib forma = o.totTrib;
+    if (forma == FormaTotTrib::padrao) {
+        forma = o.opSimpNac == "2" ? FormaTotTrib::indicador : FormaTotTrib::percentual;
+    }
+    switch (forma) {
+    case FormaTotTrib::monetario: {
+        const auto fed = valor(Valor::de(o.vTotTribFedCentavos));
+        const auto zero = valor(Valor::de(0));
+        if (!fed || !zero) {
+            return std::nullopt;
+        }
+        return TotalTributos{TributosMonetarios::montar(*fed, *zero, *zero)};
+    }
+    case FormaTotTrib::percentual: {
+        const auto fed = valor(PercentualTributo::de(QString::fromStdString(o.pTotTribFed)));
+        const auto est = valor(PercentualTributo::de(QString::fromStdString(o.pTotTribEst)));
+        const auto mun = valor(PercentualTributo::de(QString::fromStdString(o.pTotTribMun)));
+        if (!fed || !est || !mun) {
+            return std::nullopt;
+        }
+        return TotalTributos{TributosPercentuais::montar(*fed, *est, *mun)};
+    }
+    case FormaTotTrib::sn: {
+        const auto pSn = valor(PercentualTributoSn::de(QString::fromStdString(o.pTotTribSn)));
+        if (!pSn) {
+            return std::nullopt;
+        }
+        return TotalTributos{*pSn};
+    }
+    case FormaTotTrib::indicador:
+    case FormaTotTrib::padrao:
+        break;
+    }
+    const auto indicador = valor(IndicadorTotalTributos::de(u"0"));
+    if (!indicador) {
+        return std::nullopt;
+    }
+    return TotalTributos{*indicador};
+}
+
 inline std::optional<nl::back::Tributacao> tributacaoCom(const Opcoes& o)
 {
     using namespace nl::back;
@@ -244,18 +305,11 @@ inline std::optional<nl::back::Tributacao> tributacaoCom(const Opcoes& o)
     if (!municipal) {
         return std::nullopt;
     }
-    if (o.totTribSn) {
-        const auto pSn = valor(PercentualTributoSn::de(u"6.00"));
-        if (!pSn) {
-            return std::nullopt;
-        }
-        return Tributacao::montar(*municipal, TotalTributos{*pSn});
-    }
-    const auto indicador = valor(IndicadorTotalTributos::de(u"0"));
-    if (!indicador) {
+    const auto total = totTribCom(o);
+    if (!total) {
         return std::nullopt;
     }
-    return Tributacao::montar(*municipal, TotalTributos{*indicador});
+    return Tributacao::montar(*municipal, *total);
 }
 
 /// Grupo IBS/CBS conforme o caso. Resultado externo: nullopt = falha; interno vazio = grupo ausente (intencional).
@@ -287,7 +341,8 @@ inline std::optional<std::optional<nl::back::Ibscbs>> ibscbsCom(const Opcoes& o)
 }
 
 /// DPS montada a partir das opções. nullopt = falha de montagem (o teste acusa com QVERIFY).
-inline std::optional<nl::back::Dps> dpsCom(const Opcoes& o)
+/// Dados da DPS dos casos (NL-2.10j): separados da montagem para o teste ver o erro de Dps::montar.
+inline std::optional<nl::back::DadosDps> dadosCom(const Opcoes& o)
 {
     using namespace nl::back;
     const auto tpAmb = valor(TipoAmbiente::de(u"2"));
@@ -307,7 +362,15 @@ inline std::optional<nl::back::Dps> dpsCom(const Opcoes& o)
         || !toma || !tributacao || !ibs) {
         return std::nullopt;
     }
-    const auto servico = Servico::montar(*cLocPrestacao, *cTribNac, *xDescServ, std::nullopt);
+    std::optional<CodigoTribMunicipal> cTribMun;
+    if (o.cTribMun) {
+        const auto valorCTribMun = valor(CodigoTribMunicipal::de(QString::fromStdString(*o.cTribMun)));
+        if (!valorCTribMun) {
+            return std::nullopt;
+        }
+        cTribMun = *valorCTribMun;
+    }
+    const auto servico = Servico::montar(*cLocPrestacao, *cTribNac, cTribMun, *xDescServ, std::nullopt);
     const auto valores = ValoresServico::montar(*vServ, *tributacao);
     DadosDps dados{
         .tpAmb = *tpAmb,
@@ -324,7 +387,31 @@ inline std::optional<nl::back::Dps> dpsCom(const Opcoes& o)
         .valores = valores,
         .ibscbs = *ibs,
     };
-    return valor(Dps::montar(std::move(dados)));
+    return std::optional<DadosDps>{std::move(dados)};
+}
+
+/// DPS montada a partir das opções. nullopt = falha de montagem (o teste acusa com QVERIFY).
+inline std::optional<nl::back::Dps> dpsCom(const Opcoes& o)
+{
+    auto dados = dadosCom(o);
+    if (!dados) {
+        return std::nullopt;
+    }
+    return valor(nl::back::Dps::montar(std::move(*dados)));
+}
+
+/// Erro de montagem da DPS dos casos, ou nullopt quando a montagem passa (NL-2.10j: código e mensagem do domínio).
+inline std::optional<nl::base::Erro> erroDeMontagemCom(const Opcoes& o)
+{
+    auto dados = dadosCom(o);
+    if (!dados) {
+        return nl::base::Erro{"fabrica.dados", std::nullopt, "fábrica sem dados para o caso"};
+    }
+    auto dps = nl::back::Dps::montar(std::move(*dados));
+    if (dps) {
+        return std::nullopt;
+    }
+    return dps.error();
 }
 
 } // namespace teste

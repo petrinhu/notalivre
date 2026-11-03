@@ -80,7 +80,8 @@ endif()
 file(REMOVE_RECURSE "${_nl_xsd_extraido}")
 file(ARCHIVE_EXTRACT INPUT "${_nl_xsd_zip}" DESTINATION "${_nl_xsd_extraido}")
 
-# 3. Conferência de cada arquivo do manifesto contra o extraído.
+# 3. Conferência de cada arquivo do manifesto contra o extraído. Os conferidos entram na lista de instalação (NL-2.10b).
+set(_nl_xsd_instalar "")
 foreach(_nl_xsd_linha IN LISTS _nl_xsd_entradas)
     string(REGEX REPLACE "^([0-9a-f]+)  (.+)$" "\\1" _nl_xsd_esperado "${_nl_xsd_linha}")
     string(REGEX REPLACE "^([0-9a-f]+)  (.+)$" "\\2" _nl_xsd_nome "${_nl_xsd_linha}")
@@ -92,10 +93,24 @@ foreach(_nl_xsd_linha IN LISTS _nl_xsd_entradas)
     if(NOT _nl_xsd_obtido STREQUAL _nl_xsd_esperado)
         message(FATAL_ERROR "NL-1.6a: SHA-256 divergente em ${_nl_xsd_nome}: esperado ${_nl_xsd_esperado}, obtido ${_nl_xsd_obtido}. Não usar este XSD.")
     endif()
+    list(APPEND _nl_xsd_instalar "${_nl_xsd_arq}")
 endforeach()
+
+# Dados, não código: os XSD conferidos e o SHA256SUMS vão para share/notalivre/xsd (NL-2.10b). O padrão de xsd.diretorio e
+# xsd.manifesto da CLI aponta para esse diretório, no Flatpak e no prefixo de instalação.
+install(FILES ${_nl_xsd_instalar} "${_nl_xsd_manifesto}"
+        DESTINATION share/notalivre/xsd)
 
 set(NL_XSD_PRODREST_DIR "${_nl_xsd_extraido}" CACHE INTERNAL "XSD de Produção Restrita 20/10/2026, extraído e conferido")
 set(NL_XSD_PRODREST_MANIFESTO "${_nl_xsd_manifesto}" CACHE INTERNAL "SHA256SUMS do leiaute de 20/10/2026")
 set(NL_XSD_PRODREST_RAIZ "DPS_v1.01.xsd" CACHE INTERNAL "Esquema raiz da DPS")
 set(NL_XSD_PRODREST_ZIP "${_nl_xsd_zip}" CACHE INTERNAL "ZIP baixado e conferido (usado pelo teste de hash)")
 message(STATUS "NL-1.6a: XSD conferidos (${_nl_xsd_n_entradas} arquivos, ZIP ${_nl_xsd_zip_sha}) em ${_nl_xsd_extraido}")
+
+# Pin do SHA256SUMS do XSD (NL-2.10b, BAIXA-4): o hash do manifesto instalado é embutido na Mid, e a validação recusa outro hash.
+file(SHA256 "${_nl_xsd_manifesto}" _nl_xsd_manifesto_sha)
+string(LENGTH "${_nl_xsd_manifesto_sha}" _nl_xsd_manifesto_sha_len)
+if(NOT _nl_xsd_manifesto_sha_len EQUAL 64)
+    message(FATAL_ERROR "NL-2.10b, BAIXA-11: SHA-256 do SHA256SUMS do XSD com ${_nl_xsd_manifesto_sha_len} caracteres, esperado 64. Sem pin valido a Mid nao compila; o pin vazio aborta aqui.")
+endif()
+set(NL_XSD_PRODREST_MANIFESTO_SHA256 "${_nl_xsd_manifesto_sha}" CACHE INTERNAL "SHA-256 do SHA256SUMS do leiaute, embutido na Mid")

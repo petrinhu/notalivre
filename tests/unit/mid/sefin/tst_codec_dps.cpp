@@ -97,6 +97,14 @@ class TstCodecDps : public QObject
 private slots:
     void dpsMeiMinimaValidaNoXsd();
     void dpsSimplesComIbsCbsValidaNoXsd();
+    // NL-2.10h (H1): cTribMun 501 sai entre cTribNac e cNBS e o XML valida no XSD; sem cTribMun, o elemento não sai.
+    void dpsSimplesComCTribMunValidaNoXsd();
+    void cTribMunEntreCTribNacECNbs();
+    void semCTribMunNaoSaiElemento();
+    // NL-2.10j (J1): cada forma de totTrib que o regime aceita sai no XML e valida no XSD; pTotTrib na ordem Fed, Est, Mun.
+    void dpsSimplesComPTotTribValidaNoXsd();
+    void dpsSimplesComPTotTribSnValidaNoXsd();
+    void pTotTribNaOrdemDoXsd();
     void dpsTomadorCpfSemEnderecoValida();
     void dpsTomadorCNaoNifValida();
     void dpsCompletaComOpcionaisValidaNoXsd();
@@ -109,6 +117,8 @@ private slots:
     void xDescServContaPontosDeCodigo();
     void xDescServSoEspacosReprova();
     void cepComZeroAEsquerdaSai8Digitos();
+    void cnpjEmitenteComZeroInicialSaiIntacto();
+    void cpfTomadorComZeroInicialSaiIntacto();
     // Valores exatos do cabeçalho da DPS (b, revisão): literais escritos à mão, um slot por campo.
     void dhEmiValorExato();
     void nDpsValorExato();
@@ -119,7 +129,6 @@ private slots:
     void cLocEmiValorExato();
     void vereditoDoValidadorBateComONomeDaFixture();
     void fixturesDpsIguaisAoCodec();
-    void geraFixturesDps();
 };
 
 void TstCodecDps::dpsMeiMinimaValidaNoXsd()
@@ -142,6 +151,70 @@ void TstCodecDps::dpsSimplesComIbsCbsValidaNoXsd()
     QVERIFY2(xml.contains("<CST>000</CST>"), "grupo IBS/CBS não serializado");
     const Veredito veredito = validar(xml);
     QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
+
+void TstCodecDps::dpsSimplesComCTribMunValidaNoXsd()
+{
+    const auto dps = casos::dpsSimplesComCTribMun();
+    QVERIFY2(dps.has_value(), "builder do Simples com cTribMun recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(xml.contains("<cTribMun>501</cTribMun>"), "cTribMun não serializado");
+    const Veredito veredito = validar(xml);
+    QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
+
+void TstCodecDps::cTribMunEntreCTribNacECNbs()
+{
+    // Ordem do XSD (tiposComplexos_v1.01.xsd:1478): cTribNac, cTribMun, cNBS. Fora dessa ordem o XSD reprova.
+    const auto dps = casos::dpsSimplesComCTribMun();
+    QVERIFY2(dps.has_value(), "builder do Simples com cTribMun recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    const qsizetype posNac = xml.indexOf("<cTribNac>");
+    const qsizetype posMun = xml.indexOf("<cTribMun>501</cTribMun>");
+    const qsizetype posNbs = xml.indexOf("<cNBS>123456789</cNBS>");
+    QVERIFY2(posNac >= 0 && posMun >= 0 && posNbs >= 0, "cTribNac, cTribMun e cNBS têm de sair no XML");
+    QVERIFY2(posNac < posMun && posMun < posNbs, "cTribMun tem de sair entre cTribNac e cNBS");
+}
+
+void TstCodecDps::semCTribMunNaoSaiElemento()
+{
+    const auto dps = casos::dpsSimplesIbsCbs();
+    QVERIFY2(dps.has_value(), "builder do Simples com IBS/CBS recusou a entrada");
+    QVERIFY2(!prod::CodecDps::serializar(*dps).contains("<cTribMun"), "cTribMun ausente na entrada não pode sair no XML");
+}
+
+void TstCodecDps::dpsSimplesComPTotTribValidaNoXsd()
+{
+    const auto dps = casos::dpsSimplesComPTotTrib();
+    QVERIFY2(dps.has_value(), "builder do Simples com pTotTrib recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(xml.contains("<pTotTribFed>1.00</pTotTribFed>"), "pTotTrib não serializado");
+    const Veredito veredito = validar(xml);
+    QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
+
+void TstCodecDps::dpsSimplesComPTotTribSnValidaNoXsd()
+{
+    const auto dps = casos::dpsSimplesComPTotTribSn();
+    QVERIFY2(dps.has_value(), "builder do Simples com pTotTribSN recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(xml.contains("<pTotTribSN>4.50</pTotTribSN>"), "pTotTribSN não serializado");
+    QVERIFY2(!xml.contains("<indTotTrib>"), "pTotTribSN não pode vir com indTotTrib");
+    const Veredito veredito = validar(xml);
+    QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
+
+void TstCodecDps::pTotTribNaOrdemDoXsd()
+{
+    // Ordem do TCTribTotalPercent: pTotTribFed, pTotTribEst, pTotTribMun (tiposComplexos_v1.01.xsd, TCTribTotalPercent).
+    const auto dps = casos::dpsSimplesComPTotTrib();
+    QVERIFY2(dps.has_value(), "builder do Simples com pTotTrib recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    const qsizetype fed = xml.indexOf("<pTotTribFed>");
+    const qsizetype est = xml.indexOf("<pTotTribEst>");
+    const qsizetype mun = xml.indexOf("<pTotTribMun>");
+    QVERIFY2(fed >= 0 && est >= 0 && mun >= 0, "os três percentuais de pTotTrib têm de sair");
+    QVERIFY2(fed < est && est < mun, "pTotTrib tem de sair na ordem Fed, Est, Mun");
 }
 
 void TstCodecDps::dpsTomadorCpfSemEnderecoValida()
@@ -368,21 +441,28 @@ void TstCodecDps::fixturesDpsIguaisAoCodec()
     }
 }
 
-void TstCodecDps::geraFixturesDps()
+// A geração das fixtures saiu deste executável de teste (DA-2.61): é a ferramenta tests/tools/gera_fixtures_dps, fora do CTest.
+
+void TstCodecDps::cnpjEmitenteComZeroInicialSaiIntacto()
 {
-    // Só roda pelo CTest gera_fixtures_dps (que define NL_FIXTURES_DPS_SAIDA com o diretório de build).
-    const QString saida = qEnvironmentVariable("NL_FIXTURES_DPS_SAIDA");
-    if (saida.isEmpty()) {
-        QSKIP("NL_FIXTURES_DPS_SAIDA não definido: a geração das fixtures é feita pelo CTest gera_fixtures_dps");
-    }
-    QVERIFY2(QDir{}.mkpath(saida), qPrintable(QStringLiteral("não consegui criar ") + saida));
-    const auto fixtures = casos::casosFixture();
-    QVERIFY2(fixtures.has_value(), "builder de alguma fixture recusou a entrada");
-    for (const auto& caso : *fixtures) {
-        QFile arquivo{QDir{saida}.filePath(caso.nome)};
-        QVERIFY2(arquivo.open(QIODevice::WriteOnly), qPrintable(QStringLiteral("não consegui gravar ") + caso.nome));
-        QCOMPARE(arquivo.write(caso.xml), static_cast<qint64>(caso.xml.size()));
-    }
+    // Fixture fictícia 01234567890107: o zero da frente é dígito e tem de sair no XML, sem virar número nem perder posição.
+    const auto dps = casos::dpsMeiCnpjComZeroInicial();
+    QVERIFY2(dps.has_value(), "builder do emitente com CNPJ de zero à frente recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(xml.contains("<CNPJ>01234567890107</CNPJ>"), "CNPJ do emitente com zero à frente saiu alterado");
+    const Veredito veredito = validar(xml);
+    QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
+
+void TstCodecDps::cpfTomadorComZeroInicialSaiIntacto()
+{
+    // Fixture fictícia 01234567890: o CPF com zero à frente tem de sair com 11 dígitos no XML.
+    const auto dps = casos::dpsTomadorCpfComZeroInicial();
+    QVERIFY2(dps.has_value(), "builder do tomador com CPF de zero à frente recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(xml.contains("<CPF>01234567890</CPF>"), "CPF do tomador com zero à frente saiu alterado");
+    const Veredito veredito = validar(xml);
+    QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
 }
 
 QTEST_GUILESS_MAIN(TstCodecDps)

@@ -4,10 +4,10 @@
 # Os nomes são os do GitHub (matriz expandida). tools/espelho/comparar_jobs.py confere esta lista contra os jobs
 # do ci.yml e contra os nomes do último run empurrado. Executar tudo: tools/espelho/rodar_espelho.sh.
 # Cada comando roda o próprio trabalho dentro de contêiner (L-50) e pega a trava flock (L-11).
-nativo (fedora44) | bash tools/conteiner/build_local.sh fedora44 debug && bash tools/conteiner/build_local.sh fedora44 sabotagem-sanidade
-nativo (ubuntu26.04) | bash tools/conteiner/build_local.sh ubuntu26.04 debug && bash tools/conteiner/build_local.sh ubuntu26.04 sabotagem-sanidade
-nativo (manjaro) | bash tools/conteiner/build_local.sh manjaro debug && bash tools/conteiner/build_local.sh manjaro sabotagem-sanidade
-nativo (mint22.3) | bash tools/conteiner/build_local.sh mint22.3 debug && bash tools/conteiner/build_local.sh mint22.3 sabotagem-sanidade
+nativo (fedora44) | NL_FATIA=espelho-fedora44 bash tools/conteiner/build_local.sh fedora44 debug && NL_FATIA=espelho-fedora44 bash tools/conteiner/build_local.sh fedora44 sabotagem-sanidade
+nativo (ubuntu26.04) | NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 debug && NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 sabotagem-sanidade
+nativo (manjaro) | NL_FATIA=espelho-manjaro bash tools/conteiner/build_local.sh manjaro debug && NL_FATIA=espelho-manjaro bash tools/conteiner/build_local.sh manjaro sabotagem-sanidade
+nativo (mint22.3) | NL_FATIA=espelho-mint22.3 bash tools/conteiner/build_local.sh mint22.3 debug && NL_FATIA=espelho-mint22.3 bash tools/conteiner/build_local.sh mint22.3 sabotagem-sanidade
 higiene (segredos e travessão) | bash tools/espelho/job_higiene.sh
 camadas (portão A2 e autoteste) | bash tools/espelho/job_camadas.sh
 flatpak (build contra SDK KDE 6.11 e bundle) | bash tools/espelho/job_flatpak.sh

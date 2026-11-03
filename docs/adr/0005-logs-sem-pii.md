@@ -1,6 +1,6 @@
 # ADR 0005: logs sem PII, segredo e inscrição do emitente (ADR-S4)
 
-**Status:** ACEITO por Narciso (CISO) em 25/10/2026 (N3), com as mudanças marcadas `[alterado pelo CISO, 25/10/2026]`. Ver a seção "Revisão do CISO (25/10/2026)" no fim. A relação entre a chave de acesso e o Id da NFS-e é INFERÊNCIA a conferir no manual antes de NL-2.7 (seção "Pendências"); se não se confirmar, a chave é redigida por inteiro, sem mudar este aceite.
+**Status:** ACEITO por Narciso (CISO) em 25/10/2026 (N3), com as mudanças marcadas `[alterado pelo CISO, 25/10/2026]`. Ver a seção "Revisão do CISO (25/10/2026)" no fim. A relação entre a chave de acesso e o Id da NFS-e é INFERÊNCIA a conferir no manual ou na chave real da NL-2.10 (seção "Pendências"; destinos da verificação revistos em 28/10/2026, DA-2.21); se não se confirmar, a chave é redigida por inteiro, sem mudar este aceite.
 **Data:** 25/10/2026.
 **Origem:** recomendação do CTO no plano, NL-1.9 (mascarar a inscrição do emitente no Id da DPS e na chave de acesso); spec 4.6 (requisito do brief de logar ID da DPS e chave de acesso, campos em aberto).
 **Relacionadas:** ADR-0002 (caminho do A1 fora do log), ADR-0003 (segredos fora do log), `docs/seguranca/modelo-de-ameacas.md` (C7.x).
@@ -13,7 +13,7 @@
 - FATO, `docs/pesquisa/onda1_leiaute.md` seção 3: o pattern do XSD (`[0-9]{14}`) aceita zeros à direita e à esquerda. A posição do CPF é regra semântica, e precisa ficar no código e no teste.
 - FATO, XSD de Produção Restrita 1.01, `tiposSimples_v1.01.xsd`, linhas 31 a 41 (tipo `TSIdNFSe`, lido em 25/10/2026 na pasta de download da pesquisa, `/var/tmp/notalivre-pesquisa-onda1/xsd-dl/x/`): o Id da NFS-e tem 53 posições, com o padrão `NFS[0-9]{9}[0-9A-Z]{14}[0-9]{27}`. A documentação dá a formação: "NFS" + Cód.Mun. (7) + Amb.Ger. (1) + Tipo de Inscrição Federal (1) + Inscrição Federal (14) + No. NFS-e (13) + AnoMes Emis. (4) + Cód.Num. (9) + DV (1). O mesmo texto está no Anexo I de 20/10, linha 541 do dump.
 - FATO, dump do Anexo I de 20/10 (`anexo1_prodrest.txt`, linhas 649 e 652, campos `chNFSeRej` e `chSubstda`): a chave de acesso tem tamanho 50.
-- INFERÊNCIA: a chave de 50 posições é o Id de 53 sem o prefixo "NFS" (7 + 1 + 1 + 14 + 13 + 4 + 9 + 1 = 50). A inscrição do emitente, portanto, está na chave, como o CTO supôs. Conferir no manual da API antes de NL-2.7.
+- INFERÊNCIA: a chave de 50 posições é o Id de 53 sem o prefixo "NFS" (7 + 1 + 1 + 14 + 13 + 4 + 9 + 1 = 50). A inscrição do emitente, portanto, está na chave, como o CTO supôs. Conferir no manual da API ou, na falta dele, na chave real da NL-2.10 `[alterado pelo CISO, 28/10/2026, DA-2.21]`.
 
 ## Decisão (proposta)
 
@@ -68,23 +68,24 @@
 
 ## Verificação
 
-- NL-2.7, varredura obrigatória: roda a suíte ponta a ponta com fixtures que contêm CPF, CNPJ, senha, token e chave. Procura cada valor das fixtures nos logs. Resultado esperado: zero ocorrências, com a contagem de linhas varridas impressa, e zero é sinal de varredura quebrada se o total for 0 (L-36).
+- `[alterado pelo CISO, 28/10/2026, DA-2.21]` NL-2.7, varredura com piso sobre os logs que o teste do `Log` gera; NL-2.9, varredura obrigatória ponta a ponta: roda a suíte ponta a ponta da CLI contra o servidor falso com fixtures que contêm CPF, CNPJ, senha, token e chave. Procura cada valor das fixtures nos logs. Resultado esperado: zero ocorrências, com a contagem de linhas varridas impressa, e zero é sinal de varredura quebrada se o total for 0 (L-36).
 - NL-2.7, sabotagem de estreia: logar a senha de propósito e ver o portão ficar vermelho (plano, NL-2.7).
 - NL-2.7, teste posicional: o Id da DPS gerado com o CPF da fixture tem `##############` nas posições 12 a 25. O teste procura o CPF da fixture no log, e não um padrão de regex, porque o XSD não distingue zero à esquerda de zero à direita (`docs/pesquisa/onda1_leiaute.md` 3).
-- NL-2.7, teste posicional da chave: a chave de acesso gerada com a inscrição da fixture tem `##############` nas posições 13 a 26 do Id de 53 (10 a 23 da chave de 50), e a inscrição da fixture não aparece no log.
+- `[alterado pelo CISO, 28/10/2026, DA-2.21]` NL-2.8, teste posicional da chave (marcado INFERÊNCIA até a NL-2.10 conferir a chave real; até a NL-2.8 a chave é descartada): a chave de acesso gerada com a inscrição da fixture tem `##############` nas posições 13 a 26 do Id de 53 (10 a 23 da chave de 50), e a inscrição da fixture não aparece no log.
 - NL-2.7, teste de allowlist: campo novo sem declaração é descartado e contado.
 - NL-2.7, teste de injeção: entrada com quebra de linha não cria linha falsa no log.
-- `[alterado pelo CISO, 25/10/2026]` NL-2.7, teste do manipulador de mensagens: um `qWarning` com o CPF da fixture não aparece nem no arquivo de log nem na saída de erro capturada do processo. Sabotagem: não instalar o manipulador e ver o teste vermelho.
-- `[alterado pelo CISO, 25/10/2026]` NL-2.7, teste de erro da API: uma resposta do servidor falso com texto livre contendo o CPF da fixture gera só o código `E` no log.
+- `[alterado pelo CISO, 25/10/2026]` `[alterado pelo CISO, 28/10/2026, DA-2.21]` NL-2.9 (CLI) e NL-4.5 (GUI), teste do manipulador de mensagens: um `qWarning` com o CPF da fixture não aparece nem no arquivo de log nem na saída de erro capturada do processo. Sabotagem: não instalar o manipulador e ver o teste vermelho.
+- `[alterado pelo CISO, 25/10/2026]` `[alterado pelo CISO, 28/10/2026, DA-2.21]` NL-2.8, teste de erro da API: uma resposta do servidor falso com texto livre contendo o CPF da fixture gera só o código `E` no log.
+- `[alterado pelo CISO, 28/10/2026, DA-2.21]` NL-2.9, teste de exceção: exceção que chega ao topo da CLI entra no log só com o tipo e a posição no código; a mensagem passa pela allowlist (seção 3, stack trace).
 
 ## Pendências
 
-- **Relação chave de acesso e Id da NFS-e:** INFERÊNCIA de que a chave de 50 posições é o Id de 53 sem o prefixo `NFS`. Conferir no manual da API antes de NL-2.7. Se a relação não se confirmar, a chave volta a ser redigida por inteiro (seção 2), sem nova decisão do líder.
+- **Relação chave de acesso e Id da NFS-e:** INFERÊNCIA de que a chave de 50 posições é o Id de 53 sem o prefixo `NFS`. Conferir no manual da API ou, na falta dele, na chave real da NL-2.10 `[alterado pelo CISO, 28/10/2026, DA-2.21]`. Se a relação não se confirmar, a chave volta a ser redigida por inteiro (seção 2), sem nova decisão do líder.
 - **Retenção da auditoria** e **teto de rotação**: com Cláudio.
 
 ## Riscos residuais
 
-- Exceção de biblioteca de terceiro pode trazer dado pessoal em texto livre. Mitigado pela allowlist e pela varredura de NL-2.7. Residual baixo.
+- Exceção de biblioteca de terceiro pode trazer dado pessoal em texto livre. Mitigado pela allowlist e pela varredura ponta a ponta da NL-2.9. Residual baixo.
 - O log fica no computador do usuário, sem proteção contra quem tem a máquina. A proteção do log é o sistema de arquivos e a sandbox.
 
 ## Fontes

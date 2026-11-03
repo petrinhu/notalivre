@@ -1,0 +1,8 @@
+# Valores de referência do portão de PII do NotaLivre (NL-2.7, ADR-S4). Formato: categoria|valor.
+# CPF e CNPJ vêm das fixtures de teste do repositório (tests/fixtures e tests/e2e).
+# Senha, token e envelope são sintéticos: nenhum é segredo real.
+cpf|52998224725
+cnpj|11222333000181
+senha|senha-de-teste-NL27
+token|credencial-de-teste-NL27
+envelope|PERQUz5OTDI3LXRlc3RlPC9EUFM+

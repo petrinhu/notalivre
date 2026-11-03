@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Testes obrigatórios por distro (NL-2.14, revisão devops MÉDIA-2; CISO, 31/10/2026, 05:08:44). Uma linha por teste: distro,
+# teste e motivo, separados por espaço. Cada teste desta lista tem de estar no CTest da distro, senão o portão reprova.
+# A prova de que o bloqueio de rede roda em pelo menos uma imagem (condição do CISO) vem daqui e de tests/fixtures/xmldsig/
+# tabela_http_por_distro.txt: o slot contextoDoParserBloqueiaRede roda em todas as imagens nativas, e nas que têm libxml2 com
+# cliente HTTP (fedora44 e mint22.3, pela tabela) ele tem de provar o bloqueio, não afirmar a ausência. A conferência é a
+# do próprio teste: ele reprova se a tabela e a libxml2 da imagem não concordarem.
+fedora44 xmldsig.contextoDoParserBloqueiaRede prova de rede (libxml2 com cliente HTTP, bloqueio provado)
+fedora44 xmldsig.tabelaHttpTemLinhaQueBloqueiaRede tabela de HTTP tem linha com_http
+ubuntu26.04 xmldsig.contextoDoParserBloqueiaRede afirmação de ausência de cliente HTTP (libxml2 2.15)
+ubuntu26.04 xmldsig.tabelaHttpTemLinhaQueBloqueiaRede tabela de HTTP tem linha com_http
+manjaro xmldsig.contextoDoParserBloqueiaRede afirmação de ausência de cliente HTTP (libxml2 2.15)
+manjaro xmldsig.tabelaHttpTemLinhaQueBloqueiaRede tabela de HTTP tem linha com_http
+mint22.3 xmldsig.contextoDoParserBloqueiaRede prova de rede (libxml2 2.9 com cliente HTTP, bloqueio provado)
+mint22.3 xmldsig.tabelaHttpTemLinhaQueBloqueiaRede tabela de HTTP tem linha com_http
+flatpak xmldsig.tabelaHttpTemLinhaQueBloqueiaRede tabela de HTTP tem linha com_http
