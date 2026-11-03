@@ -224,8 +224,21 @@ limpar_dps() {
 }
 
 # Monta a DPS do roteiro (3.8) com o número dado e libera o arquivo para o programa.
+# NL-2.10j, J2 (DA-2.99): a forma do totTrib segue o regime. MEI: indTotTrib 0. ME/EPP: pTotTribSN com --ptottribsn; sem ele, pTotTrib 0,00.
+# Não optante: pTotTrib 0,00 nos três percentuais. O domínio (NL-2.10j, J1) recusa qualquer outra combinação antes do número.
+totTrib_da_dps() {
+    if [ "$OPSIMP" = 2 ]; then
+        TOTTRIB_JSON='{ "indTotTrib": "0" }'
+    elif [ "$OPSIMP" = 3 ] && [ -n "$PTOTTRIBSN" ]; then
+        TOTTRIB_JSON="{ \"pTotTribSN\": \"$PTOTTRIBSN\" }"
+    else
+        TOTTRIB_JSON='{ "pTotTribFed": "0.00", "pTotTribEst": "0.00", "pTotTribMun": "0.00" }'
+    fi
+}
+
 montar_dps() {
     local n="$1" dh dc prest_chave im_linha="" reg_apt_linha="" ctribmun_linha=""
+    totTrib_da_dps
     # NL-2.10g: o prestador leva CNPJ ou CPF (nunca os dois) e a IM. Os valores são fechados por validação, sem aspas nem barras.
     if [ "$INSC_TIPO" = cpf ]; then
         prest_chave="\"cpf\": \"$INSC_VALOR\","
@@ -267,7 +280,7 @@ montar_dps() {
   "valores": {
     "vServ": "$VALOR",
     "tribMun": { "tribISSQN": "$TRIB_ISSQN", "tpRetISSQN": "$RET_ISSQN" },
-    "totTrib": { "indTotTrib": "0" }
+    "totTrib": ${TOTTRIB_JSON}
   }
 }
 EOF
@@ -365,6 +378,8 @@ BA_ATIVA=""
 LEMBRAR_EXCLUIR=""
 PFX_USADO=""
 CTRIBMUN=""
+PTOTTRIBSN=""
+TOTTRIB_JSON=""
 PEDIR_CTRIBMUN=0
 PEDIR_NOVO=0
 LEMBRAR_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/notalivre-teste"
@@ -462,6 +477,33 @@ definir_ctribmun_janela() {
     valida_ctribmun "$1" || falha "o código complementar municipal precisa ter 3 dígitos e não pode ser 000. Nada foi emitido."
     CTRIBMUN=$1; ORIG[ctribmun]=janela
 }
+# NL-2.10j, J2: --ptottribsn é o percentual aproximado do Simples, de 0,00 a 99,99, com até duas casas (vírgula ou ponto). Sai com ponto e duas casas.
+valida_ptottribsn() { [[ "$1" =~ ^(0|[1-9][0-9]?)([.,][0-9]{1,2})?$ ]]; }
+definir_ptottribsn() {
+    valida_ptottribsn "$1" || falha "o percentual do Simples (--ptottribsn) precisa estar entre 0,00 e 99,99, com até duas casas. Nada foi emitido."
+    local v=${1/,/.} inteiro casas
+    case "$v" in *.*) ;; *) v="$v.00" ;; esac
+    inteiro=${v%%.*}
+    casas=${v#*.}
+    case ${#casas} in 1) casas="${casas}0" ;; esac
+    PTOTTRIBSN="$inteiro.$casas"; ORIG[ptottribsn]=opcao
+}
+# Só ME/EPP (opSimpNac 3) manda o percentual do Simples. Opção com MEI ou não optante para antes do número; o lembrado é descartado.
+validar_ptottribsn() {
+    [ -n "$PTOTTRIBSN" ] || return 0
+    [ "$OPSIMP" = 3 ] && return 0
+    if [ "${ORIG[ptottribsn]:-}" = opcao ]; then
+        falha "o percentual do Simples (--ptottribsn) só vale para ME/EPP. Com MEI ou não optante, tire --ptottribsn. Nada foi emitido."
+    fi
+    PTOTTRIBSN=""
+}
+# Aviso para ME/EPP sem o percentual: a nota de teste vai com 0,00, e o aviso fala como ao usuário, sem valor.
+avisar_ptottrib() {
+    if [ "$OPSIMP" = 3 ] && [ -z "$PTOTTRIBSN" ]; then
+        printf 'Aviso: o percentual aproximado dos tributos do Simples não foi informado. A nota de teste vai com 0,00 nos três percentuais. Para a nota real, use --ptottribsn com a alíquota efetiva do seu DAS.\n'
+    fi
+}
+
 definir_opsimpnac() {
     [[ "$1" =~ ^[123]$ ]] || falha "o regime do Simples precisa ser 1 (não optante), 2 (MEI) ou 3 (ME/EPP). Nada foi emitido."
     OPSIMP=$1; ORIG[opsimpnac]=opcao
@@ -492,9 +534,9 @@ ler_opcoes() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --sem-im) nome=sem-im; valor=1; shift ;;
-            --cnpj=*|--cpf=*|--im=*|--ie=*|--municipio=*|--ctribnac=*|--ctribmun=*|--opsimpnac=*|--regaptribsn=*|--regesptrib=*|--valor=*|--descricao=*|--local-prestacao=*|--trib-issqn=*|--ret-issqn=*)
+            --cnpj=*|--cpf=*|--im=*|--ie=*|--municipio=*|--ctribnac=*|--ctribmun=*|--ptottribsn=*|--opsimpnac=*|--regaptribsn=*|--regesptrib=*|--valor=*|--descricao=*|--local-prestacao=*|--trib-issqn=*|--ret-issqn=*)
                 nome="${1%%=*}"; valor="${1#*=}"; shift ;;
-            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--ctribmun|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao|--local-prestacao|--trib-issqn|--ret-issqn)
+            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--ctribmun|--ptottribsn|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao|--local-prestacao|--trib-issqn|--ret-issqn)
                 [ "$#" -ge 2 ] || falha "a opção $1 pede um valor. Nada foi emitido."
                 nome="$1"; valor="$2"; shift 2 ;;
             *) falha "opção desconhecida (use --help para ver as opções). Nada foi emitido." ;;
@@ -518,6 +560,7 @@ ler_opcoes() {
     if [ -n "${OPT[municipio]+x}" ]; then definir_municipio "${OPT[municipio]}"; fi
     if [ -n "${OPT[ctribnac]+x}" ]; then definir_ctribnac "${OPT[ctribnac]}"; fi
     if [ -n "${OPT[ctribmun]+x}" ]; then definir_ctribmun "${OPT[ctribmun]}"; fi
+    if [ -n "${OPT[ptottribsn]+x}" ]; then definir_ptottribsn "${OPT[ptottribsn]}"; fi
     if [ -n "${OPT[opsimpnac]+x}" ]; then definir_opsimpnac "${OPT[opsimpnac]}"; fi
     if [ -n "${OPT[regaptribsn]+x}" ]; then definir_regaptribsn "${OPT[regaptribsn]}"; fi
     if [ -n "${OPT[regesptrib]+x}" ]; then definir_regesptrib "${OPT[regesptrib]}"; fi
@@ -604,6 +647,7 @@ resolver_campos() {
     fi
     # NL-2.10h: cTribMun só vem por opção ou lembrado; sem nenhum dos dois não há padrão (a janela pergunta, se for o caso).
     if [ "${ORIG[ctribmun]:-}" != opcao ] && [ -n "${LEM[ctribmun]+x}" ]; then CTRIBMUN=${LEM[ctribmun]}; ORIG[ctribmun]=lembrado; fi
+    if [ "${ORIG[ptottribsn]:-}" != opcao ] && [ -n "${LEM[ptottribsn]+x}" ]; then PTOTTRIBSN=${LEM[ptottribsn]}; ORIG[ptottribsn]=lembrado; fi
 }
 
 # NL-2.10h (H1, regra E0313): MEI não pode ter cTribMun. Opção para MEI para antes de consumir número; lembrado ou janela não
@@ -679,6 +723,7 @@ lembrar_valido() {
         ctribnac) valida_ctribnac "$v" ;;
         ctribmun) valida_ctribmun "$v" ;;
         pedir_ctribmun) [[ "$v" =~ ^[01]$ ]] ;;
+        ptottribsn) [[ "$v" =~ ^(0|[1-9][0-9]?)\.[0-9]{2}$ ]] ;;
         sem_im) [[ "$v" =~ ^[01]$ ]] ;;
         cnpj) cnpj_valido "$v" ;;
         im) valida_texto_fechado 15 "$v" ;;
@@ -723,6 +768,7 @@ gravar_lembrar() {
     novo[municipio]=$MUN_EMI
     novo[ctribnac]=$CTRIBNAC
     if [ -n "$CTRIBMUN" ]; then novo[ctribmun]=$CTRIBMUN; fi
+    if [ -n "$PTOTTRIBSN" ]; then novo[ptottribsn]=$PTOTTRIBSN; fi
     # NL-2.10h: a flag da janela vale só depois da resposta da Sefin que a pediu; qualquer outra resposta a limpa (não é escrita).
     if [ "$PEDIR_NOVO" = 1 ]; then novo[pedir_ctribmun]=1; fi
     novo[sem_im]=$SEM_IM
@@ -732,11 +778,11 @@ gravar_lembrar() {
     if [ -n "${PFX_USADO:-}" ]; then novo[pfx]=$PFX_USADO; fi
     novo[data]=$(date +%Y-%m-%d)
     mkdir -p -- "$LEMBRAR_DIR" && chmod 700 "$LEMBRAR_DIR" || return 1
-    for chave in opsimpnac regaptribsn regesptrib municipio ctribnac ctribmun pedir_ctribmun sem_im cnpj im pfx data; do
+    for chave in opsimpnac regaptribsn regesptrib municipio ctribnac ctribmun ptottribsn pedir_ctribmun sem_im cnpj im pfx data; do
         [ -n "${novo[$chave]+x}" ] || continue
         case " $LEMBRAR_EXCLUIR " in *" $chave "*) continue ;; esac
         case "$chave" in
-            opsimpnac|regaptribsn|regesptrib|municipio|ctribnac|ctribmun|sem_im)
+            opsimpnac|regaptribsn|regesptrib|municipio|ctribnac|ctribmun|ptottribsn|sem_im)
                 [ "${ORIG[$chave]:-padrao}" != padrao ] || continue
                 printf '%s=%s\n' "$chave" "${novo[$chave]}"
                 printf 'origem_%s=%s\n' "$chave" "${ORIG[$chave]}" ;;
@@ -771,6 +817,8 @@ dica_recusa() {
                else campo_recusado ctribmun "a Sefin trata o emitente como MEI: confira o regime e não informe --ctribmun"; fi ;;
         E0314) PEDIR_NOVO=1; campo_recusado ctribmun "use --ctribmun" ;;
         E0315) campo_recusado ctribmun "use --ctribmun" ;;
+        # NL-2.10j, J2 (DA-2.99): E0710 (MEI), E0712 e E0713 apontam para --ptottribsn (só ME/EPP) ou para o regime certo.
+        E0710|E0712|E0713) campo_recusado ptottribsn "use --ptottribsn com o percentual do seu DAS (só com ME/EPP), ou confira o regime com --opsimpnac" ;;
     esac
 }
 
@@ -793,7 +841,7 @@ procura_flag() {
         shift
         [ "$a" = "$alvo" ] && return 0
         case "$a" in
-            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--ctribmun|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao|--local-prestacao|--trib-issqn|--ret-issqn)
+            --cnpj|--cpf|--im|--ie|--municipio|--ctribnac|--ctribmun|--ptottribsn|--opsimpnac|--regaptribsn|--regesptrib|--valor|--descricao|--local-prestacao|--trib-issqn|--ret-issqn)
                 [ "$#" -gt 0 ] && shift ;;
         esac
     done
@@ -812,6 +860,8 @@ Cada opção vale como --opcao valor ou --opcao=valor.
   --ie T          inscrição estadual (de 1 a 20 caracteres): só confere; não vai na NFS-e e não é guardada.
   --municipio N   código IBGE do município emissor (7 dígitos, começa de 1 a 5). Padrão: o da consulta, ou 2611606.
   --ctribnac N    código de tributação nacional (6 dígitos; não 9903xx nem 990401). Padrão 040101.
+  --ptottribsn P  percentual aproximado do Simples, de 0,00 a 99,99 (vírgula ou ponto, até duas casas); só com ME/EPP (opção 3).
+                  Sem ele, a nota de teste vai com 0,00 nos três percentuais e um aviso.
   --ctribmun N    código complementar municipal (3 dígitos, nunca 000; não vale para MEI). Sem ele, a janela só pergunta
                   depois de uma recusa E0312, E0313 ou E0314 da execução anterior.
   --opsimpnac N   regime do Simples: 1 não optante, 2 MEI, 3 ME/EPP. Padrão: o da consulta, ou 3.
@@ -888,6 +938,7 @@ fluxo() {
     resolver_local_prestacao
     PEDIR_CTRIBMUN=${LEM[pedir_ctribmun]:-0}
     validar_ctribmun
+    validar_ptottribsn
     # IM (C4): só a IM abre a janela, e só se não veio por --im, não está lembrada e não há --sem-im.
     if [ "$SEM_IM" = 0 ] && [ -z "$IM" ] && [ -n "${LEM[im]+x}" ]; then definir_im "${LEM[im]}"; fi
     if [ "$SEM_IM" = 0 ] && [ -z "$IM" ]; then
@@ -896,6 +947,7 @@ fluxo() {
     janela_ctribmun
     validar_regime
     anunciar_origens
+    avisar_ptottrib
 
     # 3.3: o .pfx é escolhido pelo líder e só passa ao document-export. Nunca é impresso nem listado.
     # DA-2.94: o caminho guardado no lembrar é usado sem janela se passar na conferência; se não passar, a janela pergunta de novo.
