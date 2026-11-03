@@ -35,8 +35,8 @@
 - **E0116**, HTTP 400, nas execuções 20261101-210221 e 20261101-210339. O registro (linha 451) atribui essas execuções às DPS 5 e 6. Fatia aberta: NL-2.10g (linha 453).
 - **E0312**, HTTP 400, na execução 20261102-081300, DPS 7 (registro, linha 506). Fatia aberta: NL-2.10h (linha 509).
 - **E0712**, HTTP 400, na execução 20261102-200710, DPS 8 (registro, linha 528). Fatia aberta: NL-2.10j (linha 529).
-- Forma das três recusas: HTTP 400, `application/json; charset=utf-8`, lista `erros` com objetos que trazem `Codigo` e um texto de 88 caracteres.
-- Sem envio ao servidor: as execuções de 01/11 entre 15:31 e 15:34 saíram como `sefin.falha` sem status HTTP, antes da correção da NL-2.10e (FECH-2-0, item (c)). Outras execuções foram recusadas antes do envio, com código de 15 letras (FECH-2-0, item (a)).
+- Forma das quatro recusas: HTTP 400, `application/json; charset=utf-8`, lista `erros` com objetos que trazem `Codigo` e um texto de 88 caracteres.
+- Falha de transporte: as execuções de 01/11 entre 15:31 e 15:34 saíram como `sefin.falha` sem status HTTP, com causa não medida, antes da correção da NL-2.10e (FECH-2-0, itens (a) e (c)). Outras execuções foram recusadas antes do envio, com código de 15 letras (FECH-2-0, item (a)).
 
 ## 2. Inferências
 
@@ -46,23 +46,23 @@ Uma linha por INFERÊNCIA do plano, de INF-01 a INF-21. Nenhuma INFERÊNCIA nova
 |---|---|---|---|---|---|
 | INF-01 | plano, 450 | Referência `URI="#"` com o `Id` do `infDPS` | CONFIRMADA | DPS 9 aceita com status 201 e sem código E (FECH-2-0, item (a)) | não se aplica |
 | INF-02 | plano, 450 e 462 | `rsa-sha1`, digest sha1, C14N 20010315, `enveloped-signature`, `KeyInfo` só com `X509Certificate` | CONFIRMADA (não prova que `rsa-sha256` seria recusado) | `tools/producao_restrita/emitir_teste.sh:94`; a troca só ocorre em E0714 (`:1024`), que não apareceu (FECH-2-0, item (c)) | sem destino (a configuração já cobre) |
-| INF-03 | plano, 451, 464, 466, 541 e 542; spec, 126 e 212 | Corpo `{"dpsXmlGZipB64": ...}`, GZip RFC 1952 antes do Base64, `application/json` | CONFIRMADA | Status 201 com o envelope (FECH-2-0, item (a)); nome do campo em `src/mid/include/nl/mid/sefin/leiaute/prodrest_20261020/envelope_dps.h:21`; o Content-Type da requisição não foi registrado | não se aplica |
-| INF-04 | plano, 452 e 465 | Base `/SefinNacional` ou `/API/SefinNacional` | CONFIRMADA (`/SefinNacional`); NÃO EXERCIDA (`/API/SefinNacional`) | `tools/producao_restrita/emitir_teste.sh:93`; a troca só ocorre em 404 (`:1016`), e o FECH-2-0 não registra 404 (item (c)) | sem destino (a configuração já cobre) |
+| INF-03 | plano, 451, 464, 466, 541 e 542; spec, 126 e 212 | Corpo `{"dpsXmlGZipB64": ...}`, GZip RFC 1952 antes do Base64, `application/json` | CONFIRMADA | Status 201 com o envelope (FECH-2-0, item (a)); nome do campo em `src/mid/include/nl/mid/sefin/leiaute/prodrest_20261020/envelope_dps.h:21`; o Content-Type é fixado no código (`src/mid/sefin/leiaute/prodrest_20261020/envelope_dps.cpp:27` a `:44`; `src/mid/sefin/cliente/cliente_sefin.cpp:360`) e a Sefin aceitou a requisição (201) | não se aplica |
+| INF-04 | plano, 452 e 465 | Base `/SefinNacional` ou `/API/SefinNacional` | CONFIRMADA (`/SefinNacional`); NÃO EXERCIDA (`/API/SefinNacional`) | `tools/producao_restrita/emitir_teste.sh:93`; a troca só ocorre em 404 (`:1016`), e o FECH-2-0 não registra 404 (item (c)) | NL-12.1 (dossiê de go/no-go; a base de Produção tem outro host e é conferida ali) |
 | INF-05 | plano, 453 e 505 | Inscrição do A1 pelo OID 2.16.76.1.3.3 (CNPJ) | CONFIRMADA | A posição 9 da chave mascarada é tipo 2, que é CNPJ (FECH-2-0, item (e); `docs/adr/0005-*.md:12`); OID em `src/foundation/pkcs12/extrator_inscricao.cpp:19`; carga do A1 em `src/mid/composicao/emissao_cli.cpp:204-207`. A comparação entre A1 e DPS não foi medida (FECH-2-0, item (d)) | não se aplica |
 | INF-06 | plano, 453 e 505 | CPF nas posições 9 a 19 do OID 2.16.76.1.3.1 | NÃO EXERCIDA | O A1 usado é de CNPJ (FECH-2-0, item (e)) | NL-4.4 |
 | INF-07 | plano, 453 e 505 | "Mesma raiz" pelos 8 primeiros caracteres, como texto | NÃO EXERCIDA | Sem caso de raiz na emissão (FECH-2-0) | NL-4.4 |
-| INF-08 | plano, 456, 552 e 567 | Erro HTTP 400 com `Codigo` e `Descricao`; leitor aceita `erro`/`erros` e `Codigo`/`codigo` | CONFIRMADA (400, `erros`, `Codigo` com C maiúsculo); NÃO EXERCIDA (nome do campo de texto e variantes `erro` e `codigo`) | FECH-2-0, item (a), nas três recusas de HTTP 400. O nome do campo de texto aparece mascarado, e `Descricao` não foi visto | a definir pelo CTO (a ordem não traz destino para INF-08) |
+| INF-08 | plano, 456, 552 e 567 | Erro HTTP 400 com `Codigo` e `Descricao`; leitor aceita `erro`/`erros` e `Codigo`/`codigo` | CONFIRMADA (400, `erros`, `Codigo` com C maiúsculo); NÃO EXERCIDA (nome do campo de texto e variantes `erro` e `codigo`) | FECH-2-0, item (a), nas quatro recusas de HTTP 400. O nome do campo de texto aparece mascarado, e `Descricao` não foi visto | NL-8.10 (microcópia do catálogo E; se o `Descricao` da Sefin serve de reserva, por exemplo no E1204, é decisão dessa fatia) |
 | INF-09 | plano, 456, 552, 568 e 575 | GET /dps/{id} sem nota devolve 404 com E2404 | NÃO EXERCIDA | Nenhuma execução registrou GET /dps/{id} (FECH-2-0, item (c)) | NL-3.7 |
 | INF-10 | plano, 456 e 552 | Sucesso com `chaveAcesso` de 50 posições | CONFIRMADA (e status 201 como FATO novo) | FECH-2-0, itens (a), (e) e (g) | não se aplica |
 | INF-11 | plano, 456, 552 e 572 | XML da NFS-e em GZip e Base64 no corpo do sucesso (`nfseXmlGZipB64`) | CONFIRMADA (presença do campo); NÃO EXERCIDA (decodificação) | `nfseXmlGZipB64` com 6892 caracteres (FECH-2-0, item (b)); `src/mid/sefin/cliente/cliente_sefin.cpp:156-160` | NL-4.2 |
 | INF-12 | plano, 572 | Teto de 5 MiB do XML descompactado cobre uma NFS-e | NÃO EXERCIDA | Só o Base64 foi visto, não o XML descompactado (FECH-2-0, item (b)) | NL-4.2 |
 | INF-13 | plano, 456 e 568 | 409 para DPS duplicada | NÃO EXERCIDA | Nenhuma execução registrou 409 (FECH-2-0, item (c)) | NL-3.7 |
 | INF-14 | plano, 568 | Número de tentativas do retry medido na NL-2.10 | NÃO EXERCIDA | Nenhuma falha transitória com resposta da Sefin (FECH-2-0, item (c)) | Onda 11 |
-| INF-15 | plano, 570 | Inscrição nas posições 10 a 23 da chave de 50; 13 a 26 do Id de 53 | CONFIRMADA (chave de 50); NÃO EXERCIDA (Id de 53) | A máscara da chave está nas posições 10 a 23 (FECH-2-0, item (e)); o leiaute bate nas posições 1 a 9 e 37 a 40 (`docs/adr/0005-*.md:33`). A inscrição real não foi comparada, por ser dado pessoal | NL-4.2 |
+| INF-15 | plano, 570 | Inscrição nas posições 10 a 23 da chave de 50; 13 a 26 do Id da NFS-e de 53 posições | CONFIRMADA (chave de 50); NÃO EXERCIDA (Id da NFS-e de 53 posições) | A máscara da chave está nas posições 10 a 23 (FECH-2-0, item (e)); o leiaute bate nas posições 1 a 9 e 37 a 40 (`docs/adr/0005-*.md:33`). A inscrição real não foi comparada, por ser dado pessoal | NL-4.2 |
 | INF-16 | plano, 571 | Forma como a Sefin devolve E1207 (certificado revogado) | NÃO EXERCIDA | Nenhum certificado revogado na emissão (FECH-2-0) | NL-4.4 |
 | INF-17 | plano, 575 e 580 | Classificação de antes e depois do envio; recusa do certificado sem entrega à aplicação | NÃO EXERCIDA | Nenhuma execução registrou `sefin.transporte_falhou` (FECH-2-0, item (c)); as falhas de 01/11 saíram como `sefin.falha` sem status | Onda 11 |
 | INF-18 | plano, 578 | A NFS-e devolvida traz o `infDPS` sem alteração | NÃO EXERCIDA | O caminho do E0014 e do 409 não rodou (FECH-2-0, item (c)) | NL-3.7 |
-| INF-19 | plano, 648 | Sem adesão do município, a Sefin rejeita | NÃO EXERCIDA (o município aceitou) | A DPS 9 foi aceita para o município 2611606 (FECH-2-0, itens (a) e (e)) | sem destino (o município aderiu; a recusa por adesão continua tratada pela mensagem do catálogo) |
+| INF-19 | plano, 648 | Sem adesão do município, a Sefin rejeita | NÃO EXERCIDA (o município aceitou) | A DPS 9 foi aceita para o município 2611606 (FECH-2-0, itens (a) e (e)) | NL-5.4 (parâmetros municipais; a consulta mostra a adesão e o app pode avisar antes de enviar) |
 | INF-20 | plano, 531 | O codec não emite `xmlns:xsi` | CONFIRMADA | `git grep` no blob, em `src`: nenhum código emite o namespace. Há dois comentários do assinador, `src/foundation/xmldsig/assinador_xml.cpp:115` e `:466`, que descrevem herança | não se aplica |
 | INF-21 | spec, 344 | O servidor falso valida o que o app faz, não a aceitação pela Sefin | CONFIRMADA | A aceitação real foi medida numa DPS (FECH-2-0, item (a)); o servidor falso não a substitui | não se aplica |
 
@@ -73,7 +73,7 @@ Uma linha por INFERÊNCIA do plano, de INF-01 a INF-21. Nenhuma INFERÊNCIA nova
 - **Corpo de erro.** Traz a lista `erros`, com `Codigo` (C maiúsculo) e um texto de 88 caracteres. O nome do campo de texto não aparece no FECH-2-0 (item (a)).
 - **Falha de transporte antes da correção.** Três execuções de 01/11 entre 15:31 e 15:34 saíram como `sefin.falha` sem status HTTP, antes da NL-2.10e (FECH-2-0, item (c)).
 - **Ausência de consultas.** Nenhuma execução fez GET /dps/{id} ou GET /nfse/{chave}, e nenhuma recebeu 404, 409, E2404 ou E0014 (FECH-2-0, item (c)).
-- **Número de DPS das recusas de E0116.** O registro de decisões (linha 451) atribui E0116 às DPS 5 e 6. A ordem do CTO dizia DPS 6. Este documento não atribui número de DPS às execuções de E0116.
+- **Número de DPS das recusas de E0116.** O registro de decisões (linha 451) atribui E0116 às DPS 5 e 6, versão adotada neste documento. A ordem do CTO trazia só a DPS 6.
 - **cTribMun da execução de 09:31.** Não consta de fonte permitida para essa execução (ver seção 1).
 
 ## 4. Marcadores no código
