@@ -6,7 +6,7 @@
 
 **Architecture:** biblioteca núcleo em quatro camadas (Front, Mid, Back, Foundation) com dependência só para baixo (L-33), consumida por uma CLI e por uma interface QML. O caminho crítico de engenharia (DPS válida no XSD, XMLDSIG, envio mTLS contra servidor falso) fecha antes da interface completa; a casca QML nasce cedo, em trilha paralela, para receber o design visual.
 
-**Tech Stack:** C++23, Qt 6.12 (QtCore, QtNetwork, QtSql, QtQuick, QtNetworkAuth, QtGui/QPdfWriter), CMake, OpenSSL 3, libsodium (só Argon2id), libxml2, xmlsec1, zlib, libmariadb, QtKeychain; servidor falso em Python (biblioteca padrão); CI em GitHub Actions com contêineres; entrega em Flatpak.
+**Tech Stack:** C++23, Qt 6.12 (QtCore, QtNetwork, QtSql, QtQuick, QtNetworkAuth, QtGui/QPdfWriter), CMake, OpenSSL 3, libsodium (só Argon2id; nos testes, no CI e no pacote, por Biblioteca direto), libxml2, xmlsec1, zlib, libmariadb (cliente direto, sem o módulo parsec), QtKeychain; servidor falso em Python (biblioteca padrão); CI em GitHub Actions com contêineres; entrega em Flatpak.
 
 **Spec:** `docs/superpowers/specs/2026-10-25-notalivre-design.md` (as seções citadas como "spec 4.x" são dele). Pesquisas de base: `docs/pesquisa/*.md`.
 
@@ -130,12 +130,12 @@ Licença marcada como INFERÊNCIA quando não está nas pesquisas. Toda licença
 | XMLDSIG | C14N da libxml2 e RSA e SHA do OpenSSL 3, sem dependência nova (DA-2.1, 27/10/2026); `xmlsec1` de linha de comando só como oráculo nas imagens de teste | MIT e Apache-2.0 (INFERÊNCIA, já dependências) | FATO medido na pesquisa da Onda 2 (`onda2_assinatura_certificado.md`, f): `xmlsec1` ausente nas quatro imagens e no runtime e SDK KDE 6.11; a `libxmlsec1` no app exigiria autorização nova (L-51) | Não |
 | XML e XSD | libxml2 | MIT (INFERÊNCIA) | Validação contra XSD (NL-1.6a) e C14N da assinatura (NL-2.3) | Não |
 | PKCS#12, AES-256-GCM, RSA-OAEP, HMAC | OpenSSL 3 | Apache-2.0, compatível com GPL-3 (INFERÊNCIA) | FATO: `QSslCertificate::importPkcs12` existe (`stack.md`). Escolho OpenSSL direto por já ser dependência do TLS do Qt e da assinatura (DA-2.1); AES-GCM sempre disponível (INFERÊNCIA) | Não |
-| Argon2id | libsodium (`crypto_pwhash`) | ISC (INFERÊNCIA) | INFERÊNCIA do CTO: Argon2 no OpenSSL só existe a partir da 3.2, e a base do Mint 22.3 (Ubuntu 24.04) traz 3.0. libsodium só oferece AES-256-GCM em CPU com AES-NI, por isso fica só para Argon2id. Fecha com `openssl list -kdf-algorithms` medido em cada contêiner (NL-0.4) | Não |
+| Argon2id | libsodium (`crypto_pwhash`) | ISC (FATO, ver docs/juridico/onda3-k2-bibliotecas.md) | INFERÊNCIA do CTO: Argon2 no OpenSSL só existe a partir da 3.2, e a base do Mint 22.3 (Ubuntu 24.04) traz 3.0. libsodium só oferece AES-256-GCM em CPU com AES-NI, por isso fica só para Argon2id. Fecha com `openssl list -kdf-algorithms` medido em cada contêiner (NL-0.4) | Não |
 | GZip e Base64 | zlib e Qt | Zlib (INFERÊNCIA) | Spec C4, corrigido em 27/10/2026 (DA-2.6): nem GZip nem Base64 têm fonte oficial encontrada; os dois são INFERÊNCIA de três fontes secundárias (`onda2_api_sefin.md`, 1.2), confirmada na NL-2.10. `qCompress` não gera GZip (INFERÊNCIA do CTO) | Não |
 | mTLS | QtNetwork (`QSslConfiguration`) | LGPL-3 (FATO, Qt LGPLv3, spec 3.3) | FATO: mTLS via `QSslConfiguration`, só exemplos de fórum (`stack.md`). Medido em NL-2.5 | Não |
 | OAuth com PKCE | QtNetworkAuth | **GPL-3 ou comercial, sem LGPL** (INFERÊNCIA do CTO, Cláudio confirma) | FATO: `PkceMethod` S256 desde Qt 6.8; `QOAuthHttpServerReplyHandler` com loopback; `callbackHost` desde 6.9 (`docs/pesquisa/email.md`) | **PORTA P5** |
 | SMTP | SimpleMail ou libcurl, escolha na pesquisa da Onda 7 | LGPL-2.1 e licença curl (INFERÊNCIA) | FATO: Qt não tem SMTP nativo, fonte de fórum (`stack.md`) | Não |
-| Driver do banco | QMYSQL com libmariadb (Connector/C) | LGPL-2.1 (INFERÊNCIA) | FATO: QMYSQL usa a biblioteca cliente em runtime; presença no runtime KDE NÃO CONFIRMADA (`docs/pesquisa/flatpak.md`). Prefiro libmariadb à libmysqlclient pela licença (INFERÊNCIA do CTO, Cláudio confirma) | Não |
+| Driver do banco | QMYSQL com libmariadb (Connector/C) | LGPL 2 ou posterior na maior parte, com COPYING.LIB em 2.1, trechos só LGPL 2, BSD e PHP, e um plugin só GPL 2 (INFERÊNCIA, correção do CLO, ver docs/juridico/onda3-k2-bibliotecas.md); QMYSQL por GPL-3.0-only; parsec fora do pacote (-DCLIENT_PLUGIN_PARSEC=OFF) | FATO: QMYSQL usa a biblioteca cliente em runtime; presença no runtime KDE NÃO CONFIRMADA (`docs/pesquisa/flatpak.md`). Prefiro libmariadb à libmysqlclient pela licença (INFERÊNCIA do CTO, Cláudio confirma) | Não |
 | Chaveiro | QtKeychain (libsecret) | BSD (INFERÊNCIA) | FATO: Secret portal com falhas em 2024 e 2026; workaround por `--talk-name` (`flatpak.md`). Chaveiro é opcional por decisão do líder: na falha, o app pede a senha, nunca grava texto claro | Não |
 | PDF do DANFSe | QPdfWriter e QPainter (QtGui) | LGPL-3 | INFERÊNCIA do CTO. Pré-visualização dentro do app com QtPdf, se couber | Não |
 | QR do DANFSe | qrcodegen (Nayuki) ou libqrencode | MIT ou LGPL-2.1 (INFERÊNCIA) | Se a NT 008 exigir QR (a confirmar na pesquisa da Onda 7) | Não |
@@ -897,7 +897,7 @@ Executor das telas: frontend-engineer. Revisão: qa-engineer (capturas em contê
 
 | Tipo | Onde | Quando |
 |---|---|---|
-| Integração com banco | MySQL 8.4 e MariaDB 11.8 em contêiner local e como `services` do CI | Onda 3 em diante |
+| Integração com banco | MySQL 8.4 e 8.0, MariaDB 11.8, 10.11 e 13.0, em contêiner local e como `services` do CI (decisão do líder de 04/11/2026, Servidores: testar todas) | Onda 3 em diante |
 | Contrato com a Sefin | servidor falso em contêiner local e no CI (Ondas 1 a 10) e Sefin real de Produção Restrita pela mão do líder (Onda 11) | toda fatia de rede |
 | Ponta a ponta pela CLI | contêiner local e CI, servidor falso | Onda 1 em diante |
 | Interface | Qt Quick Test offscreen em contêiner local e no CI; captura conferida pelo qa-engineer com md5 (L-13) | Onda 1 em diante |
@@ -951,7 +951,7 @@ Cada ponto vai por `AskUserQuestion`, com a recomendação primeiro. L4 e L11 fo
 | L11 Antes | "Confirmar, script para (Recomendado)" | CLAUDE.md, Adaptação da L-70 (Fase 1); P:691 |
 | L11 Migração | "Copiar, conferir, trocar (Recomendado)" | CLAUDE.md, Adaptação da L-70 (Fase 3); P:691 |
 | L11 Descarte | "Cópia e série nova (Recomendado)" | CLAUDE.md, Adaptação da L-70 (Fase 5); P:691; P:152 |
-| L11 Segurança e Bitwarden | "com segundo passo opcional, opt-in, nas configuracoes"; "Guardar no Bitwarden (Recomendado)" | CLAUDE.md, Adaptação da L-70 (Fase 4); ADR-0003 (NL-3.0b, pendente) |
+| L11 Segurança e Bitwarden | "com segundo passo opcional, opt-in, nas configuracoes"; "Guardar no Bitwarden (Recomendado)" | CLAUDE.md, Adaptação da L-70 (Fase 4); ADR-0003 aceita com condições (NL-3.0b e NL-3.0c) |
 | L11 Depois | "Sem envio automático (Recomendado)" | CLAUDE.md, Adaptação da L-70 (Fase 6) |
 | Outra série | "Oferecer com aviso curto (Recomendado)" | P:152, coluna 2 |
 | Nome | "Qualquer ordem (Recomendado)" | Spec, bloco Resgate (S:216) |
