@@ -30,7 +30,7 @@ Coleta em 25/10/2026. Só coleta, sem escolha de desenho. Nenhuma instalação o
 - FATO: Qt documenta QMYSQL/MARIADB como plugin que usa a biblioteca cliente MySQL/MariaDB em runtime. [https://doc.qt.io/qt-6.12/sql-driver.html] (data NÃO ENCONTRADA)
 - FATO: Flatpak diz que `org.kde.Platform` traz "most Qt modules and KDE Frameworks". [https://docs.flatpak.org/en/latest/qt.html] (data NÃO ENCONTRADA; página cita runtime-version 5.15-24.08)
 - FATO: o manifesto de um runtime fica em `/usr/manifest.json` dentro dele, lido com `flatpak run --command=cat org.kde.Platform//<branch> /usr/manifest.json`. [https://docs.flathub.org/docs/for-users/finding-sources, via busca] (data NÃO ENCONTRADA). Este comando exige runtime instalado, por isso não foi executado (L-51).
-- NÃO ENCONTRADO: confirmação de `libqsqlmysql` ou `libmariadb` no runtime 6.10/6.11/6.12. Procurei: "Qt QMYSQL driver flatpak org.kde.Platform qsqlmysql", "flatpak-kde-runtime qtbase sql mysql feature". Não foi possível ler o manifesto KDE (branch sem listagem).
+- NÃO ENCONTRADO: confirmação de `libqsqlmysql` ou `libmariadb` no runtime 6.10/6.11/6.12. Procurei: "Qt QMYSQL driver flatpak org.kde.Platform qsqlmysql", "flatpak-kde-runtime qtbase sql mysql feature". Não foi possível ler o manifesto KDE (branch sem listagem). Emenda de 04/11/2026: busca por nome no deploy da 6.11, em docs/pesquisa/onda3_banco_cripto.md, seção 3, não achou as peças; confirmação pelo build da NL-3.2a; runtime 6.12 NÃO MEDIDO.
 - NÃO ENCONTRADO: exemplo de manifesto que empacote libmariadb-connector-c como módulo para Qt SQL em Flatpak.
 
 ## Q4. libmysqld (MySQL) e libmariadbd (MariaDB)

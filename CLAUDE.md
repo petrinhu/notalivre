@@ -59,6 +59,9 @@ Os itens marcados "decisão do líder" são decisões do líder de 25/10/2026. O
 - **CI em PR de terceiros (decisão do líder, 25/10/2026; achado A0-07).** Workflow disparado por PR de colaborador externo só roda com aprovação manual, configurado no repositório.
 - **A GUI usa o núcleo, nunca a CLI (decisão do líder, 01/11/2026).** Verbatim (19:53, trecho): "E não é pra rodar a cli em segundo plano. Deve rodar normalmente." Esclarecimento do líder (19:55): "Falo da GUI. Ela não deve ser apenas uma chamadora da CLI em segundo plano". Regra derivada (CTO, DA-2.83 e DA-2.85, a ratificar): a GUI chama a biblioteca núcleo pelas fachadas de `src/mid/composicao`, as mesmas da CLI (spec, linhas 149 e 362). A GUI não executa a CLI nem chama programa por processo ou por shell; abrir URL pelo portal do sistema é permitido. Verificação: portão de camadas (NL-2.38).
 - **GUI Wayland com X11 de reserva (decisão do líder, 01/11/2026).** Verbatim (trecho): "A GUI basta ser wayland. Não precisa compatibilidade x11." Depois do argumento do main de que o Mint abre o Cinnamon em X11 por padrão, resposta por AskUserQuestion: "Manter X11 de reserva (Recomendado)". O manifesto fica com `--socket=wayland` e `--socket=fallback-x11`.
+- **Bibliotecas (decisão do líder, 04/11/2026, via AskUserQuestion: "Biblioteca direto (Recomendado)").** Autoriza cliente MariaDB e libsodium nos testes, no CI e no pacote; desvio de CONTRACT:800 registrado (L-73); sem parsec. Cada item é baixado só quando a fatia que o usa começar, com o tamanho medido no relatório da fatia.
+- **Servidores (decisão do líder, 04/11/2026, via AskUserQuestion: "Testar todas (Recomendado)").** Autoriza as imagens `mysql:8.0`, `mariadb:10.11` e `mariadb:13.0`, só para os testes.
+- **Contrato (decisão do líder, 04/11/2026, via AskUserQuestion: "Adiantar o contrato (Recomendado)").** NL-3.8 depois da NL-3.1d, em série.
 
 ## Adaptação da L-70 (deploy irreversível)
 
