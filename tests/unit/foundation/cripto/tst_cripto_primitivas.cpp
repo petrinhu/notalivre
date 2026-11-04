@@ -18,15 +18,6 @@
 
 namespace cr = nl::foundation::cripto;
 
-namespace {
-
-QString codigoDe(const nl::base::Erro& erro)
-{
-    return QString::fromStdString(erro.codigo());
-}
-
-} // namespace
-
 class TstCriptoPrimitivas : public QObject
 {
     Q_OBJECT
