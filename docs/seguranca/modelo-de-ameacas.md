@@ -15,7 +15,9 @@
 | SM | Senha-mestra | Crítica | Só na memória, durante o desbloqueio |
 | CR | Código de recuperação (128 bits) | Crítica | Papel do usuário; não gravado pelo app |
 | SC | Senha do certificado | Crítica | Memória, por tempo limitado (spec 4.5) |
-| DEK | Chave de dados (256 bits) | Crítica | Só envelopada no banco |
+| DEK | Chave-raiz por cofre (256 bits) | Crítica | Só envelopada no banco |
+| S | Segredo da instalação, de onde saem K_loc e K_int | Alta | Arquivo do app, permissão 0600, fora do banco |
+| F2 | Segredo do segundo passo, opcional | Alta | Com o usuário: gerenciador de senhas ou arquivo; nunca no banco |
 | KEK | Chaves de envelope (senha, código, A1, chaveiro) | Crítica | Derivadas; nunca gravadas em claro |
 | CHV | Segredo mestre do portal Secret (chaveiro opcional) | Alta | Portal do sistema (keyring) |
 | CAMPOS | CPF/CNPJ, nome, endereço, telefone, e-mail, inscrição municipal de tomador | Alta (dado pessoal, LGPD) | Banco, cifrado por campo |
@@ -57,7 +59,7 @@ Convenção das colunas: **STRIDE** (S, T, R, I, D, E); **ADR** que decide; **Ri
 | ID | STRIDE | Ameaça | Mitigação | ADR | Risco residual |
 |---|---|---|---|---|---|
 | C1.1 | I | Outro processo do host lê o `.pfx` original | Sandbox; o FileChooser concede acesso só ao arquivo escolhido (FATO: manual Flatpak, `docs/pesquisa/flatpak.md` Q7) | ADR-S1 | Malware do mesmo usuário fora da sandbox |
-| C1.2 | I | Cópia do contêiner A1 no banco vaza por backup ou disco | Contêiner cifrado pela DEK; sem a DEK o contêiner não tem uso | ADR-S1, ADR-S2 | Cópia do banco mais `.pfx` original mais senha do certificado abrem a DEK (trade-off da spec 4.4, aceito por N4) |
+| C1.2 | I | Cópia do contêiner A1 no banco vaza por backup ou disco | Contêiner cifrado pela DEK; sem a DEK o contêiner não tem uso | ADR-S1, ADR-S2 | Cópia do banco mais `.pfx` original mais senha do certificado abrem a DEK (trade-off da spec 4.4, aceito pelo líder em 04/11/2026), para todo emissor que usa aquele certificado |
 | C1.3 | I | Chave privada em memória é lida depois do uso | Zeragem dos buffers da senha e liberação de EVP_PKEY e PKCS12 ao fim de cada operação; bloqueio em 15 min parado, bloqueio de tela e fechamento | ADR-S1 | Zeragem é melhor esforço: cópias internas de OpenSSL e Qt (INFERÊNCIA, medir em NL-2.2) |
 | C1.4 | I | Senha do certificado em log, erro ou tela | Proibido em log (ADR-S4); mensagem de erro sem o segredo | ADR-S4 | Baixo |
 | C1.5 | T | Certificado de outro CNPJ ou cadeia inválida é aceito como A1 do emissor | Validação de CNPJ raiz e cadeia ICP-Brasil; erros distintos (SemInscricao, CadeiaInvalida) em NL-2.2 | ADR-S1 | Depende da regra de validação, a implementar |
@@ -77,7 +79,7 @@ Convenção das colunas: **STRIDE** (S, T, R, I, D, E); **ADR** que decide; **Ri
 | C2.4 | D | Usuário perde senha-mestra e código | Recuperação por A1 ("1+2" da spec 4.4), com a cópia da DEK envelopada pelo certificado (ADR-S2) | ADR-S2 | Sem A1 original e sem código, os dados cifrados se perdem (decisão do líder, spec 4.4); notas voltam pelo ADN, o cadastro local não |
 | C2.5 | I | Código de recuperação anotado em lugar inseguro | Exibição única com confirmação; app não grava o código em claro | ADR-S2 | Custódia é do usuário; onde mora o código está em aberto (spec 4.4) |
 | C2.6 | E | Troca de senha-mestra sem prova da senha atual | Troca exige desbloqueio atual e re-envelopa só a DEK (ADR-S2, regra 6) | ADR-S2 | Baixo |
-| `[alterado pelo CISO, 25/10/2026]` C2.7 | E | Quem copiou o `.pfx` ou viu o código usa o mesmo caminho de recuperação de novo, sem rastro | Toda recuperação força senha-mestra nova e código novo, re-envelopa a DEK e grava na auditoria (ADR-S1, decisão 7) | ADR-S1, ADR-S2 | Uma recuperação indevida, uma vez, continua possível com `.pfx` e senha |
+| `[alterado pelo CISO, 25/10/2026]` C2.7 | E | Quem copiou o `.pfx` ou viu o código usa o mesmo caminho de recuperação de novo, sem rastro | Toda recuperação força senha-mestra nova e código novo, re-envelopa a DEK e grava na auditoria (ADR-S1, decisão 7) | ADR-S1, ADR-S2 | Recuperação indevida continua possível com `.pfx` e senha, quantas vezes houver esses dois, e quem recupera troca a senha do dono; a troca não corta esse caminho nem cópias antigas |
 | `[alterado pelo CISO, 25/10/2026]` C2.8 | E | A1 sem `keyEncipherment` usado para RSA-OAEP, contra o `keyUsage` crítico do certificado | O importador lê `keyUsage` e tipo de chave e não usa a chave fora do que o certificado autoriza; mecanismo para esse A1 é do líder (ponto L4) | ADR-S1, ADR-S2 | `keyEncipherment` é opcional na ICP-Brasil (FATO, PC AC FECOMERCIO MG RFB A1 v1.1, item 7.1.2.7 f) |
 
 ### C3. Cofre de campos, DEK, índice cego e banco (CAMPOS, IDX, DEK, XML, NUM). Fronteira TB3
@@ -86,10 +88,10 @@ Convenção das colunas: **STRIDE** (S, T, R, I, D, E); **ADR** que decide; **Ri
 |---|---|---|---|---|---|
 | C3.1 | T | Alguém com acesso ao banco troca valor de uma linha por outra | AES-256-GCM com AAD (tabela, coluna, id da linha, versão, key_id); teste `linhaTrocadaDetectadaPelaAad` (NL-3.4) | ADR-S2 | Apagar linhas continua possível (D) |
 | C3.2 | I | Administrador do banco lê dados pessoais | Campos cifrados por DEK; sem DEK, só o texto cifrado | ADR-S2 | Metadados: tamanho, quantidade e igualdade entre linhas |
-| C3.3 | I | Dicionário offline sobre CPF (10^11 valores) via índice cego | HMAC-SHA-256 com chave derivada da DEK, separada da chave de campo (ADR-S3) | ADR-S3 | Vazamento de igualdade (mesmo tomador repetido) |
+| C3.3 | I | Dicionário offline sobre CPF (10^11 valores) via índice cego | HMAC-SHA-256 com chave derivada da DEK de cada cofre, separada da chave de campo (ADR-S3) | ADR-S3 | Vazamento de igualdade dentro de um emissor |
 | C3.4 | I | Roubo do disco expõe o MySQL | Cifra InnoDB ou MariaDB file_key_management; chave em arquivo no mesmo host (FATO, flatpak.md Q5) | ADR-S2 (nota) | Camada complementar, não principal: a chave fica no mesmo host |
 | C3.5 | R | Nota emitida é alterada depois | XML assinado e retorno guardados; auditoria de alterações | ADR-S4 | Sem assinatura do próprio registro (proposta a avaliar) |
-| C3.6 | D | Perda do banco | Recomendar ao usuário backup cifrado e fora do computador (documentação); recuperação da numeração em aberto (INBOX) | ADR-S2 | Numeração pode voltar a colidir se o banco se perder (E0014 e P3 do plano) |
+| C3.6 | D | Perda do banco | Recomendar ao usuário backup cifrado e fora do computador (documentação); restaurar sem o banco atual leva cada emissor a escolher outra série (decisão do líder, 04/11/2026) | ADR-S2 | Cópia guarda as chaves da época; contador e município, a confirmar sobre segunda série |
 | C3.7 | E | Injeção de SQL pelo código de aplicação | Executor parametrizado; consulta com concatenação não compila (NL-3.1) | ADR-S2 (executor) | Erro de implementação, coberto por teste |
 
 ### C4. mTLS com o ADN e a SEFIN. Fronteira TB4
@@ -159,7 +161,7 @@ Convenção das colunas: **STRIDE** (S, T, R, I, D, E); **ADR** que decide; **Ri
 
 ## 5. Riscos residuais de maior impacto
 
-1. Cópia do banco mais `.pfx` original mais senha do certificado abrem os dados pessoais (C1.2). Trade-off da spec 4.4, herdado da porta P1, aceito ou não por Narciso (N4). `[alterado pelo CISO, 25/10/2026]` Narciso recomenda aceitar, e o aceite final é do líder (ponto L4). Residual real: o `.pfx` costuma ficar no mesmo disco, e o PKCS#12 pode cair por força bruta offline se a senha for curta.
+1. Cópia do banco mais `.pfx` original mais senha do certificado abrem os dados pessoais (C1.2). Trade-off da spec 4.4, herdado da porta P1, aceito pelo líder em 04/11/2026 ("Aceitar o risco (Recomendado)"). Vale para todo emissor que usa aquele certificado, e quem o tem pode trocar a senha do dono pela recuperação. O segundo passo não cobre este caminho. Residual real: o `.pfx` costuma ficar no mesmo disco, e o PKCS#12 pode cair por força bruta offline se a senha for curta.
 2. Perda simultânea de senha-mestra, código e arquivo A1 (C2.4). Perda de dados, decisão do líder.
 3. Cadeia de build e distribuição (C2.1, C8.3). Depende de ADR-0001 e da revisão do job privilegiado (C6 da ADR-0001, aberto para o líder).
 4. Cópias de memória fora do controle (C1.3, C4.3, C10.1). Mitigação parcial, medir.

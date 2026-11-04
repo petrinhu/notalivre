@@ -34,12 +34,12 @@
    - saída de 32 bytes, para a chave AES-256 da KEK-senha.
 3. **Registro gravado junto do dado:** algoritmo, versão, `memlimit`, `opslimit` e salt. **Nunca a saída.** A saída é a KEK-senha. Gravá-la, mesmo numa string de hash, entregaria a chave que envelopa a DEK e anularia a hierarquia da ADR-0003.
 4. **Prova de senha correta:** é o envelope AES-256-GCM da DEK que decifra com a KEK derivada. Falha de tag significa senha errada ou registro íntegro falho, com a mesma mensagem única da ADR-0003. Não existe comparação com hash armazenado.
-5. **Piso de aceitação ao ler:** `memlimit` ≥ 19 MiB e `opslimit` ≥ 2 (mínimo da OWASP). Registro abaixo do piso é recusado, sem derivar com parâmetros mais fracos (anti-downgrade, fail closed).
+5. **Piso de aceitação ao ler:** `memlimit` ≥ 19 MiB e `opslimit` ≥ 2 (mínimo da OWASP). O localizador (ADR-0003, regra 12) não usa este piso: nunca fica abaixo dos parâmetros de criação. Registro abaixo do piso é recusado, sem derivar com parâmetros mais fracos (anti-downgrade, fail closed).
 6. **Subida de custo:** se o registro estiver abaixo dos parâmetros vigentes e acima do piso, o desbloqueio bem-sucedido deriva a KEK com os parâmetros novos, re-envelopa a DEK e regrava o registro. Nenhuma saída de hash é gravada.
 7. **Medição de referência:** a derivação deve levar entre 0,5 s e 1,5 s na máquina de referência do projeto. Abaixo de 0,5 s, ~~sobe-se `opslimit`~~ `[alterado pelo CISO, 25/10/2026]` sobe-se o custo na ordem do subitem abaixo. Valor proposto, a validar em NL-3.2. A medição é custo para o atacante, e não bloqueio.
    - `[alterado pelo CISO, 25/10/2026]` **Ordem de ajuste, decidida por Narciso:** 64 MiB e `opslimit` 3 são o piso de criação, e nunca se cria abaixo dele. Se a derivação ficar abaixo de 0,5 s, sobe primeiro a memória, em potências de 2, até o teto de 256 MiB (o valor `MODERATE` do libsodium); só depois sobe `opslimit`. Memória pesa mais no custo do atacante do que passes. Os valores finais saem da medição de NL-3.2 e entram neste ADR com a máquina de referência.
-8. **Escopo:** Argon2id só deriva a KEK-senha. O código de recuperação não passa por ele (HKDF, ADR-0003). A senha do certificado não é derivada pelo app, porque é o segredo do próprio PKCS#12.
-9. `[alterado pelo CISO, 25/10/2026]` **Parâmetros presos ao envelope:** algoritmo, versão, `memlimit`, `opslimit` e salt entram na AAD do envelope da DEK pela senha (ADR-0003, regra 9), independentemente do que o líder decidir sobre o restante da regra 9 do ADR-0003. Adulterar o registro faz o desbloqueio falhar, em vez de derivar com outro custo.
+8. **Escopo:** Argon2id deriva a KEK-senha, sobre a entrada canônica da ADR-0003, e o localizador `[pendente: localizar]`. O código de recuperação não passa por ele (HKDF, ADR-0003). A senha do certificado não é derivada pelo app, porque é o segredo do próprio PKCS#12.
+9. `[alterado pelo CISO, 25/10/2026]` **Parâmetros presos ao envelope:** algoritmo, versão, `memlimit`, `opslimit`, salt e versão da entrada canônica entram na AAD do envelope da DEK pela senha (ADR-0003, regra 9). Adulterar o registro faz o desbloqueio falhar, em vez de derivar com outro custo.
 
 ## Alternativas consideradas
 
@@ -81,7 +81,7 @@
 
 ## Riscos residuais
 
-- Senha-mestra fraca escolhida pelo usuário continua sendo o risco principal. A política mínima de senha está em aberto e deve ser decidida junto com o assistente de primeiro uso (NL-8.9).
+- Senha-mestra fraca escolhida pelo usuário continua sendo o risco principal. A política mínima foi decidida pelo líder (spec 4.4). O segundo passo opcional protege a cópia do banco contra quem soube a senha (ADR-0003, regra 17).
 - Paralelismo fixo: o tempo legítimo de derivação é maior. INFERÊNCIA: o custo do atacante por tentativa é dominado pela memória, e não pelo número de lanes. Isso precisa de medição, e por isso fica como controle C2.
 - A tensão entre as seções 1 e 4 da RFC 9106 está registrada. ~~Se Narciso preferir Argon2i, a troca é possível sem migração de dado, desde que o registro grave a variante.~~ `[alterado pelo CISO, 25/10/2026]` Retirado: a variante é decisão do líder (spec 4.4), e não de Narciso. O registro grava a variante, o que deixa a troca possível sem migração se o líder um dia decidir outra.
 
