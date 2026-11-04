@@ -61,20 +61,22 @@ std::expected<Cifrado, nl::base::Erro> cifrarAes256Gcm(QByteArrayView chave, QBy
         return std::unexpected(detalhe::erroCripto("cripto.biblioteca", "o OpenSSL recusou chave ou nonce"));
     }
 
-    int tamanho = 0;
-    if (!aad.isEmpty() && EVP_EncryptUpdate(contexto.get(), nullptr, &tamanho, ponteiroDe(aad, vazio),
+    // A AAD não produz saída: o contador dela é próprio, para não entrar no tamanho do claro.
+    int ignorado = 0;
+    if (!aad.isEmpty() && EVP_EncryptUpdate(contexto.get(), nullptr, &ignorado, ponteiroDe(aad, vazio),
                                              static_cast<int>(aad.size())) != 1) {
         return std::unexpected(detalhe::erroCripto("cripto.biblioteca", "o OpenSSL recusou a AAD"));
     }
 
     QByteArray textoComTag(static_cast<qsizetype>(claro.size()) + kTamanhoTag, Qt::Uninitialized);
     auto* cifra = reinterpret_cast<unsigned char*>(textoComTag.data());
-    if (!claro.isEmpty() && EVP_EncryptUpdate(contexto.get(), cifra, &tamanho, ponteiroDe(claro, vazio),
+    int escritos = 0;
+    if (!claro.isEmpty() && EVP_EncryptUpdate(contexto.get(), cifra, &escritos, ponteiroDe(claro, vazio),
                                                static_cast<int>(claro.size())) != 1) {
         return std::unexpected(detalhe::erroCripto("cripto.biblioteca", "o OpenSSL falhou ao cifrar"));
     }
-    const int escritos = tamanho;
-    if (EVP_EncryptFinal_ex(contexto.get(), cifra + escritos, &tamanho) != 1 || tamanho != 0) {
+    int finalizados = 0;
+    if (EVP_EncryptFinal_ex(contexto.get(), cifra + escritos, &finalizados) != 1 || finalizados != 0) {
         return std::unexpected(detalhe::erroCripto("cripto.biblioteca", "o OpenSSL falhou ao fechar a cifragem"));
     }
 
@@ -126,23 +128,25 @@ std::expected<int, nl::base::Erro> decifrarAes256Gcm(QByteArrayView chave, QByte
         return falha("cripto.biblioteca", "o OpenSSL recusou chave ou nonce");
     }
 
-    int tamanho = 0;
-    if (!aad.isEmpty() && EVP_DecryptUpdate(contexto.get(), nullptr, &tamanho, ponteiroDe(aad, vazio),
+    // Mesmo cuidado de cifrarAes256Gcm: a AAD tem contador próprio, e o do claro começa em zero.
+    int ignorado = 0;
+    if (!aad.isEmpty() && EVP_DecryptUpdate(contexto.get(), nullptr, &ignorado, ponteiroDe(aad, vazio),
                                              static_cast<int>(aad.size())) != 1) {
         return falha("cripto.biblioteca", "o OpenSSL recusou a AAD");
     }
-    if (tamanhoCifra > 0 && EVP_DecryptUpdate(contexto.get(), claro.data(), &tamanho, cifra,
+    int escritos = 0;
+    if (tamanhoCifra > 0 && EVP_DecryptUpdate(contexto.get(), claro.data(), &escritos, cifra,
                                                static_cast<int>(tamanhoCifra)) != 1) {
         return falha("cripto.biblioteca", "o OpenSSL falhou ao decifrar");
     }
-    const int escritos = tamanho;
     if (EVP_CIPHER_CTX_ctrl(contexto.get(), EVP_CTRL_GCM_SET_TAG, kTamanhoTag, tag.data()) != 1) {
         return falha("cripto.biblioteca", "o OpenSSL recusou a tag");
     }
-    if (EVP_DecryptFinal_ex(contexto.get(), claro.data() + escritos, &tamanho) != 1) {
+    int finalizados = 0;
+    if (EVP_DecryptFinal_ex(contexto.get(), claro.data() + escritos, &finalizados) != 1) {
         return falha("cripto.tag", "autenticação do AES-GCM falhou: dado, AAD, nonce ou chave diferentes");
     }
-    return escritos + tamanho;
+    return escritos + finalizados;
 }
 
 } // namespace nl::foundation::cripto
