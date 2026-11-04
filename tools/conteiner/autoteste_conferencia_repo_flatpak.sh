@@ -36,10 +36,24 @@ montar_repo() {
     ostree --repo="$repo" commit --branch="$REF" --tree=dir="$arv" > /dev/null 2>&1
 }
 
+# montar_link <nome> <alvo 0|1>: o layout medido no build real (r2, fixture do revisor). files/lib/libsodium.so.26 é um
+# link relativo para libsodium.so.26.4.0. Com alvo 0 o alvo não existe e o link fica pendurado.
+montar_link() {
+    local nome="$1" arv="$BASE/$1/arvore" repo="$BASE/$1/repo"
+    mkdir -p "$arv/files/bin" "$arv/files/lib" "$arv/files/share/licenses/$ID/libsodium"
+    echo "app de teste" > "$arv/files/bin/notalivre-gui"
+    if [ "$2" = 1 ]; then echo "lib de teste" > "$arv/files/lib/libsodium.so.26.4.0"; fi
+    ln -s libsodium.so.26.4.0 "$arv/files/lib/libsodium.so.26"
+    echo "licenca de teste" > "$arv/files/share/licenses/$ID/libsodium/LICENSE"
+    ostree --repo="$repo" init --mode=archive > /dev/null 2>&1 || return 1
+    ostree --repo="$repo" commit --branch="$REF" --tree=dir="$arv" > /dev/null 2>&1
+}
+
 if [ ! -f "$CONFERE" ]; then
-    for c in R1 R2 R3 R4 R5 G1; do falha "$c conferencia_repo_flatpak.sh ausente"; done
+    for c in R1 R2 R3 R4 R5 R6 G1 G2; do falha "$c conferencia_repo_flatpak.sh ausente"; done
 else
     montar_repo r1 0 1 1 && montar_repo r2 1 0 1 && montar_repo r3 1 1 0 && montar_repo r5 0 0 0 && montar_repo g1 1 1 1 \
+        && montar_link g2 1 && montar_link r6 0 \
         || { echo "FIXTURE: falha ao criar os repositórios com ostree"; FALHAS=$((FALHAS + 1)); }
 
     # R1: sem o app, rc diferente de zero e o app citado.
@@ -77,6 +91,22 @@ else
         ok "R5 repositório vazio: reprova (rc=$rc) com analisados=0"
     else
         falha "R5 repositório vazio NÃO reprovou com analisados=0 (rc=$rc): $saida"
+    fi
+
+    # R6: a biblioteca é um link pendurado (o alvo não existe na ref): reprova e diz que o link está pendurado.
+    saida="$(bash "$CONFERE" "$BASE/r6/repo" "$REF" 2>&1)"; rc=$?
+    if [ "$rc" -ne 0 ] && [[ "$saida" == *"link pendurado"* ]] && [[ "$saida" == *"/files/lib/libsodium.so.26"* ]]; then
+        ok "R6 link pendurado: reprova (rc=$rc) e diz link pendurado"
+    else
+        falha "R6 link pendurado NÃO reprovou pelo motivo certo (rc=$rc): $saida"
+    fi
+
+    # G2: o layout real do build (link válido para o alvo da mesma árvore), rc zero e analisados=3.
+    saida="$(bash "$CONFERE" "$BASE/g2/repo" "$REF" 2>&1)"; rc=$?
+    if [ "$rc" -eq 0 ] && [[ "$saida" == *"analisados=3 falharam=0"* ]]; then
+        ok "G2 link válido para o alvo da mesma árvore: aprova (rc=$rc) com analisados=3"
+    else
+        falha "G2 link válido reprovou (rc=$rc): $saida"
     fi
 
     # G1: controle positivo, rc zero, analisados=3 e falharam=0.
