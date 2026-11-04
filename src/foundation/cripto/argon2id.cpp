@@ -4,6 +4,7 @@
 // Piso e teto são conferidos ANTES de qualquer derivação (ADR-0006, item 5). O libsodium é privado a este .cpp.
 
 #include <nl/foundation/cripto/argon2id.h>
+#include <nl/foundation/cripto/tamanhos.h>
 
 #include "nl/foundation/cripto/erros.h"
 

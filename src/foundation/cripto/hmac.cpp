@@ -7,6 +7,7 @@
 #include "nl/foundation/cripto/erros.h"
 
 #include <openssl/core_names.h>
+#include <openssl/evp.h>
 #include <openssl/params.h>
 
 #include <cstddef>
