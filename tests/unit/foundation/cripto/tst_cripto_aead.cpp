@@ -57,7 +57,42 @@ private slots:
     void falhaDeTagDeixaSaidaZerada();
     void nonceDeTamanhoErradoReprova();
     void chaveDeTamanhoErradoReprova();
+    void claroVazioComAadTagExata();
+    void claroVazioComAadDecifraRetornoZero();
 };
+
+// Vetor público do NIST CAVP gcmEncryptExtIV256 (PTlen = 0, AADlen = 16, chave de 256 bits). Lido nas fontes secundárias
+// que citam o CAVP, sem o zip do NIST: openHiTLS, autoverificação CMVP, https://github.com/openHiTLS/openHiTLS/blob/1b57ef13075732ac4d2d35c69c0cef88bd69e8e4/crypto/provider/src/cmvp/cmvp_utils/cmvp_selftest_mac.c#L174-L183
+// e Tink, https://fuchsia.googlesource.com/third_party/tink/+/5d4695d445c3231b0181c70b6694b410710967f6/javascript/subtle/aes_gcm_test.js
+// O valor não sai da implementação deste projeto.
+namespace {
+const QByteArray kChaveClaroVazio = QByteArray::fromHex("78dc4e0aaf52d935c3c01eea57428f00ca1fd475f5da86a49c8dd73d68c8e223");
+const QByteArray kIvClaroVazio = QByteArray::fromHex("d79cf22d504cc793c3fb6c8a");
+const QByteArray kAadClaroVazio = QByteArray::fromHex("b96baa8c1c75a671bfb2d08d06be5f36");
+const QByteArray kTagClaroVazio = QByteArray::fromHex("3e5d486aa2e30b22e040b85723a06e76");
+} // namespace
+
+void TstCriptoAead::claroVazioComAadTagExata()
+{
+    const auto cifrado = cr::cifrarAes256Gcm(kChaveClaroVazio, kIvClaroVazio, kAadClaroVazio, QByteArray());
+    QVERIFY2(cifrado.has_value(), "cifrar claro vazio com AAD não pode falhar");
+    QCOMPARE(cifrado->textoComTag.size(), static_cast<qsizetype>(cr::kTamanhoTag));
+    QCOMPARE(cifrado->textoComTag, kTagClaroVazio);
+}
+
+void TstCriptoAead::claroVazioComAadDecifraRetornoZero()
+{
+    QByteArray claro;
+    const auto decifrado = cr::decifrarAes256Gcm(kChaveClaroVazio, kIvClaroVazio, kAadClaroVazio, kTagClaroVazio, areaDe(claro));
+    QVERIFY2(decifrado.has_value(), "decifrar só a tag com AAD correta não pode falhar");
+    QCOMPARE(*decifrado, 0);
+
+    QByteArray aadTrocada = kAadClaroVazio;
+    aadTrocada[0] = static_cast<char>(aadTrocada[0] ^ 0x01);
+    const auto reprova = cr::decifrarAes256Gcm(kChaveClaroVazio, kIvClaroVazio, aadTrocada, kTagClaroVazio, areaDe(claro));
+    QVERIFY(!reprova.has_value());
+    QCOMPARE(codigoDe(reprova.error()), QStringLiteral("cripto.tag"));
+}
 
 void TstCriptoAead::gcmVetorMcgrewViega16()
 {
