@@ -918,6 +918,7 @@ O critério de "verde" de T1 é zero falha, sem percentual de cobertura (L-35 pr
 Cada ponto vai por `AskUserQuestion`, com a recomendação primeiro. L4 e L11 foram respondidos pelo líder em 04/11/2026 (seção 6.2). L8 não trava onda, mas condiciona os testes reais de NL-7.5 e a Onda 11.
 
 - **L8. Ações que só o líder faz (dependências, não decisões técnicas):** comprar o A1; criar o cliente OAuth desktop no Google Cloud dele e pedir a verificação do escopo `gmail.send` (FATO: teto de 100 usuários novos sem verificação, para sempre, `email.md` Q2); registrar o app no Entra; levar ao contador os 8 pontos do spec 6.4 e o prazo de guarda fiscal; consultar o INPI; na Onda 11, instalar o bundle da Onda 9 e operar a primeira emissão real com o A1 dele (NL-11.1), porque o A1 real não passa por mão de agente nem pelo CI.
+- **Perguntas abertas (Bloco B, Bloco C e N7).** Estão no registro do main e voltam ao líder antes da NL-3.3: Bloco B (8 perguntas), Bloco C (5) e N7.
 
 ### 6.2 Decisões do líder registradas (25/10/2026, AskUserQuestion do orquestrador)
 
@@ -942,8 +943,8 @@ Cada ponto vai por `AskUserQuestion`, com a recomendação primeiro. L4 e L11 fo
 | Senha do certificado | padrões: pedir ao reabrir o app, após 15 min parado e ao bloquear a tela; "a cada 20 notas" disponível e desligada; sempre pedir antes de emitir em Produção | NL-4.3, NL-8.8, N8 |
 | Tabelas | "Fontes oficiais + embutidas" | NL-1.10, Onda 5 inteira |
 | Spec visual | fechada em `docs/design/spec-visual.md` (Talão, Musgo, Bricolage Grotesque e Atkinson Hyperlegible, barra lateral, confortável, xDescServ de 1000 caracteres em várias linhas) | NL-1.8, NL-4.5, Onda 8, K8 |
-| L4 Cofre | "Aprovar (Recomendado)" | ADR-0003 (NL-3.0b, pendente) |
-| L4 Risco | "Aceitar o risco (Recomendado)" | ADR-0003 (NL-3.0b, pendente) |
+| L4 Cofre | "Aprovar (Recomendado)" | Registrado no canon na NL-3.0; ADR-0003 aceita com condições |
+| L4 Risco | "Aceitar o risco (Recomendado)" | Registrado no canon na NL-3.0; ADR-0003 aceita com condições |
 | L4 Numeração | "Aprovar (Recomendado)" | P:695, P:697 |
 | L4 E-mail | "Usar peça pronta (Recomendado)" | pendente, sem arquivo nesta fatia |
 | L11 Rito | "Primeiro dado real (Recomendado)" | CLAUDE.md, Adaptação da L-70 (Fase 0); P:152, P:153 |
@@ -956,7 +957,7 @@ Cada ponto vai por `AskUserQuestion`, com a recomendação primeiro. L4 e L11 fo
 | Nome | "Qualquer ordem (Recomendado)" | Spec, bloco Resgate (S:216) |
 | Cancelar | "App e certificado (Recomendado)" | Spec, bloco Cancelar (S:214); NL-4.8 (P:714 ao lado) |
 | Fora prazo | "Só orientar" | NL-4.1a (P:709); spec, bloco Cancelar |
-| Próximo | "Registrar e abrir fatias (Recomendado)" | não aplicado nesta fatia (P:686 pendente) |
+| Próximo | "Registrar e abrir fatias (Recomendado)" | Registrado no canon na NL-3.0 (P:686) |
 | N-01 | "Adotar na Onda 3 (Recomendado)" | CLAUDE.md, regra N-01 |
 
 Decisões que o próprio líder deixou para depois, com data marcada no plano: runtime e matriz Flatpak no início da Onda 9 (ponto L6); go/no-go de Produção na Onda 12 (sempre do líder, LEI ZERO).
