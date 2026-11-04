@@ -16,6 +16,18 @@ finish-args:
   - --share=ipc
   - --device=dri
 modules:
+  # NL-3.2a (parte 2), libsodium 1.0.22, licença ISC (K2 do CLO, docs/juridico/onda3-k2-bibliotecas.md, seção 2).
+  # Origem conferida pelo SHA-256 nas duas URLs: download.libsodium.org e github.com/jedisct1/libsodium (1.0.22-RELEASE).
+  - name: libsodium
+    buildsystem: autotools
+    config-opts:
+      - --disable-static
+    license-files:
+      - LICENSE
+    sources:
+      - type: archive
+        url: https://download.libsodium.org/libsodium/releases/libsodium-1.0.22.tar.gz
+        sha256: adbdd8f16149e81ac6078a03aca6fc03b592b89ef7b5ed83841c086191be3349
   - name: notalivre
     buildsystem: simple
     build-commands:
