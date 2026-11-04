@@ -31,22 +31,54 @@ fi
 analisados=0
 falharam=0
 
-# conferir <tipo: - arquivo, l link> <caminho dentro da ref> <rótulo>
-# A última coluna de `ostree ls -R` é o caminho completo; a primeira é o tipo e as permissões.
+# resolver <caminho dentro da ref>: a saída de `ostree ls -R` tem a primeira coluna com o tipo e as permissões (- arquivo,
+# d diretório, l link) e o caminho na última coluna; num link, o destino vem depois de " -> " e é relativo ao diretório do link.
+# Imprime o motivo e sai 0 só se a entrada é arquivo regular ou link cujo alvo existe na mesma ref. Link pendurado reprova.
+# O nome fica antes de " -> " (a última coluna de um link é o destino, não o caminho: medido na r2).
+resolver() {
+    awk -v p="$1" '
+    function nome_de(trecho,    partes, n) { n = split(trecho, partes, " "); return partes[n] }
+    {
+        idx = index($0, " -> ")
+        if (idx > 0) { trecho = substr($0, 1, idx - 1); alvo = substr($0, idx + 4) } else { trecho = $0; alvo = "" }
+        nome = nome_de(trecho)
+        tipo[nome] = substr($1, 1, 1)
+        destino[nome] = alvo
+        existe[nome] = 1
+    }
+    END {
+        if (!(p in existe)) { print "ausente"; exit 1 }
+        if (tipo[p] == "-") { print "arquivo regular"; exit 0 }
+        if (tipo[p] == "l") {
+            t = destino[p]
+            if (substr(t, 1, 1) != "/") { d = p; sub(/\/[^\/]*$/, "", d); t = d "/" t }
+            if (t ~ /(^|\/)\.\.(\/|$)/) { print "link pendurado: alvo " destino[p] " com .. não é resolvido por esta conferência"; exit 1 }
+            if (t in existe) { print "link para " destino[p]; exit 0 }
+            print "link pendurado: alvo " t " não existe na ref"; exit 1
+        }
+        print "tipo " tipo[p] " inesperado"; exit 1
+    }' "$LISTA"
+}
+
+# conferir <caminho dentro da ref> <rótulo>
 conferir() {
-    local tipo="$1" caminho="$2" rotulo="$3"
-    if awk -v t="$tipo" -v p="$caminho" 'substr($1, 1, 1) == t && $NF == p { achou = 1 } END { exit !achou }' "$LISTA"; then
+    local caminho="$1" rotulo="$2" motivo rc
+    motivo="$(resolver "$caminho")"; rc=$?
+    if [ "$rc" -eq 0 ]; then
         analisados=$((analisados + 1))
-        echo "ok: $caminho"
-    else
+        echo "ok: $caminho ($motivo)"
+    elif [ "$motivo" = ausente ]; then
         falharam=$((falharam + 1))
         echo "AUSENTE: $rotulo ($caminho) na ref $REF"
+    else
+        falharam=$((falharam + 1))
+        echo "AUSENTE: $rotulo ($caminho) na ref $REF: $motivo"
     fi
 }
 
-conferir - /files/bin/notalivre-gui "app"
-conferir - /files/lib/libsodium.so.26 "biblioteca libsodium"
-conferir - "/files/share/licenses/$ID/libsodium/LICENSE" "licença da libsodium"
+conferir /files/bin/notalivre-gui "app"
+conferir /files/lib/libsodium.so.26 "biblioteca libsodium"
+conferir "/files/share/licenses/$ID/libsodium/LICENSE" "licença da libsodium"
 
 echo "conferencia_repo_flatpak: analisados=$analisados falharam=$falharam"
 if [ "$analisados" -eq 0 ]; then
