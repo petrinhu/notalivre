@@ -6,7 +6,8 @@
 //     -kdfopt iter:3 -kdfopt memcost:65536 -kdfopt lanes:1 -kdfopt threads:1 -binary ARGON2ID | od -An -tx1
 // Entrada de fixture (texto): vetor-argon2-nl32b. Não é senha: é entrada de vetor, sem valor de segredo.
 // Saída em fedora44, OpenSSL 3.5.9, em 04/11/2026 (entrada de fixture não sensível, sem palavra de senha): c4 61 cf 7c 69 77 02 84 99 1d 71 ab fb a4 44 86
-// df 1a 36 92 22 48 e7 ad 70 7d 72 03 48 f7 0f e3. O vetor da suíte do libsodium (ciso, item 6) NÃO entra aqui: ver o relatório da fatia.
+// df 1a 36 92 22 48 e7 ad 70 7d 72 03 48 f7 0f e3.
+// Vetor público (argon2idVetorReferenciaPhc): PyNaCl, índice 2, gerado pelo CLI da PHC: https://github.com/pyca/pynacl/blob/29b07709fee9c75109b9c98a4485f5080c261224/tests/data/raw_argon2id_hashes.json#L23-L30. A suíte do libsodium não tem vetor positivo acima do piso.
 
 #include <nl/foundation/cripto/argon2id.h>
 
@@ -25,6 +26,9 @@ namespace {
 const QByteArray kSenhaDeTeste("vetor-argon2-nl32b");
 const QByteArray kSaltFixo = QByteArray::fromHex("000102030405060708090a0b0c0d0e0f");
 const QByteArray kVetorDeCriacao = QByteArray::fromHex("c461cf7c69770284991d71abfba44486df1a36922248e7ad707d720348f70fe3");
+const QByteArray kEntradaVetorPhc = QByteArray::fromHex("5a54676f4b655667");
+const QByteArray kSaltVetorPhc = QByteArray::fromHex("6f435364693762364933555966746a36");
+const QByteArray kEsperadoVetorPhc = QByteArray::fromHex("823cd743a9378b0013a61b275d8a8d61b4abf465e3c758");
 
 std::span<unsigned char> areaDe(QByteArray& buffer)
 {
@@ -49,6 +53,7 @@ class TstCriptoArgon2id : public QObject
 
 private slots:
     void argon2idVetorParametrosDeCriacao();
+    void argon2idVetorReferenciaPhc();
     void argon2idUsaParametrosRecebidos();
     void argon2idAbaixoDoPisoRecusa();
     void argon2idAcimaDoTetoRecusa();
@@ -68,6 +73,15 @@ void TstCriptoArgon2id::argon2idVetorParametrosDeCriacao()
 
     // Medição, não portão (ADR-0006, item 7): o tempo sai no log para o relatório da fatia.
     qInfo("medição argon2id: 64 MiB, 3 passes, p=1, uma derivação de %lld ms", static_cast<long long>(umaDerivacao));
+}
+
+void TstCriptoArgon2id::argon2idVetorReferenciaPhc()
+{
+    QByteArray saida(23, '\0');
+    const cr::ParametrosArgon2id parametros{67108864, 3, kSaltVetorPhc};
+    const auto resultado = cr::argon2id(kEntradaVetorPhc, parametros, areaDe(saida));
+    QVERIFY2(resultado.has_value(), "o vetor público da referência PHC não pode falhar");
+    QCOMPARE(saida, kEsperadoVetorPhc);
 }
 
 void TstCriptoArgon2id::argon2idUsaParametrosRecebidos()

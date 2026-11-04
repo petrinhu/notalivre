@@ -3,8 +3,8 @@
 # Contagem exata de funções por distro (NL-2.14, adendo 4 da DA-2.61; piso do tipo da DA-2.60). Uma linha por distro: distro N.
 # N é o total de testcases de todos os junitxml do build (initTestCase e cleanupTestCase incluídos). Comparada com ==.
 # Mudar a contagem é ato visível no diff, que a revisão confere contra os testes acrescentados ou retirados.
-fedora44 1485
-ubuntu26.04 1485
-manjaro 1485
-mint22.3 1485
-flatpak 1281
+fedora44 1486
+ubuntu26.04 1486
+manjaro 1486
+mint22.3 1486
+flatpak 1282
