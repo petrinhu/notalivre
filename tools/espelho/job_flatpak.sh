@@ -24,5 +24,10 @@ passo "bundle" flatpak run --user --filesystem="$D" --filesystem=xdg-data/flatpa
 passo "conferencia-bundle-libsodium" docker run --rm --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp \
     -v "$D/build:/build:ro,z" -v "$D/fonte/tools/conteiner:/conteiner:ro,z" \
     notalivre/build-fedora44:nl-2.0 bash /conteiner/conferencia_bundle_libs.sh /build
+# NL-3.2a (revisão A2): o repositório OSTree que gera o bundle tem o app, a biblioteca e a licença. Lido pelo ostree
+# do contêiner nl-0.5, só de leitura; o bundle não é executado.
+passo "conferencia-repo-flatpak" docker run --rm --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp \
+    -v "$D/repo:/repo:ro,z" -v "$D/fonte/tools/conteiner:/conteiner:ro,z" \
+    notalivre/flatpak-builder-fedora44:nl-0.5 bash /conteiner/conferencia_repo_flatpak.sh /repo
 [ "$PASSOS_FALHOS" -eq 0 ] && { echo "JOB flatpak: VERDE (bundle em $D/notalivre.flatpak)"; exit 0; }
 echo "JOB flatpak: VERMELHO ($PASSOS_FALHOS passo(s) com rc diferente de 0)"; exit 1
