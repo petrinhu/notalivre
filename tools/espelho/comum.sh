@@ -19,11 +19,17 @@ travar() {
     export NL_TRAVA_DETIDA
 }
 
-# Cópia da árvore de trabalho COM .git (o modo git do gitleaks precisa do histórico), sem build* nem worktrees.
+# Cópia da árvore de trabalho COM .git DIRETÓRIO (o modo git do gitleaks precisa do histórico), sem build* nem worktrees.
+# NL-3.E: o .git de uma worktree é arquivo que aponta para fora da cópia; o gitleaks lia 0 commits e saía com rc 0
+# (falso verde). Por isso o histórico vem de `git clone` local (resolve o .git-arquivo e dá um .git próprio, sem
+# alternates), e a árvore de trabalho, inclusive suja, vai por cima com tar, sem o .git de origem.
+# Por que clone e não recusa: recusar tornaria o espelho inutilizável nas worktrees, que são o fluxo padrão da fatia.
 copiar_arvore() {
     local destino="$1"
     rm -rf -- "$destino" && mkdir -p "$destino" || return 1
-    (cd "$RAIZ" && tar --exclude='./build*' --exclude='./worktrees' -cf - .) | tar -C "$destino" -xf - || return 1
+    git clone --quiet --no-hardlinks -- "$RAIZ" "$destino" || return 1
+    [ -d "$destino/.git" ] || return 1
+    (cd "$RAIZ" && tar --exclude='./.git' --exclude='./build*' --exclude='./worktrees' -cf - .) | tar -C "$destino" -xf - || return 1
 }
 
 # Espelho de higiene precisa da imagem de higiene (mesma do CI). Constrói só se faltar.
