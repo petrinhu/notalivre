@@ -21,22 +21,28 @@ ok() { echo "[VERDE] $1"; }
 falha() { echo "[VERMELHO] $1"; FALHAS=$((FALHAS + 1)); }
 
 # Fixtures: a biblioteca e a licença são arquivos vazios; a conferência olha nomes e presença, nunca o conteúdo.
-mkdir -p "$BASE/sem-lib/files/share/licenses/$ID"
-echo "licenca de teste" > "$BASE/sem-lib/files/share/licenses/$ID/LICENSE"
+mkdir -p "$BASE/sem-lib/files/share/licenses/$ID/libsodium"
+echo "licenca de teste" > "$BASE/sem-lib/files/share/licenses/$ID/libsodium/LICENSE"
 
 mkdir -p "$BASE/sem-licenca/files/lib"
 : > "$BASE/sem-licenca/files/lib/libsodium.so.26"
 
+# R4: há licença, mas é de OUTRO módulo (notalivre/NOTICE); a da libsodium (libsodium/LICENSE) falta.
+mkdir -p "$BASE/so-outro-modulo/files/lib" "$BASE/so-outro-modulo/files/share/licenses/$ID/notalivre"
+: > "$BASE/so-outro-modulo/files/lib/libsodium.so.26"
+echo "aviso de teste" > "$BASE/so-outro-modulo/files/share/licenses/$ID/notalivre/NOTICE"
+
 mkdir -p "$BASE/vazia"
 
-mkdir -p "$BASE/completa/files/lib" "$BASE/completa/files/share/licenses/$ID"
+mkdir -p "$BASE/completa/files/lib" "$BASE/completa/files/share/licenses/$ID/libsodium"
 : > "$BASE/completa/files/lib/libsodium.so.26"
-echo "licenca de teste" > "$BASE/completa/files/share/licenses/$ID/LICENSE"
+echo "licenca de teste" > "$BASE/completa/files/share/licenses/$ID/libsodium/LICENSE"
 
 if [ ! -f "$CONFERE" ]; then
     falha "R1 conferencia_bundle_libs.sh ausente"
     falha "R2 conferencia_bundle_libs.sh ausente"
     falha "R3 conferencia_bundle_libs.sh ausente"
+    falha "R4 conferencia_bundle_libs.sh ausente"
     falha "G1 conferencia_bundle_libs.sh ausente"
 else
     # R1: sem a biblioteca, rc diferente de zero e a biblioteca citada.
@@ -53,6 +59,14 @@ else
         ok "R2 sem licença: reprova (rc=$rc) e cita share/licenses"
     else
         falha "R2 sem licença NÃO reprovou pelo motivo certo (rc=$rc): $saida"
+    fi
+
+    # R4: a licença de outro módulo não serve; a da libsodium (libsodium/LICENSE) tem de estar, e é citada.
+    saida="$(bash "$CONFERE" "$BASE/so-outro-modulo" 2>&1)"; rc=$?
+    if [ "$rc" -ne 0 ] && [[ "$saida" == *"libsodium/LICENSE"* ]] && [[ "$saida" == *"AUSENTE"* ]]; then
+        ok "R4 só licença de outro módulo: reprova (rc=$rc) e cita libsodium/LICENSE"
+    else
+        falha "R4 só licença de outro módulo NÃO reprovou pelo motivo certo (rc=$rc): $saida"
     fi
 
     # R3: varredura vazia reprova, com analisados=0 impresso.
