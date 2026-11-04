@@ -34,7 +34,7 @@
    - saída de 32 bytes, para a chave AES-256 da KEK-senha.
 3. **Registro gravado junto do dado:** algoritmo, versão, `memlimit`, `opslimit` e salt. **Nunca a saída.** A saída é a KEK-senha. Gravá-la, mesmo numa string de hash, entregaria a chave que envelopa a DEK e anularia a hierarquia da ADR-0003.
 4. **Prova de senha correta:** é o envelope AES-256-GCM da DEK que decifra com a KEK derivada. Falha de tag significa senha errada ou registro íntegro falho, com a mesma mensagem única da ADR-0003. Não existe comparação com hash armazenado.
-5. **Piso de aceitação ao ler:** `memlimit` ≥ 19 MiB e `opslimit` ≥ 2 (mínimo da OWASP). O localizador (ADR-0003, regra 12) não usa este piso: nunca fica abaixo dos parâmetros de criação. Registro abaixo do piso é recusado, sem derivar com parâmetros mais fracos (anti-downgrade, fail closed).
+5. **Piso de aceitação ao ler:** `memlimit` ≥ 19 MiB e `opslimit` ≥ 2 (mínimo da OWASP). O localizador (ADR-0003, regra 12) não usa este piso: nunca fica abaixo dos parâmetros de criação. Registro abaixo do piso é recusado, sem derivar com parâmetros mais fracos (anti-downgrade, fail closed). Teto ao ler: `memlimit` até 256 MiB e `opslimit` até 16; acima disso, recusa sem alocar, porque o parâmetro é usado antes de a tag poder falhar. Sobe por versão do app.
 6. **Subida de custo:** se o registro estiver abaixo dos parâmetros vigentes e acima do piso, o desbloqueio bem-sucedido deriva a KEK com os parâmetros novos, re-envelopa a DEK e regrava o registro. Nenhuma saída de hash é gravada.
 7. **Medição de referência:** a derivação deve levar entre 0,5 s e 1,5 s na máquina de referência do projeto. Abaixo de 0,5 s, ~~sobe-se `opslimit`~~ `[alterado pelo CISO, 25/10/2026]` sobe-se o custo na ordem do subitem abaixo. Valor proposto, a validar em NL-3.2. A medição é custo para o atacante, e não bloqueio.
    - `[alterado pelo CISO, 25/10/2026]` **Ordem de ajuste, decidida por Narciso:** 64 MiB e `opslimit` 3 são o piso de criação, e nunca se cria abaixo dele. Se a derivação ficar abaixo de 0,5 s, sobe primeiro a memória, em potências de 2, até o teto de 256 MiB (o valor `MODERATE` do libsodium); só depois sobe `opslimit`. Memória pesa mais no custo do atacante do que passes. Os valores finais saem da medição de NL-3.2 e entram neste ADR com a máquina de referência.
@@ -73,10 +73,10 @@
 
 - NL-3.2: vetores de Argon2id (RFC 9106, apêndice de exemplos, ou suíte do próprio libsodium), a conferir na implementação.
 - `[alterado pelo CISO, 25/10/2026]` O vetor de Argon2id da RFC 9106 (seção 5.3) usa 4 lanes, segredo de 8 bytes e dado associado de 12 bytes, e `crypto_pwhash` não expõe nenhum dos três: esse vetor não pode passar e sai da verificação. Valem: (a) os vetores de Argon2id da suíte de testes do próprio libsodium; (b) um oráculo independente com p=1 e sem segredo nem dado associado. Candidato sem download novo: `openssl kdf` com o algoritmo `ARGON2ID` e `lanes:1`, se o OpenSSL da imagem `fedora:44`, já autorizada, for 3.2 ou mais novo (INFERÊNCIA, conferir na imagem em NL-3.2). Qualquer outra ferramenta de oráculo pede autorização do líder antes (L-51).
-- `[alterado pelo CISO, 25/10/2026]` NL-3.2: o envelope da DEK pela senha falha quando um parâmetro gravado é adulterado (regra 9). Sabotagem: tirar os parâmetros da AAD e ver o teste vermelho.
-- NL-3.2: o registro gravado não contém a KEK derivada da fixture (mesmo padrão de `campoGravadoNaoTemTextoClaro`). Sabotagem: gravar a saída e ver o teste ficar vermelho.
+- `[alterado pelo CISO, 25/10/2026]` NL-3.3: o envelope da DEK pela senha falha quando um parâmetro gravado é adulterado (regra 9). Sabotagem: tirar os parâmetros da AAD e ver o teste vermelho.
+- NL-3.3: o registro gravado não contém a KEK derivada da fixture (mesmo padrão de `campoGravadoNaoTemTextoClaro`). Sabotagem: gravar a saída e ver o teste ficar vermelho.
 - NL-3.2: anti-downgrade. Registro com `memlimit` abaixo do piso é recusado. Sabotagem: remover a checagem e ver o teste ficar vermelho.
-- NL-3.2: leitura de parâmetros. O desbloqueio usa os valores gravados, e não constantes. Sabotagem: fixar `opslimit` = 1 no código e ver o teste ficar vermelho.
+- NL-3.2 e NL-3.3: leitura de parâmetros. A primitiva e o desbloqueio usam os valores gravados, e não constantes. Sabotagem: fixar `opslimit` = 1 no código e ver o teste ficar vermelho.
 - NL-3.2: medição de tempo registrada no relatório da fatia (não é portão de CI, porque o runner do CI não representa o usuário).
 
 ## Riscos residuais
