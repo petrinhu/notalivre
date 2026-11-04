@@ -21,7 +21,7 @@
 
 | Classe | O que entra | Exemplos |
 |---|---|---|
-| **Proibido** | Nunca aparece, nem mascarado | Senha-mestra, senha do certificado, senha SMTP, tokens OAuth, DEK, KEK, código de recuperação, conteúdo do A1, CPF ou CNPJ completo de tomador, nome, endereço, telefone, e-mail, inscrição municipal, corpo de e-mail e anexo. `[alterado pelo CISO, 25/10/2026]` Também: XML da DPS, da NFS-e e de evento; corpo de requisição e de resposta HTTP; texto livre de mensagem de erro da API (só o código `E` entra); cabeçalhos de autenticação e cookies; dados do certificado (nome e CPF ou CNPJ do titular, número de série); nome e caminho de arquivo |
+| **Proibido** | Nunca aparece, nem mascarado | Senha-mestra, senha do certificado, senha SMTP, tokens OAuth, DEK, KEK, código de recuperação, segredo do segundo passo, segredo da instalação, valor de conferência, chave headless, conteúdo do A1, CPF ou CNPJ completo de tomador, nome, endereço, telefone, e-mail, inscrição municipal, corpo de e-mail e anexo. `[alterado pelo CISO, 25/10/2026]` Também: XML da DPS, da NFS-e e de evento; corpo de requisição e de resposta HTTP; texto livre de mensagem de erro da API (só o código `E` entra); cabeçalhos de autenticação e cookies; dados do certificado (nome e CPF ou CNPJ do titular, número de série); nome e caminho de arquivo |
 | **Mascarado** | Aparece com a parte sensível substituída | Inscrição do emitente no Id da DPS e na chave de acesso (regra abaixo). O caminho do arquivo A1 não entra em nenhuma classe (ADR-0002) |
 | **Permitido** | Aparece como está | Município, tipo de inscrição, série, número da DPS, código de evento, código de erro `E` da API, status HTTP, timestamp, identificador de correlação, versão do app, nome da operação. `[alterado pelo CISO, 25/10/2026]` Também o identificador interno do emissor e do tomador (número local do banco, nunca CPF, CNPJ ou e-mail) |
 
@@ -44,7 +44,7 @@
 ### 4. Auditoria (separada do log técnico)
 
 - Registra quem, o quê, quando, de onde (instalação e emissor) e em qual objeto, para: emitir, cancelar, substituir, trocar A1, desbloquear o cofre, exportar ou apagar tomador (LGPD, art. 18), enviar e-mail e alterar cadastro.
-- `[alterado pelo CISO, 25/10/2026]` Também registra recuperação pelo código ou pelo A1 e a troca forçada que vem depois (ADR-0002, decisão 7). Objeto, emissor e destinatário entram pelo identificador interno, nunca por CPF, CNPJ ou e-mail; a mesma allowlist do log técnico vale para a auditoria.
+- `[alterado pelo CISO, 25/10/2026]` Também registra recuperação pelo código ou pelo A1 e a troca forçada que vem depois (ADR-0002, decisão 7); ligar e desligar o segundo passo e a trava de cancelar; pedir, cancelar e concluir remoção de cofre; falha de MAC ou de cabeçalho. Objeto, emissor e destinatário entram pelo identificador interno, nunca por CPF, CNPJ ou e-mail; a mesma allowlist do log técnico vale para a auditoria.
 - **Append-only:** cada registro traz o hash do anterior (cadeia de hash), o que torna visível a alteração no meio do arquivo. Não é proteção contra quem controla a máquina. Não há servidor de auditoria, porque o app não tem telemetria (spec 3.2).
 - Não grava corpo de nota, corpo de e-mail nem segredo.
 - Retenção: a definir com Cláudio (LGPD), em aberto.
