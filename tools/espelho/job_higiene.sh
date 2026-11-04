@@ -8,7 +8,9 @@ copiar_arvore "$ESPELHO_TRAB/higiene" || { echo "REPROVA: cópia da árvore falh
 garantir_imagem_higiene || { echo "REPROVA: imagem de higiene não construída"; exit 1; }
 D="$ESPELHO_TRAB/higiene"
 CONT=(docker run --rm --network none -v "$D:/src:ro,z" "$IMAGEM_HIGIENE")
-passo "segredos-historico" "${CONT[@]}" sh -c 'git config --global --add safe.directory /src && gitleaks git /src --config /src/.gitleaks.toml --redact --no-banner --exit-code 1'
+passo "segredos-historico" "${CONT[@]}" sh -c 'git config --global --add safe.directory /src && sh /src/tools/portoes/higiene_historico.sh /src'
+passo "autoteste-historico" "${CONT[@]}" sh -c 'git config --global --add safe.directory /src && bash /src/tools/portoes/autoteste_historico.sh'
+passo "autoteste-copiar-arvore" "${CONT[@]}" bash /src/tools/espelho/autoteste_copiar_arvore.sh
 passo "segredos-arvore" "${CONT[@]}" bash /src/tools/portoes/higiene_segredos.sh /src
 passo "travessao" "${CONT[@]}" python3 -I /src/tools/portoes/higiene_travessao.py /src
 passo "spdx" "${CONT[@]}" sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/spdx.py /src && bash /src/tools/portoes/autoteste_spdx.sh'

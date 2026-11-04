@@ -244,9 +244,16 @@ jobs:
       - name: Segredos no histórico (gitleaks git)
         id: segredos_historico
         # O contêiner roda como root sobre um workspace de outro dono (L-49): o safe.directory vai dentro dele.
+        # NL-3.E: o portão tem piso (zero commit lido reprova); o autoteste dele roda logo abaixo.
         run: |
           docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
-            sh -c 'git config --global --add safe.directory /src && gitleaks git /src --config /src/.gitleaks.toml --redact --no-banner --exit-code 1'
+            sh -c 'git config --global --add safe.directory /src && sh /src/tools/portoes/higiene_historico.sh /src'
+
+      - name: Autoteste do portão de histórico (piso de commits, NL-3.E)
+        id: autoteste_historico
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'git config --global --add safe.directory /src && bash /src/tools/portoes/autoteste_historico.sh'
 
       - name: Segredos na árvore (gitleaks dir)
         id: segredos_arvore
@@ -314,6 +321,7 @@ jobs:
             echo "| Portão | Resultado |"
             echo "| --- | --- |"
             echo "| Segredos no histórico (gitleaks git) | ${{ steps.segredos_historico.outcome }} |"
+            echo "| Autoteste do portão de histórico (piso, clone raso e rc) | ${{ steps.autoteste_historico.outcome }} |"
             echo "| Segredos na árvore (gitleaks dir) | ${{ steps.segredos_arvore.outcome }} |"
             echo "| Travessão e meia-risca | ${{ steps.travessao.outcome }} |"
             echo "| Cabeçalho SPDX (portão e autoteste) | ${{ steps.spdx.outcome }} |"
