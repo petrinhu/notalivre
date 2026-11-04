@@ -321,6 +321,7 @@ jobs:
             echo "| Portão | Resultado |"
             echo "| --- | --- |"
             echo "| Segredos no histórico (gitleaks git) | ${{ steps.segredos_historico.outcome }} |"
+            echo "| Autoteste do portão de histórico (piso, clone raso e rc) | ${{ steps.autoteste_historico.outcome }} |"
             echo "| Segredos na árvore (gitleaks dir) | ${{ steps.segredos_arvore.outcome }} |"
             echo "| Travessão e meia-risca | ${{ steps.travessao.outcome }} |"
             echo "| Cabeçalho SPDX (portão e autoteste) | ${{ steps.spdx.outcome }} |"

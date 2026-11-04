@@ -7,7 +7,8 @@
 #   H1 .git-arquivo pendurado (o defeito medido: gitleaks com rc 0 e "0 commits scanned") reprova por piso;
 #   H2 repositório sem commit (zero commits lidos) reprova por piso;
 #   H3 repositório com 1 commit limpo passa e informa commits_lidos=1;
-#   H4 chave privada commitada reprova e o rc 1 do gitleaks chega ao veredito.
+#   H4 chave privada commitada reprova e o rc 1 do gitleaks chega ao veredito;
+#   H5 clone raso (--depth 1) com commits reprova: o piso não pega histórico incompleto (NL-3.E, revisão).
 # Uso: autoteste_historico.sh   (sem argumentos; roda no contêiner de higiene)
 set -u
 
@@ -67,6 +68,16 @@ git -C "$H4" add chave.txt .gitleaks.toml
 git -C "$H4" -c user.name=autoteste -c user.email=autoteste@invalid -c core.hooksPath=/dev/null \
     commit -q -m "test: fixture com chave" || { echo "ABORTA: commit da fixture H4"; exit 1; }
 controle h4-chave-commitada 1 'REPROVA: gitleaks rc=1' "$H4"
+
+# H5: clone raso (--depth 1) com commits. O piso (>= 1 commit) não pega: o histórico é incompleto e o portão tem de reprovar.
+H5O="$TMP/h5-origem"; git init -q "$H5O"
+echo um > "$H5O/a.txt"; git -C "$H5O" add a.txt
+git -C "$H5O" -c user.name=autoteste -c user.email=autoteste@invalid -c core.hooksPath=/dev/null commit -q -m "test: origem 1" || { echo "ABORTA: commit 1 da origem H5"; exit 1; }
+echo dois > "$H5O/a.txt"; git -C "$H5O" add a.txt
+git -C "$H5O" -c user.name=autoteste -c user.email=autoteste@invalid -c core.hooksPath=/dev/null commit -q -m "test: origem 2" || { echo "ABORTA: commit 2 da origem H5"; exit 1; }
+H5="$TMP/h5"; git clone -q --depth 1 "file://$H5O" "$H5" || { echo "ABORTA: clone raso da fixture H5"; exit 1; }
+printf '%s\n' "$CFG" > "$H5/.gitleaks.toml"
+controle h5-clone-raso 1 'REPROVA: repositório raso' "$H5"
 
 echo "FALHAS=$FALHAS"
 [ "$FALHAS" -eq 0 ] || { echo "AUTOTESTE HISTORICO: REPROVADO"; exit 1; }

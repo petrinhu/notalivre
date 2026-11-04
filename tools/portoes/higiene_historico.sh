@@ -8,9 +8,20 @@
 RAIZ="${1:?uso: higiene_historico.sh RAIZ}"
 CFG="$RAIZ/.gitleaks.toml"
 [ -f "$CFG" ] || { echo "REPROVA: falta $CFG (configuração do gitleaks, fail-closed)"; exit 1; }
+# Clone raso reprova: o piso (>= 1 commit) não vê histórico incompleto. O CI usa fetch-depth 0 (ci.yml, job higiene).
+RASO="$(git -C "$RAIZ" rev-parse --is-shallow-repository 2>/dev/null)"
+if [ "$RASO" = "true" ]; then
+    echo "REPROVA: repositório raso (clone com --depth): o histórico está incompleto; a higiene exige histórico inteiro"
+    exit 1
+fi
+# Escopo de refs: --branches --remotes --tags, o que o checkout com fetch-depth 0 do CI traz (branches remotos e tags).
+# LIMITE DECLARADO: o gitleaks padrão lê todos os refs; com este escopo, refs fora de branch, remote e tag
+# (refs/secret/*, stash, notes) não são lidos. Medido: segredo só em refs/secret/x sai rc 0 com este escopo.
+# Na cópia do espelho (clone da worktree), o escopo é a série de branches e tags da worktree; um branch remoto
+# que não foi buscado localmente não entra no espelho e entra no CI. Não há paridade total, e isso fica registrado aqui.
 LOG="$(mktemp "${TMPDIR:-/var/tmp}/historico.XXXXXX")" || exit 1
 trap 'rm -f -- "$LOG"' EXIT
-gitleaks git "$RAIZ" --config "$CFG" --redact --no-banner --no-color --exit-code 1 > "$LOG" 2>&1
+gitleaks git "$RAIZ" --config "$CFG" --redact --no-banner --no-color --exit-code 1 --log-opts="--branches --remotes --tags" > "$LOG" 2>&1
 rc=$?
 cat "$LOG"
 lidos="$(grep -oE '[0-9]+ commits scanned' "$LOG" | tail -n 1 | grep -oE '^[0-9]+')"
