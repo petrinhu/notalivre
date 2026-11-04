@@ -19,5 +19,10 @@ passo "flatpak-builder" "${FB[@]}" --disable-rofiles-fuse --force-clean --state-
 passo "bundle" flatpak run --user --filesystem="$D" --filesystem=xdg-data/flatpak:ro \
     --env=FLATPAK_USER_DIR="$HOME/.local/share/flatpak" --command=flatpak org.flatpak.Builder \
     build-bundle "$D/repo" "$D/notalivre.flatpak" io.github.petrinhu.notalivre master
+# NL-3.2a (parte 2): a libsodium e a licença dela estão na árvore do build. A conferência roda em contêiner, sem privilégio,
+# com o build e a conferência só de leitura (L-50); reprova o job se faltar a biblioteca ou a licença, ou se a varredura for vazia.
+passo "conferencia-bundle-libsodium" docker run --rm --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp \
+    -v "$D/build:/build:ro,z" -v "$D/fonte/tools/conteiner:/conteiner:ro,z" \
+    notalivre/build-fedora44:nl-2.0 bash /conteiner/conferencia_bundle_libs.sh /build
 [ "$PASSOS_FALHOS" -eq 0 ] && { echo "JOB flatpak: VERDE (bundle em $D/notalivre.flatpak)"; exit 0; }
 echo "JOB flatpak: VERMELHO ($PASSOS_FALHOS passo(s) com rc diferente de 0)"; exit 1
