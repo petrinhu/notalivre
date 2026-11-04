@@ -12,6 +12,8 @@
 #include <QChar>
 #include <QString>
 
+#include <openssl/crypto.h>
+
 #include <cstddef>
 
 namespace nl::foundation::cripto {
@@ -82,7 +84,7 @@ bool utf8Estrito(QByteArrayView utf8)
     return true;
 }
 
-std::expected<int, nl::base::Erro> copiarParaDestino(const QByteArray& bytes, std::span<unsigned char> destino)
+std::expected<int, nl::base::Erro> copiarParaDestino(QByteArrayView bytes, std::span<unsigned char> destino)
 {
     if (static_cast<std::size_t>(bytes.size()) > destino.size()) {
         return std::unexpected(detalhe::erroCripto("cripto.tamanho", "área de destino pequena para a senha"));
@@ -108,7 +110,7 @@ std::expected<int, nl::base::Erro> senhaEmNfcComRelatorio(QByteArrayView utf8, s
 {
     relatorio = RelatorioNfc{};
     if (soAscii(utf8)) {
-        return copiarParaDestino(QByteArray(utf8.data(), utf8.size()), destino);
+        return copiarParaDestino(utf8, destino);
     }
     if (!utf8Estrito(utf8)) {
         return std::unexpected(erroCripto("cripto.utf8_invalido", "senha com UTF-8 inválido: recusada sem conversão"));
@@ -116,7 +118,10 @@ std::expected<int, nl::base::Erro> senhaEmNfcComRelatorio(QByteArrayView utf8, s
     relatorio.passouPorQString = true;
     const QString texto = QString::fromUtf8(utf8);
     const QString nfc = texto.normalized(QString::NormalizationForm_C, kVersaoUnicodeNormalizacao);
-    return copiarParaDestino(nfc.toUtf8(), destino);
+    QByteArray nfcBytes = nfc.toUtf8();
+    const auto resultado = copiarParaDestino(nfcBytes, destino);
+    OPENSSL_cleanse(nfcBytes.data(), static_cast<std::size_t>(nfcBytes.size())); // zera a cópia da senha antes de qualquer retorno
+    return resultado;
 }
 
 } // namespace detalhe
