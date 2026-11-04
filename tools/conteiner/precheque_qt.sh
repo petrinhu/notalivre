@@ -50,7 +50,11 @@ echo "precheque_qt: analisados=$analisados faltando_lib=$faltando glibc_incompat
 ossl_rc=0
 bash "$(dirname "${BASH_SOURCE[0]}")/precheque_openssl.sh" || ossl_rc=$?
 
-if [ "$analisados" -ne "${#ALVOS[@]}" ] || [ "$faltando" -ne 0 ] || [ "$glibc" -ne 0 ] || [ "$ossl_rc" -ne 0 ]; then
+# Cabeçalhos do libsodium (NL-3.2a): mesma etapa, pelo mesmo motivo.
+sodium_rc=0
+bash "$(dirname "${BASH_SOURCE[0]}")/precheque_sodium.sh" || sodium_rc=$?
+
+if [ "$analisados" -ne "${#ALVOS[@]}" ] || [ "$faltando" -ne 0 ] || [ "$glibc" -ne 0 ] || [ "$ossl_rc" -ne 0 ] || [ "$sodium_rc" -ne 0 ]; then
     exit 1
 fi
 exit 0
