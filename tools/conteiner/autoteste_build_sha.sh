@@ -253,6 +253,17 @@ else
     falha "C9 imagem em paralelo com contêineres sobrepostos ou sem piso (rc=$ri1/$ri2, $resumo_i)"
 fi
 
+# --- C10 (NL-3.0g, emenda A1 §2; o rótulo C9 já é a concorrência): o portão estático vem do SHA construído ---
+# O log tem de dizer de qual fonte saiu o portoes_estaticos.sh: a cópia do SHA, nunca a árvore de trabalho do script.
+rodar_build c10 NL_REPO="$REPO" NL_SHA="$SHA_FIXTURE" NL_FATIA=NL-C10
+rc10=$?
+esperado_c10="NL-PORTOES-SCRIPT=$BASE/tmp/notalivre-src-$SHA_FIXTURE-NL-C10/tools/conteiner/portoes_estaticos.sh"
+if [ "$rc10" -eq 0 ] && grep -qxF -- "$esperado_c10" "$BASE/c10.log"; then
+    ok "C10 portão estático vem da fonte do SHA (rc=$rc10)"
+else
+    falha "C10 portão estático fora da fonte do SHA (rc=$rc10, esperado: $esperado_c10)"
+fi
+
 echo "FALHAS=$FALHAS"
 if [ "$FALHAS" -eq 0 ]; then
     echo "AUTOTESTE BUILD SHA: todos os casos verdes"
