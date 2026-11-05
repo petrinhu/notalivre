@@ -13,7 +13,7 @@ namespace nl::foundation::pkcs12 {
 
 // Regra do X509_cmp_time, depreciado no OpenSSL 4.0 (com -Werror não compila): -1 se o instante do certificado é anterior
 // ou igual; 1 se posterior; 0 em erro ou fora do formato. Uma só fonte de 3.0 a 4.0: sem macro de versão.
-// RFC 5280 trata notAfter como inclusivo; a igualdade continua vencida aqui (porte; decisão fica com o CISO).
+// RFC 5280 trata notAfter como inclusivo; a igualdade continua vencida aqui (mantida pelo CISO, 05/11/2026).
 inline int compararComInstante(const ASN1_TIME* tempo, std::time_t instante) {
     const int tipo = ASN1_STRING_type(tempo);
     const int tamanho = ASN1_STRING_length(tempo);

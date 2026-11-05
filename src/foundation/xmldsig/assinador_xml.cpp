@@ -14,6 +14,7 @@
 #include <libxml/xmlIO.h>
 
 #include <openssl/crypto.h>
+#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/provider.h>
 #include <openssl/x509.h>
@@ -224,7 +225,7 @@ std::expected<std::string, ErroAssinatura> certificadoEmDer(const x509_st* certi
 
 // Regra do X509_cmp_time, depreciado no OpenSSL 4.0 (com -Werror não compila): -1 se o instante do certificado é anterior
 // ou igual; 1 se posterior; 0 em erro ou fora do formato. Uma só fonte de 3.0 a 4.0: sem macro de versão.
-// RFC 5280 trata notAfter como inclusivo; a igualdade continua vencida aqui (porte; decisão fica com o CISO).
+// RFC 5280 trata notAfter como inclusivo; a igualdade continua vencida aqui (mantida pelo CISO, 05/11/2026).
 // Cópia local de src/foundation/pkcs12/tempo_x509.h: xmldsig não depende de pkcs12 (DA-2.30), regra de 3 (L-33).
 int compararComInstante(const ASN1_TIME* tempo, std::time_t instante) {
     const int tipo = ASN1_STRING_type(tempo);
@@ -251,8 +252,10 @@ int compararComInstante(const ASN1_TIME* tempo, std::time_t instante) {
 // Validade na hora de assinar (DA-2.40, item 8): notBefore já passou e notAfter ainda não.
 bool validadeDoMaterial(const x509_st* certificado) {
     const std::time_t agora = std::time(nullptr);
-    return compararComInstante(X509_get0_notBefore(certificado), agora) <= 0 &&
-           compararComInstante(X509_get0_notAfter(certificado), agora) > 0;
+    const int inicio = compararComInstante(X509_get0_notBefore(certificado), agora);
+    const int fim = compararComInstante(X509_get0_notAfter(certificado), agora);
+    ERR_clear_error();
+    return inicio < 0 && fim > 0; // 0 é data ilegível: recusa nos dois campos.
 }
 
 xmlNodePtr filhoPorNome(xmlNodePtr pai, std::string_view nome) {
