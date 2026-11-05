@@ -538,7 +538,7 @@ QByteArray pfxComDataIlegivel(const QByteArray& senha, bool noInicio) {
         return {};
     }
     std::unique_ptr<PKCS12, decltype(&PKCS12_free)> p12(
-        PKCS12_create(senha.constData(), "folha", chave.get(), cert.get(), nullptr, NID_aes256_cbc, NID_aes256_cbc, 2048, 2048, 0),
+        PKCS12_create(senha.constData(), "folha", chave.get(), cert.get(), nullptr, NID_aes_256_cbc, NID_aes_256_cbc, 2048, 2048, 0),
         &PKCS12_free);
     std::unique_ptr<BIO, decltype(&BIO_free)> saida(BIO_new(BIO_s_mem()), &BIO_free);
     if (!p12 || !saida || i2d_PKCS12_bio(saida.get(), p12.get()) != 1) {
