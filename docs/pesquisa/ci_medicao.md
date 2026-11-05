@@ -338,3 +338,30 @@ a variável presente, e não precisa: a variável é proibida no app (DA-2.10).
 **Esperado nas outras três distros (tabela):** `sha1` (ubuntu 26.04, manjaro rolling, linuxmint 22.3). Medição nelas: a
 mesma linha `MEDICAO` no log de cada build verde da NL-2.3.
 
+
+## NL-3.0g: medições da imagem fedora45 (05/11/2026)
+
+Medido nas imagens construídas pelo `build_local.sh` e pelo `docker build` da fatia NL-3.0g (contêiner sem rede, `--network none`). Cada linha cita o log que a prova. Os números de tamanho são de `docker image inspect` (bytes).
+
+| Item | Valor medido | Fonte |
+|---|---|---|
+| Imagem `fedora:45` (base, por digest) | `fedora@sha256:a7d72ba2745b100a3351087472e5ee7b2450af7cf331e7673007e3817612839c`; 278460737 bytes | `NL-3.0g-pull.log`, `docker inspect` |
+| Imagem de build `notalivre/build-fedora45:nl-2.0` | 1371322692 bytes; `dnf` com `Complete!` | `NL-3.0g-imagem-fedora45.log` |
+| Imagem de higiene `notalivre-higiene:ci` | 423978938 bytes; `gitleaks 8.30.1` | `NL-3.0g-imagem-higiene.log` |
+| Imagem ostree `notalivre/ostree-fedora45:nl-3.0g` | 389506653 bytes; `ostree-2026.4-1.fc45` | `NL-3.0g-imagem-ostree.log` |
+| Sistema | Fedora Linux 45 (Container Image) | `/etc/os-release` na imagem |
+| GCC, CMake, Ninja | 16.2.1-3, 4.3.0-5, 1.13.2-6 | `rpm -q` |
+| OpenSSL | 4.0.3-1; `libssl.so.4`, `libcrypto.so.4` | `rpm -q`, `ldconfig -p` |
+| libxml2 | 2.15.4-1, soname `libxml2.so.16`; `XML_WITH_HTTP=0` (sem cliente HTTP) | programa C de teste, `NL-3.0g-medicao-fedora45.log` |
+| xmlsec1 | 1.3.11-7 (com `xmlsec1-openssl`) | `rpm -q` |
+| zlib | `zlib-devel` ausente; `zlib-ng-compat` 2.3.3-6 instalado | `rpm -q` |
+| cmp e diff | `diffutils` ausente | `rpm -q` |
+| Python | 3.15.0-1; venv `/opt/aqt` com `python3.15` e sem `aqt` | `python3 --version`, `ls /opt/aqt/bin` |
+| libsodium | 1.0.22-2 | `rpm -q` |
+| Argon2id de referência (`openssl kdf`, memcost 8, 32 bytes) | `b2 85 8c d0 d2 8e d8 d5 64 e6 4a b8 c0 10 88 5c f4 af 11 ac 9a 70 e7 40 16 61 33 d9 d4 d1 22 c7` | `NL-3.0g-medicao-fedora45.log` |
+| rsa-sha1 (`openssl dgst -sha1 -sign`) | rc 1 sem a variável de liberação; rc 0 com ela | `NL-3.0g-sha1-medicao-fedora45.log` |
+| Teste `xmldsig.assinaturaConfereNoXmlsec1Cli` | falha sem a variável; passa com ela | `NL-3.0g-sha1-medicao-fedora45.log` |
+| `gitleaks` | não está na imagem de build (é do higiene, 8.30.1) | `rpm -q`, `gitleaks version` |
+| Suíte, debug | 437 de 437 testes, funções 1457 | build `NL-RC=0` do HEAD da fatia |
+
+**Não medido nesta fatia:** `xmlsec1 --verify` de rsa-sha1 sem e com a variável (pendente, CISO); o ASan da fedora45 é da NL-3.0h; o job Flatpak é do main.
