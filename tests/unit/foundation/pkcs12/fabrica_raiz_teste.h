@@ -22,8 +22,10 @@
 
 namespace nl::foundation::pkcs12::teste {
 
-/// Raiz autoassinada P-256 com CA:TRUE e validade [inicio, fim] (UTC). Devolve o DER; vazio se o OpenSSL falhar.
-inline QByteArray raizSinteticaDer(const char* nomeComum, std::time_t inicio, std::time_t fim) {
+namespace detalhe {
+
+/// Monta e assina a raiz. Com `fimBruto` nulo, notAfter vem de `fim`; senão, é copiado do ASN1_TIME dado (teste de formato).
+inline QByteArray montarRaiz(const char* nomeComum, std::time_t inicio, std::time_t fim, const ASN1_TIME* fimBruto) {
     std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> chave(EVP_EC_gen("P-256"), &EVP_PKEY_free);
     std::unique_ptr<X509, decltype(&X509_free)> cert(X509_new(), &X509_free);
     if (!chave || !cert) {
@@ -32,7 +34,13 @@ inline QByteArray raizSinteticaDer(const char* nomeComum, std::time_t inicio, st
     X509_set_version(cert.get(), 2);
     ASN1_INTEGER_set(X509_get_serialNumber(cert.get()), 1);
     ASN1_TIME_set(X509_getm_notBefore(cert.get()), inicio);
-    ASN1_TIME_set(X509_getm_notAfter(cert.get()), fim);
+    if (fimBruto != nullptr) {
+        if (X509_set1_notAfter(cert.get(), fimBruto) != 1) {
+            return {};
+        }
+    } else {
+        ASN1_TIME_set(X509_getm_notAfter(cert.get()), fim);
+    }
     X509_NAME* nome = X509_get_subject_name(cert.get());
     X509_NAME_add_entry_by_txt(nome, "C", MBSTRING_ASC, reinterpret_cast<const unsigned char*>("BR"), -1, -1, 0);
     X509_NAME_add_entry_by_txt(nome, "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char*>(nomeComum), -1, -1, 0);
@@ -56,6 +64,18 @@ inline QByteArray raizSinteticaDer(const char* nomeComum, std::time_t inicio, st
     unsigned char* escrita = reinterpret_cast<unsigned char*>(der.data());
     i2d_X509(cert.get(), &escrita);
     return der;
+}
+
+} // namespace detalhe
+
+/// Raiz autoassinada P-256 com CA:TRUE e validade [inicio, fim] (UTC). Devolve o DER; vazio se o OpenSSL falhar.
+inline QByteArray raizSinteticaDer(const char* nomeComum, std::time_t inicio, std::time_t fim) {
+    return detalhe::montarRaiz(nomeComum, inicio, fim, nullptr);
+}
+
+/// Raiz com notAfter copiado do ASN1_TIME dado: serve para forçar um formato de data fora da RFC 5280 em teste.
+inline QByteArray raizSinteticaComFimBruto(const char* nomeComum, std::time_t inicio, const ASN1_TIME* fimBruto) {
+    return detalhe::montarRaiz(nomeComum, inicio, 0, fimBruto);
 }
 
 /// Uma raiz do repositório de teste: nome do arquivo, DER e finalidade declarada no metadado.
