@@ -25,6 +25,7 @@ FALHAS=0
 # Qualquer outro valor é um sed aplicado à lista do SHA do caso (a sabotagem).
 caso() {
     local nome="$1" piso="$2" sabotagem="$3" rc_esperado="$4" texto="$5"
+    local fora="${6:-}" vazou=0
     local dir="$BASE/f-$nome" saida rc sha
     CASOS=$((CASOS + 1))
     mkdir -p "$dir/tools/conteiner"
@@ -45,7 +46,14 @@ caso() {
     rc=$?
     echo "--- caso $nome: rc=$rc (esperado $rc_esperado)"
     echo "$saida" | tail -n 2
-    if [ "$rc" = "$rc_esperado" ] && printf '%s\n' "$saida" | grep -q -F -- "$texto"; then
+    # Nada pode ter sido criado fora de DESTINO (NL-3.0g, revisão ALTA: nome vindo do SHA usado em caminho no host).
+    if [ -n "$fora" ] && [ -e "$fora" ]; then
+        vazou=1
+    fi
+    if [ "$vazou" = 1 ]; then
+        echo "[VERMELHO] $nome: arquivo criado fora de DESTINO: $fora"
+        FALHAS=$((FALHAS + 1))
+    elif [ "$rc" = "$rc_esperado" ] && printf '%s\n' "$saida" | grep -q -F -- "$texto"; then
         echo "[VERDE] $nome"
     else
         echo "[VERMELHO] $nome: rc=$rc, esperava rc=$rc_esperado com '$texto'"
@@ -67,6 +75,13 @@ caso piso_maior 14 "" 1 "a lista de PORTOES tem 13 portões, o piso é 14"
 caso piso_ilegivel "1x" "" 2 "piso ilegível"
 # Sabotagem 6: SHA sem lista (a lista não pode vir da árvore de trabalho).
 caso lista_ausente 13 "__AUSENTE__" 2 "lista_portoes.txt não lida do SHA"
+# Sabotagens 7 a 11 (revisão ALTA, NL-3.0g): nome de portão vindo do SHA não pode sair de DESTINO nem chegar ao host.
+# Antes do conserto, cada um destes casos deve ficar vermelho (o nome entra em caminho sem checagem).
+caso dotdot 13 's/^camadas|/..\/fuga|/' 2 "nome de portão inválido" "$BASE/fuga.log"
+caso barra 13 's/^camadas|/sub\/fuga|/' 2 "nome de portão inválido" "$BASE/d-barra/sub/fuga.log"
+caso vazio 13 's/^camadas|/|/' 2 "nome de portão inválido" "$BASE/d-vazio/.log"
+caso sem_pipe 13 's/^camadas|.*/camadas sem barra vertical/' 2 "sem '|'" ""
+caso duplicado 13 's/^autoteste_camadas|/camadas|/' 2 "nome de portão duplicado" ""
 
 echo "casos=$CASOS falhas=$FALHAS"
 if [ "$FALHAS" -eq 0 ]; then
