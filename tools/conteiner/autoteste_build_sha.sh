@@ -99,7 +99,7 @@ done
 mkdir -p "$REPO/.github/workflows"
 printf 'fixture\n' > "$REPO/.github/workflows/ci.yml"
 # NL-3.0g (CISO, 05/11/2026): o portão estático e o piso vêm do próprio commit do SHA; a fixture os leva.
-for arq in portoes_estaticos.sh piso_portoes.txt; do cp "$RAIZ/tools/conteiner/$arq" "$REPO/tools/conteiner/$arq"; done
+for arq in portoes_estaticos.sh piso_portoes.txt lista_portoes.txt; do cp "$RAIZ/tools/conteiner/$arq" "$REPO/tools/conteiner/$arq"; done
 git -C "$REPO" init || { echo "ABORTA: git init da fixture"; exit 1; }
 git -C "$REPO" add -A || { echo "ABORTA: git add da fixture"; exit 1; }
 git -C "$REPO" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -m "test: fixture" \
