@@ -53,7 +53,9 @@ caso() {
     # Listas de mentira, sem linhas de dados: a lista real de exceções e de obrigatórios cita testes que o CTest de mentira
     # não tem. A lista real é conferida pelo build de verdade, não por este autoteste.
     printf '%s\n' '# sem linhas (fixture do autoteste do suite)' > "$dir/tests/testes_sem_saida_por_funcao.txt"
-    printf '%s\n' '# sem linhas (fixture do autoteste do suite)' > "$dir/tests/testes_obrigatorios_por_distro.txt"
+    # Obrigatórios de mentira (NL-3.0g): uma linha da distro flatpak com o primeiro teste do CTest de mentira deste caso.
+    # Lista sem linha da distro reprova no portão (fail-closed), então a fixture cita um teste que existe no caso.
+    printf '%s\n' '# obrigatórios de mentira (fixture do autoteste do suite)' "flatpak ${nomes%% *}" > "$dir/tests/testes_obrigatorios_por_distro.txt"
     # Contagem de funções e allowlist (NL-2.14, adendo 4): o stub tem um testcase (junitxml abaixo), e a allowlist é a real.
     printf '%s\n' '# contagem de funções (fixture do autoteste do suite)' 'flatpak 1' > "$dir/tests/funcoes_esperadas_por_distro.txt"
     cp "$RAIZ/tests/interpretadores_permitidos.txt" "$dir/tests/interpretadores_permitidos.txt"

@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Autoteste dos cabeçalhos de desenvolvimento do OpenSSL nas imagens de build (NL-2.2; autorização do líder de 28/10/2026,
 # "Autorizo nas 3 imagens (Recomendado)"). TDD do ambiente (L-35, L-36): cada caso foi visto VERMELHO antes da correção.
-#   E1 fedora44, ubuntu26.04 e mint22.3 instalam o pacote de cabeçalhos (openssl-devel e libssl-dev).
+#   E1 fedora45, ubuntu26.04 e mint22.3 instalam o pacote de cabeçalhos (openssl-devel e libssl-dev).
 #   E2 precheque_openssl.sh REPROVA quando <openssl/pkcs12.h> falta. O cc de sandbox usa -nostdinc e uma cópia de
 #      /usr/include sem o diretório openssl; nada é instalado nem alterado no host.
 #   E3 controle positivo: com o cc normal (cabeçalhos presentes) o precheque aprova.
@@ -22,7 +22,7 @@ falha() { echo "[VERMELHO] $1"; FALHAS=$((FALHAS + 1)); }
 
 # E1: pacote de cabeçalhos em cada um dos três scripts (piso: 3 analisados).
 analisados=0; faltou=0
-for par in fedora44:openssl-devel ubuntu26.04:libssl-dev mint22.3:libssl-dev; do
+for par in fedora45:openssl-devel ubuntu26.04:libssl-dev mint22.3:libssl-dev; do
     arq="${par%%:*}"; pac="${par#*:}"
     analisados=$((analisados + 1))
     grep -q -- "$pac" "$CONTEINER/instalar/$arq.sh" 2>/dev/null || faltou=$((faltou + 1))

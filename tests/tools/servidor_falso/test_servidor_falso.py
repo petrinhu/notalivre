@@ -220,11 +220,11 @@ class TesteServidorFalso(unittest.TestCase):
         self.assertIn("12345678909", corpo["Descricao"])
         self.assertEqual(rot.pendentes(), 0)
 
-    def test_variavelSha1SoNoFedora44(self):
-        self.assertEqual(oraculo.ambiente_do_arnes({"ID": "fedora", "VERSION_ID": "44"}),
+    def test_variavelSha1SoNaDistroBloqueada(self):
+        self.assertEqual(oraculo.ambiente_do_arnes({"ID": "fedora", "VERSION_ID": "45"}),
                          {"OPENSSL_ENABLE_SHA1_SIGNATURES": "1"})
         self.assertEqual(oraculo.ambiente_do_arnes({"ID": "ubuntu", "VERSION_ID": "26.04"}), {})
-        self.assertEqual(oraculo.ambiente_do_arnes({"ID": "fedora", "VERSION_ID": "43"}), {})
+        self.assertEqual(oraculo.ambiente_do_arnes({"ID": "fedora", "VERSION_ID": "44"}), {})
 
     def test_verificacaoLaxObrigatoriaNa13(self):
         # Cadeia que a busca estrita da 1.3 não acha (medida em 1.3.9 e 1.3.12): KeyInfo vazio, a chave do emissor
@@ -268,7 +268,7 @@ class TesteServidorFalso(unittest.TestCase):
         # GET de eventos de NFS-e cai na consulta de NFS-e (404) até a NL-4.2 modelar os eventos do ADN
         self.assertEqual(self.enviar(srv, "GET", f"/nfse/{chave}/eventos")[0], 404)
 
-    def test_ambienteDoXmlsec1SoNoFedora44(self):
+    def test_ambienteDoXmlsec1SoNaDistroBloqueada(self):
         # Captura o ambiente que o oráculo ENTREGA ao xmlsec1 (não o que a função de regra devolve).
         xsd = os.path.join(os.environ["NL_XSD_PRODREST_DIR"], "DPS_v1.01.xsd")
         trabalho = os.path.join(self.dir, "ambiente")
@@ -285,13 +285,13 @@ class TesteServidorFalso(unittest.TestCase):
                                      trabalho, os_release={"ID": "ubuntu", "VERSION_ID": "26.04"})
             ubuntu.verificar_assinatura(self.dps)
             fedora = oraculo.Oraculo(os.environ["NL_XMLLINT"], os.environ["NL_XMLSEC1"], xsd, self.certs.ca,
-                                     trabalho, os_release={"ID": "fedora", "VERSION_ID": "44"})
+                                     trabalho, os_release={"ID": "fedora", "VERSION_ID": "45"})
             fedora.verificar_assinatura(self.dps)
         self.assertEqual(len(capturados), 2, "o xmlsec1 tinha que ser chamado uma vez por oráculo")
         self.assertNotIn("OPENSSL_ENABLE_SHA1_SIGNATURES", capturados[0],
-                         "fora do fedora44 a variável não pode chegar ao xmlsec1")
+                         "fora do fedora45 a variável não pode chegar ao xmlsec1")
         self.assertEqual(capturados[1].get("OPENSSL_ENABLE_SHA1_SIGNATURES"), "1",
-                         "no fedora44 a variável tem de chegar ao xmlsec1")
+                         "no fedora45 a variável tem de chegar ao xmlsec1")
 
     def test_envelopeZlibCruRecusadoCom400(self):
         srv = self.subir()

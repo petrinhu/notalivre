@@ -9,28 +9,20 @@
 #   REPO     repositório git de onde sai o SHA (o mesmo NL_REPO do build_local)
 #   SHA      commit a verificar (40 hex)
 #   DESTINO  pasta NOVA, fora do repositório; recebe o clone do SHA (gitleaks git e os portões de git exigem histórico)
+# NL-3.0g (CISO, 05/11/2026): a lista de portões (tools/conteiner/lista_portoes.txt) e o piso (piso_portoes.txt) são lidos
+# SÓ do SHA, por git show. Nunca de arquivo da árvore de trabalho nem de dirname: quem muda a lista ou o piso muda o SHA.
 # Variável: NL_HIGIENE_IMAGEM (padrão notalivre-higiene:ci, a mesma imagem do job higiene do CI)
 # Cota desta máquina (ordem do líder de 30/10/2026, dividida com outra sessão): cada contêiner tem 7 núcleos e 12 GiB.
 # Saída: uma linha "portao=<nome> rc=<rc>" por portão e o total "portoes=N falharam=K (piso P)".
-# Piso versionado em tools/conteiner/piso_portoes.txt (1ª linha). Reprova (rc 1) se a lista de PORTOES não tiver
-# exatamente P itens ou se o laço não rodar P portões. Piso 0 ou ilegível sai com rc 2 (zero portões é varredura
-# quebrada, L-36). Autoteste de estreia: autoteste_piso_portoes.sh.
+# Rc: 2 para piso ilegível, piso 0, lista ou piso não lidos do SHA, e para os erros de SHA e destino;
+# 1 para lista com número diferente do piso (lista vazia reprova por aí) e para portão que falha.
+# Autoteste de estreia: autoteste_piso_portoes.sh.
 set -u
 
 REPO="${1:?uso: portoes_estaticos.sh REPO SHA DESTINO}"
 SHA="${2:?uso: portoes_estaticos.sh REPO SHA DESTINO}"
 DESTINO="${3:?uso: portoes_estaticos.sh REPO SHA DESTINO}"
 IMG="${NL_HIGIENE_IMAGEM:-notalivre-higiene:ci}"
-
-PISO_ARQ="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/piso_portoes.txt"
-piso="$(sed -n '1p' "$PISO_ARQ" 2>/dev/null)"
-case "$piso" in
-    ''|*[!0-9]*) echo "PARADA: piso ilegível em $PISO_ARQ ('$piso')"; exit 2 ;;
-esac
-if [ "$piso" -eq 0 ]; then
-    echo "PARADA: piso 0 recusado em $PISO_ARQ (zero portões é varredura quebrada, L-36)"
-    exit 2
-fi
 
 case "$SHA" in
     [0-9a-f]*) [ "${#SHA}" = 40 ] || { echo "PARADA: SHA com ${#SHA} caracteres, esperado 40"; exit 2; } ;;
@@ -46,34 +38,57 @@ ARVORE="$DESTINO/arvore"
 git clone --quiet --no-hardlinks "$REPO" "$ARVORE" || { echo "PARADA: clone de $REPO falhou"; exit 2; }
 git -C "$ARVORE" checkout --quiet "$SHA" || { echo "PARADA: checkout de $SHA falhou"; exit 2; }
 
-# Portões: nome e comando (rodado com sh -c dentro da imagem, com a árvore montada em /src, só leitura).
-PORTOES=(
-    "camadas|python3 -I /src/tools/portoes/camadas.py /src"
-    "autoteste_camadas|bash /src/tools/portoes/autoteste_camadas.sh /src"
-    "segredos_arvore|bash /src/tools/portoes/higiene_segredos.sh /src"
-    "segredos_historico|gitleaks git /src --config /src/.gitleaks.toml --redact --no-banner --exit-code 1"
-    "travessao|python3 -I /src/tools/portoes/higiene_travessao.py /src"
-    "spdx|git config --global --add safe.directory /src && python3 -I /src/tools/portoes/spdx.py /src && bash /src/tools/portoes/autoteste_spdx.sh"
-    "autoteste_higiene|git config --global --add safe.directory /src && bash /src/tools/portoes/autoteste_higiene.sh"
-    "hex_fora_do_theme|python3 -I /src/tools/portoes/nenhum_hex_fora_do_theme.py /src"
-    "tema_gerado|python3 -I /src/tools/tema/gerar_theme.py --raiz /src --verificar"
-    "sha1_env|git config --global --add safe.directory /src && python3 -I /src/tools/portoes/portao_sha1_env.py /src"
-    "fixacao_ci|python3 -I /src/tools/portoes/fixacao_ci.py /src && python3 -I /src/tools/portoes/fixacao_ci.py --autoteste"
-    "pontos_de_parse|python3 -I /src/tools/portoes/pontos_de_parse.py /src && bash /src/tools/portoes/autoteste_pontos_de_parse.sh"
-)
+PISO_TXT="$(git -C "$ARVORE" show "$SHA:tools/conteiner/piso_portoes.txt" 2>/dev/null)" \
+    || { echo "PARADA: piso_portoes.txt não lido do SHA $SHA (rc 2)"; exit 2; }
+piso="$(printf '%s\n' "$PISO_TXT" | sed -n '1p')"
+case "$piso" in
+    ''|*[!0-9]*) echo "PARADA: piso ilegível no SHA ('$piso')"; exit 2 ;;
+esac
+if [ "$piso" -eq 0 ]; then
+    echo "PARADA: piso 0 recusado no SHA (zero portões é varredura quebrada, L-36)"
+    exit 2
+fi
+
+# Portões: uma linha "nome|comando" por portão em tools/conteiner/lista_portoes.txt, do próprio SHA.
+LISTA_TXT="$(git -C "$ARVORE" show "$SHA:tools/conteiner/lista_portoes.txt" 2>/dev/null)" \
+    || { echo "PARADA: lista_portoes.txt não lida do SHA $SHA (rc 2)"; exit 2; }
+PORTOES=()
+NOMES_VISTOS=" "
+while IFS= read -r linha; do
+    case "$linha" in
+        ''|'#'*) continue ;;
+    esac
+    # O nome vira caminho no host ($DESTINO/$nome.log): só [a-z0-9_], sem barra, sem ponto, único (revisão ALTA, NL-3.0g).
+    case "$linha" in
+        *'|'*) ;;
+        *) echo "PARADA: linha de portão sem '|' no SHA $SHA (rc 2)"; exit 2 ;;
+    esac
+    nome="${linha%%|*}"
+    if ! [[ "$nome" =~ ^[a-z0-9_]+$ ]]; then
+        echo "PARADA: nome de portão inválido no SHA $SHA (rc 2): só [a-z0-9_], recebido '${nome:0:40}'"
+        exit 2
+    fi
+    case " $NOMES_VISTOS " in
+        *" $nome "*) echo "PARADA: nome de portão duplicado no SHA $SHA (rc 2): '$nome'"; exit 2 ;;
+    esac
+    NOMES_VISTOS="$NOMES_VISTOS$nome "
+    PORTOES+=("$linha")
+done <<< "$LISTA_TXT"
 lista=${#PORTOES[@]}
-if [[ "$lista" == "$piso" ]]; then :; else
-    echo "PARADA: a lista de PORTOES tem $lista portões, o piso é $piso ($PISO_ARQ)"
+if [[ "$lista" != "$piso" ]]; then
+    echo "PARADA: a lista de PORTOES tem $lista portões, o piso é $piso (SHA $SHA)"
     exit 1
 fi
 
 rodados=0
 falharam=0
+# noclobber: um log existente não é sobrescrito nem seguido; o DESTINO é pasta nova, criada acima.
+set -C
 for item in "${PORTOES[@]}"; do
     nome="${item%%|*}"
     cmd="${item#*|}"
     rodados=$((rodados + 1))
-    docker run --rm --cpus 7 --memory 12g --memory-swap 12g --network none --user 1000:1000 -e HOME=/tmp \
+    docker run --pull=never --rm --cpus 7 --memory 12g --memory-swap 12g --network none --user 1000:1000 -e HOME=/tmp \
         -v "$ARVORE:/src:ro,z" -w /src "$IMG" sh -c "$cmd" > "$DESTINO/$nome.log" 2>&1
     rc=$?
     echo "portao=$nome rc=$rc"

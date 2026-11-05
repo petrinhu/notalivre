@@ -4,12 +4,14 @@
 # Os nomes são os do GitHub (matriz expandida). tools/espelho/comparar_jobs.py confere esta lista contra os jobs
 # do ci.yml e contra os nomes do último run empurrado. Executar tudo: tools/espelho/rodar_espelho.sh.
 # Cada comando roda o próprio trabalho dentro de contêiner (L-50) e pega a trava flock (L-11).
-nativo (fedora44) | NL_FATIA=espelho-fedora44 bash tools/conteiner/build_local.sh fedora44 debug && NL_FATIA=espelho-fedora44 bash tools/conteiner/build_local.sh fedora44 sabotagem-sanidade
+qt-cache | bash tools/conteiner/build_local.sh qt
+nativo (fedora45) | NL_FATIA=espelho-fedora45 bash tools/conteiner/build_local.sh fedora45 debug && NL_FATIA=espelho-fedora45 bash tools/conteiner/build_local.sh fedora45 sabotagem-sanidade
 nativo (ubuntu26.04) | NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 debug && NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 sabotagem-sanidade
 nativo (manjaro) | NL_FATIA=espelho-manjaro bash tools/conteiner/build_local.sh manjaro debug && NL_FATIA=espelho-manjaro bash tools/conteiner/build_local.sh manjaro sabotagem-sanidade
 nativo (mint22.3) | NL_FATIA=espelho-mint22.3 bash tools/conteiner/build_local.sh mint22.3 debug && NL_FATIA=espelho-mint22.3 bash tools/conteiner/build_local.sh mint22.3 sabotagem-sanidade
 higiene (segredos e travessão) | bash tools/espelho/job_higiene.sh
 camadas (portão A2 e autoteste) | bash tools/espelho/job_camadas.sh
+autotestes (piso dos portões, suíte Flatpak, limites de contêiner) | bash tools/espelho/job_autotestes.sh
 flatpak (build contra SDK KDE 6.11 e bundle) | bash tools/espelho/job_flatpak.sh
 smoke no host do runner (plano B, sandbox) | bash tools/espelho/job_smoke.sh
 mutação dos portões (A2, gitleaks, travessão, Flatpak 6.11) | bash tools/espelho/job_mutacao.sh

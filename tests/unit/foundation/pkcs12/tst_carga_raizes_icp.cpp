@@ -107,6 +107,9 @@ private slots:
     void nenhumaRaizAceitaRecusa();
     void raizAindaNaoValidaNaoEntraComoAncora();
     void derComCaixaAltaNaoDeclaradoRecusado();
+    void raizNoInstanteExatoDoFimFicaVencida();
+    void raizNoInstanteExatoDoInicioFicaVigente();
+    void raizComDataInvalidaEhIlegivel();
 };
 
 void TesteCargaRaizesIcp::raizesIcpCarregadasDoArquivoConferido()
@@ -405,6 +408,85 @@ void TesteCargaRaizesIcp::derComCaixaAltaNaoDeclaradoRecusado()
     QVERIFY2(!carga.has_value(), "carga aceita com .DER não declarado no diretório");
     QVERIFY2(carga.error().motivo == ErroRaizIcp::ArquivoNaoDeclarado, std::string(codigo(carga.error().motivo)).c_str());
     QCOMPARE(QString::fromStdString(carga.error().arquivo), QStringLiteral("raiz_fora.DER"));
+}
+
+void TesteCargaRaizesIcp::raizNoInstanteExatoDoFimFicaVencida()
+{
+    // notAfter igual ao instante pedido: hoje é vencido (X509_cmp_time devolve -1 para antes ou igual). Limite exato.
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const std::time_t instanteExato = epoca(2026, 10, 30);
+    const QByteArray vigente = teste::raizSinteticaDer("Raiz vigente de teste", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    const QByteArray noFim = teste::raizSinteticaDer("Raiz no fim de teste", epoca(2020, 1, 1), instanteExato);
+    QVERIFY(!vigente.isEmpty() && !noFim.isEmpty());
+    const QString manifesto = teste::escreverRepositorioTeste(
+        tmp.path(), {{QStringLiteral("raiz_vigente.der"), vigente, QStringLiteral("geral")},
+                     {QStringLiteral("raiz_no_fim.der"), noFim, QStringLiteral("geral")}});
+    QVERIFY(!manifesto.isEmpty());
+
+    Carga carga = carregarRaizesIcp(tmp.path(), manifesto, "geral", agoraDeTeste());
+    QVERIFY2(carga.has_value(), descreverCarga(carga).c_str());
+    QCOMPARE(carga->ancoras.quantidade(), std::size_t{1});
+    QCOMPARE(carga->descartes.size(), std::size_t{1});
+    QCOMPARE(QString::fromStdString(carga->descartes.front().arquivo), QStringLiteral("raiz_no_fim.der"));
+    QVERIFY(carga->descartes.front().motivo == MotivoDescarte::Vencida);
+}
+
+void TesteCargaRaizesIcp::raizNoInstanteExatoDoInicioFicaVigente()
+{
+    // notBefore igual ao instante pedido: hoje é vigente (o notBefore só desqualifica se estritamente posterior).
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const std::time_t instanteExato = epoca(2026, 10, 30);
+    const QByteArray vigente = teste::raizSinteticaDer("Raiz vigente de teste", epoca(2020, 1, 1), epoca(2040, 1, 1));
+    const QByteArray noInicio = teste::raizSinteticaDer("Raiz no inicio de teste", instanteExato, epoca(2040, 1, 1));
+    QVERIFY(!vigente.isEmpty() && !noInicio.isEmpty());
+    const QString manifesto = teste::escreverRepositorioTeste(
+        tmp.path(), {{QStringLiteral("raiz_vigente.der"), vigente, QStringLiteral("geral")},
+                     {QStringLiteral("raiz_no_inicio.der"), noInicio, QStringLiteral("geral")}});
+    QVERIFY(!manifesto.isEmpty());
+
+    Carga carga = carregarRaizesIcp(tmp.path(), manifesto, "geral", agoraDeTeste());
+    QVERIFY2(carga.has_value(), descreverCarga(carga).c_str());
+    QCOMPARE(carga->ancoras.quantidade(), std::size_t{2});
+    QCOMPARE(carga->descartes.size(), std::size_t{0});
+}
+
+void TesteCargaRaizesIcp::raizComDataInvalidaEhIlegivel()
+{
+    // notAfter que o OpenSSL não compara, em três formas. A carga recusa com CertificadoIlegivel nas três:
+    // - sem o Z final (14 caracteres): cai na checagem de tamanho;
+    // - mês 13 com Z (15 caracteres): passa pelo formato e chega ao retorno de erro de ASN1_TIME_cmp_time_t (ramo -2 do porte);
+    // - X no lugar do Z (15 caracteres): a recusa vem da comparação do OpenSSL (ASN1_TIME_cmp_time_t), não de
+    //   uma checagem própria do Z; a checagem do Z do código é redundante com ela (medido no harness, gen15_ultimo_X).
+    struct Caso {
+        const char* nome;
+        const char* texto;
+        int tamanho;
+    };
+    const Caso casos[] = {
+        {"semZ", "20401231120000", 14},
+        {"mesTreze", "20401301000000Z", 15},
+        {"zComoX", "20401231120000X", 15},
+    };
+    for (const Caso& caso : casos) {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        ASN1_GENERALIZEDTIME* data = ASN1_GENERALIZEDTIME_new();
+        QVERIFY(data != nullptr);
+        QVERIFY(ASN1_STRING_set(data, caso.texto, caso.tamanho) == 1);
+        const QByteArray ruim = teste::raizSinteticaComFimBruto("Raiz data ruim de teste", epoca(2020, 1, 1), data);
+        ASN1_GENERALIZEDTIME_free(data);
+        QVERIFY(!ruim.isEmpty());
+        const QString manifesto = teste::escreverRepositorioTeste(
+            tmp.path(), {{QStringLiteral("raiz_data_ruim.der"), ruim, QStringLiteral("geral")}});
+        QVERIFY(!manifesto.isEmpty());
+
+        Carga carga = carregarRaizesIcp(tmp.path(), manifesto, "geral", agoraDeTeste());
+        QVERIFY2(!carga.has_value(), caso.nome);
+        QVERIFY2(carga.error().motivo == ErroRaizIcp::CertificadoIlegivel, caso.nome);
+        QCOMPARE(QString::fromStdString(carga.error().arquivo), QStringLiteral("raiz_data_ruim.der"));
+    }
 }
 
 

@@ -6,7 +6,7 @@ Uma chamada por requisição, em série (L-11). Versão do xmlsec1 detectada. Me
 com a chave do emissor pelo armazém de chaves só verifica com --lax-key-search depois do comando; na 1.2 essa cadeia verifica
 em estrito, e a opção não se passa. O caminho padrão (só a AC em --trusted-pem) não passa a opção.
 
-ARNÊS DO FEDORA44 (DA-2.10, L-77): a política de cripto da imagem fedora44 recusa RSA-SHA-1. Só nesse ambiente, a
+ARNÊS DO FEDORA45 (DA-2.10, L-77): a política de cripto da imagem fedora45 recusa RSA-SHA-1. Só nesse ambiente, a
 variável OPENSSL_ENABLE_SHA1_SIGNATURES=1 entra no ambiente do xmlsec1, e a linha abaixo vai para o log. Nenhum outro
 arquivo do repositório pode citar a variável (tools/portoes/portao_sha1_env.py reprova).
 
@@ -53,8 +53,8 @@ def ler_os_release(caminho="/etc/os-release"):
 
 
 def ambiente_do_arnes(os_release):
-    """Variáveis extras do oráculo. Só o fedora44 recebe a variável de SHA-1 (DA-2.10)."""
-    if os_release.get("ID") == "fedora" and os_release.get("VERSION_ID") == "44":
+    """Variáveis extras do oráculo. Só o fedora45 recebe a variável de SHA-1 (DA-2.10)."""
+    if os_release.get("ID") == "fedora" and os_release.get("VERSION_ID") == "45":
         return {ENV_SHA1: "1"}
     return {}
 
@@ -70,10 +70,10 @@ class Oraculo:
         self.versao = versao_xmlsec1(xmlsec1)
         self.ambiente = ambiente_do_arnes(os_release if os_release is not None else ler_os_release())
         if self.ambiente:
-            print(f"oraculo: {ENV_SHA1}=1 (arnês fedora44, DA-2.10)", file=sys.stderr, flush=True)
+            print(f"oraculo: {ENV_SHA1}=1 (arnês fedora45, DA-2.10)", file=sys.stderr, flush=True)
 
     def _env(self):
-        """Ambiente do xmlsec1: o do processo sem a variável de SHA-1, mais o do arnês (só no fedora44)."""
+        """Ambiente do xmlsec1: o do processo sem a variável de SHA-1, mais o do arnês (só no fedora45)."""
         env = {chave: valor for chave, valor in os.environ.items() if chave != ENV_SHA1}
         env.update(self.ambiente)
         return env

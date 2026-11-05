@@ -89,10 +89,10 @@ pasta() {
     echo "$BASE/$1"
 }
 
-# Contagens esperadas de funções (tests/funcoes_esperadas_por_distro.txt de mentira): fedora44 N.
+# Contagens esperadas de funções (tests/funcoes_esperadas_por_distro.txt de mentira): fedora45 N.
 func() {
     local arq="$BASE/func_$1.txt"
-    printf '%s\n' '# contagem de funções (fixture)' "fedora44 $1" > "$arq"
+    printf '%s\n' '# contagem de funções (fixture)' "fedora45 $1" > "$arq"
     echo "$arq"
 }
 F3="$(func 3)"
@@ -108,8 +108,14 @@ printf '%s\n' '# sem linhas' > "$VAZIA"
 # caso NOME RC_ESPERADO TRECHO DIR DISTRO PULOS EXCECOES JSON FUNCOES [OBRIG]
 caso() {  # (RAIZ_CASO, se definido, vira PULOS_RAIZ do gate; ver os casos de symlink)
     local nome="$1" esperado="$2" trecho="$3" dir="$4" distro="$5" pulos="$6" excecoes="$7" json="$8" funcs="$9"
-    local obrig="${10:-$VAZIA}"
-    local saida rc
+    local obrig="${10:-}"
+    local saida rc primeiro
+    if [ -z "$obrig" ]; then
+        # Padrão (NL-3.0g): uma linha da distro do caso com o primeiro teste do próprio CTest. Lista vazia não é padrão.
+        primeiro="$(sed -n 's/.*"name" : "\([^"]*\)".*/\1/p' "$json" | head -n 1)"
+        obrig="$BASE/obrig_$nome.txt"
+        printf '%s\n' '# obrigatórios de controle (fixture)' "$distro ${primeiro:-tst_sem_json}" > "$obrig"
+    fi
     CASOS=$((CASOS + 1))
     saida="$(PULOS_RAIZ="${RAIZ_CASO:-$RAIZ}" NL_CTEST_JSON_ARQ="$json" sh "$PORTAO" "$dir" "$distro" "$pulos" "$excecoes" "$obrig" "$funcs" "$ALLOW" 2>&1)"
     rc=$?
@@ -135,114 +141,120 @@ arquivo_com() {
 D="$(pasta controle_tudo_certo)"
 printf "%s\n" "tst_a|-|/x/tst_a" "tst_b|-|/opt/aqt/bin/python3|-I|$S_OK" | jsonc "$BASE/j1.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso controle_script_na_excecao_e_contagem_exata_passa 0 "pulos_testes: VERDE" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com ex1 'fedora44 tst_b script de teste sem junitxml por função')" "$BASE/j1.json" "$F3"
+caso controle_script_na_excecao_e_contagem_exata_passa 0 "pulos_testes: VERDE" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com ex1 'fedora45 tst_b script de teste sem junitxml por função')" "$BASE/j1.json" "$F3"
 
 D="$(pasta controle_pulo_listado)"
 json "$BASE/j2.json" tst_a
 { verdes3 | head -n 2; pulada_registro pulada "sem cliente HTTP"; } | xml "$D/junit/tst_a.xml" 3
-caso controle_pulo_listado_que_ocorre_passa 0 "pulou=1" "$D" fedora44 \
-    "$(arquivo_com pu1 'fedora44 TstX.pulada libxml2 sem cliente HTTP')" "$VAZIA" "$BASE/j2.json" "$F3"
+caso controle_pulo_listado_que_ocorre_passa 0 "pulou=1" "$D" fedora45 \
+    "$(arquivo_com pu1 'fedora45 TstX.pulada libxml2 sem cliente HTTP')" "$VAZIA" "$BASE/j2.json" "$F3"
 
 # Estreia do adendo 3 (mantida): cada um reprova.
 D="$(pasta teste_sem_funcao_de_registro)"
 json "$BASE/j3.json" tst_a tst_raw
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso teste_registrado_sem_funcao_reprova 1 "teste sem junitxml fora da lista de exceções: tst_raw" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/j3.json" "$F3"
+caso teste_registrado_sem_funcao_reprova 1 "teste sem junitxml fora da lista de exceções: tst_raw" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/j3.json" "$F3"
 
 D="$(pasta junitxml_vazio)"
 json "$BASE/j4.json" tst_a
 : > "$D/junit/tst_a.xml"
-caso junitxml_vazio_reprova 1 "junitxml vazio ou incompleto" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/j4.json" "$F3"
+caso junitxml_vazio_reprova 1 "junitxml vazio ou incompleto" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/j4.json" "$F3"
 
 D="$(pasta qskip_fora_da_lista)"
 json "$BASE/j5.json" tst_a
 { verdes3 | head -n 2; pulada_registro pulada "sem cliente HTTP"; } | xml "$D/junit/tst_a.xml" 3
-caso qskip_fora_da_lista_reprova 1 "pulo fora da lista" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/j5.json" "$F3"
+caso qskip_fora_da_lista_reprova 1 "pulo fora da lista" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/j5.json" "$F3"
 
 D="$(pasta linha_velha_excecao)"
 json "$BASE/j6.json" tst_a
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso linha_velha_na_excecao_reprova 1 "linha velha na lista de exceções" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com ex2 'fedora44 tst_fantasma script que não existe mais')" "$BASE/j6.json" "$F3"
+caso linha_velha_na_excecao_reprova 1 "linha velha na lista de exceções" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com ex2 'fedora45 tst_fantasma script que não existe mais')" "$BASE/j6.json" "$F3"
 
 D="$(pasta json_vazio)"
 printf '%s\n' '{' '  "kind" : "ctestInfo",' '  "tests" :' '  [' '  ]' '}' > "$BASE/j7.json"
-caso json_do_ctest_vazio_reprova 1 "JSON do ctest vazio" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/j7.json" "$F3"
+caso json_do_ctest_vazio_reprova 1 "JSON do ctest vazio" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/j7.json" "$F3"
 
 D="$(pasta xml_sem_testcase)"
 json "$BASE/j8.json" tst_a
 xml "$D/junit/tst_a.xml" 0 < /dev/null
-caso junitxml_sem_testcase_reprova 1 "junitxml sem testcase" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/j8.json" "$F3"
+caso junitxml_sem_testcase_reprova 1 "junitxml sem testcase" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/j8.json" "$F3"
 
 D="$(pasta excecao_com_xml)"
 json "$BASE/j9.json" tst_a=/opt/aqt/bin/python3
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso excecao_com_junitxml_reprova 1 "exceção com junitxml" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com ex3 'fedora44 tst_a script que já gera junitxml')" "$BASE/j9.json" "$F3"
+caso excecao_com_junitxml_reprova 1 "exceção com junitxml" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com ex3 'fedora45 tst_a script que já gera junitxml')" "$BASE/j9.json" "$F3"
 
 D="$(pasta excecao_sem_motivo)"
 json "$BASE/j10.json" tst_a tst_b=/opt/aqt/bin/python3
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso excecao_sem_motivo_reprova 1 "sem motivo" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com ex4 'fedora44 tst_b')" "$BASE/j10.json" "$F3"
+caso excecao_sem_motivo_reprova 1 "sem motivo" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com ex4 'fedora45 tst_b')" "$BASE/j10.json" "$F3"
 
 D="$(pasta obrigatorio_ausente)"
 json "$BASE/j11.json" tst_a
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso obrigatorio_ausente_reprova 1 "teste obrigatório ausente" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/j11.json" "$F3" \
-    "$(arquivo_com ob1 'fedora44 tst_b prova obrigatória')"
+caso obrigatorio_ausente_reprova 1 "teste obrigatório ausente" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/j11.json" "$F3" \
+    "$(arquivo_com ob1 'fedora45 tst_b prova obrigatória')"
+
+D="$(pasta distro_sem_obrigatorios)"
+json "$BASE/dso.json" tst_a
+verdes3 | xml "$D/junit/tst_a.xml" 3
+caso distro_sem_obrigatorios_reprova 1 "nenhuma linha para a distro fedora45" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/dso.json" "$F3" \
+    "$(arquivo_com dso1 'mint22.3 tst_a prova de outra distro')"
 
 D="$(pasta pulo_listado_nao_ocorre)"
 json "$BASE/j12.json" tst_a
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso pulo_listado_que_nao_ocorre_reprova 1 "pulo listado que não ocorreu" "$D" fedora44 \
-    "$(arquivo_com pu2 'fedora44 TstX.pulada libxml2 sem cliente HTTP')" "$VAZIA" "$BASE/j12.json" "$F3"
+caso pulo_listado_que_nao_ocorre_reprova 1 "pulo listado que não ocorreu" "$D" fedora45 \
+    "$(arquivo_com pu2 'fedora45 TstX.pulada libxml2 sem cliente HTTP')" "$VAZIA" "$BASE/j12.json" "$F3"
 
 D="$(pasta json_formato)"
 printf '%s\n' '{' '  "tests" :' '  [' '    {' '      "command" :' '      [' '        "/x/tst_a"' '      ],' '      "name" : "tst_a"' '    },' '    {' '      "command" :' '      [' '        "/x/tst_b"' '      ]' '    }' '  ]' '}' > "$BASE/j13.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso formato_json_desconhecido_reprova 1 "formato do JSON do ctest" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/j13.json" "$F3"
+caso formato_json_desconhecido_reprova 1 "formato do JSON do ctest" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/j13.json" "$F3"
 
 # Adendo 4 (estreia): V1 de revisão e os casos pedidos. Cada um tem de reprovar.
 # N1. Qt Test (executável compilado) na lista de exceções, sem junitxml: reprova pelo nome.
 D="$(pasta n1_qt_na_excecao)"
 json "$BASE/n1.json" tst_a tst_qt=/x/tst_qt
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso qt_test_na_lista_de_excecoes_reprova 1 "exceção fora do formato permitido: tst_qt" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com n1ex 'fedora44 tst_qt script de teste sem junitxml')" "$BASE/n1.json" "$F3"
+caso qt_test_na_lista_de_excecoes_reprova 1 "exceção fora do formato permitido: tst_qt" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com n1ex 'fedora45 tst_qt script de teste sem junitxml')" "$BASE/n1.json" "$F3"
 
 # N2. Qt Test embrulhado em bash: o teste saiu do junitxml para um bash, e a contagem cai. Reprova pela contagem exata.
 D="$(pasta n2_qt_embrulhado_bash)"
 json "$BASE/n2.json" tst_a tst_wrap=/usr/bin/bash
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso qt_test_embrulhado_em_bash_reprova 1 "contagem de funções: esperadas 6, obtidas 3" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com n2ex 'fedora44 tst_wrap script bash que roda o teste Qt')" "$BASE/n2.json" "$F6"
+caso qt_test_embrulhado_em_bash_reprova 1 "contagem de funções: esperadas 6, obtidas 3" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com n2ex 'fedora45 tst_wrap script bash que roda o teste Qt')" "$BASE/n2.json" "$F6"
 
 # N3. junitxml perdido de um teste listado (executável compilado): reprova pela lista (interpretador) antes da contagem.
 D="$(pasta n3_xml_perdido_listado)"
 json "$BASE/n3.json" tst_a tst_x=/x/tst_x
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso junitxml_perdido_de_listado_reprova 1 "exceção fora do formato permitido: tst_x" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com n3ex 'fedora44 tst_x teste que perdeu o junitxml')" "$BASE/n3.json" "$F3"
+caso junitxml_perdido_de_listado_reprova 1 "exceção fora do formato permitido: tst_x" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com n3ex 'fedora45 tst_x teste que perdeu o junitxml')" "$BASE/n3.json" "$F3"
 
 # N4. contagem com um a mais.
 D="$(pasta n4_contagem_a_mais)"
 json "$BASE/n4.json" tst_a
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso contagem_com_um_a_mais_reprova 1 "contagem de funções: esperadas 2, obtidas 3" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/n4.json" "$F2"
+caso contagem_com_um_a_mais_reprova 1 "contagem de funções: esperadas 2, obtidas 3" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/n4.json" "$F2"
 
 # N5. contagem com um a menos.
 D="$(pasta n5_contagem_a_menos)"
 json "$BASE/n5.json" tst_a
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso contagem_com_um_a_menos_reprova 1 "contagem de funções: esperadas 4, obtidas 3" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/n5.json" "$F4"
+caso contagem_com_um_a_menos_reprova 1 "contagem de funções: esperadas 4, obtidas 3" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/n5.json" "$F4"
 
 # N6. distro sem contagem versionada reprova (fechado).
 D="$(pasta n6_sem_contagem)"
 json "$BASE/n6.json" tst_a
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso distro_sem_contagem_versionada_reprova 1 "sem contagem de funções versionada" "$D" fedora44 "$VAZIA" "$VAZIA" "$BASE/n6.json" "$FOUTRA"
+caso distro_sem_contagem_versionada_reprova 1 "sem contagem de funções versionada" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/n6.json" "$FOUTRA"
 
 
 # Escapes da revisão rodada 4 (estreia vermelha): cada um tem de reprovar pela forma do command.
@@ -251,45 +263,45 @@ T_OK="$RAIZ/tests/fixtures/pii/referencia.txt"
 D="$(pasta a5_bash_c)"
 printf '%s\n' 'tst_a5a|-|/usr/bin/bash|-c|/x/tst_suite' | jsonc "$BASE/a5a.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso a5_bash_c_escape_reprova 1 "exceção fora do formato permitido: tst_a5a (argumento proibido: -c)" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com a5a 'fedora44 tst_a5a wrapper bash')" "$BASE/a5a.json" "$F3"
+caso a5_bash_c_escape_reprova 1 "exceção fora do formato permitido: tst_a5a (argumento proibido: -c)" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com a5a 'fedora45 tst_a5a wrapper bash')" "$BASE/a5a.json" "$F3"
 
 D="$(pasta a5_cmake_e_env)"
 printf '%s\n' 'tst_a5b|-|/usr/bin/cmake|-E|env|R4=1|/x/tst_suite' | jsonc "$BASE/a5b.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso a5_cmake_E_env_escape_reprova 1 "exceção fora do formato permitido: tst_a5b (argumento proibido: -E)" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com a5b 'fedora44 tst_a5b cmake env')" "$BASE/a5b.json" "$F3"
+caso a5_cmake_E_env_escape_reprova 1 "exceção fora do formato permitido: tst_a5b (argumento proibido: -E)" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com a5b 'fedora45 tst_a5b cmake env')" "$BASE/a5b.json" "$F3"
 
 D="$(pasta a5_python3_no_build)"
 printf '%s\n' "tst_a5c|-|$D/tests/python3" | jsonc "$BASE/a5c.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso a5_python3_dentro_do_build_reprova 1 "exceção fora do formato permitido: tst_a5c (interpretador fora da allowlist de caminhos fixos" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com a5c 'fedora44 tst_a5c executavel chamado python3')" "$BASE/a5c.json" "$F3"
+caso a5_python3_dentro_do_build_reprova 1 "exceção fora do formato permitido: tst_a5c (interpretador fora da allowlist de caminhos fixos" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com a5c 'fedora45 tst_a5c executavel chamado python3')" "$BASE/a5c.json" "$F3"
 
 D="$(pasta a5_path_no_environment)"
 printf '%s\n' "tst_a5d|PATH=$D/tests|/opt/aqt/bin/python3|-I|$S_OK" | jsonc "$BASE/a5d.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso a5_PATH_no_ENVIRONMENT_reprova 1 "exceção fora do formato permitido: tst_a5d (ENVIRONMENT com PATH ou LD_)" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com a5d 'fedora44 tst_a5d python3 com PATH')" "$BASE/a5d.json" "$F3"
+caso a5_PATH_no_ENVIRONMENT_reprova 1 "exceção fora do formato permitido: tst_a5d (ENVIRONMENT com PATH ou LD_)" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com a5d 'fedora45 tst_a5d python3 com PATH')" "$BASE/a5d.json" "$F3"
 
 D="$(pasta a5_python3_c)"
 printf '%s\n' 'tst_a5e|-|/opt/aqt/bin/python3|-c|print(1)' | jsonc "$BASE/a5e.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso a5_python3_c_reprova 1 "exceção fora do formato permitido: tst_a5e (argumento proibido: -c)" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com a5e 'fedora44 tst_a5e python3 -c')" "$BASE/a5e.json" "$F3"
+caso a5_python3_c_reprova 1 "exceção fora do formato permitido: tst_a5e (argumento proibido: -c)" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com a5e 'fedora45 tst_a5e python3 -c')" "$BASE/a5e.json" "$F3"
 
 D="$(pasta a5_argumento_aponta_build)"
 printf '%s\n' "tst_a5f|-|/opt/aqt/bin/python3|-I|$S_OK|--dir|$D/junit" | jsonc "$BASE/a5f.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso a5_argumento_depois_do_script_no_build_reprova 1 "exceção fora do formato permitido: tst_a5f (argumento aponta para o build)" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com a5f 'fedora44 tst_a5f script com caminho do build')" "$BASE/a5f.json" "$F3"
+caso a5_argumento_depois_do_script_no_build_reprova 1 "exceção fora do formato permitido: tst_a5f (argumento aponta para o build)" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com a5f 'fedora45 tst_a5f script com caminho do build')" "$BASE/a5f.json" "$F3"
 
 # Controle: interpretador absoluto, -I, script versionado e argumento fora do build passa.
 D="$(pasta a5_controle_valido)"
 printf '%s\n' 'tst_a|-|/x/tst_a' "tst_a5g|-|/opt/aqt/bin/python3|-I|$S_OK|--termos|$T_OK" | jsonc "$BASE/a5g.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso a5_controle_comando_valido_passa 0 "pulos_testes: VERDE" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com a5g 'fedora44 tst_a5g script versionado')" "$BASE/a5g.json" "$F3"
+caso a5_controle_comando_valido_passa 0 "pulos_testes: VERDE" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com a5g 'fedora45 tst_a5g script versionado')" "$BASE/a5g.json" "$F3"
 
 # Rodada 6 (DA-2.63, revisão R5-1..R5-4): casos negativos de allowlist, caminho absoluto, prefixo e realpath.
 # Cada um reprova. Estreia vermelha: no portão anterior, py3src, py3glob, traversal e symlink passavam.
@@ -304,56 +316,56 @@ ln -s "$EVIL" "$RPT/tests/link.py"
 D="$(pasta r6_py3src_fora_da_allowlist)"
 printf '%s\n' "tst_p1|-|$RAIZ/tests/bin/python3|-I|$S_OK" | jsonc "$BASE/r6a.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso r6_py3src_interpretador_compilado_reprova 1 "interpretador fora da allowlist de caminhos fixos" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com r6a 'fedora44 tst_p1 executavel compilado chamado python3')" "$BASE/r6a.json" "$F3"
+caso r6_py3src_interpretador_compilado_reprova 1 "interpretador fora da allowlist de caminhos fixos" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com r6a 'fedora45 tst_p1 executavel compilado chamado python3')" "$BASE/r6a.json" "$F3"
 
 D="$(pasta r6_py3glob)"
 printf '%s\n' "tst_p2|-|/opt/aqt/bin/python3.9evil|-I|$S_OK" | jsonc "$BASE/r6b.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso r6_py3glob_nome_com_sufixo_reprova 1 "interpretador fora da allowlist de caminhos fixos" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com r6b 'fedora44 tst_p2 python3 com sufixo')" "$BASE/r6b.json" "$F3"
+caso r6_py3glob_nome_com_sufixo_reprova 1 "interpretador fora da allowlist de caminhos fixos" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com r6b 'fedora45 tst_p2 python3 com sufixo')" "$BASE/r6b.json" "$F3"
 
 # G2: a allowlist é o que barra o interpretador fora da lista (perl absoluto, fora do build).
 D="$(pasta r6_g2_interpretador_fora_da_lista)"
 printf '%s\n' "tst_p3|-|/usr/bin/perl|-I|$S_OK" | jsonc "$BASE/r6c.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso r6_G2_allowlist_barra_perl_reprova 1 "interpretador fora da allowlist de caminhos fixos: /usr/bin/perl" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com r6c 'fedora44 tst_p3 perl')" "$BASE/r6c.json" "$F3"
+caso r6_G2_allowlist_barra_perl_reprova 1 "interpretador fora da allowlist de caminhos fixos: /usr/bin/perl" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com r6c 'fedora45 tst_p3 perl')" "$BASE/r6c.json" "$F3"
 
 # G4: caminho relativo não é interpretador (a mensagem própria da regra).
 D="$(pasta r6_g4_relativo)"
 printf '%s\n' "tst_p4|-|python3|-I|$S_OK" | jsonc "$BASE/r6d.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso r6_G4_caminho_relativo_reprova 1 "interpretador não absoluto: python3" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com r6d 'fedora44 tst_p4 python3 relativo')" "$BASE/r6d.json" "$F3"
+caso r6_G4_caminho_relativo_reprova 1 "interpretador não absoluto: python3" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com r6d 'fedora45 tst_p4 python3 relativo')" "$BASE/r6d.json" "$F3"
 
 # Traversal: '..' no caminho cru do script (ataque R5-2), com o arquivo existindo fora do repositório.
 D="$(pasta r6_traversal_dotdot)"
 printf '%s\n' "tst_p5|-|/opt/aqt/bin/python3|-I|$RAIZ/tests/../../..$EVIL" | jsonc "$BASE/r6e.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-caso r6_traversal_com_dotdot_reprova 1 "script com '..' no caminho" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com r6e 'fedora44 tst_p5 script com dotdot')" "$BASE/r6e.json" "$F3"
+caso r6_traversal_com_dotdot_reprova 1 "script com '..' no caminho" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com r6e 'fedora45 tst_p5 script com dotdot')" "$BASE/r6e.json" "$F3"
 
 # Symlink dentro de tests/ que aponta para fora: a canonização (realpath) é que pega, sem '..' no caminho cru.
 D="$(pasta r6_symlink_para_fora)"
 printf '%s\n' "tst_p6|-|/opt/aqt/bin/python3|-I|$RPT/tests/link.py" | jsonc "$BASE/r6f.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-RAIZ_CASO="$RPT" caso r6_symlink_fora_do_repo_reprova 1 "fora de tests/ ou tools/ após realpath" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com r6f 'fedora44 tst_p6 link para fora')" "$BASE/r6f.json" "$F3"
+RAIZ_CASO="$RPT" caso r6_symlink_fora_do_repo_reprova 1 "fora de tests/ ou tools/ após realpath" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com r6f 'fedora45 tst_p6 link para fora')" "$BASE/r6f.json" "$F3"
 
 # G5: script dentro do repositório, mas fora de tests/ e tools/ (prefixo desligado).
 D="$(pasta r6_g5_fora_de_tests_tools)"
 printf '%s\n' "tst_p7|-|/opt/aqt/bin/python3|-I|$RPT/src/algo.py" | jsonc "$BASE/r6g.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-RAIZ_CASO="$RPT" caso r6_G5_script_fora_de_tests_tools_reprova 1 "fora de tests/ ou tools/ após realpath" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com r6g 'fedora44 tst_p7 script em src')" "$BASE/r6g.json" "$F3"
+RAIZ_CASO="$RPT" caso r6_G5_script_fora_de_tests_tools_reprova 1 "fora de tests/ ou tools/ após realpath" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com r6g 'fedora45 tst_p7 script em src')" "$BASE/r6g.json" "$F3"
 
 # Controle (tem de passar): interpretador da allowlist, script em tests/ dentro do repositório, sem .git.
 D="$(pasta r6_controle_repo)"
 printf '%s\n' 'tst_a|-|/x/tst_a' "tst_p8|-|/opt/aqt/bin/python3|-I|$RPT/tests/ok.py" | jsonc "$BASE/r6h.json"
 verdes3 | xml "$D/junit/tst_a.xml" 3
-RAIZ_CASO="$RPT" caso r6_controle_script_valido_no_repo_passa 0 "pulos_testes: VERDE" "$D" fedora44 "$VAZIA" \
-    "$(arquivo_com r6h 'fedora44 tst_p8 script valido')" "$BASE/r6h.json" "$F3"
+RAIZ_CASO="$RPT" caso r6_controle_script_valido_no_repo_passa 0 "pulos_testes: VERDE" "$D" fedora45 "$VAZIA" \
+    "$(arquivo_com r6h 'fedora45 tst_p8 script valido')" "$BASE/r6h.json" "$F3"
 
 echo "CASOS=$CASOS FALHAS=$FALHAS"
 if [ "$FALHAS" -ne 0 ]; then

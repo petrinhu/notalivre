@@ -19,6 +19,7 @@ enum class ErroCredencial : int {
     SemAutenticacaoCliente,   ///< EKU presente e sem clientAuth.
     PfxMalformado,            ///< Não decodifica como PKCS#12, ou não traz chave e certificado.
     FalhaInterna,             ///< Alocação ou falha do OpenSSL fora dos casos acima.
+    DataIlegivel,             ///< notBefore ou notAfter da folha sem data que se possa comparar.
 };
 
 /// Código estável para log e para o chamador. Não muda com o texto da mensagem.
@@ -33,6 +34,7 @@ enum class ErroCredencial : int {
     case ErroCredencial::SemAutenticacaoCliente: return "credencial.sem_autenticacao_cliente";
     case ErroCredencial::PfxMalformado: return "credencial.pfx_malformado";
     case ErroCredencial::FalhaInterna: return "credencial.falha_interna";
+    case ErroCredencial::DataIlegivel: return "credencial.data_ilegivel";
     }
     return "credencial.falha_interna";
 }

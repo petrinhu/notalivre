@@ -489,6 +489,10 @@ while IFS= read -r linha; do
     fi
 done < "$OBRIG"
 n_obrig=$(wc -l < "$OBRIG_DIST" | tr -d ' ')
+# Distro sem nenhuma linha de obrigatórios reprova: lista sem linha da distro é portão sem prova (L-36, NL-3.0g).
+if [ "$n_obrig" -eq 0 ]; then
+    parada "nenhuma linha para a distro $DISTRO em $OBRIG: portão sem prova de obrigatórios (L-36)"
+fi
 grep -vxF -f "$TESTES" "$OBRIG_DIST" > "$J/.obrig_ausentes.txt"
 while IFS= read -r nome; do
     [ -n "$nome" ] || continue

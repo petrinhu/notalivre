@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Ferramentas de build e bibliotecas de runtime do Qt para Fedora 44 (NL-0.4).
-# Usado pelo Dockerfile (fedora44-build.Dockerfile) e pelo ci.yml: uma só fonte de verdade.
+# Ferramentas de build e bibliotecas de runtime do Qt para Fedora 45 (NL-0.4).
+# Usado pelo Dockerfile (fedora45-build.Dockerfile) e pelo ci.yml: uma só fonte de verdade.
 # Instala ferramentas pelo gerenciador de pacotes; nunca toca o host (roda dentro do contêiner).
 set -euo pipefail
 
@@ -18,6 +18,8 @@ dnf clean all
 
 # xmlsec1 (NL-2.0, DA-2.1): oráculo de linha de comando dos testes (xmlsec1 --verify). Não entra no app nem no Flatpak.
 
-# aqtinstall num venv próprio: só é usado para instalar Qt no volume (build_local.sh qt) e no cache do CI.
+# Venv em /opt/aqt SEM aqtinstall (NL-3.0g, decisão do CTO de 05/11/2026). O aqt não entra aqui: as dependências dele
+# (py7zr, pybcj, pyppmd, inflate64) não têm wheel para o Python 3.15 do Fedora 45, e a compilação da fonte precisa de
+# Python.h, que não está na lista. O Qt vem do volume e do cache do CI, populados pela imagem ubuntu26.04
+# (build_local.sh qt_instalar e o job qt-cache do ci.yml).
 python3 -m venv /opt/aqt
-/opt/aqt/bin/pip install --no-cache-dir aqtinstall

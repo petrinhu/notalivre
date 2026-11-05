@@ -22,6 +22,7 @@ foreach(nome IN ITEMS
     legadoNaoDesligaODefault
     vencidoSinalizado
     folhaComValidadeFuturaReprova
+    folhaComDataIlegivelReprova
     validadeIntermediariaVencidaReprova
     semEkuClientAuthSinalizado
     ekuMalformadaReprova
@@ -93,7 +94,10 @@ foreach(nome IN ITEMS
     manifestoMalformadoRecusa
     nenhumaRaizAceitaRecusa
     raizAindaNaoValidaNaoEntraComoAncora
-    derComCaixaAltaNaoDeclaradoRecusado)
+    derComCaixaAltaNaoDeclaradoRecusado
+    raizNoInstanteExatoDoFimFicaVencida
+    raizNoInstanteExatoDoInicioFicaVigente
+    raizComDataInvalidaEhIlegivel)
   nl_registra_teste_qt(NAME pkcs12.raizes.${nome} COMMAND tst_carga_raizes_icp ${nome})
   set_tests_properties(pkcs12.raizes.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste

@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # E1 da NL-2.10e (DA-2.71): sondagem TLS SÓ DE LEITURA do host da Sefin de Produção Restrita. Usa só openssl s_client, sem
 # certificado de cliente, sem POST e sem corpo. A única requisição HTTP é um GET sem corpo, no caminho de H8. Nenhuma chave
-# é lida nem guardada. Roda dentro de contêiner com rede (imagem fedora44). Não decide nada: só registra o que o servidor faz.
+# é lida nem guardada. Roda dentro de contêiner com rede (imagem fedora45). Não decide nada: só registra o que o servidor faz.
 #
 # Uso: NL_SONDA_SEFIN_CONFIRMO=1 sondar_sefin_tls.sh [HOST]
 # Saída: texto no stdout, com a ordem das medidas numeradas. Sai com 1 só se o servidor não responder ao handshake.

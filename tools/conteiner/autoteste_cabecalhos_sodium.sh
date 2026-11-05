@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Autoteste dos cabeçalhos de desenvolvimento do libsodium nas imagens de build (NL-3.2a; autorização do líder de 29/10/2026,
 # "Autorizo agora (Recomendado)"). TDD do ambiente (L-35, L-36): cada caso foi visto VERMELHO antes da correção.
-#   E1 os 4 instalar/ trazem o pacote: fedora44 (libsodium-devel), ubuntu26.04 e mint22.3 (libsodium-dev), manjaro (libsodium).
+#   E1 os 4 instalar/ trazem o pacote: fedora45 (libsodium-devel), ubuntu26.04 e mint22.3 (libsodium-dev), manjaro (libsodium).
 #   E2 precheque_sodium.sh REPROVA quando <sodium.h> falta. O cc de sandbox usa -nostdinc e links de /usr/include
 #      sem sodium.h nem o diretório sodium/; nada é instalado nem alterado.
 #   E3 controle positivo: um cc de sandbox com um sodium.h de uma linha em -isystem; o precheque aprova.
@@ -23,7 +23,7 @@ falha() { echo "[VERMELHO] $1"; FALHAS=$((FALHAS + 1)); }
 
 # E1: pacote de cabeçalhos em cada um dos quatro scripts instalar/ (piso: 4 analisados).
 analisados=0; faltou=0
-for par in fedora44:libsodium-devel ubuntu26.04:libsodium-dev mint22.3:libsodium-dev manjaro:libsodium; do
+for par in fedora45:libsodium-devel ubuntu26.04:libsodium-dev mint22.3:libsodium-dev manjaro:libsodium; do
     arq="${par%%:*}"; pac="${par#*:}"
     analisados=$((analisados + 1))
     grep -qw -- "$pac" "$CONTEINER/instalar/$arq.sh" 2>/dev/null || faltou=$((faltou + 1))
