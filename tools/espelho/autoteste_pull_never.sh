@@ -25,10 +25,31 @@ trap 'rm -rf -- "$TMP"' EXIT
 
 # Programa do awk. Não usar apóstrofo aqui: o texto vai entre aspas simples do shell.
 PROG='
+# Corta o comentário do fim da linha: # precedido de espaço ou tabulação, fora de aspas simples e duplas.
+function sem_comentario(s,    i, c, q, n) {
+    q = ""; n = length(s)
+    for (i = 1; i <= n; i++) {
+        c = substr(s, i, 1)
+        if (q != "") { if (c == q) q = ""; continue }
+        if (c == "\"" || c == "\047") { q = c; continue }
+        if (c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t]/)) return substr(s, 1, i - 1)
+    }
+    return s
+}
+# Cada docker run do comando tem --pull=never como PRIMEIRA opção, logo depois do comando.
+function confere_pull(s,    rest, ok) {
+    ok = 1
+    while (match(s, /docker run/)) {
+        rest = substr(s, RSTART + RLENGTH)
+        if (rest !~ /^[ \t]+--pull=never([ \t]|$)/) ok = 0
+        s = rest
+    }
+    return ok
+}
 FNR == 1 { acum = "" }
 /^[ \t]*#/ { next }
 {
-    linha = $0
+    linha = sem_comentario($0)
     if (acum == "") ini = FNR
     if (linha ~ /\\[ \t]*$/) {
         sub(/\\[ \t]*$/, "", linha)
@@ -38,8 +59,8 @@ FNR == 1 { acum = "" }
     acum = (acum == "" ? linha : acum " " linha)
     if (acum ~ /docker run/) {
         total++
-        if (acum ~ /--pull=never/) {
-            # ok: imagem local com a flag
+        if (confere_pull(acum)) {
+            # ok: todo docker run do comando traz a flag como primeira opção
         } else if (FILENAME ~ excecao_arquivo && acum ~ /"[$]FLATHUB_KDE"/) {
             excecoes++
             print "EXCECAO " FILENAME ":" ini ": imagem externa por digest (cabeçalho deste autoteste)"
