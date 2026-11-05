@@ -4,7 +4,7 @@
 # N é o total de testcases de todos os junitxml do build (initTestCase e cleanupTestCase incluídos). Comparada com ==.
 # Mudar a contagem é ato visível no diff, que a revisão confere contra os testes acrescentados ou retirados.
 fedora44 1448
-ubuntu26.04 1448
+ubuntu26.04 1457
 manjaro 1448
 mint22.3 1448
 flatpak 1247
