@@ -457,7 +457,8 @@ void TesteCargaRaizesIcp::raizComDataInvalidaEhIlegivel()
     // notAfter que o OpenSSL não compara, em três formas. A carga recusa com CertificadoIlegivel nas três:
     // - sem o Z final (14 caracteres): cai na checagem de tamanho;
     // - mês 13 com Z (15 caracteres): passa pelo formato e chega ao retorno de erro de ASN1_TIME_cmp_time_t (ramo -2 do porte);
-    // - X no lugar do Z (15 caracteres): cai na checagem do Z.
+    // - X no lugar do Z (15 caracteres): a recusa vem da comparação do OpenSSL (ASN1_TIME_cmp_time_t), não de
+    //   uma checagem própria do Z; a checagem do Z do código é redundante com ela (medido no harness, gen15_ultimo_X).
     struct Caso {
         const char* nome;
         const char* texto;
