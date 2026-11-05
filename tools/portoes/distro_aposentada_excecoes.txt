@@ -17,3 +17,4 @@ tests/fixtures/xmldsig/tabela_http_por_distro.txt 1
 tests/fixtures/xmldsig/tabela_sha1_por_distro.txt 1
 TODO.md 7
 tools/portoes/distro_aposentada.txt 1
+tools/portoes/distro_aposentada_excecoes.txt 1
