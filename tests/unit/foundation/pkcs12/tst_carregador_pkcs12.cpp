@@ -537,6 +537,27 @@ QByteArray pfxComDataIlegivel(const QByteArray& senha, bool noInicio) {
     if (ok != 1) {
         return {};
     }
+    // X509_set1_not* não marca o TBS como modificado no OpenSSL 3.0 (crypto/x509/x509_set.c): o i2d devolveria a codificação
+    // em cache, com as datas velhas. i2d_re_X509_tbs marca e renova, com a mesma fonte nas 4 imagens.
+    if (i2d_re_X509_tbs(cert.get(), nullptr) <= 0) {
+        return {};
+    }
+    // O construtor prova o que montou: sem isto, uma falha aqui pareceria fail-open do carregador.
+    unsigned char* der = nullptr;
+    const int tamanhoDer = i2d_X509(cert.get(), &der);
+    if (tamanhoDer <= 0) {
+        return {};
+    }
+    const unsigned char* cursor = der;
+    std::unique_ptr<X509, decltype(&X509_free)> relida(d2i_X509(nullptr, &cursor, tamanhoDer), &X509_free);
+    OPENSSL_free(der);
+    if (!relida) {
+        return {};
+    }
+    const ASN1_TIME* lida = noInicio ? X509_get0_notBefore(relida.get()) : X509_get0_notAfter(relida.get());
+    if (ASN1_STRING_cmp(lida, data.get()) != 0) {
+        return {};
+    }
     std::unique_ptr<PKCS12, decltype(&PKCS12_free)> p12(
         PKCS12_create(senha.constData(), "folha", chave.get(), cert.get(), nullptr, NID_aes_256_cbc, NID_aes_256_cbc, 2048, 2048, 0),
         &PKCS12_free);
