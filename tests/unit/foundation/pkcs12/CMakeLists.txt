@@ -114,5 +114,5 @@ nl_registra_teste_qt(NAME pkcs12.decifrarNaoDeixaProvedorVivo COMMAND tst_vazame
 set_tests_properties(pkcs12.decifrarNaoDeixaProvedorVivo PROPERTIES
                      FIXTURES_REQUIRED certificados_teste
                      ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
-                     PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed"
+                     PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                      FAIL_REGULAR_EXPRESSION "FAIL!")
