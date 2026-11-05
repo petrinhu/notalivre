@@ -53,10 +53,25 @@ fi
 LISTA_TXT="$(git -C "$ARVORE" show "$SHA:tools/conteiner/lista_portoes.txt" 2>/dev/null)" \
     || { echo "PARADA: lista_portoes.txt não lida do SHA $SHA (rc 2)"; exit 2; }
 PORTOES=()
+NOMES_VISTOS=" "
 while IFS= read -r linha; do
     case "$linha" in
         ''|'#'*) continue ;;
     esac
+    # O nome vira caminho no host ($DESTINO/$nome.log): só [a-z0-9_], sem barra, sem ponto, único (revisão ALTA, NL-3.0g).
+    case "$linha" in
+        *'|'*) ;;
+        *) echo "PARADA: linha de portão sem '|' no SHA $SHA (rc 2)"; exit 2 ;;
+    esac
+    nome="${linha%%|*}"
+    if ! [[ "$nome" =~ ^[a-z0-9_]+$ ]]; then
+        echo "PARADA: nome de portão inválido no SHA $SHA (rc 2): só [a-z0-9_], recebido '${nome:0:40}'"
+        exit 2
+    fi
+    case " $NOMES_VISTOS " in
+        *" $nome "*) echo "PARADA: nome de portão duplicado no SHA $SHA (rc 2): '$nome'"; exit 2 ;;
+    esac
+    NOMES_VISTOS="$NOMES_VISTOS$nome "
     PORTOES+=("$linha")
 done <<< "$LISTA_TXT"
 lista=${#PORTOES[@]}
@@ -67,6 +82,8 @@ fi
 
 rodados=0
 falharam=0
+# noclobber: um log existente não é sobrescrito nem seguido; o DESTINO é pasta nova, criada acima.
+set -C
 for item in "${PORTOES[@]}"; do
     nome="${item%%|*}"
     cmd="${item#*|}"
