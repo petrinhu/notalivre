@@ -6,12 +6,15 @@
 # REGRA (fechada; critério fixado antes do resultado, L-43):
 #   - Coberto: toda chamada literal `docker` + um ou mais espaços ou tabulações + `run` em tools/espelho/*.sh,
 #     tools/conteiner/build_local.sh, tools/conteiner/portoes_estaticos.sh, tools/mutacao/sabotar_portoes.sh e
-#     .github/workflows/ci.yml, inclusive dentro de blocos `run: |` do ci.yml.
+#     .github/workflows/ci.yml.
 #   - Em cada ocorrência de `docker run` da chamada, --pull=never tem de ser a PRIMEIRA opção, logo depois do comando.
 #     Imagem local ausente vira REPROVA, nunca download de um namespace que não é nosso.
 #   - Comentário no fim da linha (# precedido de espaço ou tabulação, fora de aspas) não conta.
-#   - Rótulo isento: só em arquivo .yml, só fora de bloco `run: |`, e só linha cujo início é `name:` ou `- name:`.
-#     Em .sh não existe isenção. Dentro de bloco `run: |` (linhas mais indentadas que a chave run), `name:` é comando.
+#   - Região de script (só em .yml): toda chave `run:`, com `-` e quantos espaços ou tabulações antes, abre região,
+#     seja `|`, `>`, `|-`, valor na mesma linha ou escalar contínuo. Toda linha mais indentada que a chave run: é
+#     comando, e a região termina na primeira linha não vazia com indentação igual ou menor.
+#   - Rótulo isento: só em .yml, só fora de região de script, e só chave YAML de verdade: `name:` ou `- name:` seguido
+#     de espaço, tabulação ou fim de linha. `name:x` não é chave. Em .sh não existe isenção.
 #   - Exceção declarada: sabotar_portoes.sh, linha 149, roda a imagem externa "$FLATHUB_KDE" por digest
 #     (ghcr.io flathub-infra), que precisa de pull; é exatamente UMA (piso conferido pelo script), e só nesse arquivo,
 #     só com "$FLATHUB_KDE" fora de comentário.
@@ -44,6 +47,8 @@ function sem_comentario(s,    i, c, q, n) {
 }
 # Largura da indentação (espaços e tabulações, um caractere cada).
 function indentacao(s) { match(s, /^[ \t]*/); return RLENGTH }
+# Coluna da chave run: (caracteres antes de "run:").
+function coluna_run(s) { match(s, /run:/); return RSTART - 1 }
 # Cada docker run do comando tem --pull=never como PRIMEIRA opção, logo depois do comando.
 function confere_pull(s,    rest, ok) {
     ok = 1
@@ -54,13 +59,14 @@ function confere_pull(s,    rest, ok) {
     }
     return ok
 }
-FNR == 1 { acum = ""; em_bloco = 0 }
+FNR == 1 { acum = ""; em_regiao = 0 }
 /^[ \t]*#/ { next }
 {
     linha = sem_comentario($0)
-    if (em_bloco && linha !~ /^[ \t]*$/ && indentacao(linha) <= bloco_ind) em_bloco = 0
-    if (!em_bloco && linha ~ /^[ \t]*(- )?run:[ \t]*[|>]/) { em_bloco = 1; bloco_ind = indentacao(linha); next }
-    if (!em_bloco && FILENAME ~ /[.]yml$/ && linha ~ /^[ \t]*(-[ \t]+)?name:/) next
+    yml = (FILENAME ~ /[.]yml$/)
+    if (em_regiao && linha !~ /^[ \t]*$/ && indentacao(linha) <= col_regiao) em_regiao = 0
+    if (yml && !em_regiao && linha ~ /^[ \t]*(-[ \t]+)?run:([ \t]|$)/) { em_regiao = 1; col_regiao = coluna_run(linha) }
+    if (yml && !em_regiao && linha ~ /^[ \t]*(-[ \t]+)?name:([ \t]|$)/) next
     if (acum == "") ini = FNR
     if (linha ~ /\\[ \t]*$/) {
         sub(/\\[ \t]*$/, "", linha)
