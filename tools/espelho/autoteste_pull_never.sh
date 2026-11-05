@@ -132,6 +132,10 @@ caso sh-docker-tabulacao fixture.sh $'docker\trun alpine true' 1 1 0
 caso controle-yml-rotulo-fora-de-bloco ci.yml $'      - name: docker run\n        run: docker run --pull=never img sh' 0 0 0
 caso controle-flag-dois-espacos fixture.sh 'docker  run --pull=never img sh' 0 0 0
 caso controle-flag-tabulacao fixture.sh $'docker\trun --pull=never img sh' 0 0 0
+caso yml-run-tres-espacos-apos-traco ci.yml $'      -   run: |\n            name: x; docker run alpine true' 1 1 0
+caso yml-run-escalar-continuacao-rotulo ci.yml $'      - run: echo a\n          name:x; docker run alpine true' 1 1 0
+caso yml-run-echo-continuacao-sem-flag ci.yml $'      - run: echo\n          docker run alpine true' 1 1 0
+caso yml-name-sem-espaco-nao-e-chave ci.yml 'name:x; docker run alpine true' 1 1 0
 
 if [ "$FALHAS_CASOS" -ne 0 ]; then
     echo "AUTOTESTE PULL NEVER: CASOS REPROVADOS ($FALHAS_CASOS), a varredura não roda"
