@@ -11,7 +11,7 @@
 - (sem ID): NL-3.0g (INBOX, A1 do CTO): mint22.3 (OpenSSL 3.0.13) não reproduz folhaComDataIlegivelReprova: o PFX de teste sai com as datas originais (diagnóstico em clone: fim=1 inicio=-1). Hipótese não medida: DER em cache do X509 no PKCS12_create. Refazer o PFX de teste a partir de DER novo; decisão do CTO.
 - (sem ID): NL-3.0g (INBOX, A1 do CTO, itens 1 e 4): job_autotestes.sh e --sem-run antes de rodar_espelho.sh feitos nesta fatia (commit build(espelho), prova em clone; o job roda no contêiner).
 - (sem ID): NL-3.0g (INBOX, ordem do CTO, a ratificar por Narciso): `notAfter` igual ao instante é vencido, e a RFC 5280 é inclusiva; decisão do CISO.
-- (sem ID): NL-3.0g (INBOX, ordem do CTO): `tools/portoes/rodar_higiene_conteiner.sh` sem chamador (zero, `git grep`); submeter ao líder antes de apagar (L-67).
+- (sem ID): NL-3.0g (INBOX, ordem do CTO): `tools/portoes/rodar_higiene_conteiner.sh` sem chamador (zero, `git grep`); submeter ao líder antes de apagar (L-67). A13 (revisão final, fora do conjunto varrido pelo autoteste de --pull=never): `rodar_higiene_conteiner.sh:61` tem `docker run` sem a flag, e `tools/portoes/ci_higiene.yml.snippet` (linhas 20, 24 e 28) também; o snippet não é o ci.yml. Decisão do líder, L-67.
 - (sem ID): NL-3.0g (INBOX, ordem do CTO): `flatpak-builder` deixa de ser usado em `job_flatpak`.
 - (sem ID): NL-3.0g (INBOX, ordem do CTO): imagens antigas `notalivre/*fedora44*`: apagar só depois de fechada a onda, ordem do main.
 - (sem ID): NL-3.0g (INBOX): `xmlsec1 --verify` de rsa-sha1 sem e com a variável não medido; pendente para o CISO (emenda da ADR 0007).
