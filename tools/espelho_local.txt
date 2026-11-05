@@ -11,6 +11,7 @@ nativo (manjaro) | NL_FATIA=espelho-manjaro bash tools/conteiner/build_local.sh 
 nativo (mint22.3) | NL_FATIA=espelho-mint22.3 bash tools/conteiner/build_local.sh mint22.3 debug && NL_FATIA=espelho-mint22.3 bash tools/conteiner/build_local.sh mint22.3 sabotagem-sanidade
 higiene (segredos e travessão) | bash tools/espelho/job_higiene.sh
 camadas (portão A2 e autoteste) | bash tools/espelho/job_camadas.sh
+autotestes (piso dos portões, suíte Flatpak, limites de contêiner) | bash tools/espelho/job_autotestes.sh
 flatpak (build contra SDK KDE 6.11 e bundle) | bash tools/espelho/job_flatpak.sh
 smoke no host do runner (plano B, sandbox) | bash tools/espelho/job_smoke.sh
 mutação dos portões (A2, gitleaks, travessão, Flatpak 6.11) | bash tools/espelho/job_mutacao.sh

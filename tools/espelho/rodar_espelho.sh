@@ -16,6 +16,14 @@ if [ -n "$(git -C "$RAIZ" status --porcelain)" ]; then
     SHA="$SHA+sujo"
 fi
 mkdir -p "$LOGDIR" || exit 1
+# NL-3.0g (CTO, A1 §1.4): antes do primeiro job, a lista do espelho tem de bater com o ci.yml. A conferência roda num
+# clone do commit em /var/tmp (L-60: nunca a árvore da nuvem); se falhar, nenhum job roda.
+CLONE_SEM_RUN="$NL_TMP_BASE/notalivre-espelho-semrun-$(git -C "$RAIZ" rev-parse HEAD)-$$"
+git clone --quiet --no-hardlinks -- "$RAIZ" "$CLONE_SEM_RUN" || { echo "REPROVA: clone para --sem-run falhou; nenhum job rodou"; exit 1; }
+if ! bash "$CLONE_SEM_RUN/tools/espelho/comparar_jobs.sh" --sem-run; then
+    echo "REPROVA: lista do espelho e ci.yml divergem; nenhum job rodou"
+    exit 1
+fi
 n=0; verdes=0; lacunas=0; falhas=0
 while IFS= read -r linha; do
     case "$linha" in ''|\#*) continue ;; esac

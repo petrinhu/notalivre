@@ -407,6 +407,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: "Piso dos portões confere com a lista do commit (NL-3.0g, A1 do CTO)"
+        run: |
+          n=$(grep -vc '^#' tools/conteiner/lista_portoes.txt)
+          p=$(sed -n 1p tools/conteiner/piso_portoes.txt)
+          echo "piso=$p lista=$n"
+          [ "$n" = "$p" ]
+
       - name: Autoteste do piso dos portões (NL-2.11, A1)
         run: bash tools/conteiner/autoteste_piso_portoes.sh
 
@@ -430,6 +437,9 @@ jobs:
 
       - name: "Autoteste dos cabeçalhos do OpenSSL (NL-2.2)"
         run: bash tools/conteiner/autoteste_cabecalhos_openssl.sh
+
+      - name: "Autoteste de build e evidência por SHA (NL-2.0, C10 e C11, NL-3.0g)"
+        run: bash tools/conteiner/autoteste_build_sha.sh
 
   # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
   # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.
