@@ -1,0 +1,3 @@
+# Exceções do portão distro_base.py (NL-3.0g). Formato: caminho contagem.
+# A contagem é o número de ocorrências do padrão de distro_aposentada.txt no conteúdo do arquivo.
+# Entradas preenchidas no passo 11, depois que os documentos da fatia mudaram.
