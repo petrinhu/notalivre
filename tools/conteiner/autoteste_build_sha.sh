@@ -90,7 +90,14 @@ mkdir -p "$REPO/src" "$REPO/apps" "$REPO/tests" "$REPO/third_party" "$REPO/tools
 printf 'project(fixture)\n' > "$REPO/CMakeLists.txt"
 printf '{}\n' > "$REPO/CMakePresets.json"
 printf 'int comprometido = 1;\n' > "$REPO/src/comprometido.cpp"
-for d in apps tests third_party tools/conteiner tools/tabelas; do printf 'fixture\n' > "$REPO/$d/conteudo.txt"; done
+for d in apps tests third_party tools/conteiner tools/tabelas tools/servidor_falso tools/portoes flatpak; do
+    mkdir -p "$REPO/$d"
+    printf 'fixture\n' > "$REPO/$d/conteudo.txt"
+done
+# NL-3.0g: a fixture traz todos os caminhos de LISTA_FONTE (evidencia_sha.sh:22). Sem .github/workflows/ci.yml o git archive
+# para com "pathspec did not match" e todo caso de build reprova com rc 1, antes de qualquer portão (medido no contêiner).
+mkdir -p "$REPO/.github/workflows"
+printf 'fixture\n' > "$REPO/.github/workflows/ci.yml"
 # NL-3.0g (CISO, 05/11/2026): o portão estático e o piso vêm do próprio commit do SHA; a fixture os leva.
 for arq in portoes_estaticos.sh piso_portoes.txt; do cp "$RAIZ/tools/conteiner/$arq" "$REPO/tools/conteiner/$arq"; done
 git -C "$REPO" init || { echo "ABORTA: git init da fixture"; exit 1; }
