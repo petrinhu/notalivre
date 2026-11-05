@@ -110,6 +110,8 @@ caso excecao-real-controle sabotar_portoes.sh 'docker run --rm --privileged -v x
 caso excecao-fora-do-arquivo fixture.sh 'docker run --rm -v x "$FLATHUB_KDE" cmd' 1 1 0
 caso segunda-ocorrencia-sem-flag fixture.sh 'docker run --pull=never img sh && docker run img sh' 1 1 0
 caso sem-docker-run fixture.sh 'echo oi' 2 0 0
+caso rotulo-yaml-name-nao-e-chamada ci.yml '      - name: "Autoteste de --pull=never nas chamadas docker run (NL-3.0g, L-17)"' 0 0 0
+caso run-yaml-sem-flag-reprova ci.yml '        run: docker run img sh' 1 1 0
 
 if [ "$FALHAS_CASOS" -ne 0 ]; then
     echo "AUTOTESTE PULL NEVER: CASOS REPROVADOS ($FALHAS_CASOS), a varredura não roda"
