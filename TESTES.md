@@ -10,7 +10,7 @@
 
 - **T2 Análise estática** (cppcheck e clang-tidy): coberto por NL-10.1 (zero erro de segurança); presets de NL-0.2.
 - **T3 Fuzzing de inputs**: leitor CSV em NL-6.5 e codec XML em NL-1.6 (propriedade e fuzz do plano). O parser da resposta da Sefin e o carregador PKCS#12 não estão no plano; cobertos pelo item TST-T3 injetado (ver abaixo).
-- **T4 Análise dinâmica de memória** (ASan e UBSan): preset asan-ubsan de NL-0.2 e NL-10.1 (zero).
+- **T4 Análise dinâmica de memória** (ASan e UBSan): preset asan-ubsan de NL-0.2 e NL-10.1 (zero). NL-3.0h: roda em todo push, no job `asan` (fedora45 e mint22.3), e o espelho local tem as duas linhas. Lacuna medida, em aberto: o CTest decide pela regex de PASS nos testes que a têm (44 sítios em 12 arquivos), e nesses o leak no fim do processo não reprova. Testes sem regex (tst_sanidade, tst_validador_xsd) e o teste in-process tst_vazamento_ossl reprovam por leak.
 - **T5 Scanning de dependências**: coberto por NL-10.1 (T12 sobre o SBOM de NL-9.3); sem item próprio, por sobreposição com T12.
 - **T6 Teste de APIs**: contrato com a Sefin pelo servidor falso (NL-2.6 e NL-2.8) e pela Sefin real na Onda 11 (NL-11.2). Sem item próprio.
 - **T8 Verificação de secrets**: gitleaks em NL-0.6 e NL-10.1 (zero).

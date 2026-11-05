@@ -253,6 +253,106 @@ jobs:
             echo "| Sabotagem do tst_sanidade (deve reprovar) | ${{ steps.sabotagem_sanidade.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # NL-3.0h (ordem do CTO, passo 5): ASan e UBSan em todo push, nas distros com libasan (fedora45 e mint22.3).
+  # O mint22.3 é o único com cliente HTTP da libxml2 (com_http): o ramo que a causa A do validador XSD exige.
+  # Atenção (L-36): o LeakSanitizer só reprova o processo de teste quando o CTest não decide pela regex de PASS.
+  # Testes com PASS_REGULAR_EXPRESSION (44 sítios, medido) ignoram o código de saída: ver TESTES.md (T4).
+  asan:
+    name: asan (${{ matrix.distro }})
+    needs: qt-cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: fedora45
+            imagem: fedora@sha256:a7d72ba2745b100a3351087472e5ee7b2450af7cf331e7673007e3817612839c
+          - distro: mint22.3
+            imagem: linuxmintd/mint22.3-amd64@sha256:304bbf7ec2a61252962c5210467d231a141661490e8962f52fd4df7688370369
+    container:
+      image: ${{ matrix.imagem }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Ferramentas de build (mesmo script do Dockerfile)
+        run: |
+          bash tools/conteiner/instalar/${{ matrix.distro }}.sh
+          echo "/opt/aqt/bin" >> "$GITHUB_PATH"
+
+      - name: Caminho do Qt 6.12 (fixo por RUNNER_TEMP, o mesmo que o cache usa)
+        run: |
+          echo "QT_PREFIXO=$RUNNER_TEMP/qt/6.12.0/gcc_64" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$RUNNER_TEMP/qt/6.12.0/gcc_64" >> "$GITHUB_ENV"
+
+      - name: Cache do Qt 6.12 (populado pelo job qt-cache; falha se faltar)
+        id: qt-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/qt
+          key: qt-6.12.0-linux_gcc_64-qtnetworkauth-qthttpserver-qtimageformats-qtshadertools-qtwebsockets-v1
+          fail-on-cache-miss: true
+
+      - name: Tabela de versões e pré-cheque do Qt
+        run: |
+          bash tools/conteiner/medir_versoes.sh --markdown >> "$GITHUB_STEP_SUMMARY"
+          bash tools/conteiner/precheque_qt.sh
+
+      # NL-1.6c: o ZIP do XSD vem do cache (chave = SHA-256) ou, na falta, do gov.br com nova tentativa.
+      # Antes do configure, o SHA-256 é conferido com sha256sum -c; divergência derruba o passo e o configure não roda.
+      # Download por cmake -P (tools/ci/baixar_zip_xsd.cmake): cmake está nas quatro imagens; sem curl (ubuntu26.04 e mint22.3 não trazem).
+      - name: Cache do ZIP do XSD (chave pelo SHA-256)
+        id: xsd-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/xsd-cache
+          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
+
+      - name: ZIP do XSD (cache ou download com nova tentativa; SHA-256 conferido)
+        id: xsd
+        run: |
+          set -eu
+          zip_nome=esquemas_prod_restrita_20261020.zip
+          pasta="$RUNNER_TEMP/xsd-cache"
+          zip="$pasta/$zip_nome"
+          mkdir -p "$pasta"
+          # Cache e código têm de falar do mesmo ZIP: o SHA-256 do passo tem de ser o do manifesto da árvore.
+          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261020/SHA256SUMS
+          if [ -f "$zip" ]; then
+              echo "ZIP do XSD: cache hit ($zip)"
+          else
+              echo "ZIP do XSD: cache miss, baixando de $NL_XSD_ZIP_URL"
+              # cmake -P (file(DOWNLOAD), 5 tentativas, EXPECTED_HASH): o urllib do Python levou 403 do gov.br.
+              if ! cmake -DNL_URL="$NL_XSD_ZIP_URL" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+                  rm -f "$zip"
+                  echo "::error::ZIP do XSD não baixado do gov.br (5 tentativas, ou hash divergente)"
+                  exit 1
+              fi
+          fi
+          # Conferência ANTES do configure (L-36): divergência apaga o ZIP e derruba o passo.
+          if ! (cd "$pasta" && echo "$NL_XSD_ZIP_SHA256  $zip_nome" | sha256sum -c -); then
+              rm -f "$zip"
+              echo "::error::SHA-256 do ZIP do XSD divergente do esperado ($NL_XSD_ZIP_SHA256); cache ou download corrompido. Chave do cache não pode ser sobrescrita: trocar a chave."
+              exit 1
+          fi
+          # Exportado para o configure e para o configure aninhado do sabotar_sanidade.sh (CMakeLists lê o ambiente).
+          echo "NL_XSD_ZIP_CACHE=$pasta" >> "$GITHUB_ENV"
+
+      - name: Configure (preset asan-ubsan)
+        run: cmake --preset asan-ubsan
+
+      - name: Build (preset asan-ubsan)
+        run: cmake --build --preset asan-ubsan
+
+      - name: ctest (preset asan-ubsan)
+        run: ctest --preset asan-ubsan --output-on-failure --no-tests=error
+
   higiene:
     name: higiene (segredos e travessão)
     runs-on: ubuntu-latest
