@@ -114,6 +114,15 @@ caso segunda-ocorrencia-sem-flag fixture.sh 'docker run --pull=never img sh && d
 caso sem-docker-run fixture.sh 'echo oi' 2 0 0
 caso rotulo-yaml-name-nao-e-chamada ci.yml $'      - name: "Autoteste de --pull=never nas chamadas docker run (NL-3.0g, L-17)"\n        run: docker run --pull=never img sh' 0 0 0
 caso run-yaml-sem-flag-reprova ci.yml '        run: docker run img sh' 1 1 0
+caso sh-solto-rotulo-com-docker-run fixture.sh 'name: x; docker run alpine true' 1 1 0
+caso sh-continuacao-rotulo-com-docker-run fixture.sh $'echo a \\\nname: x; docker run alpine true' 1 1 0
+caso yml-bloco-run-rotulo-ponto-virgula ci.yml $'      - name: passo\n        run: |\n          name: x; docker run alpine true' 1 1 0
+caso yml-bloco-run-rotulo-sem-ponto-virgula ci.yml $'      - name: passo\n        run: |\n          name: docker run alpine true' 1 1 0
+caso sh-docker-dois-espacos fixture.sh 'docker  run alpine true' 1 1 0
+caso sh-docker-tabulacao fixture.sh $'docker\trun alpine true' 1 1 0
+caso controle-yml-rotulo-fora-de-bloco ci.yml $'      - name: docker run\n        run: docker run --pull=never img sh' 0 0 0
+caso controle-flag-dois-espacos fixture.sh 'docker  run --pull=never img sh' 0 0 0
+caso controle-flag-tabulacao fixture.sh $'docker\trun --pull=never img sh' 0 0 0
 
 if [ "$FALHAS_CASOS" -ne 0 ]; then
     echo "AUTOTESTE PULL NEVER: CASOS REPROVADOS ($FALHAS_CASOS), a varredura não roda"
