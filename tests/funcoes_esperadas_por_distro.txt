@@ -5,6 +5,6 @@
 # Mudar a contagem é ato visível no diff, que a revisão confere contra os testes acrescentados ou retirados.
 fedora45 1457
 ubuntu26.04 1457
-manjaro 1448
-mint22.3 1448
+manjaro 1457
+mint22.3 1457
 flatpak 1247
