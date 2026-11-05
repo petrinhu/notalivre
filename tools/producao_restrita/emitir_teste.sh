@@ -1831,7 +1831,7 @@ ensaio() {
     grupo_abrir
     ensaio_caso l_forma_separada_ou_igual.separada 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj|11222333000181|--im|IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_DPS_ESPERADA='"cnpj": "11222333000181"|"im": "IMENS-7731"'
     ensaio_caso l_forma_separada_ou_igual.igual 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_OPCOES='--cnpj=11222333000181|--im=IMENS-7731' NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_PERGUNTAS=nenhuma NL_ENSAIO_DPS_ESPERADA='"cnpj": "11222333000181"|"im": "IMENS-7731"'
-    # Rodada de revisão B3: comparação em bash, sem cmp (fedora44 e manjaro não trazem cmp nem diff, medido antes da migração; fedora45 a medir no passo 7 do NL-3.0g). Arquivo ausente dá vazio e falha.
+    # Rodada de revisão B3: comparação em bash, sem cmp (fedora45 não traz cmp nem diff: medido em 05/11/2026 na imagem notalivre/build-fedora45:nl-2.0; manjaro: afirmação anterior, não remedida nesta fatia). Arquivo ausente dá vazio e falha.
     local dps_a dps_b
     dps_a=$(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.separada/dps-emitida.json" 2>/dev/null)
     dps_b=$(grep -v dhEmi "$RAIZ/l_forma_separada_ou_igual.igual/dps-emitida.json" 2>/dev/null)

@@ -22,7 +22,7 @@ declare -A PACOTE_DEB=( [openssl]=libssl-dev [libsodium]=libsodium-dev [xmlsec1]
                         [libxml2]=libxml2-dev [zlib]=zlib1g-dev [qt6]=qt6-base-dev )
 declare -A PACOTE_ARCH=( [openssl]=openssl [libsodium]=libsodium [xmlsec1]=xmlsec \
                          [libxml2]=libxml2 [zlib]=zlib [qt6]=qt6-base )
-# Fedora 45 não tem zlib-devel: o zlib é o zlib-ng-compat (medido em 25/10/2026 no Fedora 44; a medir no Fedora 45 no passo 7 do NL-3.0g).
+# Fedora 45 não tem zlib-devel: o zlib é o zlib-ng-compat (medido em 05/11/2026 na imagem notalivre/build-fedora45:nl-2.0: zlib-devel ausente, zlib-ng-compat-2.3.3-6 instalado).
 declare -A PACOTE_DNF=( [openssl]=openssl-devel [libsodium]=libsodium-devel [xmlsec1]=xmlsec1-devel \
                         [libxml2]=libxml2-devel [zlib]=zlib-ng-compat-devel [qt6]=qt6-qtbase-devel )
 
