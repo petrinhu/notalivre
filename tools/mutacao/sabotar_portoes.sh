@@ -88,7 +88,7 @@ registrar() {
 
 # Contêiner de portão: sem rede, usuário do host (escreve só na cópia de rascunho).
 em_conteiner() {
-    docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/var/tmp -e TMPDIR=/var/tmp "$@"
+    docker run --pull=never --rm --network none --user "$(id -u):$(id -g)" -e HOME=/var/tmp -e TMPDIR=/var/tmp "$@"
 }
 
 # 1. A2 de camadas: include de camada proibida (back incluindo mid). Sem sabotagem no controle do harness.
@@ -107,7 +107,7 @@ if ativo gitleaks; then
     d=$(copiar gitleaks) || { echo "copia gitleaks falhou"; exit 1; }
     log="$TRABALHO/gitleaks.log"
     # ssh-keygen precisa de entrada no passwd: gera como root no contêiner e devolve a posse ao UID do host.
-    docker run --rm --network none --user 0:0 -e HOME=/var/tmp -e TMPDIR=/var/tmp -v "$d:/src:z" "$IMAGEM" sh -c \
+    docker run --pull=never --rm --network none --user 0:0 -e HOME=/var/tmp -e TMPDIR=/var/tmp -v "$d:/src:z" "$IMAGEM" sh -c \
         'ssh-keygen -q -t ed25519 -N "" -C mutacao-nao-real -f /src/chave_de_mutacao && chown '"$(id -u):$(id -g)"' /src/chave_de_mutacao /src/chave_de_mutacao.pub && bash /src/tools/portoes/higiene_segredos.sh /src' \
         > "$log" 2>&1
     rc=$?
