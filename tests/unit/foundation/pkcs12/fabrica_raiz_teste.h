@@ -41,10 +41,12 @@ inline QByteArray montarRaiz(const char* nomeComum, std::time_t inicio, std::tim
     } else {
         ASN1_TIME_set(X509_getm_notAfter(cert.get()), fim);
     }
-    X509_NAME* nome = X509_get_subject_name(cert.get());
-    X509_NAME_add_entry_by_txt(nome, "C", MBSTRING_ASC, reinterpret_cast<const unsigned char*>("BR"), -1, -1, 0);
-    X509_NAME_add_entry_by_txt(nome, "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char*>(nomeComum), -1, -1, 0);
-    X509_set_issuer_name(cert.get(), nome);
+    // OpenSSL 4.0: X509_get_subject_name devolve const, então o nome é montado à parte e copiado para o certificado.
+    std::unique_ptr<X509_NAME, decltype(&X509_NAME_free)> nome(X509_NAME_new(), &X509_NAME_free);
+    X509_NAME_add_entry_by_txt(nome.get(), "C", MBSTRING_ASC, reinterpret_cast<const unsigned char*>("BR"), -1, -1, 0);
+    X509_NAME_add_entry_by_txt(nome.get(), "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char*>(nomeComum), -1, -1, 0);
+    X509_set_subject_name(cert.get(), nome.get());
+    X509_set_issuer_name(cert.get(), nome.get());
     X509_set_pubkey(cert.get(), chave.get());
     BASIC_CONSTRAINTS* restricoes = BASIC_CONSTRAINTS_new();
     if (restricoes == nullptr) {

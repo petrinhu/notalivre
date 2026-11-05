@@ -8,6 +8,8 @@
 #include <nl/foundation/pkcs12/manifesto_raizes.h>
 #include <nl/foundation/pkcs12/ponteiros_ossl.h>
 
+#include "tempo_x509.h"
+
 #include <openssl/err.h>
 #include <openssl/x509.h>
 
@@ -85,8 +87,8 @@ std::expected<CertificadoX509, ErroRaizIcp> decodificar(const QByteArray& der) {
 // Validade no instante pedido: nullopt se vigente; Vencida ou AindaNaoValida se fora dela.
 // Datas que o OpenSSL não consegue comparar são CertificadoIlegivel.
 std::expected<std::optional<MotivoDescarte>, ErroRaizIcp> validadeNoInstante(x509_st* certificado, std::time_t instante) {
-    const int aindaVigente = X509_cmp_time(X509_get0_notAfter(certificado), const_cast<std::time_t*>(&instante));
-    const int antesDoInicio = X509_cmp_time(X509_get0_notBefore(certificado), const_cast<std::time_t*>(&instante));
+    const int aindaVigente = compararComInstante(X509_get0_notAfter(certificado), instante);
+    const int antesDoInicio = compararComInstante(X509_get0_notBefore(certificado), instante);
     ERR_clear_error();
     if (aindaVigente == 0 || antesDoInicio == 0) {
         return std::unexpected(ErroRaizIcp::CertificadoIlegivel);

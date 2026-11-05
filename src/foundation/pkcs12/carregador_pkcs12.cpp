@@ -8,7 +8,10 @@
 #include "decifrar_pfx.h"
 #include <nl/foundation/pkcs12/conferencia_chave.h>
 #include "extrator_inscricao.h"
+#include "tempo_x509.h"
 #include "verificador_cadeia.h"
+
+#include <ctime>
 
 #include <openssl/err.h>
 #include <openssl/obj_mac.h>
@@ -24,12 +27,12 @@ namespace {
 
 // notAfter anterior ao instante atual.
 bool vencido(x509_st* certificado) {
-    return X509_cmp_current_time(X509_get0_notAfter(certificado)) < 0;
+    return compararComInstante(X509_get0_notAfter(certificado), std::time(nullptr)) < 0;
 }
 
 // notBefore posterior ao instante atual.
 bool aindaNaoValido(x509_st* certificado) {
-    return X509_cmp_current_time(X509_get0_notBefore(certificado)) > 0;
+    return compararComInstante(X509_get0_notBefore(certificado), std::time(nullptr)) > 0;
 }
 
 // Devolve true se a folha não tem extensão EKU. Presente e sem clientAuth, ou presente e malformada: erro.
