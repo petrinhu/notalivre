@@ -261,7 +261,9 @@ executar()
     portoes="$NL_TMP_BASE/notalivre-portoes-$sha-$fatia"
     rm -rf -- "$portoes"
     portoes_script="$RAIZ/tools/conteiner/portoes_estaticos.sh"
-    if ! git -C "$NL_REPO" show "$sha:tools/conteiner/portoes_estaticos.sh" 2>/dev/null | cmp -s - "$portoes_script"; then
+    # Comparação por sha256sum (coreutils, presente no host e na imagem; cmp não está na fedora45, medido). Byte a byte.
+    if [ "$(git -C "$NL_REPO" show "$sha:tools/conteiner/portoes_estaticos.sh" 2>/dev/null | sha256sum)" \
+         != "$(sha256sum < "$portoes_script")" ]; then
         echo "PARADA: o portoes_estaticos.sh do SHA $sha não existe ou difere do da árvore ($portoes_script); build não iniciado"
         return 5
     fi
