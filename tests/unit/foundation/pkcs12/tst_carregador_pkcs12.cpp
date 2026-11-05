@@ -318,6 +318,9 @@ PKCS12* pkcs12ComPar(const QByteArray& senha, EVP_PKEY* chave, X509* cert) {
     PKCS12_add_safe(&safes, bags, -1, 2048, senha.constData());
     sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
     PKCS12* p12 = PKCS12_add_safes(safes, 0);
+    // PKCS12_add_safes não libera a pilha (fonte do OpenSSL: PKCS12_create_ex2 chama sk_PKCS7_pop_free depois dela).
+    // Quem a criou é quem a libera, em sucesso e em falha (NL-3.0h, vazamento medido em chaveNaoConfereRecusada).
+    sk_PKCS7_pop_free(safes, PKCS7_free);
     if (p12 != nullptr) {
         PKCS12_set_mac(p12, senha.constData(), -1, nullptr, 0, 0, EVP_sha256());
     }
