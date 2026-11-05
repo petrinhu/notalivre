@@ -108,8 +108,14 @@ printf '%s\n' '# sem linhas' > "$VAZIA"
 # caso NOME RC_ESPERADO TRECHO DIR DISTRO PULOS EXCECOES JSON FUNCOES [OBRIG]
 caso() {  # (RAIZ_CASO, se definido, vira PULOS_RAIZ do gate; ver os casos de symlink)
     local nome="$1" esperado="$2" trecho="$3" dir="$4" distro="$5" pulos="$6" excecoes="$7" json="$8" funcs="$9"
-    local obrig="${10:-$VAZIA}"
-    local saida rc
+    local obrig="${10:-}"
+    local saida rc primeiro
+    if [ -z "$obrig" ]; then
+        # Padrão (NL-3.0g): uma linha da distro do caso com o primeiro teste do próprio CTest. Lista vazia não é padrão.
+        primeiro="$(sed -n 's/.*"name" : "\([^"]*\)".*/\1/p' "$json" | head -n 1)"
+        obrig="$BASE/obrig_$nome.txt"
+        printf '%s\n' '# obrigatórios de controle (fixture)' "$distro ${primeiro:-tst_sem_json}" > "$obrig"
+    fi
     CASOS=$((CASOS + 1))
     saida="$(PULOS_RAIZ="${RAIZ_CASO:-$RAIZ}" NL_CTEST_JSON_ARQ="$json" sh "$PORTAO" "$dir" "$distro" "$pulos" "$excecoes" "$obrig" "$funcs" "$ALLOW" 2>&1)"
     rc=$?
@@ -192,6 +198,12 @@ json "$BASE/j11.json" tst_a
 verdes3 | xml "$D/junit/tst_a.xml" 3
 caso obrigatorio_ausente_reprova 1 "teste obrigatório ausente" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/j11.json" "$F3" \
     "$(arquivo_com ob1 'fedora45 tst_b prova obrigatória')"
+
+D="$(pasta distro_sem_obrigatorios)"
+json "$BASE/dso.json" tst_a
+verdes3 | xml "$D/junit/tst_a.xml" 3
+caso distro_sem_obrigatorios_reprova 1 "nenhuma linha para a distro fedora45" "$D" fedora45 "$VAZIA" "$VAZIA" "$BASE/dso.json" "$F3" \
+    "$(arquivo_com dso1 'mint22.3 tst_a prova de outra distro')"
 
 D="$(pasta pulo_listado_nao_ocorre)"
 json "$BASE/j12.json" tst_a
