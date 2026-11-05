@@ -33,6 +33,7 @@ foreach(nome IN ITEMS
     pfxTemCadeiaDaAc)
   add_test(NAME certificados.${nome}
            COMMAND Python3::Interpreter -I "${NL_CERT_TESTES}" ${nome})
+  nl_gate_sanitizer_registra(certificados.${nome})
   set_tests_properties(certificados.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
@@ -44,6 +45,7 @@ endforeach()
 foreach(nome IN ITEMS senhaAleatoriaPorExecucao senhaNasceCom0600 dvAlfanumericoVetoresOficiais)
   add_test(NAME certificados.${nome}
            COMMAND Python3::Interpreter -I "${NL_CERT_TESTES}" ${nome})
+  nl_gate_sanitizer_registra(certificados.${nome})
   # Passa só se o unittest rodou exatamente um caso (linha "Ran 1 test in") e não houve FAILED.
   # Sem isso, uma suíte vazia ("Ran 0 tests", OK) dava verde com RC 0.
   set_tests_properties(certificados.${nome} PROPERTIES

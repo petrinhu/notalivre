@@ -17,4 +17,29 @@ function(nl_registra_teste_qt)
     set(NL_TESTE_XML "${CMAKE_BINARY_DIR}/junit/${NL_TESTE_NAME}.xml")
     add_test(NAME ${NL_TESTE_NAME}
              COMMAND ${NL_TESTE_EXECUTAVEL} -o -,txt -o ${NL_TESTE_XML},junitxml ${NL_TESTE_COMMAND})
+    nl_gate_sanitizer_registra(${NL_TESTE_NAME})
+endfunction()
+
+# Gate de sanitizer (NL-3.0h, decisão do main). Um processo de teste que sai com erro do LeakSanitizer ou do
+# AddressSanitizer tem de reprovar o teste. O CTest ignora o código de saída quando PASS_REGULAR_EXPRESSION casa (medido:
+# o processo sai com 1 e o teste fica Passed). Por isso o FAIL de sanitizer é acrescentado a todo teste que tem PASS,
+# por um ponto único: nl_gate_sanitizer_fecha(), chamado no topo depois de add_subdirectory(tests).
+# O FAIL vence o PASS quando os dois casam (medido nas quatro imagens). Cada teste que não sai pelo nl_registra_teste_qt
+# se registra com nl_gate_sanitizer_registra(NAME).
+function(nl_gate_sanitizer_registra nome)
+    set_property(GLOBAL APPEND PROPERTY NL_GATE_TESTES "${nome}|${CMAKE_CURRENT_SOURCE_DIR}")
+endfunction()
+
+function(nl_gate_sanitizer_fecha)
+    get_property(registrados GLOBAL PROPERTY NL_GATE_TESTES)
+    foreach(entrada IN LISTS registrados)
+        string(REPLACE "|" ";" partes "${entrada}")
+        list(GET partes 0 nome)
+        list(GET partes 1 diretorio)
+        get_property(comPass TEST ${nome} DIRECTORY ${diretorio} PROPERTY PASS_REGULAR_EXPRESSION SET)
+        if(comPass)
+            set_property(TEST ${nome} DIRECTORY ${diretorio} APPEND PROPERTY
+                         FAIL_REGULAR_EXPRESSION "ERROR: (Leak|Address)Sanitizer" "runtime error:")
+        endif()
+    endforeach()
 endfunction()
