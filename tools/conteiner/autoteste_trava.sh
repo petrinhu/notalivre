@@ -24,12 +24,12 @@ veredito() {
 }
 
 # T1: caminho antigo (construir -> executar), sem trava prévia
-timeout 60 bash "$RAIZ/tools/conteiner/build_local.sh" fedora44 debug > "$BASE/t1.log" 2>&1
+timeout 60 bash "$RAIZ/tools/conteiner/build_local.sh" fedora45 debug > "$BASE/t1.log" 2>&1
 rc1=$?
 veredito "T1 caminho antigo sem trava prévia" "$rc1"
 
 # T2: caminho novo: o chamador segura a trava e marca NL_TRAVA_DETIDA=1 (executar não pode readquirir)
-timeout 60 flock "$TRAVA" env NL_TRAVA_DETIDA=1 bash "$RAIZ/tools/conteiner/build_local.sh" executar fedora44 debug > "$BASE/t2.log" 2>&1
+timeout 60 flock "$TRAVA" env NL_TRAVA_DETIDA=1 bash "$RAIZ/tools/conteiner/build_local.sh" executar fedora45 debug > "$BASE/t2.log" 2>&1
 rc2=$?
 veredito "T2 caminho novo com trava detida pelo chamador" "$rc2"
 

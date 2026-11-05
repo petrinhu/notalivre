@@ -6,10 +6,10 @@
 # Uso:
 #   build_local.sh imagem <distro>        constrói a imagem de build da distro (pesado, sob flock)
 #   build_local.sh qt                     instala Qt 6.12 no volume notalivre-qt-6120 (só se ainda não estiver)
-#   build_local.sh preparar               imagem fedora44 + Qt (forma antiga da NL-0.2)
+#   build_local.sh preparar               imagem fedora45 + Qt (forma antiga da NL-0.2)
 #   build_local.sh <distro> <preset>      configure + build + ctest do preset na distro (exige NL_FATIA)
-#   build_local.sh <preset>               atalho: fedora44 <preset> (forma antiga, mantida; exige NL_FATIA)
-#   distro: fedora44 | ubuntu26.04 | manjaro | mint22.3
+#   build_local.sh <preset>               atalho: fedora45 <preset> (forma antiga, mantida; exige NL_FATIA)
+#   distro: fedora45 | ubuntu26.04 | manjaro | mint22.3
 #
 # Variáveis de ambiente:
 #   NL_FATIA          OBRIGATÓRIA nos builds: identificador da fatia (ex.: NL-2.0), letras, dígitos, . _ e -.
@@ -65,8 +65,8 @@ NL_MEMORIA="${NL_MEMORIA:-12g}"
 checar_distro()
 {
     case "$1" in
-        fedora44|ubuntu26.04|manjaro|mint22.3) ;;
-        *) echo "distro desconhecida: $1 (aceitas: fedora44 ubuntu26.04 manjaro mint22.3)" >&2; exit 2 ;;
+        fedora45|ubuntu26.04|manjaro|mint22.3) ;;
+        *) echo "distro desconhecida: $1 (aceitas: fedora45 ubuntu26.04 manjaro mint22.3)" >&2; exit 2 ;;
     esac
 }
 
@@ -112,18 +112,18 @@ construir_imagem()
 # Instala Qt 6.12 no volume, uma única vez. Se o volume já tem o Qt, não reinstala (aqt reinstalaria tudo).
 qt_instalar()
 {
-    if pesado docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 1000:1000 -v "$VOLUME_QT:/opt/qt:ro" "$(imagem_de fedora44)" \
+    if pesado docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 1000:1000 -v "$VOLUME_QT:/opt/qt:ro" "$(imagem_de ubuntu26.04)" \
         test -f "$QT_PREFIXO/lib/cmake/Qt6/Qt6Config.cmake"; then
         echo "Qt 6.12 já presente no volume $VOLUME_QT: nada a instalar"
         return 0
     fi
     docker volume create "$VOLUME_QT" > /dev/null
     # O volume nasce com dono root; ajusta uma única vez para o usuário 1000 (dono do host).
-    pesado docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" -u 0:0 -v "$VOLUME_QT:/opt/qt" "$(imagem_de fedora44)" chown 1000:1000 /opt/qt
+    pesado docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" -u 0:0 -v "$VOLUME_QT:/opt/qt" "$(imagem_de ubuntu26.04)" chown 1000:1000 /opt/qt
     # HOME em /tmp/home (gravável pelo uid 1000 no contêiner; /var/tmp da imagem é do root e aqt falha ali).
     # aqt pode terminar com status 0 mesmo após erro: a conferência final mede o artefato no volume.
     pesado docker run --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
-        -v "$VOLUME_QT:/opt/qt" "$(imagem_de fedora44)" \
+        -v "$VOLUME_QT:/opt/qt" "$(imagem_de ubuntu26.04)" \
         sh -c 'mkdir -p "$HOME" && cd "$HOME" && aqt install-qt -O /opt/qt linux desktop 6.12.0 linux_gcc_64 -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets && test -f /opt/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake'
 }
 
@@ -313,22 +313,22 @@ case "${1:-}" in
         qt_instalar
         ;;
     preparar)
-        construir_imagem fedora44
+        construir_imagem fedora45
         qt_instalar
         ;;
     executar)
         executar "${2:?distro}" "${3:?preset}"
         ;;
-    fedora44|ubuntu26.04|manjaro|mint22.3)
+    fedora45|ubuntu26.04|manjaro|mint22.3)
         construir "$1" "${2:?uso: build_local.sh <distro> <preset>}"
         ;;
     debug|release|asan-ubsan)
-        # Forma antiga (NL-0.2): atalho para fedora44.
-        construir fedora44 "$1"
+        # Forma antiga (NL-0.2): atalho para fedora45.
+        construir fedora45 "$1"
         ;;
     *)
         echo "uso: $0 imagem <distro> | qt | preparar | <distro> <preset> | <preset>" >&2
-        echo "distro: fedora44 ubuntu26.04 manjaro mint22.3 (todos os builds exigem NL_FATIA)" >&2
+        echo "distro: fedora45 ubuntu26.04 manjaro mint22.3 (todos os builds exigem NL_FATIA)" >&2
         exit 2
         ;;
 esac

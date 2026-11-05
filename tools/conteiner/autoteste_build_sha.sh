@@ -45,7 +45,7 @@ rodar_build() {
     local nome="$1"; shift
     env -u NL_FATIA -u NL_FONTE -u NL_SHA -u NL_REPO -u NL_XSD_ZIP_CACHE -u NL_BUILD_ROOT "$@" \
         STUB_LOG="$BASE/$nome.docker" NL_LOG="$BASE/$nome.log" \
-        timeout 180 bash "$RAIZ/tools/conteiner/build_local.sh" fedora44 debug
+        timeout 180 bash "$RAIZ/tools/conteiner/build_local.sh" fedora45 debug
     RC_BUILD=$?
     return "$RC_BUILD"
 }
@@ -56,7 +56,7 @@ rodar_imagem() {
     local nome="$1"; shift
     env -u NL_FATIA -u NL_FONTE -u NL_SHA -u NL_REPO -u NL_XSD_ZIP_CACHE -u NL_BUILD_ROOT "$@" \
         STUB_LOG="$BASE/$nome.docker" NL_LOG="$BASE/$nome.log" \
-        timeout 180 bash "$RAIZ/tools/conteiner/build_local.sh" imagem fedora44
+        timeout 180 bash "$RAIZ/tools/conteiner/build_local.sh" imagem fedora45
     RC_IMG=$?
     return "$RC_IMG"
 }
@@ -185,7 +185,7 @@ fi
 
 # --- C6: xmlsec1 nos quatro scripts de instalar/ (piso: 4 analisados) ---
 analisados=0; encontrados=0; faltou=0
-for d in fedora44 ubuntu26.04 manjaro mint22.3; do
+for d in fedora45 ubuntu26.04 manjaro mint22.3; do
     analisados=$((analisados + 1))
     if grep -q -- 'xmlsec1' "$RAIZ/tools/conteiner/instalar/$d.sh" 2>/dev/null; then
         encontrados=$((encontrados + 1))
@@ -211,7 +211,7 @@ rodar_imagem c8 NL_REPO="$REPO" NL_SHA="$SHA_FIXTURE"
 rc8=$?
 l1c8="$(head -n 1 "$BASE/c8.log" 2>/dev/null)"
 if [ "$rc8" -eq 0 ] && [[ "$l1c8" == "SHA: $SHA_FIXTURE fatia=imagem"* ]] && grep -qx 'NL-RC=0' "$BASE/c8.log" \
-   && grep -q '^docker build -t notalivre/build-fedora44' "$BASE/c8.docker"; then
+   && grep -q '^docker build -t notalivre/build-fedora45' "$BASE/c8.docker"; then
     ok "C8 imagem com SHA na linha 1 e NL-RC=0 (rc=$rc8)"
 else
     falha "C8 imagem sem SHA na linha 1 ou sem NL-RC (rc=$rc8; linha 1: '${l1c8:-vazia}')"

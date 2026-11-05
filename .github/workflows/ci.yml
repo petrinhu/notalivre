@@ -29,16 +29,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # NL-3.0g: o Qt 6.12 é instalado por aqt uma só vez, na imagem ubuntu26.04 (que tem aqt), e fica no cache. As matrizes
+  # só restauram: a imagem fedora45 não tem aqt (Python 3.15 sem wheels das dependências dele).
+  qt-cache:
+    name: qt-cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ubuntu@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # A imagem ubuntu26.04 não traz git: o checkout sai sem histórico e o script de instalação traz o git e o aqt.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Git e aqt (script de instalação da imagem ubuntu26.04)
+        run: |
+          bash tools/conteiner/instalar/ubuntu26.04.sh
+          echo "/opt/aqt/bin" >> "$GITHUB_PATH"
+
+      - name: Cache do Qt 6.12 (aqt)
+        id: qt-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/qt
+          key: qt-6.12.0-linux_gcc_64-qtnetworkauth-qthttpserver-qtimageformats-qtshadertools-qtwebsockets-v1
+
+      - name: Qt 6.12 com aqt (só em cache miss)
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/qt"
+          aqt install-qt -O "$RUNNER_TEMP/qt" linux desktop 6.12.0 linux_gcc_64 \
+            -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets
+          test -f "$RUNNER_TEMP/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake"
+
   nativo:
     name: nativo (${{ matrix.distro }})
+    needs: qt-cache
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - distro: fedora44
-            imagem: fedora@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
+          - distro: fedora45
+            imagem: fedora@sha256:a7d72ba2745b100a3351087472e5ee7b2450af7cf331e7673007e3817612839c
           - distro: ubuntu26.04
             imagem: ubuntu@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944
           - distro: manjaro
@@ -81,20 +117,13 @@ jobs:
           echo "QT_PREFIXO=$RUNNER_TEMP/qt/6.12.0/gcc_64" >> "$GITHUB_ENV"
           echo "CMAKE_PREFIX_PATH=$RUNNER_TEMP/qt/6.12.0/gcc_64" >> "$GITHUB_ENV"
 
-      - name: Cache do Qt 6.12 (aqt)
+      - name: Cache do Qt 6.12 (populado pelo job qt-cache; falha se faltar)
         id: qt-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/qt
           key: qt-6.12.0-linux_gcc_64-qtnetworkauth-qthttpserver-qtimageformats-qtshadertools-qtwebsockets-v1
-
-      - name: Qt 6.12 com aqt (só em cache miss)
-        if: steps.qt-cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p "$RUNNER_TEMP/qt"
-          aqt install-qt -O "$RUNNER_TEMP/qt" linux desktop 6.12.0 linux_gcc_64 \
-            -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets
-          test -f "$RUNNER_TEMP/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake"
+          fail-on-cache-miss: true
 
       - name: Tabela de versões e pré-cheque do Qt
         run: |
@@ -293,8 +322,8 @@ jobs:
           docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             python3 -I /src/tools/tema/gerar_theme.py --raiz /src --verificar
 
-      # NL-2.6 (DA-2.10, ADR 0007): a variável de SHA-1 só pode aparecer no arnês de teste do fedora44.
-      - name: Variável de SHA-1 fora do arnês fedora44 (portao_sha1_env)
+      # NL-2.6 (DA-2.10, ADR 0007): a variável de SHA-1 só pode aparecer no arnês de teste do fedora45.
+      - name: Variável de SHA-1 fora do arnês fedora45 (portao_sha1_env)
         id: sha1_env
         run: |
           docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
@@ -327,7 +356,7 @@ jobs:
             echo "| Cabeçalho SPDX (portão e autoteste) | ${{ steps.spdx.outcome }} |"
             echo "| Hexadecimal só no Theme (nenhum_hex_fora_do_theme) | ${{ steps.hex.outcome }} |"
             echo "| Tema gerado bate com a spec visual (gerar_theme --verificar) | ${{ steps.tema.outcome }} |"
-            echo "| Variável de SHA-1 fora do arnês fedora44 (portao_sha1_env) | ${{ steps.sha1_env.outcome }} |"
+            echo "| Variável de SHA-1 fora do arnês fedora45 (portao_sha1_env) | ${{ steps.sha1_env.outcome }} |"
             echo "| Fixação do CI (digest, SHA e privilégio) | ${{ steps.fixacao.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 

@@ -501,7 +501,7 @@ private slots:
     }
 
     void digestSha256IgualAoDouradoEmTodasAsImagens() {
-        // O SHA-256 é o mesmo em todas as imagens, inclusive o fedora44 (DA-2.38): o dourado é único.
+        // O SHA-256 é o mesmo em todas as imagens, inclusive o fedora45 (DA-2.38): o dourado é único.
         const QString dourado = QString::fromUtf8(lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") +
                                                              QStringLiteral("/digest_infdps_sha256.txt"))).trimmed();
         auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha256());
@@ -613,7 +613,7 @@ private slots:
 
     void algoritmoDaTabelaPorDistro() {
         // DA-2.38: a expectativa sai da tabela por distro, lida do /etc/os-release. sha1 = assina sem a variável;
-        // algoritmo_bloqueado = o OSSL_LIB_CTX próprio recusa (o esperado no fedora44 se a medição disser isso).
+        // algoritmo_bloqueado = o OSSL_LIB_CTX próprio recusa (o esperado no fedora45 se a medição disser isso).
         const QString id = campoDoOsRelease(QStringLiteral("ID"));
         const QString versao = campoDoOsRelease(QStringLiteral("VERSION_ID"));
         QVERIFY2(!id.isEmpty(), "/etc/os-release sem ID");
@@ -942,7 +942,7 @@ private slots:
     }
 
     void variavelDoFedoraValeNoContextoProprio() {
-        // DA-2.40 (c): o patch do fedora lê a variável em tempo de chamada. Sem ela, fedora44 recusa SHA-1; com ela, assina.
+        // DA-2.40 (c): o patch do fedora lê a variável em tempo de chamada. Sem ela, fedora45 recusa SHA-1; com ela, assina.
         ::unsetenv("OPENSSL_ENABLE_SHA1_SIGNATURES");
         auto sem = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
         ::setenv("OPENSSL_ENABLE_SHA1_SIGNATURES", "1", 1);
@@ -950,10 +950,10 @@ private slots:
         ::unsetenv("OPENSSL_ENABLE_SHA1_SIGNATURES");
         QVERIFY2(com.has_value(), "com a variável, o contexto próprio assina SHA-1");
         if (distroRecusaSha1()) {
-            QVERIFY2(!sem.has_value(), "no fedora44, sem a variável, SHA-1 é recusado");
+            QVERIFY2(!sem.has_value(), "no fedora45, sem a variável, SHA-1 é recusado");
             QCOMPARE(codigoDe(sem.error()), QStringLiteral("assinatura.algoritmo_bloqueado"));
         } else {
-            QVERIFY2(sem.has_value(), "fora do fedora44, SHA-1 assina sem a variável");
+            QVERIFY2(sem.has_value(), "fora do fedora45, SHA-1 assina sem a variável");
         }
     }
 

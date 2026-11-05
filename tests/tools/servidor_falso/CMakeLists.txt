@@ -18,7 +18,7 @@ set(NL_TESTE_SERVIDOR_FALSO "${CMAKE_CURRENT_SOURCE_DIR}/test_servidor_falso.py"
 set(NL_AMBIENTE_SERVIDOR_FALSO
     "NL_XMLLINT=${NL_XMLLINT_SF};NL_XMLSEC1=${NL_XMLSEC1_SF};NL_XSD_PRODREST_DIR=${NL_XSD_PRODREST_DIR};NL_SF_DIR=${CMAKE_BINARY_DIR}/servidor_falso")
 
-# Arnês do fedora44 (DA-2.10, ADR 0007): só nessa distro a variável de SHA-1 entra no ambiente dos testes, e o
+# Arnês do fedora45 (DA-2.10, ADR 0007): só nessa distro a variável de SHA-1 entra no ambiente dos testes, e o
 # configure escreve a linha no log do job. O ctest esconde a saída de testes que passam, por isso não é o teste que a imprime.
 file(STRINGS "/etc/os-release" NL_OS_LINHAS)
 foreach(linha IN LISTS NL_OS_LINHAS)
@@ -30,8 +30,8 @@ foreach(linha IN LISTS NL_OS_LINHAS)
     endif()
 endforeach()
 string(REPLACE "\"" "" NL_SO_VERSAO "${NL_SO_VERSAO}")
-if(NL_SO_ID STREQUAL "fedora" AND NL_SO_VERSAO STREQUAL "44")
-    message(STATUS "servidor falso: arnês fedora44 ativo, OPENSSL_ENABLE_SHA1_SIGNATURES=1 (DA-2.10, ADR 0007)")
+if(NL_SO_ID STREQUAL "fedora" AND NL_SO_VERSAO STREQUAL "45")
+    message(STATUS "servidor falso: arnês fedora45 ativo, OPENSSL_ENABLE_SHA1_SIGNATURES=1 (DA-2.10, ADR 0007)")
     string(APPEND NL_AMBIENTE_SERVIDOR_FALSO ";OPENSSL_ENABLE_SHA1_SIGNATURES=1")
 endif()
 
@@ -41,8 +41,8 @@ foreach(nome IN ITEMS
     assinaturaSha1AceitaPeloOraculo
     semCertificadoRecusado
     falhaRoteirizadaAconteceUmaVez
-    variavelSha1SoNoFedora44
-    ambienteDoXmlsec1SoNoFedora44
+    variavelSha1SoNaDistroBloqueada
+    ambienteDoXmlsec1SoNaDistroBloqueada
     envelopeZlibCruRecusadoCom400
     tlsMinimoTls12RecusaTls11
     escutaSoEmLoopback

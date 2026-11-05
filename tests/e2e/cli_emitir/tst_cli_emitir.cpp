@@ -521,7 +521,7 @@ private slots:
     void caminhoDoCertificadoNuncaVaiAoLog();
     // NL-2.10a, rodada 2 (QA, item 1): o XML que chega ao servidor leva o URI rsa-sha256 quando a configuração pede rsa-sha256.
     void algoritmoRsaSha256NoXmlEnviado();
-    // NL-2.10a, rodada 2 (QA, item 1): sem [assinatura], o XML leva rsa-sha1 (padrão); no fedora44 a política recusa antes do envio.
+    // NL-2.10a, rodada 2 (QA, item 1): sem [assinatura], o XML leva rsa-sha1 (padrão); no fedora45 a política recusa antes do envio.
     void algoritmoRsaSha1NoXmlPadrao();
     // NL-2.10a, rodada 2 (QA, item 2): as âncoras do servidor TLS são as da chave ancoras_tls, não as do A1 (M3 do QA).
     void ancorasTlsSozinhasValidamOServidor();
@@ -590,7 +590,7 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
     QVERIFY2(referencia.open(QIODevice::WriteOnly | QIODevice::Text), "o arquivo de segredos da execução tem de abrir");
     referencia.write("# segredos desta execução\nsenha|" + senha + "\n");
     referencia.close();
-    // DA-2.49 e DA-2.38: o SHA-1 da assinatura é recusado pelo OpenSSL do fedora 44 (tabela por distro). Ali o caso espera
+    // DA-2.49 e DA-2.38: o SHA-1 da assinatura é recusado pelo OpenSSL do fedora 45 (tabela por distro). Ali o caso espera
     // assinatura.algoritmo_bloqueado e nenhum envio; nas demais distros, a emissão tem de ser aceita.
     const QString esperado = esperadoDaDistro();
     QVERIFY2(!esperado.isEmpty(), "a distro desta máquina tem de estar em tabela_sha1_por_distro.txt");
@@ -902,7 +902,7 @@ void TstCliEmitir::cliAvisaQuandoAGravacaoFalha()
     QVERIFY(configDir.isValid());
     ServidorFalso servidor;
     QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
-    // rsa-sha256 em todas as distros (como algoritmoRsaSha256NoXmlEnviado): com o padrão rsa-sha1, o fedora44 recusa antes do envio
+    // rsa-sha256 em todas as distros (como algoritmoRsaSha256NoXmlEnviado): com o padrão rsa-sha1, o fedora45 recusa antes do envio
     // e a resposta nunca chega ao gravador, então o aviso não seria provado nessa distro (achado R3-M20 do QA).
     escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
                           QStringLiteral("rsa-sha256"));
@@ -942,7 +942,7 @@ void TstCliEmitir::prefixoDaConfiguracaoVaiNaUrl()
              qPrintable(QStringLiteral("o POST tinha de chegar em /SefinNacional/nfse; chegou em: [%1]").arg(caminhos.join(QLatin1Char(',')))));
 }
 
-// NL-2.10h/J1: emissão aceita pelo servidor falso com rsa-sha256 (sem a trava de SHA-1 do fedora44). Confere a chave e a rota do POST.
+// NL-2.10h/J1: emissão aceita pelo servidor falso com rsa-sha256 (sem a trava de SHA-1 do fedora45). Confere a chave e a rota do POST.
 void emiteAceitaPeloServidorFalso(const QString& arquivoEntrada)
 {
     QTemporaryDir configDir;

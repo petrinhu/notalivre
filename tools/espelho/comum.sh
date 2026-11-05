@@ -36,11 +36,15 @@ copiar_arvore() {
     fi
 }
 
-# Espelho de higiene precisa da imagem de higiene (mesma do CI). Constrói só se faltar.
+# Imagem de higiene (mesma do CI). Reconstruída a cada espelho: o digest fixado no Dockerfile é o que vale, e uma imagem
+# antiga com digest diferente não pode ficar em uso (NL-3.0g). Com cache de camadas o build é rápido.
 garantir_imagem_higiene() {
-    if [ -z "$(docker image ls -q "$IMAGEM_HIGIENE")" ]; then
-        docker build -t "$IMAGEM_HIGIENE" -f "$RAIZ/tools/portoes/higiene.Dockerfile" "$RAIZ/tools/portoes" || return 1
-    fi
+    docker build -q -t "$IMAGEM_HIGIENE" -f "$RAIZ/tools/portoes/higiene.Dockerfile" "$RAIZ/tools/portoes" >/dev/null || return 1
+}
+
+# Imagem de ostree da conferência do repositório Flatpak (NL-3.0g). Mesma regra: reconstruída a cada espelho, com cache.
+garantir_imagem_ostree() {
+    docker build -q -t notalivre/ostree-fedora45:nl-3.0g -f "$RAIZ/tools/conteiner/ostree-fedora45.Dockerfile" "$RAIZ/tools/conteiner" >/dev/null || return 1
 }
 
 # Um passo do job: roda, imprime o rc e acumula a falha. Uso: passo NOME COMANDO...

@@ -53,7 +53,7 @@ mid.sefin.cliente.sucessoExtraiChaveDe50Posicoes | xmlsec1 ausente no SDK KDE 6.
 mid.sefin.cliente.textoLivreDaApiComCpfSoLogaCodigoE | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.xmlIlegivelNumSucessoNaoLiberaReenvio | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.xmlNfseGuardaXmlDescomprimido | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
-servidor_falso.ambienteDoXmlsec1SoNoFedora44 | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
+servidor_falso.ambienteDoXmlsec1SoNaDistroBloqueada | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
 servidor_falso.assinaturaSha1AceitaPeloOraculo | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
 servidor_falso.contentEncodingGzipDaFalha | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
 servidor_falso.corpoSemTamanhoFechaNoCorpo | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
@@ -76,7 +76,7 @@ servidor_falso.semCertificadoRecusado | servidor falso em Python com oráculo au
 servidor_falso.semOPrefixoContinua404 | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
 servidor_falso.tlsMaximoTls12LimitaVersao | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
 servidor_falso.tlsMinimoTls12RecusaTls11 | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
-servidor_falso.variavelSha1SoNoFedora44 | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
+servidor_falso.variavelSha1SoNaDistroBloqueada | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
 servidor_falso.verificacaoLaxObrigatoriaNa13 | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
 servidor_falso.verificacaoPadraoSemLax | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
 xmldsig.algoritmoVemDaPastaDoLeiaute | xmlsec1 ausente no SDK KDE 6.11 (verificação pelo xmlsec1 de linha de comando) | coberto no build nativo
