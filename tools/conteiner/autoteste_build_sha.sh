@@ -91,6 +91,8 @@ printf 'project(fixture)\n' > "$REPO/CMakeLists.txt"
 printf '{}\n' > "$REPO/CMakePresets.json"
 printf 'int comprometido = 1;\n' > "$REPO/src/comprometido.cpp"
 for d in apps tests third_party tools/conteiner tools/tabelas; do printf 'fixture\n' > "$REPO/$d/conteudo.txt"; done
+# NL-3.0g (CISO, 05/11/2026): o portão estático e o piso vêm do próprio commit do SHA; a fixture os leva.
+for arq in portoes_estaticos.sh piso_portoes.txt; do cp "$RAIZ/tools/conteiner/$arq" "$REPO/tools/conteiner/$arq"; done
 git -C "$REPO" init || { echo "ABORTA: git init da fixture"; exit 1; }
 git -C "$REPO" add -A || { echo "ABORTA: git add da fixture"; exit 1; }
 git -C "$REPO" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -m "test: fixture" \
@@ -253,15 +255,31 @@ else
     falha "C9 imagem em paralelo com contêineres sobrepostos ou sem piso (rc=$ri1/$ri2, $resumo_i)"
 fi
 
-# --- C10 (NL-3.0g, emenda A1 §2; o rótulo C9 já é a concorrência): o portão estático vem do SHA construído ---
-# O log tem de dizer de qual fonte saiu o portoes_estaticos.sh: a cópia do SHA, nunca a árvore de trabalho do script.
+# --- C10 (NL-3.0g, CISO 05/11/2026): lista e piso valem do SHA; o portão roda do script da árvore, que é o do SHA ---
+# O log diz de qual caminho saiu o portoes_estaticos.sh: o da árvore de trabalho (RAIZ), já conferido byte a byte com o do SHA.
 rodar_build c10 NL_REPO="$REPO" NL_SHA="$SHA_FIXTURE" NL_FATIA=NL-C10
 rc10=$?
-esperado_c10="NL-PORTOES-SCRIPT=$BASE/tmp/notalivre-src-$SHA_FIXTURE-NL-C10/tools/conteiner/portoes_estaticos.sh"
+esperado_c10="NL-PORTOES-SCRIPT=$RAIZ/tools/conteiner/portoes_estaticos.sh"
 if [ "$rc10" -eq 0 ] && grep -qxF -- "$esperado_c10" "$BASE/c10.log"; then
-    ok "C10 portão estático vem da fonte do SHA (rc=$rc10)"
+    ok "C10 portão estático vem da árvore conferida com o SHA (rc=$rc10)"
 else
-    falha "C10 portão estático fora da fonte do SHA (rc=$rc10, esperado: $esperado_c10)"
+    falha "C10 portão estático fora da árvore conferida com o SHA (rc=$rc10, esperado: $esperado_c10)"
+fi
+
+# --- C11 (NL-3.0g, CISO 05/11/2026): SHA cujo portoes_estaticos.sh grava marca no host: PARADA rc 5, sem marca ---
+C11REPO="$BASE/repo11"
+git clone -q --no-hardlinks "$REPO" "$C11REPO" || { echo "ABORTA: clone do C11"; exit 1; }
+{ printf 'printf x > "$NL_TMP_BASE/marca-c11"\n'; cat "$C11REPO/tools/conteiner/portoes_estaticos.sh"; } > "$BASE/portoes_c11.sh"
+mv "$BASE/portoes_c11.sh" "$C11REPO/tools/conteiner/portoes_estaticos.sh"
+git -C "$C11REPO" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -qam "test: marca no host" \
+    || { echo "ABORTA: commit do C11"; exit 1; }
+SHA_C11="$(git -C "$C11REPO" rev-parse HEAD)"
+rodar_build c11 NL_REPO="$C11REPO" NL_SHA="$SHA_C11" NL_FATIA=NL-C11
+rc11=$?
+if [ "$rc11" -eq 5 ] && [ ! -e "$BASE/tmp/marca-c11" ]; then
+    ok "C11 script do SHA com marca no host reprovado antes de rodar (rc=$rc11, sem marca)"
+else
+    falha "C11 script do SHA rodou no host (rc=$rc11, marca: $([ -e "$BASE/tmp/marca-c11" ] && echo sim || echo nao))"
 fi
 
 echo "FALHAS=$FALHAS"
