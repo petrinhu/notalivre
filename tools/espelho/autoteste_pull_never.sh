@@ -1,22 +1,28 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Autoteste de --pull=never (NL-3.0g, revisão de segurança, L-17 e L-36): toda chamada `docker run` dos espelhos
-# (tools/espelho/*.sh), de build_local.sh, de portoes_estaticos.sh, das linhas docker run do ci.yml e da sabotagem
-# (tools/mutacao/sabotar_portoes.sh) tem --pull=never como PRIMEIRA opção, logo depois do comando. Imagem local ausente
-# vira REPROVA, nunca download de um namespace que não é nosso. Comentário no fim da linha não conta (A8, revisão final).
-# Piso: zero chamadas encontradas é falha (varredura quebrada), nunca verde. Um único awk para todos os arquivos:
-# nenhum processo por item (L-11).
+# Autoteste de --pull=never (NL-3.0g, revisão de segurança, L-17 e L-36).
 #
-# EXCEÇÃO DECLARADA (NL-3.0g, revisão de segurança, ordem do main): sabotar_portoes.sh, linha 149, roda a imagem
-# externa "$FLATHUB_KDE" por digest (ghcr.io flathub-infra), que não existe no armazenamento local e precisa de pull,
-# por isso o --pull=never não se aplica a ela. A exceção é estreita: só vale para o arquivo sabotar_portoes.sh e só
-# para chamada cujo texto (sem comentário) tem "$FLATHUB_KDE"; é exatamente UMA (piso, conferido pelo script).
+# REGRA (fechada; critério fixado antes do resultado, L-43):
+#   - Coberto: toda chamada literal `docker` + um ou mais espaços ou tabulações + `run` em tools/espelho/*.sh,
+#     tools/conteiner/build_local.sh, tools/conteiner/portoes_estaticos.sh, tools/mutacao/sabotar_portoes.sh e
+#     .github/workflows/ci.yml, inclusive dentro de blocos `run: |` do ci.yml.
+#   - Em cada ocorrência de `docker run` da chamada, --pull=never tem de ser a PRIMEIRA opção, logo depois do comando.
+#     Imagem local ausente vira REPROVA, nunca download de um namespace que não é nosso.
+#   - Comentário no fim da linha (# precedido de espaço ou tabulação, fora de aspas) não conta.
+#   - Rótulo isento: só em arquivo .yml, só fora de bloco `run: |`, e só linha cujo início é `name:` ou `- name:`.
+#     Em .sh não existe isenção. Dentro de bloco `run: |` (linhas mais indentadas que a chave run), `name:` é comando.
+#   - Exceção declarada: sabotar_portoes.sh, linha 149, roda a imagem externa "$FLATHUB_KDE" por digest
+#     (ghcr.io flathub-infra), que precisa de pull; é exatamente UMA (piso conferido pelo script), e só nesse arquivo,
+#     só com "$FLATHUB_KDE" fora de comentário.
+#   - Piso: zero chamadas encontradas é falha (varredura quebrada), nunca verde. Um único awk para todos os arquivos
+#     (L-11). Antes da varredura, casos de fixture (L-36): cada um tem rc, violações e exceções esperados.
 #
-# Antes da varredura, o script roda casos de fixture (L-36): cada caso tem um rc, um número de violações e um número de
-# exceções esperados. Um caso que não sai como esperado reprova a varredura, para que a regra não afrouxe em silêncio.
+# LIMITE DECLARADO (não é bloqueio): o portão pega omissão por descuido, não quem tem escrita no repositório. Comando
+# montado em variável ou por eval (por exemplo `D=docker; $D run`) fica FORA da varredura, porque ela lê texto e não
+# executa o shell. Chamada assim precisa de revisão humana.
 #
-# Uso: autoteste_pull_never.sh RAIZ    (RAIZ é a árvore a varrer; sai 0 só com casos verdes e todas as chamadas com a flag)
+# Uso: autoteste_pull_never.sh RAIZ    (RAIZ é a árvore a varrer; sai 0 só com casos verdes e todas as chamadas com a flag ou na exceção)
 set -u
 
 RAIZ="${1:?uso: autoteste_pull_never.sh RAIZ}"
@@ -36,22 +42,25 @@ function sem_comentario(s,    i, c, q, n) {
     }
     return s
 }
+# Largura da indentação (espaços e tabulações, um caractere cada).
+function indentacao(s) { match(s, /^[ \t]*/); return RLENGTH }
 # Cada docker run do comando tem --pull=never como PRIMEIRA opção, logo depois do comando.
 function confere_pull(s,    rest, ok) {
     ok = 1
-    while (match(s, /docker run/)) {
+    while (match(s, /docker[ \t]+run/)) {
         rest = substr(s, RSTART + RLENGTH)
         if (rest !~ /^[ \t]+--pull=never([ \t]|$)/) ok = 0
         s = rest
     }
     return ok
 }
-FNR == 1 { acum = "" }
+FNR == 1 { acum = ""; em_bloco = 0 }
 /^[ \t]*#/ { next }
 {
     linha = sem_comentario($0)
-    # Rótulo de passo do YAML (name:) não é comando e não entra na conta; run: continua sendo conferido.
-    if (linha ~ /^[ \t]*(-[ \t]+)?name:/) next
+    if (em_bloco && linha !~ /^[ \t]*$/ && indentacao(linha) <= bloco_ind) em_bloco = 0
+    if (!em_bloco && linha ~ /^[ \t]*(- )?run:[ \t]*[|>]/) { em_bloco = 1; bloco_ind = indentacao(linha); next }
+    if (!em_bloco && FILENAME ~ /[.]yml$/ && linha ~ /^[ \t]*(-[ \t]+)?name:/) next
     if (acum == "") ini = FNR
     if (linha ~ /\\[ \t]*$/) {
         sub(/\\[ \t]*$/, "", linha)
@@ -59,7 +68,7 @@ FNR == 1 { acum = "" }
         next
     }
     acum = (acum == "" ? linha : acum " " linha)
-    if (acum ~ /docker run/) {
+    if (acum ~ /docker[ \t]+run/) {
         total++
         if (confere_pull(acum)) {
             # ok: todo docker run do comando traz a flag como primeira opção
@@ -76,7 +85,7 @@ FNR == 1 { acum = "" }
 END {
     print "encontrados=" total + 0 " sem_pull_never=" viol + 0 " excecoes=" excecoes + 0
     if (total + 0 == 0) { print "REPROVA: varredura vazia, zero chamadas docker run (piso, L-36)"; exit 2 }
-    if (viol + 0 > 0) { print "REPROVA: chamada docker run sem --pull=never"; exit 1 }
+    if (viol + 0 > 0) { print "REPROVA: chamada docker run sem --pull=never como primeira opção"; exit 1 }
     exit 0
 }
 '
