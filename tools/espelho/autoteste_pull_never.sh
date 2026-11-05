@@ -50,6 +50,8 @@ FNR == 1 { acum = "" }
 /^[ \t]*#/ { next }
 {
     linha = sem_comentario($0)
+    # Rótulo de passo do YAML (name:) não é comando e não entra na conta; run: continua sendo conferido.
+    if (linha ~ /^[ \t]*(-[ \t]+)?name:/) next
     if (acum == "") ini = FNR
     if (linha ~ /\\[ \t]*$/) {
         sub(/\\[ \t]*$/, "", linha)
