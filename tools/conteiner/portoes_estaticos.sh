@@ -88,7 +88,7 @@ for item in "${PORTOES[@]}"; do
     nome="${item%%|*}"
     cmd="${item#*|}"
     rodados=$((rodados + 1))
-    docker run --rm --cpus 7 --memory 12g --memory-swap 12g --network none --user 1000:1000 -e HOME=/tmp \
+    docker run --pull=never --rm --cpus 7 --memory 12g --memory-swap 12g --network none --user 1000:1000 -e HOME=/tmp \
         -v "$ARVORE:/src:ro,z" -w /src "$IMG" sh -c "$cmd" > "$DESTINO/$nome.log" 2>&1
     rc=$?
     echo "portao=$nome rc=$rc"

@@ -9,7 +9,7 @@ travar
 copiar_arvore "$ESPELHO_TRAB/autotestes" || { echo "REPROVA: cópia da árvore falhou"; exit 1; }
 D="$ESPELHO_TRAB/autotestes"
 IMAGEM_BUILD="notalivre/build-fedora45:nl-2.0"
-CONT=(docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp/home -e TMPDIR=/var/tmp \
+CONT=(docker run --pull=never --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp/home -e TMPDIR=/var/tmp \
     -v "$D:/src:ro,z" -w /src "$IMAGEM_BUILD")
 passo "piso-dos-portoes-confere" "${CONT[@]}" sh -c \
     'n=$(grep -vc "^#" tools/conteiner/lista_portoes.txt) && p=$(sed -n 1p tools/conteiner/piso_portoes.txt) && echo "piso=$p lista=$n" && [ "$n" = "$p" ]'
@@ -22,5 +22,7 @@ passo "autoteste-pontos-de-parse" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash
 passo "autoteste-cabecalhos-sodium" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_cabecalhos_sodium.sh'
 passo "autoteste-cabecalhos-openssl" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_cabecalhos_openssl.sh'
 passo "autoteste-build-sha" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_build_sha.sh'
+passo "autoteste-copiar-arvore" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_copiar_arvore.sh'
+passo "autoteste-pull-never" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_pull_never.sh /src'
 [ "$PASSOS_FALHOS" -eq 0 ] && { echo "JOB autotestes: VERDE"; exit 0; }
 echo "JOB autotestes: VERMELHO ($PASSOS_FALHOS passo(s) com rc diferente de 0)"; exit 1

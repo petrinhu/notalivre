@@ -275,78 +275,78 @@ jobs:
         # O contêiner roda como root sobre um workspace de outro dono (L-49): o safe.directory vai dentro dele.
         # NL-3.E: o portão tem piso (zero commit lido reprova); o autoteste dele roda logo abaixo.
         run: |
-          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             sh -c 'git config --global --add safe.directory /src && sh /src/tools/portoes/higiene_historico.sh /src'
 
       - name: Autoteste do portão de histórico (piso de commits, NL-3.E)
         id: autoteste_historico
         run: |
-          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             sh -c 'git config --global --add safe.directory /src && bash /src/tools/portoes/autoteste_historico.sh'
 
       - name: Segredos na árvore (gitleaks dir)
         id: segredos_arvore
         run: |
-          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             bash /src/tools/portoes/higiene_segredos.sh /src
 
       - name: Travessão e meia-risca (UI e docs)
         id: travessao
         run: |
-          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             python3 -I /src/tools/portoes/higiene_travessao.py /src
 
       - name: Cabeçalho SPDX (portão e autoteste, A0-06)
         id: spdx
         run: |
-          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/spdx.py /src && bash /src/tools/portoes/autoteste_spdx.sh'
 
       # NL-2.1 (L-36): o autoteste dos portões roda no CI (inclui o teste de chave privada commitada, S8).
       - name: Autoteste dos portões de higiene (A0-06 e NL-2.1)
         id: autoteste_higiene
         run: |
-          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             sh -c 'git config --global --add safe.directory /src && bash /src/tools/portoes/autoteste_higiene.sh'
 
       # NL-3.0g: distro aposentada fora das exceções e digest fedora@sha256 único (portão distro_base, com autoteste).
       - name: Distro base e digest único (portão distro_base, NL-3.0g)
         id: distro_base
         run: |
-          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/distro_base.py /src && python3 -I /src/tools/portoes/distro_base.py --autoteste'
 
       # NL-1.8 (L-36): hexadecimal de cor só em apps/gui/qml/Theme.qml; o tema gerado tem de bater com a spec visual.
       - name: Hexadecimal só no Theme (portão nenhum_hex_fora_do_theme)
         id: hex
         run: |
-          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             python3 -I /src/tools/portoes/nenhum_hex_fora_do_theme.py /src
 
       - name: Tema gerado bate com a spec visual (gerar_theme --verificar, seção 3.4)
         id: tema
         run: |
-          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             python3 -I /src/tools/tema/gerar_theme.py --raiz /src --verificar
 
       # NL-2.6 (DA-2.10, ADR 0007): a variável de SHA-1 só pode aparecer no arnês de teste do fedora45.
       - name: Variável de SHA-1 fora do arnês fedora45 (portao_sha1_env)
         id: sha1_env
         run: |
-          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             python3 -I /src/tools/portoes/portao_sha1_env.py /src
 
       # NL-2.21 (DA-2.67): pontos de parse da libxml2 só nos átomos listados em tools/portoes/pontos_de_parse.txt.
       - name: Pontos de parse da libxml2 (portão pontos_de_parse, NL-2.21)
         id: pontos_parse
         run: |
-          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             python3 -I /src/tools/portoes/pontos_de_parse.py /src
 
       - name: Fixação do CI (digest, SHA e privilégio; ADR 0001, A0-07)
         id: fixacao
         run: |
-          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             sh -c 'python3 -I /src/tools/portoes/fixacao_ci.py /src && python3 -I /src/tools/portoes/fixacao_ci.py --autoteste'
 
       - name: Resumo da higiene
@@ -440,6 +440,12 @@ jobs:
 
       - name: "Autoteste de build e evidência por SHA (NL-2.0, C10 e C11, NL-3.0g)"
         run: bash tools/conteiner/autoteste_build_sha.sh
+
+      - name: "Autoteste da cópia do espelho, área privada (NL-3.E e NL-3.0g)"
+        run: bash tools/espelho/autoteste_copiar_arvore.sh
+
+      - name: "Autoteste de --pull=never nas chamadas docker run (NL-3.0g, L-17)"
+        run: bash tools/espelho/autoteste_pull_never.sh "$GITHUB_WORKSPACE"
 
   # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
   # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.

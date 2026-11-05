@@ -7,4 +7,4 @@
 # Sem um dos dois, o comparador recusa o uso (NL-3.0g: sem run padrão de branch fixa).
 set -u
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-docker run --rm -v "$RAIZ:/src:ro,z" -e TMPDIR=/var/tmp notalivre-higiene:ci python3 -I /src/tools/espelho/comparar_jobs.py /src "${1:-}"
+docker run --pull=never --rm -v "$RAIZ:/src:ro,z" -e TMPDIR=/var/tmp notalivre-higiene:ci python3 -I /src/tools/espelho/comparar_jobs.py /src "${1:-}"
