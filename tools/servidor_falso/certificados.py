@@ -42,16 +42,24 @@ def obter_certificados(diretorio):
     _executar(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", p("ca.key"),
                "-out", p("ca.pem"), "-days", DIAS, "-subj", "/CN=AC de teste NotaLivre",
                "-addext", "basicConstraints=critical,CA:TRUE",
-               "-addext", "keyUsage=critical,keyCertSign,cRLSign"])
+               "-addext", "keyUsage=critical,keyCertSign,cRLSign",
+               # NL-3.0g: o OpenSSL 4 (Python 3.15 do Fedora 45) recusa folha sem AKID ("Missing Authority Key Identifier").
+               # SKID na AC e AKID nas folhas, como em tests/fixtures/certificados/gerar_certificados.py.
+               "-addext", "subjectKeyIdentifier=hash",
+               "-addext", "authorityKeyIdentifier=keyid:always"])
     _emitir(diretorio, "servidor", "localhost",
             "basicConstraints=CA:FALSE\n"
             "keyUsage=critical,digitalSignature,keyEncipherment\n"
             "extendedKeyUsage=serverAuth\n"
-            "subjectAltName=DNS:localhost,IP:127.0.0.1\n")
+            "subjectAltName=DNS:localhost,IP:127.0.0.1\n"
+            "subjectKeyIdentifier=hash\n"
+            "authorityKeyIdentifier=keyid:always\n")
     _emitir(diretorio, "cliente", NOME_CLIENTE,
             "basicConstraints=CA:FALSE\n"
             "keyUsage=critical,digitalSignature,keyEncipherment\n"
-            "extendedKeyUsage=clientAuth\n")
+            "extendedKeyUsage=clientAuth\n"
+            "subjectKeyIdentifier=hash\n"
+            "authorityKeyIdentifier=keyid:always\n")
     return Certificados(
         ca=p("ca.pem"),
         servidor_cert=p("servidor.pem"),
