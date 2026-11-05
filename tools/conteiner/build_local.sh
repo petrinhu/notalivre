@@ -256,12 +256,13 @@ executar()
 
     # Portões estáticos (DA-2.55, NL-2.11): os mesmos que o CI roda nos jobs higiene e camadas, sobre o mesmo SHA, antes do
     # configure (L-36). Pasta própria do SHA e da fatia; o rm -rf atinge só o caminho que este script monta.
-    # NL-3.0g (emenda A1 §2): o script e a lista de portões vêm da fonte do SHA ($fonte), nunca da árvore de trabalho.
+    # NL-3.0g (CISO, 05/11/2026): o script roda da árvore de trabalho ($RAIZ), e só se for idêntico, byte a byte, ao do SHA.
+    # Lista e piso são lidos do SHA dentro do próprio portão. Nada do SHA executa no host: só o script conferido.
     portoes="$NL_TMP_BASE/notalivre-portoes-$sha-$fatia"
     rm -rf -- "$portoes"
-    portoes_script="$fonte/tools/conteiner/portoes_estaticos.sh"
-    if [ ! -f "$portoes_script" ]; then
-        echo "PARADA: o SHA $sha não traz tools/conteiner/portoes_estaticos.sh; build não iniciado"
+    portoes_script="$RAIZ/tools/conteiner/portoes_estaticos.sh"
+    if ! git -C "$NL_REPO" show "$sha:tools/conteiner/portoes_estaticos.sh" 2>/dev/null | cmp -s - "$portoes_script"; then
+        echo "PARADA: o portoes_estaticos.sh do SHA $sha não existe ou difere do da árvore ($portoes_script); build não iniciado"
         return 5
     fi
     echo "NL-PORTOES-SCRIPT=$portoes_script"
