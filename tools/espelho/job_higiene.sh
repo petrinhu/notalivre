@@ -16,6 +16,7 @@ passo "travessao" "${CONT[@]}" python3 -I /src/tools/portoes/higiene_travessao.p
 passo "spdx" "${CONT[@]}" sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/spdx.py /src && bash /src/tools/portoes/autoteste_spdx.sh'
 passo "hex" "${CONT[@]}" python3 -I /src/tools/portoes/nenhum_hex_fora_do_theme.py /src
 passo "tema" "${CONT[@]}" python3 -I /src/tools/tema/gerar_theme.py --raiz /src --verificar
+passo "distro-base" "${CONT[@]}" sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/distro_base.py /src && python3 -I /src/tools/portoes/distro_base.py --autoteste'
 passo "fixacao-ci" "${CONT[@]}" sh -c 'python3 -I /src/tools/portoes/fixacao_ci.py /src && python3 -I /src/tools/portoes/fixacao_ci.py --autoteste'
 [ "$PASSOS_FALHOS" -eq 0 ] && { echo "JOB higiene: VERDE"; exit 0; }
 echo "JOB higiene: VERMELHO ($PASSOS_FALHOS passo(s) com rc diferente de 0)"; exit 1

@@ -309,6 +309,13 @@ jobs:
           docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             sh -c 'git config --global --add safe.directory /src && bash /src/tools/portoes/autoteste_higiene.sh'
 
+      # NL-3.0g: distro aposentada fora das exceções e digest fedora@sha256 único (portão distro_base, com autoteste).
+      - name: Distro base e digest único (portão distro_base, NL-3.0g)
+        id: distro_base
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/distro_base.py /src && python3 -I /src/tools/portoes/distro_base.py --autoteste'
+
       # NL-1.8 (L-36): hexadecimal de cor só em apps/gui/qml/Theme.qml; o tema gerado tem de bater com a spec visual.
       - name: Hexadecimal só no Theme (portão nenhum_hex_fora_do_theme)
         id: hex

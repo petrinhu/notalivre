@@ -3,14 +3,16 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 """Comparador do espelho local com o CI (R2, achado A0-02; L-36). API pública do GitHub, sem token.
 
-Uso: python3 -I comparar_jobs.py RAIZ [RUN_ID]
-Compara três conjuntos de nomes de job:
+Uso: python3 -I comparar_jobs.py RAIZ --sem-run     compara ci.yml com tools/espelho_local.txt, sem rede (antes do push)
+     python3 -I comparar_jobs.py RAIZ RUN_ID        compara também com os jobs do run RUN_ID, pela API do GitHub
+Sem --sem-run e sem RUN_ID o uso é recusado: não há run padrão de uma branch fixa (NL-3.0g).
+Conjuntos de nomes de job:
   ci    : jobs de .github/workflows/ci.yml, com a matriz expandida (nativo x4);
   lista : primeira coluna de tools/espelho_local.txt;
-  run   : jobs do RUN_ID, ou do último run concluído da branch onda-0 (o último empurrado).
-Saída: "encontrados=N lista=L run=R ..." e "batem=B faltam=F", com a linha de cada nome faltante.
-Sai com 1 se algum nome faltar em um dos três conjuntos, se o ci.yml tiver zero jobs (varredura vazia),
-se a API falhar, ou se a lista de jobs do run vier paginada (incompleta).
+  run   : jobs do RUN_ID (no modo --sem-run, o próprio ci, e só ci e lista são comparados).
+Saída: "encontrados=N lista=L ..." e "batem=B faltam=F", com a linha de cada nome faltante.
+Sai com 1 se algum nome faltar, se o ci.yml tiver zero jobs (varredura vazia), se a API falhar, se a lista de jobs
+do run vier paginada (incompleta), ou se o uso estiver errado.
 """
 
 import json
@@ -20,11 +22,12 @@ import sys
 import urllib.request
 
 REPO = "petrinhu/notalivre"
-BRANCH = "onda-0"
+MODO_SEM_RUN = "--sem-run"
 RE_JOB = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
 RE_NOME = re.compile(r"^    name:\s*(.+?)\s*$")
 RE_DISTRO = re.compile(r"^\s+- distro:\s*(\S+)\s*$")
 RE_TEMPLATE_DISTRO = re.compile(r"\$\{\{\s*matrix\.distro\s*\}\}")
+USO = "uso: comparar_jobs.py RAIZ --sem-run | RAIZ RUN_ID"
 
 
 def nomes_do_ci(texto):
@@ -82,14 +85,7 @@ def api(url):
 
 
 def run_e_jobs(run_id):
-    if run_id:
-        run = api(f"https://api.github.com/repos/{REPO}/actions/runs/{run_id}")
-    else:
-        lista = api(f"https://api.github.com/repos/{REPO}/actions/runs?branch={BRANCH}&per_page=10")
-        concluidos = [r for r in lista.get("workflow_runs", []) if r.get("status") == "completed"]
-        if not concluidos:
-            raise RuntimeError(f"nenhum run concluído na branch {BRANCH}")
-        run = concluidos[0]
+    run = api(f"https://api.github.com/repos/{REPO}/actions/runs/{run_id}")
     jobs = api(f"https://api.github.com/repos/{REPO}/actions/runs/{run['id']}/jobs?per_page=100")
     if jobs.get("total_count", 0) > len(jobs.get("jobs", [])):
         raise RuntimeError("lista de jobs do run paginada além de 100: incompleta")
@@ -97,26 +93,30 @@ def run_e_jobs(run_id):
 
 
 def main(argv):
-    if not argv:
-        print("uso: comparar_jobs.py RAIZ [RUN_ID]")
+    if len(argv) != 2 or not argv[1]:
+        print(USO)
         return 1
-    raiz = argv[0]
-    run_id = argv[1] if len(argv) > 1 and argv[1] else None
+    raiz, alvo = argv[0], argv[1]
+    sem_run = alvo == MODO_SEM_RUN
     with open(os.path.join(raiz, ".github", "workflows", "ci.yml"), encoding="utf-8") as fonte:
         ci = nomes_do_ci(fonte.read())
     with open(os.path.join(raiz, "tools", "espelho_local.txt"), encoding="utf-8") as fonte:
         lista = nomes_da_lista(fonte.read())
-    try:
-        run, nomes_run = run_e_jobs(run_id)
-    except (OSError, ValueError, RuntimeError, KeyError) as erro:
-        print(f"REPROVA: API do GitHub indisponível ou incompleta ({erro})")
-        return 1
+    if sem_run:
+        nomes_run = ci
+        trecho_run = "run=sem_run"
+    else:
+        try:
+            run, nomes_run = run_e_jobs(alvo)
+        except (OSError, ValueError, RuntimeError, KeyError) as erro:
+            print(f"REPROVA: API do GitHub indisponível ou incompleta ({erro})")
+            return 1
+        trecho_run = f"run={len(nomes_run)} run_id={run['id']} run_sha={run['head_sha'][:7]}"
 
     c_ci, c_lista, c_run = set(ci), set(lista), set(nomes_run)
     batem = sorted(c_ci & c_lista & c_run)
     faltam = sorted((c_ci | c_lista | c_run) - set(batem))
-    print(f"encontrados={len(ci)} lista={len(lista)} run={len(nomes_run)} "
-          f"run_id={run['id']} run_sha={run['head_sha'][:7]}")
+    print(f"encontrados={len(ci)} lista={len(lista)} {trecho_run}")
     print(f"batem={len(batem)} faltam={len(faltam)}")
     for nome in faltam:
         print(f"FALTA \"{nome}\": ci={nome in c_ci} lista={nome in c_lista} run={nome in c_run}")
@@ -124,9 +124,9 @@ def main(argv):
         print("REPROVA: varredura vazia (zero jobs no ci.yml)")
         return 1
     if faltam:
-        print("REPROVA: espelho, ci.yml e último run divergem")
+        print("REPROVA: espelho, ci.yml e último run divergem" if not sem_run else "REPROVA: espelho e ci.yml divergem")
         return 1
-    print("PASSA: espelho, ci.yml e último run batem")
+    print("PASSA: espelho, ci.yml e último run batem" if not sem_run else "PASSA: espelho e ci.yml batem (sem run)")
     return 0
 
 
