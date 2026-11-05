@@ -975,6 +975,23 @@ private slots:
         QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.material_invalido"));
     }
 
+    void materialComDataIlegivelRecusado() {
+        // Mês 13 em notBefore ou em notAfter, na hora de assinar: o 0 de compararComInstante é ilegível, nunca vigente (A5, CISO).
+        std::unique_ptr<ASN1_GENERALIZEDTIME, decltype(&ASN1_GENERALIZEDTIME_free)> data(ASN1_GENERALIZEDTIME_new(), &ASN1_GENERALIZEDTIME_free);
+        QVERIFY(data != nullptr);
+        QVERIFY(ASN1_STRING_set(data.get(), "20301301000000Z", 15) == 1);
+        for (const bool noInicio : {true, false}) {
+            MaterialPem pem;
+            QVERIFY2(lerMaterialPem("cnpj_ok.pem", "cnpj_ok.key.pem", pem), "a folha cnpj_ok tem de ler por PEM");
+            const int ok = noInicio ? X509_set1_notBefore(pem.cert.get(), data.get()) : X509_set1_notAfter(pem.cert.get(), data.get());
+            QVERIFY(ok == 1);
+            xd::MaterialAssinatura material{pem.cert.get(), pem.chave.get()};
+            auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), QStringLiteral("DPS430510821122233300018100001000000000000001"), parametrosDaDistro(), material);
+            QVERIFY2(!assinado.has_value(), "certificado com data ilegível na hora de assinar tem de ser recusado");
+            QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.material_invalido"));
+        }
+    }
+
     // DA-2.40 (adendo do CISO): vermelhos antes do código.
     void atributoXmlDaRaizEntraNaCanonicalizacao() {
         // xml:lang na raiz é herdado pelo infDPS na C14N inclusiva (W3C 4.4.1). A cópia atual não o leva; o xmlsec1 reprova.

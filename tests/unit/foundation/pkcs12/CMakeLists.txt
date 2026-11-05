@@ -22,6 +22,7 @@ foreach(nome IN ITEMS
     legadoNaoDesligaODefault
     vencidoSinalizado
     folhaComValidadeFuturaReprova
+    folhaComDataIlegivelReprova
     validadeIntermediariaVencidaReprova
     semEkuClientAuthSinalizado
     ekuMalformadaReprova

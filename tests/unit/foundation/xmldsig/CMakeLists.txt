@@ -57,6 +57,7 @@ set(NL_SLOTS_XMLDSIG
     variavelDoFedoraValeNoContextoProprio
     materialVencidoNaHoraDeAssinarRecusado
     materialAindaNaoValidoRecusado
+    materialComDataIlegivelRecusado
     tabelaPorDistroVemDoArquivo
     atributoXmlDaRaizEntraNaCanonicalizacao
     digestIgualAntesEDepoisDeAssinar

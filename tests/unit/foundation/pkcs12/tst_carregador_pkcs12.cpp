@@ -103,6 +103,7 @@ private slots:
     void legadoNaoDesligaODefault();
     void vencidoSinalizado();
     void folhaComValidadeFuturaReprova();
+    void folhaComDataIlegivelReprova();
     void validadeIntermediariaVencidaReprova();
     void semEkuClientAuthSinalizado();
     void ekuMalformadaReprova();
@@ -518,6 +519,38 @@ void TesteCarregadorPkcs12::vencidoSinalizado()
     QCOMPARE(resultado.error(), ErroCredencial::Vencido);
 }
 
+namespace {
+
+// PFX de teste com a folha cnpj_ok e data crua (mês 13) em notBefore ou em notAfter. Chave e cadeia são as da fixture.
+QByteArray pfxComDataIlegivel(const QByteArray& senha, bool noInicio) {
+    const QByteArray certPem = fixture(QStringLiteral("cnpj_ok.pem"));
+    const QByteArray chavePem = fixture(QStringLiteral("cnpj_ok.key.pem"));
+    std::unique_ptr<BIO, decltype(&BIO_free)> bioCert(BIO_new_mem_buf(certPem.constData(), static_cast<int>(certPem.size())), &BIO_free);
+    std::unique_ptr<BIO, decltype(&BIO_free)> bioChave(BIO_new_mem_buf(chavePem.constData(), static_cast<int>(chavePem.size())), &BIO_free);
+    std::unique_ptr<X509, decltype(&X509_free)> cert(PEM_read_bio_X509(bioCert.get(), nullptr, nullptr, nullptr), &X509_free);
+    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> chave(PEM_read_bio_PrivateKey(bioChave.get(), nullptr, nullptr, nullptr), &EVP_PKEY_free);
+    std::unique_ptr<ASN1_GENERALIZEDTIME, decltype(&ASN1_GENERALIZEDTIME_free)> data(ASN1_GENERALIZEDTIME_new(), &ASN1_GENERALIZEDTIME_free);
+    if (!cert || !chave || !data || ASN1_STRING_set(data.get(), "20301301000000Z", 15) != 1) {
+        return {};
+    }
+    const int ok = noInicio ? X509_set1_notBefore(cert.get(), data.get()) : X509_set1_notAfter(cert.get(), data.get());
+    if (ok != 1) {
+        return {};
+    }
+    std::unique_ptr<PKCS12, decltype(&PKCS12_free)> p12(
+        PKCS12_create(senha.constData(), "folha", chave.get(), cert.get(), nullptr, NID_aes256_cbc, NID_aes256_cbc, 2048, 2048, 0),
+        &PKCS12_free);
+    std::unique_ptr<BIO, decltype(&BIO_free)> saida(BIO_new(BIO_s_mem()), &BIO_free);
+    if (!p12 || !saida || i2d_PKCS12_bio(saida.get(), p12.get()) != 1) {
+        return {};
+    }
+    char* dados = nullptr;
+    const long tamanho = BIO_get_mem_data(saida.get(), &dados);
+    return QByteArray(dados, static_cast<qsizetype>(tamanho));
+}
+
+} // namespace
+
 void TesteCarregadorPkcs12::folhaComValidadeFuturaReprova()
 {
     // notBefore em 2099: a folha ainda não vale. Reprova com erro próprio, não com Vencido nem CadeiaInvalida.
@@ -528,6 +561,23 @@ void TesteCarregadorPkcs12::folhaComValidadeFuturaReprova()
     auto resultado = carregador.carregar(fixture(QStringLiteral("folha_futura.pfx")), senha, *ancoras);
     QVERIFY(!resultado.has_value());
     QCOMPARE(resultado.error(), ErroCredencial::AindaNaoValido);
+}
+
+void TesteCarregadorPkcs12::folhaComDataIlegivelReprova()
+{
+    // Mês 13 em notBefore e em notAfter: tamanho e dígitos certos, e o OpenSSL devolve erro. O 0 é data ilegível, nunca vigente.
+    CarregadorPkcs12 carregador;
+    auto ancoras = ancoraDeTeste();
+    QVERIFY2(ancoras.has_value(), "ac.pem nao lido");
+    const QByteArray senhaBruta = senhaBrutaDaFixture();
+    for (const bool noInicio : {true, false}) {
+        const QByteArray pfx = pfxComDataIlegivel(senhaBruta, noInicio);
+        QVERIFY2(!pfx.isEmpty(), "pfx com data ilegivel nao montado");
+        auto senha = SenhaSegura::de(senhaBruta);
+        auto resultado = carregador.carregar(pfx, senha, *ancoras);
+        QVERIFY(!resultado.has_value());
+        QCOMPARE(resultado.error(), ErroCredencial::DataIlegivel);
+    }
 }
 
 void TesteCarregadorPkcs12::validadeIntermediariaVencidaReprova()
