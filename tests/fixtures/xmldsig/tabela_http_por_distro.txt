@@ -12,7 +12,8 @@
 # Fonte: runtime org.kde.Sdk//6.11, include/libxml2/libxml/xmlversion.h:133-134 (#if 1 / #define LIBXML_HTTP_ENABLED); e a
 # libxml2.so.16.0.6 do runtime exporta xmlNanoHTTPInit, xmlNanoHTTPFetch e xmlNanoHTTPOpen (sha256 4bdd06a27ce5e41df1233a3f8b106330f5df399038a75c1403b29114d1f10b75,
 # igual no runtime org.kde.Platform//6.11). O ID e a versão batem com o os-release do SDK (ID=org.kde.Platform, VERSION_ID=6.11).
-fedora 44 com_http
+# fedora 45 medido em 05/11/2026 (imagem notalivre/build-fedora45:nl-2.0, libxml2 2.15.4): XML_WITH_HTTP=0; o cabeçalho da libxml2 diz "HTTP support was removed in 2.15".
+fedora 45 sem_http
 ubuntu 26.04 sem_http
 manjaro rolling sem_http
 ubuntu 24.04 com_http
