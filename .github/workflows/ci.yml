@@ -444,6 +444,9 @@ jobs:
       - name: "Autoteste da cópia do espelho, área privada (NL-3.E e NL-3.0g)"
         run: bash tools/espelho/autoteste_copiar_arvore.sh
 
+      - name: "Autoteste do executor do espelho, conferência na área própria (NL-3.0g, achado 1)"
+        run: bash tools/espelho/autoteste_rodar_espelho.sh
+
       - name: "Autoteste de --pull=never nas chamadas docker run (NL-3.0g, L-17)"
         run: bash tools/espelho/autoteste_pull_never.sh "$GITHUB_WORKSPACE"
 

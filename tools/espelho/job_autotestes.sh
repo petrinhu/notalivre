@@ -23,6 +23,7 @@ passo "autoteste-cabecalhos-sodium" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && ba
 passo "autoteste-cabecalhos-openssl" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_cabecalhos_openssl.sh'
 passo "autoteste-build-sha" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_build_sha.sh'
 passo "autoteste-copiar-arvore" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_copiar_arvore.sh'
+passo "autoteste-rodar-espelho" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_rodar_espelho.sh'
 passo "autoteste-pull-never" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_pull_never.sh /src'
 [ "$PASSOS_FALHOS" -eq 0 ] && { echo "JOB autotestes: VERDE"; exit 0; }
 echo "JOB autotestes: VERMELHO ($PASSOS_FALHOS passo(s) com rc diferente de 0)"; exit 1
