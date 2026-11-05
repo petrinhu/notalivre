@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-"""Portão de distro aposentada e digest único (NL-3.0g, decisão do líder de 05/11/2026).
+"""Portão de distro aposentada e digest ancorado (NL-3.0g, decisão do líder de 05/11/2026).
 
 Uso: python3 -I distro_base.py RAIZ          verifica os arquivos rastreados por git de RAIZ
      python3 -I distro_base.py --autoteste   controles em memória: positivo e uma sabotagem por regra
@@ -9,12 +9,15 @@ Uso: python3 -I distro_base.py RAIZ          verifica os arquivos rastreados por
 Listas, lidas de RAIZ/tools/portoes:
   distro_aposentada.txt            padrão regex (linha 1); linhas vazias e as que começam com '#' são ignoradas
   distro_aposentada_excecoes.txt   formato `caminho contagem`; contagem = ocorrências do padrão no conteúdo
+  distro_digest_aprovado.txt       um digest (64 hex) por linha, o aprovado para a imagem da matriz
 
 Regras (rc 1 se alguma falhar):
   1. arquivo que casa o padrão, no caminho ou no conteúdo, e não está nas exceções;
   2. exceção com contagem diferente da medida, para mais ou para menos, ou caminho que não está no git;
-  3. `fedora@sha256:` com mais de um digest distinto, ou com menos de MIN_OCORRENCIAS_DIGEST ocorrências;
+  3. digest da imagem (depois do prefixo de imagem e do arroba) com menos de MIN_OCORRENCIAS_DIGEST ocorrências,
+     com mais de um valor distinto, ou com valor fora de distro_digest_aprovado.txt (lista vazia reprova);
   4. varredura vazia (zero arquivos rastreados).
+Atualizar o digest da imagem é ato do diff: muda o arquivo de aprovados, e a revisão confere.
 Um único `git ls-files` e leitura em processo: nenhum processo por arquivo (L-11).
 """
 
@@ -25,6 +28,7 @@ import sys
 
 MIN_OCORRENCIAS_DIGEST = 4
 RE_DIGEST = re.compile(r"fedora@sha256:([0-9a-f]{64})")
+RE_HEX64 = re.compile(r"^[0-9a-f]{64}$")
 # Montado por concatenação: a string completa não pode aparecer neste arquivo, senão o portão reprova a si mesmo.
 PADRAO_CONTROLE = "(?i)fedora[ _:-]?" + "44|fc" + "44"
 
@@ -51,6 +55,18 @@ def carregar_excecoes(texto):
     return excecoes
 
 
+def carregar_digests_aprovados(texto):
+    aprovados = set()
+    for linha in texto.splitlines():
+        limpa = linha.strip()
+        if not limpa or limpa.startswith("#"):
+            continue
+        if not RE_HEX64.match(limpa):
+            raise ValueError(f"digests aprovados: linha fora do formato (64 hex): {limpa[:20]}")
+        aprovados.add(limpa)
+    return aprovados
+
+
 def contar_ocorrencias(padroes, texto):
     return sum(len(padrao.findall(texto)) for padrao in padroes)
 
@@ -74,7 +90,7 @@ def verificar_distro(arquivos, padroes, excecoes):
     return aposentadas, violacoes
 
 
-def verificar_digests(arquivos):
+def verificar_digests(arquivos, aprovados):
     """Regra 3 sobre `fedora@sha256:`. Devolve (digests distintos, violacoes)."""
     digests = {}
     total = 0
@@ -87,10 +103,16 @@ def verificar_digests(arquivos):
         violacoes.append(("-", f"digest distinto: {len(digests)} valores em fedora@sha256:"))
     if total < MIN_OCORRENCIAS_DIGEST:
         violacoes.append(("-", f"fedora@sha256: com {total} ocorrências (mínimo {MIN_OCORRENCIAS_DIGEST})"))
+    if not aprovados:
+        violacoes.append(("-", "lista de digests aprovados vazia (fail-closed, distro_digest_aprovado.txt)"))
+    for digest in sorted(digests):
+        if digest not in aprovados:
+            violacoes.append(("-", f"digest fora da lista aprovada (distro_digest_aprovado.txt): {digest[:12]}... "
+                                   f"em {len(digests[digest])} arquivo(s)"))
     return len(digests), violacoes
 
 
-def analisar(arquivos, texto_aposentada, texto_excecoes):
+def analisar(arquivos, texto_aposentada, texto_excecoes, texto_aprovados):
     """Aplica as 4 regras. Devolve dict com as contagens da linha de saída e a lista de violações."""
     violacoes = []
     if not arquivos:
@@ -103,8 +125,13 @@ def analisar(arquivos, texto_aposentada, texto_excecoes):
     except ValueError as erro:
         violacoes.append(("-", str(erro)))
         excecoes = {}
+    try:
+        aprovados = carregar_digests_aprovados(texto_aprovados)
+    except ValueError as erro:
+        violacoes.append(("-", str(erro)))
+        aprovados = set()
     aposentadas, violacoes_distro = verificar_distro(arquivos, padroes, excecoes)
-    digests, violacoes_digest = verificar_digests(arquivos)
+    digests, violacoes_digest = verificar_digests(arquivos, aprovados)
     violacoes.extend(violacoes_distro)
     violacoes.extend(violacoes_digest)
     return {
@@ -139,10 +166,11 @@ def verificar(raiz):
         arquivos = ler_arquivos_rastreados(raiz)
         texto_aposentada = ler_lista(raiz, "distro_aposentada.txt")
         texto_excecoes = ler_lista(raiz, "distro_aposentada_excecoes.txt")
+        texto_aprovados = ler_lista(raiz, "distro_digest_aprovado.txt")
     except (OSError, RuntimeError) as erro:
         print(f"REPROVA: {erro}")
         return 1
-    resultado = analisar(arquivos, texto_aposentada, texto_excecoes)
+    resultado = analisar(arquivos, texto_aposentada, texto_excecoes, texto_aprovados)
     for caminho, mensagem in resultado["violacoes"]:
         print(f"VIOLACAO {caminho}: {mensagem}")
     print(
@@ -157,8 +185,11 @@ def verificar(raiz):
     return 0
 
 
+DIGEST_APROVADO_CONTROLE = "a" * 64
+
+
 def casos_do_autoteste():
-    digest = "a" * 64
+    digest = DIGEST_APROVADO_CONTROLE
     outro = "b" * 64
     bons = {f"ci/{i}.yml": f"image: fedora@sha256:{digest}\n" for i in range(4)}
     return [
@@ -170,6 +201,9 @@ def casos_do_autoteste():
         ("excecao-sem-arquivo", dict(bons), "docs/fantasma.md 0\n", 1),
         ("digest-duplo", {**bons, "x.yml": f"fedora@sha256:{outro}"}, "", 1),
         ("digest-insuficiente", {k: v for k, v in list(bons.items())[:3]}, "", 1),
+        ("digest-nao-aprovado", {k: v.replace(digest, outro) for k, v in bons.items()}, "", 1),
+        ("digest-de-distro-antiga", {k: v.replace(digest, "43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80")
+                                     for k, v in bons.items()}, "", 1),
         ("varredura-vazia", {}, "", 1),
         ("excecao-ilegivel", dict(bons), "docs/a.md dois\n", 1),
     ]
@@ -178,8 +212,9 @@ def casos_do_autoteste():
 def autoteste():
     falhas = 0
     texto_aposentada = PADRAO_CONTROLE + "\n"
+    texto_aprovados = "# digests aprovados de controle\n" + DIGEST_APROVADO_CONTROLE + "\n"
     for nome, arquivos, excecoes, esperado in casos_do_autoteste():
-        resultado = analisar(arquivos, texto_aposentada, excecoes)
+        resultado = analisar(arquivos, texto_aposentada, excecoes, texto_aprovados)
         rc = 1 if resultado["violacoes"] else 0
         ok = rc == esperado
         falhas += 0 if ok else 1
