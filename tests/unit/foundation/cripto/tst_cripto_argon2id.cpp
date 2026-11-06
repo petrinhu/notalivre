@@ -3,7 +3,7 @@
 // Testes do Argon2id da cripto (NL-3.2b, ADR-0006). O vetor literal de criação foi produzido UMA vez pelo oráculo
 // independente, o OpenSSL, sem o código sob teste:
 //   openssl kdf -keylen 32 -kdfopt pass:<entrada-de-fixture> -kdfopt hexsalt:000102030405060708090a0b0c0d0e0f
-//     -kdfopt iter:3 -kdfopt memcost:65536 -kdfopt lanes:1 -kdfopt threads:1 -binary ARGON2ID | od -An -tx1
+//     -kdfopt iter:3 -kdfopt memcost:131072 -kdfopt lanes:1 -kdfopt threads:1 -binary ARGON2ID | od -An -tx1
 // Entrada de fixture (texto): vetor-argon2-nl32b. Não é senha: é entrada de vetor, sem valor de segredo.
 // Saída na imagem Fedora anterior (aposentada, ver tools/portoes/distro_aposentada.txt), OpenSSL 3.5.9, em 04/11/2026 (entrada de fixture não sensível, sem palavra de senha): c4 61 cf 7c 69 77 02 84 99 1d 71 ab fb a4 44 86
 // df 1a 36 92 22 48 e7 ad 70 7d 72 03 48 f7 0f e3.
@@ -25,7 +25,7 @@ namespace {
 
 const QByteArray kSenhaDeTeste("vetor-argon2-nl32b");
 const QByteArray kSaltFixo = QByteArray::fromHex("000102030405060708090a0b0c0d0e0f");
-const QByteArray kVetorDeCriacao = QByteArray::fromHex("c461cf7c69770284991d71abfba44486df1a36922248e7ad707d720348f70fe3");
+const QByteArray kVetorDeCriacao = QByteArray::fromHex("b5f6a04ea684e70c5139f78ef984790db149ae493b9118d3145f3d1f0e29de49");
 const QByteArray kEntradaVetorPhc = QByteArray::fromHex("5a54676f4b655667");
 const QByteArray kSaltVetorPhc = QByteArray::fromHex("6f435364693762364933555966746a36");
 const QByteArray kEsperadoVetorPhc = QByteArray::fromHex("823cd743a9378b0013a61b275d8a8d61b4abf465e3c758");
@@ -72,7 +72,7 @@ void TstCriptoArgon2id::argon2idVetorParametrosDeCriacao()
     QCOMPARE(saida, kVetorDeCriacao);
 
     // Medição, não portão (ADR-0006, item 7): o tempo sai no log para o relatório da fatia.
-    qInfo("medição argon2id: 64 MiB, 3 passes, p=1, uma derivação de %lld ms", static_cast<long long>(umaDerivacao));
+    qInfo("medição argon2id: 128 MiB, 3 passes, p=1, uma derivação de %lld ms", static_cast<long long>(umaDerivacao));
 }
 
 void TstCriptoArgon2id::argon2idVetorReferenciaPhc()

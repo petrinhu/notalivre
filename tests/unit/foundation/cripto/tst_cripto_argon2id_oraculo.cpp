@@ -59,7 +59,7 @@ void TstCriptoArgon2idOraculo::argon2idOraculoOpenssl()
                QStringLiteral("-kdfopt"), QStringLiteral("pass:") + QString::fromUtf8(kSenhaDeTeste),
                QStringLiteral("-kdfopt"), QStringLiteral("hexsalt:") + QString::fromLatin1(kSaltFixo.toHex()),
                QStringLiteral("-kdfopt"), QStringLiteral("iter:3"),
-               QStringLiteral("-kdfopt"), QStringLiteral("memcost:65536"),
+               QStringLiteral("-kdfopt"), QStringLiteral("memcost:131072"),
                QStringLiteral("-kdfopt"), QStringLiteral("lanes:1"),
                QStringLiteral("-kdfopt"), QStringLiteral("threads:1"),
                QStringLiteral("-binary"), QStringLiteral("ARGON2ID")});
