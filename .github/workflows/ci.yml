@@ -420,6 +420,13 @@ jobs:
           docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/distro_base.py /src && python3 -I /src/tools/portoes/distro_base.py --autoteste'
 
+      # NL-3.0h: o portão sanitizer_ativo está ligado, o ambiente do preset é o fixado e ninguém desliga o sanitizer.
+      - name: Sanitizer ligado e sem desligamento (portão sanitizer_ligado, NL-3.0h)
+        id: sanitizer_ligado
+        run: |
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/sanitizer_ligado.py /src && python3 -I /src/tools/portoes/sanitizer_ligado.py --autoteste'
+
       # NL-1.8 (L-36): hexadecimal de cor só em apps/gui/qml/Theme.qml; o tema gerado tem de bater com a spec visual.
       - name: Hexadecimal só no Theme (portão nenhum_hex_fora_do_theme)
         id: hex
