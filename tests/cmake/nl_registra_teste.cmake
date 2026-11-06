@@ -25,7 +25,8 @@ endfunction()
 # o processo sai com 1 e o teste fica Passed). Por isso o FAIL de sanitizer é acrescentado a todo teste que tem PASS,
 # por um ponto único: nl_gate_sanitizer_fecha(), chamado no topo depois de add_subdirectory(tests).
 # O FAIL vence o PASS quando os dois casam (medido nas quatro imagens). Cada teste que não sai pelo nl_registra_teste_qt
-# se registra com nl_gate_sanitizer_registra(NAME).
+# se registra com nl_gate_sanitizer_registra(NAME). O regex não exige "ERROR:", porque "LeakSanitizer has encountered a fatal
+# error" sai sem isso. tools/portoes/sanitizer_ativo.py confere estes dois regex, por igualdade, em todo teste com PASS.
 function(nl_gate_sanitizer_registra nome)
     set_property(GLOBAL APPEND PROPERTY NL_GATE_TESTES "${nome}|${CMAKE_CURRENT_SOURCE_DIR}")
 endfunction()
@@ -39,7 +40,7 @@ function(nl_gate_sanitizer_fecha)
         get_property(comPass TEST ${nome} DIRECTORY ${diretorio} PROPERTY PASS_REGULAR_EXPRESSION SET)
         if(comPass)
             set_property(TEST ${nome} DIRECTORY ${diretorio} APPEND PROPERTY
-                         FAIL_REGULAR_EXPRESSION "ERROR: (Leak|Address)Sanitizer" "runtime error:")
+                         FAIL_REGULAR_EXPRESSION "(Leak|Address)Sanitizer" "runtime error:")
         endif()
     endforeach()
 endfunction()
