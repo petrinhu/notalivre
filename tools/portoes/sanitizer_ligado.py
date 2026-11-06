@@ -7,7 +7,11 @@
   3. executar_no_conteiner.sh roda sanitizer_ativo.py;
   4. o autoteste de sanitizer_ativo.py está no job autotestes do ci.yml e em job_autotestes.sh;
   5. nenhum arquivo rastreado fora da lista usa um desligamento ou ajuste de sanitizer (.md é texto e fica fora);
-  6. teste em tests/e2e não confere código de saída só por diferente de zero: o código próprio do sanitizer passaria.
+  6. teste em tests/e2e não confere código de saída só por diferente de zero: o código próprio do sanitizer passaria;
+  7. este portão está na lista, no job higiene e no espelho, com o comando exato; jobs asan e higiene sem desvio de falha.
+     A regra 7 pega a retirada de um lado só: este portão ainda roda pelo outro. Retirado de todos os lados, ele não roda, e
+     quem avisa é a guarda cruzada de sanitizer_ativo.py. Retirar os dois no mesmo commit nenhum portão pega: é risco aceito,
+     só a revisão do diff vê.
 
 Saída, sempre: "arquivos=N palavras=P violacoes=V". Zero arquivos reprova. Um único git ls-files, leitura em processo (L-11).
 
@@ -34,6 +38,11 @@ EXECUTOR = "tools/conteiner/executar_no_conteiner.sh"
 JOB_AUTOTESTES = "tools/espelho/job_autotestes.sh"
 GATE = "tools/portoes/sanitizer_ativo.py"
 AUTOTESTE_GATE = "tools/portoes/autoteste_sanitizer_ativo.sh"
+LISTA_PORTOES = "tools/conteiner/lista_portoes.txt"
+ESPELHO_HIGIENE = "tools/espelho/job_higiene.sh"
+COMANDO_PROPRIO = "python3 -I /src/tools/portoes/sanitizer_ligado.py /src && python3 -I /src/tools/portoes/sanitizer_ligado.py --autoteste"
+LINHA_PROPRIA = "sanitizer_ligado|git config --global --add safe.directory /src && " + COMANDO_PROPRIO
+DESVIOS = ("continue-on-error", "if: false")
 PERMITIDOS = frozenset({PRESETS, GATE, "tools/portoes/sanitizer_ligado.py"})
 RE_PALAVRAS = re.compile(
     rb"(?:ASAN|LSAN|UBSAN)_OPTIONS|detect_leaks|__(?:asan|lsan|ubsan)_default_(?:options|suppressions)"
@@ -141,12 +150,17 @@ CI_BOM = f"""jobs:
   autotestes:
     steps:
       - run: bash {AUTOTESTE_GATE}
+  higiene:
+    steps:
+      - run: sh -c '{COMANDO_PROPRIO}'
 """
 ARVORE_BOA = {
     PRESETS: json.dumps({"testPresets": [{"name": PRESET, "environment": AMBIENTE}]}),
     CI: CI_BOM,
     EXECUTOR: f"python3 -I {GATE} a b\n",
     JOB_AUTOTESTES: f"bash {AUTOTESTE_GATE}\n",
+    LISTA_PORTOES: "# comentário\ncamadas|true\n" + LINHA_PROPRIA + "\n",
+    ESPELHO_HIGIENE: f"passo x sh -c '{COMANDO_PROPRIO}'\n",
     "docs/x.md": "LSAN_OPTIONS em texto\n",
     "tests/e2e/a.cpp": "QVERIFY(execucao.codigo == 4);\n",
 }
@@ -173,6 +187,11 @@ def autoteste():
         ("flag_por_alvo", {"apps/CMakeLists.txt": "target_compile_options(a PRIVATE -fno-sanitize=all)\n"}, 1, "fora da lista"),
         ("codigo_frouxo", {"tests/e2e/a.cpp": "QVERIFY(execucao.codigo != 0);\n"}, 1, "só por diferente de zero"),
         ("vazia", None, 1, "varredura vazia"),
+        ("lista_sem_o_portao", {LISTA_PORTOES: "camadas|true\n"}, 1, "sem a linha exata de sanitizer_ligado"),
+        ("lista_com_o_portao_neutro", {LISTA_PORTOES: "sanitizer_ligado|true\n"}, 1, "sem a linha exata de sanitizer_ligado"),
+        ("higiene_sem_o_portao", sem(CI, COMANDO_PROPRIO, "true"), 1, "job higiene sem sanitizer_ligado"),
+        ("espelho_sem_o_portao", {ESPELHO_HIGIENE: "true\n"}, 1, "job_higiene.sh: sem sanitizer_ligado"),
+        ("higiene_com_desvio", sem(CI, "  higiene:\n", "  higiene:\n    continue-on-error: true\n"), 1, "job higiene com [continue-on-error]"),
     )
     falhas = 0
     with tempfile.TemporaryDirectory(prefix="notalivre-sanitizer-ligado-") as base:

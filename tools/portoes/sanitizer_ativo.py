@@ -6,7 +6,10 @@
   2. todo executável de teste do build, a CLI e a GUI são ELF com o símbolo __asan_init;
   3. o canário, com o ambiente do test preset: leak, heap e ub dão relatório e saem com o código próprio; ok sai limpo;
   4. o CTest real reprova o canário que vaza quando os regex do gate estão lá, aprova o limpo e, sem os regex, deixa o
-     vazamento passar (é o furo que o gate fecha).
+     vazamento passar (é o furo que o gate fecha);
+  5. guarda cruzada: sanitizer_ligado.py continua na lista de portões e no job higiene. Portão retirado de lá não roda e não
+     avisa; quem avisa é este, que roda em outro job. O inverso está em sanitizer_ligado.py. Retirar os dois no mesmo commit
+     nenhum portão pega: é risco aceito, só a revisão do diff vê.
 
 Saída, sempre: "testes=N com_pass=P binarios=B canarios=C violacoes=V". Zero testes, zero com PASS ou zero binários reprova.
 Um único processo por etapa, nenhum por arquivo (L-11).
@@ -30,6 +33,10 @@ REGEX_GATE = ("(Leak|Address)Sanitizer", "runtime error:")
 MARCA = "CANARIO-PASS"
 PROPRIEDADES_PROIBIDAS = ("WILL_FAIL", "SKIP_RETURN_CODE", "SKIP_REGULAR_EXPRESSION")
 SIMBOLO = b"__asan_init"
+LISTA_PORTOES = "tools/conteiner/lista_portoes.txt"
+CI = ".github/workflows/ci.yml"
+COMANDO_LIGADO = "python3 -I /src/tools/portoes/sanitizer_ligado.py /src && python3 -I /src/tools/portoes/sanitizer_ligado.py --autoteste"
+LINHA_LIGADO = "sanitizer_ligado|git config --global --add safe.directory /src && " + COMANDO_LIGADO
 CASOS_CANARIO = (
     ("leak", "ERROR: LeakSanitizer"),
     ("heap", "ERROR: AddressSanitizer: heap-buffer-overflow"),
@@ -201,10 +208,22 @@ LINHA_HEAP = "heap) echo '==1==ERROR: AddressSanitizer: heap-buffer-overflow on 
 LINHA_UB = "ub) echo 'a.cpp:1:1: runtime error: signed integer overflow' >&2; exit 86 ;;"
 FALHA_BOA = ";".join(("FAIL!",) + REGEX_GATE)
 PRESETS_BOM = {"testPresets": [{"name": PRESET, "environment": {"X_NL": "1"}}]}
+LISTA_BOA = "# comentário\ncamadas|true\n" + LINHA_LIGADO + "\n"
+CI_BOM = f"""jobs:
+  asan:
+    steps:
+      - run: true
+  higiene:
+    steps:
+      - run: sh -c '{COMANDO_LIGADO}'
+  camadas:
+    steps:
+      - run: true
+"""
 
 
 def montar(pasta, falha=FALHA_BOA, extra_um="", com_pass=True, com_simbolo=True, sem_testes=False, canario_txt=CANARIO_BOM,
-           presets=None, com_canario=True):
+           presets=None, com_canario=True, lista=LISTA_BOA, ci=CI_BOM):
     """Build de brincadeira: dois testes, um com PASS. Nada aqui executa o executável de teste: o ctest só o lista."""
     os.makedirs(pasta)
     binario = os.path.join(pasta, "bin_teste")
@@ -225,6 +244,11 @@ def montar(pasta, falha=FALHA_BOA, extra_um="", com_pass=True, com_simbolo=True,
         with open(canario, "w", encoding="utf-8") as saida:
             saida.write(canario_txt)
         os.chmod(canario, 0o755)
+    for relativo, conteudo in ((LISTA_PORTOES, lista), (CI, ci)):
+        caminho = os.path.join(pasta, relativo)
+        os.makedirs(os.path.dirname(caminho), exist_ok=True)
+        with open(caminho, "w", encoding="utf-8") as saida:
+            saida.write(conteudo)
     caminho_presets = os.path.join(pasta, "presets.json")
     with open(caminho_presets, "w", encoding="utf-8") as saida:
         json.dump(PRESETS_BOM if presets is None else presets, saida)
@@ -251,6 +275,12 @@ def autoteste():
         ("preset_sem_ambiente", {"presets": {"testPresets": [{"name": PRESET}]}}, 1, "sem environment"),
         ("vazia_sem_testes", {"sem_testes": True}, 1, "varredura vazia"),
         ("vazia_sem_pass", {"com_pass": False}, 1, "varredura vazia"),
+        ("ligado_fora_da_lista", {"lista": "camadas|true\n"}, 1, "sem a linha exata de sanitizer_ligado"),
+        ("ligado_neutro_na_lista", {"lista": "sanitizer_ligado|true\n"}, 1, "sem a linha exata de sanitizer_ligado"),
+        ("ligado_fora_do_higiene", {"ci": CI_BOM.replace(COMANDO_LIGADO, "true")}, 1, "job higiene sem sanitizer_ligado"),
+        ("ligado_so_em_outro_job", {"ci": CI_BOM.replace("  higiene:", "  outro:")}, 1, "job higiene sem sanitizer_ligado"),
+        ("ligado_fora_dos_dois", {"lista": "camadas|true\n", "ci": CI_BOM.replace(COMANDO_LIGADO, "true")}, 1,
+         "job higiene sem sanitizer_ligado"),
     )
     falhas = 0
     with tempfile.TemporaryDirectory(prefix="notalivre-sanitizer-ativo-") as base:
