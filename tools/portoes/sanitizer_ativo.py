@@ -156,6 +156,38 @@ def conferir_ctest(canario, pasta, ambiente):
     return violacoes
 
 
+RE_JOB = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
+
+
+def bloco_do_job(texto, job):
+    linhas = []
+    dentro = False
+    for linha in texto.splitlines():
+        casou = RE_JOB.match(linha)
+        if casou:
+            dentro = casou.group(1) == job
+        if dentro:
+            linhas.append(linha)
+    return "\n".join(linhas)
+
+
+def ler_texto(raiz, relativo):
+    try:
+        with open(os.path.join(raiz, relativo), encoding="utf-8") as fonte:
+            return fonte.read()
+    except OSError:
+        return ""
+
+
+def conferir_guarda_cruzada(raiz):
+    violacoes = []
+    if LINHA_LIGADO not in ler_texto(raiz, LISTA_PORTOES).splitlines():
+        violacoes.append(f"{LISTA_PORTOES}: sem a linha exata de sanitizer_ligado")
+    if COMANDO_LIGADO not in bloco_do_job(ler_texto(raiz, CI), "higiene"):
+        violacoes.append(f"{CI}: job higiene sem sanitizer_ligado")
+    return violacoes
+
+
 def verificar(build, presets, canario=None, extras=None):
     build = os.path.abspath(build)
     canario = canario or os.path.join(build, "tests", "sanidade", "nl_canario_sanitizer")
@@ -170,6 +202,7 @@ def verificar(build, presets, canario=None, extras=None):
         ambiente = {**os.environ, **ambiente_do_preset(presets)}
         testes = listar_testes(build, ambiente)
         com_pass, violacoes = conferir_testes(testes)
+        violacoes += conferir_guarda_cruzada(os.path.dirname(os.path.abspath(presets)))
         de_testes = executaveis_dos_testes(build, testes)
         binarios = sorted(set(de_testes) | set(extras))
         violacoes += conferir_binarios(binarios)

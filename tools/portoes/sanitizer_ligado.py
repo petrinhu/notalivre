@@ -91,6 +91,16 @@ def conferir_ligacao(raiz):
         violacoes.append(f"{CI}: job autotestes sem {AUTOTESTE_GATE}")
     if AUTOTESTE_GATE not in ler(raiz, JOB_AUTOTESTES):
         violacoes.append(f"{JOB_AUTOTESTES}: sem {AUTOTESTE_GATE}")
+    if LINHA_PROPRIA not in ler(raiz, LISTA_PORTOES).splitlines():
+        violacoes.append(f"{LISTA_PORTOES}: sem a linha exata de sanitizer_ligado")
+    if COMANDO_PROPRIO not in bloco_do_job(ci, "higiene"):
+        violacoes.append(f"{CI}: job higiene sem sanitizer_ligado")
+    if COMANDO_PROPRIO not in ler(raiz, ESPELHO_HIGIENE):
+        violacoes.append(f"{ESPELHO_HIGIENE}: sem sanitizer_ligado")
+    for job, bloco in (("asan", asan), ("higiene", bloco_do_job(ci, "higiene"))):
+        for desvio in DESVIOS:
+            if desvio in bloco:
+                violacoes.append(f"{CI}: job {job} com [{desvio}]")
     return violacoes
 
 
