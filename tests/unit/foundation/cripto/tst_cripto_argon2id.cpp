@@ -5,7 +5,7 @@
 //   openssl kdf -keylen 32 -kdfopt pass:<entrada-de-fixture> -kdfopt hexsalt:000102030405060708090a0b0c0d0e0f
 //     -kdfopt iter:3 -kdfopt memcost:65536 -kdfopt lanes:1 -kdfopt threads:1 -binary ARGON2ID | od -An -tx1
 // Entrada de fixture (texto): vetor-argon2-nl32b. Não é senha: é entrada de vetor, sem valor de segredo.
-// Saída em fedora44, OpenSSL 3.5.9, em 04/11/2026 (entrada de fixture não sensível, sem palavra de senha): c4 61 cf 7c 69 77 02 84 99 1d 71 ab fb a4 44 86
+// Saída na imagem Fedora anterior (aposentada, ver tools/portoes/distro_aposentada.txt), OpenSSL 3.5.9, em 04/11/2026 (entrada de fixture não sensível, sem palavra de senha): c4 61 cf 7c 69 77 02 84 99 1d 71 ab fb a4 44 86
 // df 1a 36 92 22 48 e7 ad 70 7d 72 03 48 f7 0f e3.
 // Vetor público (argon2idVetorReferenciaPhc): PyNaCl, índice 2, gerado pelo CLI da PHC: https://github.com/pyca/pynacl/blob/29b07709fee9c75109b9c98a4485f5080c261224/tests/data/raw_argon2id_hashes.json#L23-L30. A suíte do libsodium não tem vetor positivo acima do piso.
 
