@@ -350,6 +350,10 @@ jobs:
       - name: Build (preset asan-ubsan)
         run: cmake --build --preset asan-ubsan
 
+      # NL-3.0h (L-36): prova pelo binário e pelo canário que o sanitizer e o gate estão ativos (TESTES.md, T4).
+      - name: Sanitizer ativo e gate aplicado (portão sanitizer_ativo, NL-3.0h)
+        run: python3 -I tools/portoes/sanitizer_ativo.py "$NL_TMP_BASE/notalivre-build/asan-ubsan" CMakePresets.json
+
       - name: ctest (preset asan-ubsan)
         run: ctest --preset asan-ubsan --output-on-failure --no-tests=error
 
@@ -549,6 +553,9 @@ jobs:
 
       - name: "Autoteste de --pull=never nas chamadas docker run (NL-3.0g, L-17)"
         run: bash tools/espelho/autoteste_pull_never.sh "$GITHUB_WORKSPACE"
+
+      - name: "Autoteste do portão de sanitizer ativo (NL-3.0h)"
+        run: bash tools/portoes/autoteste_sanitizer_ativo.sh
 
   # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
   # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.
