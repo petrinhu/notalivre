@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Pré-cheque dos cabeçalhos de desenvolvimento do libsodium nas imagens de build (NL-3.2a; autorização do líder de 29/10/2026).
 # Compila um probe com #include <sodium.h> só até a análise sintática (-fsyntax-only: nenhum artefato, nada executa).
-# Sem o pacote de cabeçalhos (libsodium-devel no fedora44; libsodium-dev no ubuntu26.04 e no mint22.3; libsodium no manjaro)
+# Sem o pacote de cabeçalhos (libsodium-devel no fedora45; libsodium-dev no ubuntu26.04 e no mint22.3; libsodium no manjaro)
 # o cc falha com "No such file or directory" e este script sai com 1. A etapa precheque_qt.sh chama este script.
 # Depois de aprovado, imprime (só leitura) a versão e os limites de senha do Argon2id que o cabeçalho define.
 # O compilador vem de CC (padrão: cc); o autoteste troca CC por um cc de sandbox.

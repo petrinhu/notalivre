@@ -17,7 +17,7 @@ set -u
 RAIZ_REPO="${1:?uso: rodar_higiene_conteiner.sh RAIZ_DO_REPO LOG [DIR_PORTOES]}"
 LOG="${2:?uso: rodar_higiene_conteiner.sh RAIZ_DO_REPO LOG [DIR_PORTOES]}"
 PORTOES_ALT="${3:-}"
-IMAGEM="notalivre/higiene-fedora44:nl-0.6"
+IMAGEM="notalivre/higiene-fedora45:nl-3.0g"
 NL_TMP_BASE="${NL_TMP_BASE:-/var/tmp}"; export NL_TMP_BASE; export TMPDIR="$NL_TMP_BASE"
 DEST="$NL_TMP_BASE/notalivre-higiene-src"
 

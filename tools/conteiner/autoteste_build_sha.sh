@@ -45,7 +45,7 @@ rodar_build() {
     local nome="$1"; shift
     env -u NL_FATIA -u NL_FONTE -u NL_SHA -u NL_REPO -u NL_XSD_ZIP_CACHE -u NL_BUILD_ROOT "$@" \
         STUB_LOG="$BASE/$nome.docker" NL_LOG="$BASE/$nome.log" \
-        timeout 180 bash "$RAIZ/tools/conteiner/build_local.sh" fedora44 debug
+        timeout 180 bash "$RAIZ/tools/conteiner/build_local.sh" fedora45 debug
     RC_BUILD=$?
     return "$RC_BUILD"
 }
@@ -56,7 +56,7 @@ rodar_imagem() {
     local nome="$1"; shift
     env -u NL_FATIA -u NL_FONTE -u NL_SHA -u NL_REPO -u NL_XSD_ZIP_CACHE -u NL_BUILD_ROOT "$@" \
         STUB_LOG="$BASE/$nome.docker" NL_LOG="$BASE/$nome.log" \
-        timeout 180 bash "$RAIZ/tools/conteiner/build_local.sh" imagem fedora44
+        timeout 180 bash "$RAIZ/tools/conteiner/build_local.sh" imagem fedora45
     RC_IMG=$?
     return "$RC_IMG"
 }
@@ -90,7 +90,16 @@ mkdir -p "$REPO/src" "$REPO/apps" "$REPO/tests" "$REPO/third_party" "$REPO/tools
 printf 'project(fixture)\n' > "$REPO/CMakeLists.txt"
 printf '{}\n' > "$REPO/CMakePresets.json"
 printf 'int comprometido = 1;\n' > "$REPO/src/comprometido.cpp"
-for d in apps tests third_party tools/conteiner tools/tabelas; do printf 'fixture\n' > "$REPO/$d/conteudo.txt"; done
+for d in apps tests third_party tools/conteiner tools/tabelas tools/servidor_falso tools/portoes flatpak; do
+    mkdir -p "$REPO/$d"
+    printf 'fixture\n' > "$REPO/$d/conteudo.txt"
+done
+# NL-3.0g: a fixture traz todos os caminhos de LISTA_FONTE (evidencia_sha.sh:22). Sem .github/workflows/ci.yml o git archive
+# para com "pathspec did not match" e todo caso de build reprova com rc 1, antes de qualquer portão (medido no contêiner).
+mkdir -p "$REPO/.github/workflows"
+printf 'fixture\n' > "$REPO/.github/workflows/ci.yml"
+# NL-3.0g (CISO, 05/11/2026): o portão estático e o piso vêm do próprio commit do SHA; a fixture os leva.
+for arq in portoes_estaticos.sh piso_portoes.txt lista_portoes.txt; do cp "$RAIZ/tools/conteiner/$arq" "$REPO/tools/conteiner/$arq"; done
 git -C "$REPO" init || { echo "ABORTA: git init da fixture"; exit 1; }
 git -C "$REPO" add -A || { echo "ABORTA: git add da fixture"; exit 1; }
 git -C "$REPO" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -m "test: fixture" \
@@ -185,7 +194,7 @@ fi
 
 # --- C6: xmlsec1 nos quatro scripts de instalar/ (piso: 4 analisados) ---
 analisados=0; encontrados=0; faltou=0
-for d in fedora44 ubuntu26.04 manjaro mint22.3; do
+for d in fedora45 ubuntu26.04 manjaro mint22.3; do
     analisados=$((analisados + 1))
     if grep -q -- 'xmlsec1' "$RAIZ/tools/conteiner/instalar/$d.sh" 2>/dev/null; then
         encontrados=$((encontrados + 1))
@@ -211,7 +220,7 @@ rodar_imagem c8 NL_REPO="$REPO" NL_SHA="$SHA_FIXTURE"
 rc8=$?
 l1c8="$(head -n 1 "$BASE/c8.log" 2>/dev/null)"
 if [ "$rc8" -eq 0 ] && [[ "$l1c8" == "SHA: $SHA_FIXTURE fatia=imagem"* ]] && grep -qx 'NL-RC=0' "$BASE/c8.log" \
-   && grep -q '^docker build -t notalivre/build-fedora44' "$BASE/c8.docker"; then
+   && grep -q '^docker build -t notalivre/build-fedora45' "$BASE/c8.docker"; then
     ok "C8 imagem com SHA na linha 1 e NL-RC=0 (rc=$rc8)"
 else
     falha "C8 imagem sem SHA na linha 1 ou sem NL-RC (rc=$rc8; linha 1: '${l1c8:-vazia}')"
@@ -232,8 +241,8 @@ pe2=$!
 wait "$pe1"; re1=$?
 wait "$pe2"; re2=$?
 resumo_e="$(conc_resumo "$BASE/c9e.conc" 2>/dev/null)"
-# Piso: 2 processos x 2 chamadas de docker (diagnóstico e build) = 4 pares S/E.
-if [ "$re1" -eq 0 ] && [ "$re2" -eq 0 ] && [ "$resumo_e" = "pares=4 sobreposicoes=0" ]; then
+# Piso medido em 06/11/2026: 2 processos x 20 chamadas de docker (diagnóstico, build, 4 autotestes e 14 portões) = 40 pares S/E.
+if [ "$re1" -eq 0 ] && [ "$re2" -eq 0 ] && [ "$resumo_e" = "pares=40 sobreposicoes=0" ]; then
     ok "C9 executar em paralelo sem sobreposição de contêiner ($resumo_e)"
 else
     falha "C9 executar em paralelo com contêineres sobrepostos ou sem piso (rc=$re1/$re2, $resumo_e)"
@@ -251,6 +260,33 @@ if [ "$ri1" -eq 0 ] && [ "$ri2" -eq 0 ] && [ "$resumo_i" = "pares=2 sobreposicoe
     ok "C9 imagem em paralelo sem sobreposição de contêiner ($resumo_i)"
 else
     falha "C9 imagem em paralelo com contêineres sobrepostos ou sem piso (rc=$ri1/$ri2, $resumo_i)"
+fi
+
+# --- C10 (NL-3.0g, CISO 05/11/2026): lista e piso valem do SHA; o portão roda do script da árvore, que é o do SHA ---
+# O log diz de qual caminho saiu o portoes_estaticos.sh: o da árvore de trabalho (RAIZ), já conferido byte a byte com o do SHA.
+rodar_build c10 NL_REPO="$REPO" NL_SHA="$SHA_FIXTURE" NL_FATIA=NL-C10
+rc10=$?
+esperado_c10="NL-PORTOES-SCRIPT=$RAIZ/tools/conteiner/portoes_estaticos.sh"
+if [ "$rc10" -eq 0 ] && grep -qxF -- "$esperado_c10" "$BASE/c10.log"; then
+    ok "C10 portão estático vem da árvore conferida com o SHA (rc=$rc10)"
+else
+    falha "C10 portão estático fora da árvore conferida com o SHA (rc=$rc10, esperado: $esperado_c10)"
+fi
+
+# --- C11 (NL-3.0g, CISO 05/11/2026): SHA cujo portoes_estaticos.sh grava marca no host: PARADA rc 5, sem marca ---
+C11REPO="$BASE/repo11"
+git clone -q --no-hardlinks "$REPO" "$C11REPO" || { echo "ABORTA: clone do C11"; exit 1; }
+{ printf 'printf x > "$NL_TMP_BASE/marca-c11"\n'; cat "$C11REPO/tools/conteiner/portoes_estaticos.sh"; } > "$BASE/portoes_c11.sh"
+mv "$BASE/portoes_c11.sh" "$C11REPO/tools/conteiner/portoes_estaticos.sh"
+git -C "$C11REPO" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -qam "test: marca no host" \
+    || { echo "ABORTA: commit do C11"; exit 1; }
+SHA_C11="$(git -C "$C11REPO" rev-parse HEAD)"
+rodar_build c11 NL_REPO="$C11REPO" NL_SHA="$SHA_C11" NL_FATIA=NL-C11
+rc11=$?
+if [ "$rc11" -eq 5 ] && [ ! -e "$BASE/tmp/marca-c11" ]; then
+    ok "C11 script do SHA com marca no host reprovado antes de rodar (rc=$rc11, sem marca)"
+else
+    falha "C11 script do SHA rodou no host (rc=$rc11, marca: $([ -e "$BASE/tmp/marca-c11" ] && echo sim || echo nao))"
 fi
 
 echo "FALHAS=$FALHAS"

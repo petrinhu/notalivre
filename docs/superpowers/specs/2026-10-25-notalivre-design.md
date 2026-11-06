@@ -158,7 +158,7 @@
 - **Versões:** EM ABERTO. O líder pediu "específico" para Manjaro e Mint, mas não fixou versões. Ubuntu e Fedora também não têm versão definida.
 - **Qt disponível por distro (FATO na data da pesquisa):** Fedora 44 com qt6-base 6.11.2. Ubuntu 26.04 LTS com 6.10.2. Manjaro stable com 6.11.2. Mint 22.3 com 6.4.2 (inferência de pesquisa, não verificado). Nenhuma das quatro traz Qt 6.12 como pacote. Origem do Qt 6.12 dentro de cada contêiner: JÁ RESPONDIDO (rodada 4, baixado nos contêineres). Método de download ainda não escolhido. aqtinstall 3.3.0 com suporte a Qt 6.11 ou superior em Linux NÃO CONFIRMADO.
 - **GitHub Actions (FATO):** os runners são só Ubuntu, e a GitHub declara que não pretende oferecer outras distros (github.com/actions/runner-images). As demais distros entram por contêiner.
-- **Imagens de contêiner (FATO):** fedora:44 e ubuntu:26.04 são imagens oficiais Docker. Para Mint e Manjaro não há imagem oficial (linuxmintd/mint22.3-amd64 e manjarolinux/base são de terceiros).
+- **Imagens de contêiner (FATO):** fedora:45 e ubuntu:26.04 são imagens oficiais Docker. Para Mint e Manjaro não há imagem oficial (linuxmintd/mint22.3-amd64 e manjarolinux/base são de terceiros).
 - **Flatpak no CI (FATO):** flatpak-github-actions v6, com inputs manifest-path, bundle e run-tests. Rodar o bundle dentro de contêiner exige relaxar capacidades do bwrap, ou usar --privileged. Há relatos de falha até com contêiner privilegiado. EM ABERTO: viabilidade medida em runner real (INFERÊNCIA: o teste de Flatpak em contêiner é o ponto de maior risco da matriz).
 - **Root no contêiner:** lei aplicável L-49. Contêiner do GitHub Actions roda como root e ignora bits de permissão. Verificar isso antes de atribuir falha a bug de distro.
 
@@ -469,7 +469,7 @@ Fatos da leitura desses documentos:
 - Fedora 44, qt6-base 6.11.2: https://packages.fedoraproject.org
 - Ubuntu 26.04, qt6-base 6.10.2: https://launchpad.net/ubuntu
 - Manjaro, comparação de branches: https://manjaristas.org/branch_compare
-- Imagens Docker oficiais (fedora:44, ubuntu:26.04): https://hub.docker.com
+- Imagens Docker oficiais (fedora:45, ubuntu:26.04): https://hub.docker.com
 - Linux Mint, versões: https://en.wikipedia.org/wiki/Linux_Mint
 - Qt 6.11: data de 23/03/2026 apenas em resultado de busca, fonte exata NÃO CONFIRMADA.
 

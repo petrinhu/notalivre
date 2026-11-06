@@ -4,10 +4,10 @@
 # teste e motivo, separados por espaço. Cada teste desta lista tem de estar no CTest da distro, senão o portão reprova.
 # A prova de que o bloqueio de rede roda em pelo menos uma imagem (condição do CISO) vem daqui e de tests/fixtures/xmldsig/
 # tabela_http_por_distro.txt: o slot contextoDoParserBloqueiaRede roda em todas as imagens nativas, e nas que têm libxml2 com
-# cliente HTTP (fedora44 e mint22.3, pela tabela) ele tem de provar o bloqueio, não afirmar a ausência. A conferência é a
+# cliente HTTP (mint22.3, pela tabela; fedora45 é sem_http, medido em 05/11/2026) ele tem de provar o bloqueio, não afirmar a ausência. A conferência é a
 # do próprio teste: ele reprova se a tabela e a libxml2 da imagem não concordarem.
-fedora44 xmldsig.contextoDoParserBloqueiaRede prova de rede (libxml2 com cliente HTTP, bloqueio provado)
-fedora44 xmldsig.tabelaHttpTemLinhaQueBloqueiaRede tabela de HTTP tem linha com_http
+fedora45 xmldsig.contextoDoParserBloqueiaRede afirmação de ausência de cliente HTTP (libxml2 2.15.4, medido em 05/11/2026)
+fedora45 xmldsig.tabelaHttpTemLinhaQueBloqueiaRede tabela de HTTP tem linha com_http
 ubuntu26.04 xmldsig.contextoDoParserBloqueiaRede afirmação de ausência de cliente HTTP (libxml2 2.15)
 ubuntu26.04 xmldsig.tabelaHttpTemLinhaQueBloqueiaRede tabela de HTTP tem linha com_http
 manjaro xmldsig.contextoDoParserBloqueiaRede afirmação de ausência de cliente HTTP (libxml2 2.15)

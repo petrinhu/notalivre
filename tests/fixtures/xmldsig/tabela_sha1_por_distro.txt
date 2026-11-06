@@ -4,7 +4,8 @@
 # ESPERADO = sha1 (assina SHA-1 sem a variável) ou algoritmo_bloqueado (o OSSL_LIB_CTX próprio recusa).
 # fedora 44 medido em 29/10/2026 (docs/pesquisa/ci_medicao.md, NL-2.3 passo 1): o OSSL_LIB_CTX próprio recusa rsa-sha1.
 # Manjaro é rolling (sem VERSION_ID): o teste lê "rolling" para ele.
-fedora 44 algoritmo_bloqueado
+# fedora 45 medido em 05/11/2026 (imagem notalivre/build-fedora45:nl-2.0, OpenSSL 4.0.3): openssl dgst -sha1 -sign sem a variável de SHA-1 do arnês rc=1 (política do Fedora); com ela rc=0. xmldsig.assinaturaConfereNoXmlsec1Cli: sem a variável falha, com ela passa. xmlsec1 --verify: com a variável, o passa chama xmlsec1 --verify (tst_assinador_xml.cpp:326-345). Sem a variável, NÃO MEDIDO (pendente, CISO). Log: /var/tmp/notalivre-logs/NL-3.0g-sha1-medicao-fedora45.log.
+fedora 45 algoritmo_bloqueado
 ubuntu 26.04 sha1
 manjaro rolling sha1
 linuxmint 22.3 sha1

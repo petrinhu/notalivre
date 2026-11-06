@@ -26,7 +26,23 @@ travar() {
 # Alteração não commitada não entra; isso é avisado no stderr, sem mudar o rc (o que não é commitado não chega ao CI).
 # Por que clone e não recusa: recusar tornaria o espelho inutilizável nas worktrees, que são o fluxo padrão da fatia.
 copiar_arvore() {
-    local destino="$1" sujos
+    local destino="$1" sujos area modo
+    # Área de trabalho do espelho: pasta do usuário, privada (NL-3.0g, revisão de segurança). /var/tmp é gravável por todos
+    # (sticky), e o nome é previsível: sem esta checagem, outro usuário pré-cria o caminho. Nunca clone numa área alheia.
+    area="$(dirname -- "$destino")"
+    [ -d "$area" ] || mkdir -m 700 -p -- "$area" || { echo "REPROVA: não criei a área $area; nada foi clonado" >&2; return 1; }
+    if [ ! -O "$area" ]; then
+        echo "REPROVA: a área $area não é do usuário atual; nada foi clonado" >&2
+        return 1
+    fi
+    modo="$(stat -c %a -- "$area")"
+    if [ $(( 0$modo & 022 )) -ne 0 ]; then
+        echo "REPROVA: a área $area tem escrita para grupo ou outros (modo $modo); nada foi clonado" >&2
+        return 1
+    fi
+    if [ $(( 0$modo & 077 )) -ne 0 ]; then
+        chmod 700 -- "$area" || { echo "REPROVA: não ajustei o modo de $area; nada foi clonado" >&2; return 1; }
+    fi
     rm -rf -- "$destino" && mkdir -p "$destino" || return 1
     git clone --quiet --no-hardlinks -- "$RAIZ" "$destino" || return 1
     [ -d "$destino/.git" ] || return 1
@@ -36,11 +52,15 @@ copiar_arvore() {
     fi
 }
 
-# Espelho de higiene precisa da imagem de higiene (mesma do CI). Constrói só se faltar.
+# Imagem de higiene (mesma do CI). Reconstruída a cada espelho: o digest fixado no Dockerfile é o que vale, e uma imagem
+# antiga com digest diferente não pode ficar em uso (NL-3.0g). Com cache de camadas o build é rápido.
 garantir_imagem_higiene() {
-    if [ -z "$(docker image ls -q "$IMAGEM_HIGIENE")" ]; then
-        docker build -t "$IMAGEM_HIGIENE" -f "$RAIZ/tools/portoes/higiene.Dockerfile" "$RAIZ/tools/portoes" || return 1
-    fi
+    docker build -q -t "$IMAGEM_HIGIENE" -f "$RAIZ/tools/portoes/higiene.Dockerfile" "$RAIZ/tools/portoes" >/dev/null || return 1
+}
+
+# Imagem de ostree da conferência do repositório Flatpak (NL-3.0g). Mesma regra: reconstruída a cada espelho, com cache.
+garantir_imagem_ostree() {
+    docker build -q -t notalivre/ostree-fedora45:nl-3.0g -f "$RAIZ/tools/conteiner/ostree-fedora45.Dockerfile" "$RAIZ/tools/conteiner" >/dev/null || return 1
 }
 
 # Um passo do job: roda, imprime o rc e acumula a falha. Uso: passo NOME COMANDO...

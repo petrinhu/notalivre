@@ -33,3 +33,5 @@ add_subdirectory(src/mid)
 add_subdirectory(apps/cli)
 add_subdirectory(apps/gui)
 add_subdirectory(tests)
+# Gate de sanitizer (NL-3.0h): ponto único, depois de todos os testes registrados (tests/cmake/nl_registra_teste.cmake).
+nl_gate_sanitizer_fecha()

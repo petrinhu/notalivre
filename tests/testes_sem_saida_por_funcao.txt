@@ -4,104 +4,104 @@
 # O teste da lista é um script, python, e2e ou comando, e não um executável Qt Test: não gera junitxml. Todo teste do
 # CTest que não gera junitxml tem de estar aqui, por igualdade exata. Linha que não é teste do CTest reprova.
 # Qualquer teste Qt Test que não gere junitxml reprova: ele não pode entrar nesta lista (a função de registro gera o arquivo).
-fedora44 certificados.cadeiaForaDaAcEhAutoassinadaSemCa gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.cnpjNoOtherNameConfereComOid gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.cnpjsDeTesteTemDvValido gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.cnpjSubSemIntermediariaSemCa gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.cnpjSubVemDaSubAc gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.cpfNoOtherNameNasPosicoes9a19 gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.dvAlfanumericoVetoresOficiais gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.ekuClientAuthSoNoCertificadoDeCliente gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.fixturesGeradasSaoLidasPeloOpenssl gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.gerar gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.pfxLegadoFalhaSemLegacyComUnsupported gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.pfxLegadoUsaRc2EDes gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.pfxModernoUsaPbes2Aes256 gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.pfxTemCadeiaDaAc gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.revogadoRejeitadoPorLcr gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.semIdentificacaoSemOids gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.senhaAleatoriaPorExecucao gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.senhaNasceCom0600 gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.servidorFalsoTemSanEEkuServerAuth gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.subAcEhCaPathlenZeroAssinadaPelaAc gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 certificados.vencidoRejeitadoPeloVerify gerador e verificador python de certificados de teste (arnês), sem junitxml por função
-fedora44 cli.limpaLogsPii comando cmake de limpeza de logs, sem junitxml por função
-fedora44 cli.portaoPiiVarreLogsDaCli varredura python de PII nos logs, sem junitxml por função
-fedora44 hash_zip_adulterado_recusado teste de hash do ZIP em bash, sem junitxml por função
-fedora44 hash_zip_controle_aceito teste de hash do ZIP em bash, sem junitxml por função
-fedora44 oraculo_xmllint oráculo xmllint em bash (régua do XSD), sem junitxml por função
-fedora44 oraculo_xmllint_dps oráculo xmllint em bash (régua do XSD), sem junitxml por função
-fedora44 oraculo_xmllint_dps_validar oráculo xmllint em bash (régua do XSD), sem junitxml por função
-fedora44 portao_pii_logs varredura python de PII nos logs, sem junitxml por função
-fedora44 portoes.ciHigieneLigaPortaoSha1 portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1ArgumentoCacheDeOutraPastaRecusado portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1ArgumentoForaDaRaizRecusado portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1ArgumentoSemCacheProprioRecusado portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1ArnesPermitido portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1ArvoreRealLimpa portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1BuildDeclaradoComArgumentoNaoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1BuildDeclaradoNaoCegaSrcBuild portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1BuildVersionadoSemArgumentoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1MarkdownDocumentalPassa portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1MarkdownSrcReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1OutroTesteDoXmldsigReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1PastaNovaNaRaizReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1PisoVazioReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1PycComSufixoFalsoNaoDerivadoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1PycDerivadoNaoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1PycSemOrigemReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1PycSemVariavelNaFonteReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1SabotagemReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1TesteXmldsigPermitidoPeloCaminhoExato portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1VazamentoEmThirdPartyReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1ViolacaoEmSrcBuildXReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1ViolacaoEmSrcOutReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1WorktreeAninhadoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1WorktreeNaRaizPassa portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 portoes.portaoSha1WorktreeRastreadoNaRaizReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-fedora44 servidor_falso.ambienteDoXmlsec1SoNoFedora44 servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.assinaturaSha1AceitaPeloOraculo servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.contentEncodingGzipDaFalha servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.corpoSemTamanhoFechaNoCorpo servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.corpoTruncadoFechaNoMeio servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.dpsAdulteradaRejeitada servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.dpsValidaRecebeChave50 servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.ecoAcceptEncodingDaFalha servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.envelopeZlibCruRecusadoCom400 servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.escutaSoEmLoopback servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.falhaRoteirizadaAconteceUmaVez servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.nfseDefeituosaNoSucessoDoPostChegaComChaveEFormaErrada servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.nfseDefeituosaSoValeParaPostNfse servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.oraculoSemAssinarSemChamador servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.redirecionaRoteirizado servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.rejeicaoRoteirizadaDevolveCodigoE servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.rotasDeEventoEDfeRespondem501 servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.semCertificadoRecusado servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.tlsMaximoTls12LimitaVersao servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.tlsMinimoTls12RecusaTls11 servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.variavelSha1SoNoFedora44 servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.verificacaoLaxObrigatoriaNa13 servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.verificacaoPadraoSemLax servidor falso python (arnês de rede), sem junitxml por função
-fedora44 tabelas.aguasMaritimasConvertida ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.contagemAlteradaSaiComRc1SemGravar ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.conversorFabricadoGravaQuandoBate ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.conversorRecusaXmlComDoctypeRc1 ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.convSHAErradoSaiComRc1SemGravar ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.cTribNac10101ViraTexto010101 ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.cTribNac99XXXXIdentificavel ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.cTribNacConfereComItemSubitemDesdobro ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.municipioComSeteDigitos ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.nbsComFormatoPontuadoPreservado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.nbsSemDescricaoMantidaEContada ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.servicoItemSubitemDesdobroInconsistenteFalha ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.xlsxArquivoDescompactadoGrandeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.xlsxComArquivosDemaisRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.xlsxComDoctypeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.xlsxComEntityRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.xlsxUtf16ComEntityRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.xlsxUtf16SemDoctypeLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.xlsxUtf8ComBomLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 tabelas.xlsxValidoEhLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 certificados.cadeiaForaDaAcEhAutoassinadaSemCa gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.cnpjNoOtherNameConfereComOid gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.cnpjsDeTesteTemDvValido gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.cnpjSubSemIntermediariaSemCa gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.cnpjSubVemDaSubAc gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.cpfNoOtherNameNasPosicoes9a19 gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.dvAlfanumericoVetoresOficiais gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.ekuClientAuthSoNoCertificadoDeCliente gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.fixturesGeradasSaoLidasPeloOpenssl gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.gerar gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.pfxLegadoFalhaSemLegacyComUnsupported gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.pfxLegadoUsaRc2EDes gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.pfxModernoUsaPbes2Aes256 gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.pfxTemCadeiaDaAc gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.revogadoRejeitadoPorLcr gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.semIdentificacaoSemOids gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.senhaAleatoriaPorExecucao gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.senhaNasceCom0600 gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.servidorFalsoTemSanEEkuServerAuth gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.subAcEhCaPathlenZeroAssinadaPelaAc gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 certificados.vencidoRejeitadoPeloVerify gerador e verificador python de certificados de teste (arnês), sem junitxml por função
+fedora45 cli.limpaLogsPii comando cmake de limpeza de logs, sem junitxml por função
+fedora45 cli.portaoPiiVarreLogsDaCli varredura python de PII nos logs, sem junitxml por função
+fedora45 hash_zip_adulterado_recusado teste de hash do ZIP em bash, sem junitxml por função
+fedora45 hash_zip_controle_aceito teste de hash do ZIP em bash, sem junitxml por função
+fedora45 oraculo_xmllint oráculo xmllint em bash (régua do XSD), sem junitxml por função
+fedora45 oraculo_xmllint_dps oráculo xmllint em bash (régua do XSD), sem junitxml por função
+fedora45 oraculo_xmllint_dps_validar oráculo xmllint em bash (régua do XSD), sem junitxml por função
+fedora45 portao_pii_logs varredura python de PII nos logs, sem junitxml por função
+fedora45 portoes.ciHigieneLigaPortaoSha1 portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1ArgumentoCacheDeOutraPastaRecusado portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1ArgumentoForaDaRaizRecusado portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1ArgumentoSemCacheProprioRecusado portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1ArnesPermitido portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1ArvoreRealLimpa portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1BuildDeclaradoComArgumentoNaoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1BuildDeclaradoNaoCegaSrcBuild portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1BuildVersionadoSemArgumentoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1MarkdownDocumentalPassa portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1MarkdownSrcReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1OutroTesteDoXmldsigReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1PastaNovaNaRaizReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1PisoVazioReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1PycComSufixoFalsoNaoDerivadoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1PycDerivadoNaoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1PycSemOrigemReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1PycSemVariavelNaFonteReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1SabotagemReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1TesteXmldsigPermitidoPeloCaminhoExato portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1VazamentoEmThirdPartyReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1ViolacaoEmSrcBuildXReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1ViolacaoEmSrcOutReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1WorktreeAninhadoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1WorktreeNaRaizPassa portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 portoes.portaoSha1WorktreeRastreadoNaRaizReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
+fedora45 servidor_falso.ambienteDoXmlsec1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.assinaturaSha1AceitaPeloOraculo servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.contentEncodingGzipDaFalha servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.corpoSemTamanhoFechaNoCorpo servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.corpoTruncadoFechaNoMeio servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.dpsAdulteradaRejeitada servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.dpsValidaRecebeChave50 servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.ecoAcceptEncodingDaFalha servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.envelopeZlibCruRecusadoCom400 servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.escutaSoEmLoopback servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.falhaRoteirizadaAconteceUmaVez servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.nfseDefeituosaNoSucessoDoPostChegaComChaveEFormaErrada servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.nfseDefeituosaSoValeParaPostNfse servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.oraculoSemAssinarSemChamador servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.redirecionaRoteirizado servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.rejeicaoRoteirizadaDevolveCodigoE servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.rotasDeEventoEDfeRespondem501 servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.semCertificadoRecusado servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.tlsMaximoTls12LimitaVersao servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.tlsMinimoTls12RecusaTls11 servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.variavelSha1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.verificacaoLaxObrigatoriaNa13 servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.verificacaoPadraoSemLax servidor falso python (arnês de rede), sem junitxml por função
+fedora45 tabelas.aguasMaritimasConvertida ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.contagemAlteradaSaiComRc1SemGravar ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.conversorFabricadoGravaQuandoBate ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.conversorRecusaXmlComDoctypeRc1 ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.convSHAErradoSaiComRc1SemGravar ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.cTribNac10101ViraTexto010101 ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.cTribNac99XXXXIdentificavel ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.cTribNacConfereComItemSubitemDesdobro ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.municipioComSeteDigitos ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.nbsComFormatoPontuadoPreservado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.nbsSemDescricaoMantidaEContada ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.servicoItemSubitemDesdobroInconsistenteFalha ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.xlsxArquivoDescompactadoGrandeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.xlsxComArquivosDemaisRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.xlsxComDoctypeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.xlsxComEntityRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.xlsxUtf16ComEntityRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.xlsxUtf16SemDoctypeLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.xlsxUtf8ComBomLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.xlsxValidoEhLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 ubuntu26.04 certificados.cadeiaForaDaAcEhAutoassinadaSemCa gerador e verificador python de certificados de teste (arnês), sem junitxml por função
 ubuntu26.04 certificados.cnpjNoOtherNameConfereComOid gerador e verificador python de certificados de teste (arnês), sem junitxml por função
 ubuntu26.04 certificados.cnpjsDeTesteTemDvValido gerador e verificador python de certificados de teste (arnês), sem junitxml por função
@@ -157,7 +157,7 @@ ubuntu26.04 portoes.portaoSha1ViolacaoEmSrcOutReprova portão de higiene em pyth
 ubuntu26.04 portoes.portaoSha1WorktreeAninhadoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
 ubuntu26.04 portoes.portaoSha1WorktreeNaRaizPassa portão de higiene em python ou shell (SHA-1), sem junitxml por função
 ubuntu26.04 portoes.portaoSha1WorktreeRastreadoNaRaizReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-ubuntu26.04 servidor_falso.ambienteDoXmlsec1SoNoFedora44 servidor falso python (arnês de rede), sem junitxml por função
+ubuntu26.04 servidor_falso.ambienteDoXmlsec1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.assinaturaSha1AceitaPeloOraculo servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.contentEncodingGzipDaFalha servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.corpoSemTamanhoFechaNoCorpo servidor falso python (arnês de rede), sem junitxml por função
@@ -177,7 +177,7 @@ ubuntu26.04 servidor_falso.rotasDeEventoEDfeRespondem501 servidor falso python (
 ubuntu26.04 servidor_falso.semCertificadoRecusado servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.tlsMaximoTls12LimitaVersao servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.tlsMinimoTls12RecusaTls11 servidor falso python (arnês de rede), sem junitxml por função
-ubuntu26.04 servidor_falso.variavelSha1SoNoFedora44 servidor falso python (arnês de rede), sem junitxml por função
+ubuntu26.04 servidor_falso.variavelSha1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.verificacaoLaxObrigatoriaNa13 servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.verificacaoPadraoSemLax servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 tabelas.aguasMaritimasConvertida ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
@@ -255,7 +255,7 @@ manjaro portoes.portaoSha1ViolacaoEmSrcOutReprova portão de higiene em python o
 manjaro portoes.portaoSha1WorktreeAninhadoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
 manjaro portoes.portaoSha1WorktreeNaRaizPassa portão de higiene em python ou shell (SHA-1), sem junitxml por função
 manjaro portoes.portaoSha1WorktreeRastreadoNaRaizReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-manjaro servidor_falso.ambienteDoXmlsec1SoNoFedora44 servidor falso python (arnês de rede), sem junitxml por função
+manjaro servidor_falso.ambienteDoXmlsec1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.assinaturaSha1AceitaPeloOraculo servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.contentEncodingGzipDaFalha servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.corpoSemTamanhoFechaNoCorpo servidor falso python (arnês de rede), sem junitxml por função
@@ -275,7 +275,7 @@ manjaro servidor_falso.rotasDeEventoEDfeRespondem501 servidor falso python (arn�
 manjaro servidor_falso.semCertificadoRecusado servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.tlsMaximoTls12LimitaVersao servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.tlsMinimoTls12RecusaTls11 servidor falso python (arnês de rede), sem junitxml por função
-manjaro servidor_falso.variavelSha1SoNoFedora44 servidor falso python (arnês de rede), sem junitxml por função
+manjaro servidor_falso.variavelSha1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.verificacaoLaxObrigatoriaNa13 servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.verificacaoPadraoSemLax servidor falso python (arnês de rede), sem junitxml por função
 manjaro tabelas.aguasMaritimasConvertida ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
@@ -353,7 +353,7 @@ mint22.3 portoes.portaoSha1ViolacaoEmSrcOutReprova portão de higiene em python 
 mint22.3 portoes.portaoSha1WorktreeAninhadoReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
 mint22.3 portoes.portaoSha1WorktreeNaRaizPassa portão de higiene em python ou shell (SHA-1), sem junitxml por função
 mint22.3 portoes.portaoSha1WorktreeRastreadoNaRaizReprova portão de higiene em python ou shell (SHA-1), sem junitxml por função
-mint22.3 servidor_falso.ambienteDoXmlsec1SoNoFedora44 servidor falso python (arnês de rede), sem junitxml por função
+mint22.3 servidor_falso.ambienteDoXmlsec1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.assinaturaSha1AceitaPeloOraculo servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.contentEncodingGzipDaFalha servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.corpoSemTamanhoFechaNoCorpo servidor falso python (arnês de rede), sem junitxml por função
@@ -373,7 +373,7 @@ mint22.3 servidor_falso.rotasDeEventoEDfeRespondem501 servidor falso python (arn
 mint22.3 servidor_falso.semCertificadoRecusado servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.tlsMaximoTls12LimitaVersao servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.tlsMinimoTls12RecusaTls11 servidor falso python (arnês de rede), sem junitxml por função
-mint22.3 servidor_falso.variavelSha1SoNoFedora44 servidor falso python (arnês de rede), sem junitxml por função
+mint22.3 servidor_falso.variavelSha1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.verificacaoLaxObrigatoriaNa13 servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.verificacaoPadraoSemLax servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 tabelas.aguasMaritimasConvertida ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
@@ -470,9 +470,9 @@ flatpak tabelas.xlsxUtf16ComEntityRecusado ferramenta python de tabelas (xlsx, C
 flatpak tabelas.xlsxUtf16SemDoctypeLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 flatpak tabelas.xlsxUtf8ComBomLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 flatpak tabelas.xlsxValidoEhLido ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
-fedora44 servidor_falso.prefixoRetiradoAntesDaRota servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.semOPrefixoContinua404 servidor falso python (arnês de rede), sem junitxml por função
-fedora44 servidor_falso.postsGuardamOCaminho servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.prefixoRetiradoAntesDaRota servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.semOPrefixoContinua404 servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.postsGuardamOCaminho servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.prefixoRetiradoAntesDaRota servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.semOPrefixoContinua404 servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.postsGuardamOCaminho servidor falso python (arnês de rede), sem junitxml por função

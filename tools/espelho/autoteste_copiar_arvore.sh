@@ -96,6 +96,28 @@ else
     vermelho "C6 cópia depende do .git de origem (sem commit lido ou com alternates)"
 fi
 
+# C7 (NL-3.0g, revisão de segurança): a área de trabalho com escrita de grupo ou de outros é recusada ANTES de qualquer
+# clone, e a área privada (700, do usuário) passa. Origem própria: o C6 já tirou o .git da origem acima.
+ORIG2="$TMP/orig2"; git init -q "$ORIG2"
+echo base > "$ORIG2/a.txt"
+git -C "$ORIG2" add a.txt
+git -C "$ORIG2" "${GIT_ID[@]}" commit -q -m "test: fixture c7" || { echo "ABORTA: commit da origem c7"; exit 1; }
+RAIZ="$ORIG2"
+AREA_GRUPO="$TMP/area-grupo"; mkdir -p "$AREA_GRUPO"; chmod 775 "$AREA_GRUPO"
+copiar_arvore "$AREA_GRUPO/destino" 2>/dev/null; rc7=$?
+if [ "$rc7" -ne 0 ] && [ ! -e "$AREA_GRUPO/destino" ]; then
+    verde "C7 área com escrita de grupo recusada antes do clone (rc=$rc7, destino não criado)"
+else
+    vermelho "C7 área com escrita de grupo aceita (rc=$rc7, destino criado: $([ -e "$AREA_GRUPO/destino" ] && echo sim || echo nao))"
+fi
+AREA_PRIVADA="$TMP/area-privada"; mkdir -p "$AREA_PRIVADA"; chmod 700 "$AREA_PRIVADA"
+copiar_arvore "$AREA_PRIVADA/destino" 2>/dev/null; rc7b=$?
+if [ "$rc7b" -eq 0 ] && [ -d "$AREA_PRIVADA/destino/.git" ]; then
+    verde "C7b área privada 700 aceita e cópia feita (rc=$rc7b)"
+else
+    vermelho "C7b área privada 700 recusada ou cópia ausente (rc=$rc7b)"
+fi
+
 echo "FALHAS=$FALHAS"
 [ "$FALHAS" -eq 0 ] || { echo "AUTOTESTE COPIAR ARVORE: REPROVADO"; exit 1; }
 echo "AUTOTESTE COPIAR ARVORE: todos os controles conferem"

@@ -59,7 +59,7 @@ conferir() {
 # Caminho executar (portões, diagnóstico, configure, build e ctest), com as cotas padrão.
 env -u NL_FONTE -u NL_THREADS -u NL_MEMORIA NL_FATIA=autoteste-limites NL_REPO="$F" NL_SHA="$SHA" \
     NL_TMP_BASE="$BASE/tmp" STUB_LOG="$BASE/docker.log" NL_LOG="$BASE/build.log" \
-    timeout 600 bash "$RAIZ/tools/conteiner/build_local.sh" executar fedora44 debug > "$BASE/saida.txt" 2>&1
+    timeout 600 bash "$RAIZ/tools/conteiner/build_local.sh" executar fedora45 debug > "$BASE/saida.txt" 2>&1
 rc=$?
 echo "executar: rc=$rc"
 conferir "$BASE/docker.log" executar

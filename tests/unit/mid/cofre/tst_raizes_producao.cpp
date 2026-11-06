@@ -52,12 +52,12 @@ QString sha256DoArquivo(const QString& caminho) {
 
 // Nome comum (CN) do certificado, para comparar com os nomes das raízes de produção.
 std::string nomeComum(x509_st* certificado) {
-    X509_NAME* nome = X509_get_subject_name(certificado);
+    const auto* nome = X509_get_subject_name(certificado);
     const int indice = X509_NAME_get_index_by_NID(nome, NID_commonName, -1);
     if (indice < 0) {
         return {};
     }
-    X509_NAME_ENTRY* entrada = X509_NAME_get_entry(nome, indice);
+    const auto* entrada = X509_NAME_get_entry(nome, indice);
     unsigned char* utf8 = nullptr;
     const int tamanho = ASN1_STRING_to_UTF8(&utf8, X509_NAME_ENTRY_get_data(entrada));
     if (tamanho < 0 || utf8 == nullptr) {

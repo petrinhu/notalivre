@@ -501,7 +501,7 @@ private slots:
     }
 
     void digestSha256IgualAoDouradoEmTodasAsImagens() {
-        // O SHA-256 é o mesmo em todas as imagens, inclusive o fedora44 (DA-2.38): o dourado é único.
+        // O SHA-256 é o mesmo em todas as imagens, inclusive o fedora45 (DA-2.38): o dourado é único.
         const QString dourado = QString::fromUtf8(lerArquivo(qEnvironmentVariable("NL_FIXTURES_XMLDSIG") +
                                                              QStringLiteral("/digest_infdps_sha256.txt"))).trimmed();
         auto assinado = assinarComCredencial(dpsDeReferencia(), parametrosSha256());
@@ -613,7 +613,7 @@ private slots:
 
     void algoritmoDaTabelaPorDistro() {
         // DA-2.38: a expectativa sai da tabela por distro, lida do /etc/os-release. sha1 = assina sem a variável;
-        // algoritmo_bloqueado = o OSSL_LIB_CTX próprio recusa (o esperado no fedora44 se a medição disser isso).
+        // algoritmo_bloqueado = o OSSL_LIB_CTX próprio recusa (o esperado no fedora45 se a medição disser isso).
         const QString id = campoDoOsRelease(QStringLiteral("ID"));
         const QString versao = campoDoOsRelease(QStringLiteral("VERSION_ID"));
         QVERIFY2(!id.isEmpty(), "/etc/os-release sem ID");
@@ -912,6 +912,11 @@ private slots:
             QVERIFY2(cru != nullptr, "a libxml2 tem de criar o contexto cru do controle");
             somaDtdLoad(cru.get(), false);
             xmlParseDocument(cru.get());
+            // O documento parseado não é liberado por xmlFreeParserCtxt (NL-3.0h, mesmo vazamento da causa A, medido em mint22.3).
+            if (cru->myDoc != nullptr) {
+                xmlFreeDoc(cru->myDoc);
+                cru->myDoc = nullptr;
+            }
             controle.parar();
             QVERIFY2(controle.conexoes() >= 1, "o controle sem NONET tem de conectar: sem isso o zero do átomo não prova bloqueio");
         }
@@ -925,6 +930,11 @@ private slots:
         somaDtdLoad(ctx.get(), true);
         xmlParseDocument(ctx.get());
         ouvinte.parar();
+        // Mesmo caso do controle: o documento é do teste, e o contexto do produto não o libera (NL-3.0h).
+        if (ctx->myDoc != nullptr) {
+            xmlFreeDoc(ctx->myDoc);
+            ctx->myDoc = nullptr;
+        }
         QCOMPARE(ouvinte.conexoes(), 0);
     }
 
@@ -942,7 +952,7 @@ private slots:
     }
 
     void variavelDoFedoraValeNoContextoProprio() {
-        // DA-2.40 (c): o patch do fedora lê a variável em tempo de chamada. Sem ela, fedora44 recusa SHA-1; com ela, assina.
+        // DA-2.40 (c): o patch do fedora lê a variável em tempo de chamada. Sem ela, fedora45 recusa SHA-1; com ela, assina.
         ::unsetenv("OPENSSL_ENABLE_SHA1_SIGNATURES");
         auto sem = assinarComCredencial(dpsDeReferencia(), parametrosSha1());
         ::setenv("OPENSSL_ENABLE_SHA1_SIGNATURES", "1", 1);
@@ -950,10 +960,10 @@ private slots:
         ::unsetenv("OPENSSL_ENABLE_SHA1_SIGNATURES");
         QVERIFY2(com.has_value(), "com a variável, o contexto próprio assina SHA-1");
         if (distroRecusaSha1()) {
-            QVERIFY2(!sem.has_value(), "no fedora44, sem a variável, SHA-1 é recusado");
+            QVERIFY2(!sem.has_value(), "no fedora45, sem a variável, SHA-1 é recusado");
             QCOMPARE(codigoDe(sem.error()), QStringLiteral("assinatura.algoritmo_bloqueado"));
         } else {
-            QVERIFY2(sem.has_value(), "fora do fedora44, SHA-1 assina sem a variável");
+            QVERIFY2(sem.has_value(), "fora do fedora45, SHA-1 assina sem a variável");
         }
     }
 
@@ -973,6 +983,23 @@ private slots:
         auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), QStringLiteral("DPS430510821122233300018100001000000000000001"), parametrosDaDistro(), material);
         QVERIFY2(!assinado.has_value(), "certificado ainda não válido na hora de assinar tem de ser recusado");
         QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.material_invalido"));
+    }
+
+    void materialComDataIlegivelRecusado() {
+        // Mês 13 em notBefore ou em notAfter, na hora de assinar: o 0 de compararComInstante é ilegível, nunca vigente (A5, CISO).
+        std::unique_ptr<ASN1_GENERALIZEDTIME, decltype(&ASN1_GENERALIZEDTIME_free)> data(ASN1_GENERALIZEDTIME_new(), &ASN1_GENERALIZEDTIME_free);
+        QVERIFY(data != nullptr);
+        QVERIFY(ASN1_STRING_set(data.get(), "20301301000000Z", 15) == 1);
+        for (const bool noInicio : {true, false}) {
+            MaterialPem pem;
+            QVERIFY2(lerMaterialPem("cnpj_ok.pem", "cnpj_ok.key.pem", pem), "a folha cnpj_ok tem de ler por PEM");
+            const int ok = noInicio ? X509_set1_notBefore(pem.cert.get(), data.get()) : X509_set1_notAfter(pem.cert.get(), data.get());
+            QVERIFY(ok == 1);
+            xd::MaterialAssinatura material{pem.cert.get(), pem.chave.get()};
+            auto assinado = xd::AssinadorXml::assinarEnveloped(dpsDeReferencia(), QStringLiteral("DPS430510821122233300018100001000000000000001"), parametrosDaDistro(), material);
+            QVERIFY2(!assinado.has_value(), "certificado com data ilegível na hora de assinar tem de ser recusado");
+            QCOMPARE(codigoDe(assinado.error()), QStringLiteral("assinatura.material_invalido"));
+        }
     }
 
     // DA-2.40 (adendo do CISO): vermelhos antes do código.

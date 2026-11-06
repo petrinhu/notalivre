@@ -22,6 +22,7 @@ foreach(nome IN ITEMS
     legadoNaoDesligaODefault
     vencidoSinalizado
     folhaComValidadeFuturaReprova
+    folhaComDataIlegivelReprova
     validadeIntermediariaVencidaReprova
     semEkuClientAuthSinalizado
     ekuMalformadaReprova
@@ -93,7 +94,10 @@ foreach(nome IN ITEMS
     manifestoMalformadoRecusa
     nenhumaRaizAceitaRecusa
     raizAindaNaoValidaNaoEntraComoAncora
-    derComCaixaAltaNaoDeclaradoRecusado)
+    derComCaixaAltaNaoDeclaradoRecusado
+    raizNoInstanteExatoDoFimFicaVencida
+    raizNoInstanteExatoDoInicioFicaVigente
+    raizComDataInvalidaEhIlegivel)
   nl_registra_teste_qt(NAME pkcs12.raizes.${nome} COMMAND tst_carga_raizes_icp ${nome})
   set_tests_properties(pkcs12.raizes.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
@@ -101,3 +105,14 @@ foreach(nome IN ITEMS
                        PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
+
+# Vazamento do contexto OpenSSL no carregamento (NL-3.0h, causa B). A checagem é in-process (LeakSanitizer), e o
+# resultado vale só sob asan-ubsan: fora dele o teste carrega os dois .pfx e passa sem medir vazamento.
+add_executable(tst_vazamento_ossl tst_vazamento_ossl.cpp)
+target_link_libraries(tst_vazamento_ossl PRIVATE Qt6::Core Qt6::Test nl_foundation_pkcs12 OpenSSL::Crypto nl_warnings)
+nl_registra_teste_qt(NAME pkcs12.decifrarNaoDeixaProvedorVivo COMMAND tst_vazamento_ossl)
+set_tests_properties(pkcs12.decifrarNaoDeixaProvedorVivo PROPERTIES
+                     FIXTURES_REQUIRED certificados_teste
+                     ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
+                     PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
+                     FAIL_REGULAR_EXPRESSION "FAIL!")

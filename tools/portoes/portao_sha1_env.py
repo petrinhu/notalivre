@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 """Portão da variável de SHA-1 (NL-2.6, DA-2.10; controle compensatório do ADR 0007, L-77).
 
-A variável OPENSSL_ENABLE_SHA1_SIGNATURES só pode aparecer no arnês de teste do fedora44 (tools/servidor_falso/oraculo.py),
+A variável OPENSSL_ENABLE_SHA1_SIGNATURES só pode aparecer no arnês de teste do fedora45 (tools/servidor_falso/oraculo.py),
 e nos testes que o exercitam. Qualquer outro arquivo que a cite reprova, porque ela desliga a política de cripto do sistema.
 
 Escopo (L-36, trava nasce global): a árvore inteira da raiz, sem lista de pastas (rodada 5, achado 1).
@@ -177,7 +177,7 @@ def main(argv):
         print(f"build excluído (exceção 5, CMakeCache.txt declara a pasta): {excluido}")
     print(f"encontrados={enc} analisados={ana} violacoes={viol} permitidos={perm} derivados={der} documentais={doc}")
     for rel in lista:
-        print(f"VIOLACAO {rel}: a variável OPENSSL_ENABLE_SHA1_SIGNATURES só pode existir no arnês do fedora44")
+        print(f"VIOLACAO {rel}: a variável OPENSSL_ENABLE_SHA1_SIGNATURES só pode existir no arnês do fedora45")
     if enc == 0 or ana != enc or viol:
         return 1
     return 0

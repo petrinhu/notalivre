@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Lista dos portões estáticos (NL-3.0g, CISO 05/11/2026). Uma linha "nome|comando" por portão; linhas com # no início são ignoradas.
+# O portoes_estaticos.sh lê esta lista só do SHA (git show), e o piso em piso_portoes.txt. Mudar um portão é mudar o SHA.
+camadas|python3 -I /src/tools/portoes/camadas.py /src
+autoteste_camadas|bash /src/tools/portoes/autoteste_camadas.sh /src
+segredos_arvore|bash /src/tools/portoes/higiene_segredos.sh /src
+segredos_historico|gitleaks git /src --config /src/.gitleaks.toml --redact --no-banner --exit-code 1
+travessao|python3 -I /src/tools/portoes/higiene_travessao.py /src
+spdx|git config --global --add safe.directory /src && python3 -I /src/tools/portoes/spdx.py /src && bash /src/tools/portoes/autoteste_spdx.sh
+autoteste_higiene|git config --global --add safe.directory /src && bash /src/tools/portoes/autoteste_higiene.sh
+hex_fora_do_theme|python3 -I /src/tools/portoes/nenhum_hex_fora_do_theme.py /src
+tema_gerado|python3 -I /src/tools/tema/gerar_theme.py --raiz /src --verificar
+sha1_env|git config --global --add safe.directory /src && python3 -I /src/tools/portoes/portao_sha1_env.py /src
+fixacao_ci|python3 -I /src/tools/portoes/fixacao_ci.py /src && python3 -I /src/tools/portoes/fixacao_ci.py --autoteste
+pontos_de_parse|python3 -I /src/tools/portoes/pontos_de_parse.py /src && bash /src/tools/portoes/autoteste_pontos_de_parse.sh
+distro_base|git config --global --add safe.directory /src && python3 -I /src/tools/portoes/distro_base.py /src && python3 -I /src/tools/portoes/distro_base.py --autoteste
+sanitizer_ligado|git config --global --add safe.directory /src && python3 -I /src/tools/portoes/sanitizer_ligado.py /src && python3 -I /src/tools/portoes/sanitizer_ligado.py --autoteste

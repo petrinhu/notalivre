@@ -21,13 +21,14 @@ passo "bundle" flatpak run --user --filesystem="$D" --filesystem=xdg-data/flatpa
     build-bundle "$D/repo" "$D/notalivre.flatpak" io.github.petrinhu.notalivre master
 # NL-3.2a (parte 2): a libsodium e a licença dela estão na árvore do build. A conferência roda em contêiner, sem privilégio,
 # com o build e a conferência só de leitura (L-50); reprova o job se faltar a biblioteca ou a licença, ou se a varredura for vazia.
-passo "conferencia-bundle-libsodium" docker run --rm --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp \
+passo "conferencia-bundle-libsodium" docker run --pull=never --rm --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp \
     -v "$D/build:/build:ro,z" -v "$D/fonte/tools/conteiner:/conteiner:ro,z" \
-    notalivre/build-fedora44:nl-2.0 bash /conteiner/conferencia_bundle_libs.sh /build
+    notalivre/build-fedora45:nl-2.0 bash /conteiner/conferencia_bundle_libs.sh /build
 # NL-3.2a (revisão A2): o repositório OSTree que gera o bundle tem o app, a biblioteca e a licença. Lido pelo ostree
-# do contêiner nl-0.5, só de leitura; o bundle não é executado.
-passo "conferencia-repo-flatpak" docker run --rm --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp \
+# da imagem ostree-fedora45 (NL-3.0g), só de leitura; o bundle não é executado.
+garantir_imagem_ostree || { echo "REPROVA: imagem ostree-fedora45 não construída"; exit 1; }
+passo "conferencia-repo-flatpak" docker run --pull=never --rm --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp \
     -v "$D/repo:/repo:ro,z" -v "$D/fonte/tools/conteiner:/conteiner:ro,z" \
-    notalivre/flatpak-builder-fedora44:nl-0.5 bash /conteiner/conferencia_repo_flatpak.sh /repo
+    notalivre/ostree-fedora45:nl-3.0g bash /conteiner/conferencia_repo_flatpak.sh /repo
 [ "$PASSOS_FALHOS" -eq 0 ] && { echo "JOB flatpak: VERDE (bundle em $D/notalivre.flatpak)"; exit 0; }
 echo "JOB flatpak: VERMELHO ($PASSOS_FALHOS passo(s) com rc diferente de 0)"; exit 1

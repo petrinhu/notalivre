@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Autoteste da conferência do repositório OSTree que o flatpak-builder gera e de onde sai o bundle (NL-3.2a, revisão A2).
 # TDD do portão (L-35, L-36): cada caso foi visto VERMELHO antes da implementação. Os repositórios são de fixture,
-# criados aqui com ostree init e commit em TMPDIR e apagados no fim. Roda no contêiner notalivre/flatpak-builder-fedora44:nl-0.5,
+# criados aqui com ostree init e commit em TMPDIR e apagados no fim. Roda no contêiner notalivre/ostree-fedora45:nl-3.0g,
 # que traz o ostree; o autoteste não executa nada do app.
 #   R1 repositório sem o app (files/bin/notalivre-gui): reprova e cita o app.
 #   R2 repositório sem files/lib/libsodium.so.26: reprova e cita a biblioteca.

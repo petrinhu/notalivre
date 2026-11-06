@@ -8,7 +8,10 @@
 #include "decifrar_pfx.h"
 #include <nl/foundation/pkcs12/conferencia_chave.h>
 #include "extrator_inscricao.h"
+#include "tempo_x509.h"
 #include "verificador_cadeia.h"
+
+#include <ctime>
 
 #include <openssl/err.h>
 #include <openssl/obj_mac.h>
@@ -22,14 +25,22 @@ namespace nl::foundation::pkcs12 {
 namespace {
 
 
-// notAfter anterior ao instante atual.
-bool vencido(x509_st* certificado) {
-    return X509_cmp_current_time(X509_get0_notAfter(certificado)) < 0;
-}
-
-// notBefore posterior ao instante atual.
-bool aindaNaoValido(x509_st* certificado) {
-    return X509_cmp_current_time(X509_get0_notBefore(certificado)) > 0;
+// O 0 de compararComInstante é data ilegível, nunca vigente (mesma regra de carga_raizes_icp.cpp).
+std::expected<void, ErroCredencial> validadeDaFolha(x509_st* folha) {
+    const std::time_t agora = std::time(nullptr);
+    const int fim = compararComInstante(X509_get0_notAfter(folha), agora);
+    const int inicio = compararComInstante(X509_get0_notBefore(folha), agora);
+    ERR_clear_error();
+    if (fim == 0 || inicio == 0) {
+        return std::unexpected(ErroCredencial::DataIlegivel);
+    }
+    if (fim < 0) {
+        return std::unexpected(ErroCredencial::Vencido);
+    }
+    if (inicio > 0) {
+        return std::unexpected(ErroCredencial::AindaNaoValido);
+    }
+    return {};
 }
 
 // Devolve true se a folha não tem extensão EKU. Presente e sem clientAuth, ou presente e malformada: erro.
@@ -73,11 +84,8 @@ std::expected<CredencialX509, ErroCredencial> CarregadorPkcs12::carregar(QByteAr
     if (!chaveConfereComCertificado(folha, partes->chave.get())) {
         return std::unexpected(ErroCredencial::PfxMalformado);
     }
-    if (vencido(folha)) {
-        return std::unexpected(ErroCredencial::Vencido);
-    }
-    if (aindaNaoValido(folha)) {
-        return std::unexpected(ErroCredencial::AindaNaoValido);
+    if (auto validade = validadeDaFolha(folha); !validade) {
+        return std::unexpected(validade.error());
     }
 
     // EKU da folha antes da cadeia: a EKU malformada é recusada como SemAutenticacaoCliente, e não como

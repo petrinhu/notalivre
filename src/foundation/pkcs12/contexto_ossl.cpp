@@ -21,13 +21,17 @@ std::expected<ContextoOssl, FalhaContexto> ContextoOssl::criar(bool comLegado) {
     ContextoOssl contexto(ctx);
     // Carregar só o legacy desliga o default (o OpenSSL ativa o default sozinho apenas quando nenhum provider foi
     // carregado explicitamente). Por isso o default entra sempre, explícito.
-    if (OSSL_PROVIDER_load(ctx, "default") == nullptr) {
+    contexto.provedorDefault_ = OSSL_PROVIDER_load(ctx, "default");
+    if (contexto.provedorDefault_ == nullptr) {
         ERR_clear_error();
         return std::unexpected(FalhaContexto::Criacao);
     }
-    if (comLegado && OSSL_PROVIDER_load(ctx, "legacy") == nullptr) {
-        ERR_clear_error();
-        return std::unexpected(FalhaContexto::LegadoIndisponivel);
+    if (comLegado) {
+        contexto.provedorLegado_ = OSSL_PROVIDER_load(ctx, "legacy");
+        if (contexto.provedorLegado_ == nullptr) {
+            ERR_clear_error();
+            return std::unexpected(FalhaContexto::LegadoIndisponivel);
+        }
     }
     return contexto;
 }
@@ -36,18 +40,36 @@ ContextoOssl::ContextoOssl(OSSL_LIB_CTX* ctx) noexcept
     : ctx_(ctx) {}
 
 ContextoOssl::ContextoOssl(ContextoOssl&& outra) noexcept
-    : ctx_(std::exchange(outra.ctx_, nullptr)) {}
+    : ctx_(std::exchange(outra.ctx_, nullptr)),
+      provedorDefault_(std::exchange(outra.provedorDefault_, nullptr)),
+      provedorLegado_(std::exchange(outra.provedorLegado_, nullptr)) {}
 
 ContextoOssl& ContextoOssl::operator=(ContextoOssl&& outra) noexcept {
     if (this != &outra) {
-        OSSL_LIB_CTX_free(ctx_);
+        liberar();
         ctx_ = std::exchange(outra.ctx_, nullptr);
+        provedorDefault_ = std::exchange(outra.provedorDefault_, nullptr);
+        provedorLegado_ = std::exchange(outra.provedorLegado_, nullptr);
     }
     return *this;
 }
 
 ContextoOssl::~ContextoOssl() {
+    liberar();
+}
+
+void ContextoOssl::liberar() noexcept {
+    // Ordem: os providers saem antes do contexto. Sem o unload, o provider default sobra vivo no processo (medido).
+    if (provedorLegado_ != nullptr) {
+        OSSL_PROVIDER_unload(provedorLegado_);
+    }
+    if (provedorDefault_ != nullptr) {
+        OSSL_PROVIDER_unload(provedorDefault_);
+    }
     OSSL_LIB_CTX_free(ctx_);
+    ctx_ = nullptr;
+    provedorDefault_ = nullptr;
+    provedorLegado_ = nullptr;
 }
 
 AmbienteDefault::AmbienteDefault(OSSL_LIB_CTX* ctx) noexcept

@@ -7,7 +7,7 @@ travar
 copiar_arvore "$ESPELHO_TRAB/higiene" || { echo "REPROVA: cópia da árvore falhou"; exit 1; }
 garantir_imagem_higiene || { echo "REPROVA: imagem de higiene não construída"; exit 1; }
 D="$ESPELHO_TRAB/higiene"
-CONT=(docker run --rm --network none -v "$D:/src:ro,z" "$IMAGEM_HIGIENE")
+CONT=(docker run --pull=never --rm --network none -v "$D:/src:ro,z" "$IMAGEM_HIGIENE")
 passo "segredos-historico" "${CONT[@]}" sh -c 'git config --global --add safe.directory /src && sh /src/tools/portoes/higiene_historico.sh /src'
 passo "autoteste-historico" "${CONT[@]}" sh -c 'git config --global --add safe.directory /src && bash /src/tools/portoes/autoteste_historico.sh'
 passo "autoteste-copiar-arvore" "${CONT[@]}" bash /src/tools/espelho/autoteste_copiar_arvore.sh
@@ -16,6 +16,8 @@ passo "travessao" "${CONT[@]}" python3 -I /src/tools/portoes/higiene_travessao.p
 passo "spdx" "${CONT[@]}" sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/spdx.py /src && bash /src/tools/portoes/autoteste_spdx.sh'
 passo "hex" "${CONT[@]}" python3 -I /src/tools/portoes/nenhum_hex_fora_do_theme.py /src
 passo "tema" "${CONT[@]}" python3 -I /src/tools/tema/gerar_theme.py --raiz /src --verificar
+passo "distro-base" "${CONT[@]}" sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/distro_base.py /src && python3 -I /src/tools/portoes/distro_base.py --autoteste'
+passo "sanitizer-ligado" "${CONT[@]}" sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/sanitizer_ligado.py /src && python3 -I /src/tools/portoes/sanitizer_ligado.py --autoteste'
 passo "fixacao-ci" "${CONT[@]}" sh -c 'python3 -I /src/tools/portoes/fixacao_ci.py /src && python3 -I /src/tools/portoes/fixacao_ci.py --autoteste'
 [ "$PASSOS_FALHOS" -eq 0 ] && { echo "JOB higiene: VERDE"; exit 0; }
 echo "JOB higiene: VERMELHO ($PASSOS_FALHOS passo(s) com rc diferente de 0)"; exit 1

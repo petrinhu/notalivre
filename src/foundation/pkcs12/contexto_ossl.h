@@ -8,6 +8,7 @@
 #include <expected>
 
 struct ossl_lib_ctx_st;
+struct ossl_provider_st;
 
 namespace nl::foundation::pkcs12 {
 
@@ -32,7 +33,13 @@ public:
 
 private:
     explicit ContextoOssl(ossl_lib_ctx_st* ctx) noexcept;
+    /// Descarrega os providers carregados neste contexto e só depois libera o OSSL_LIB_CTX (medido: sem o unload, o
+    /// provider default sobra vivo no processo; ver tst_vazamento_ossl).
+    void liberar() noexcept;
+
     ossl_lib_ctx_st* ctx_;
+    ossl_provider_st* provedorDefault_ = nullptr;
+    ossl_provider_st* provedorLegado_ = nullptr;
 };
 
 /// Põe o contexto como default desta thread enquanto viver e restaura o anterior ao sair (RAII).
