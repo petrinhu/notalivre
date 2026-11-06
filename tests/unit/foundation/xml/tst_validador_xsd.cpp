@@ -102,10 +102,17 @@ void somaDtdLoad(xmlParserCtxtPtr contexto, bool comNonet)
 #endif
 }
 
-// Libera um contexto cru do controle positivo.
+// Libera um contexto cru do controle positivo. O documento parseado continua dono do contexto até ser tirado dele, e
+// xmlFreeParserCtxt não o libera: sem xmlFreeDoc, o LeakSanitizer acusa o xmlDoc (NL-3.0h, causa A).
 struct LiberaContextoCru
 {
-    void operator()(xmlParserCtxtPtr contexto) const noexcept { xmlFreeParserCtxt(contexto); }
+    void operator()(xmlParserCtxtPtr contexto) const noexcept
+    {
+        if (contexto->myDoc != nullptr) {
+            xmlFreeDoc(contexto->myDoc);
+        }
+        xmlFreeParserCtxt(contexto);
+    }
 };
 using ContextoCru = std::unique_ptr<xmlParserCtxt, LiberaContextoCru>;
 
@@ -387,6 +394,11 @@ void TstValidadorXsd::validadorNaoAcessaARede()
         somaDtdLoad(contexto.get(), true);
         xmlParseDocument(contexto.get());
         ouvinte.parar();
+        // O contexto do parse seguro não é o do produto que tira o documento: quem o parseou libera (NL-3.0h, causa A).
+        if (contexto->myDoc != nullptr) {
+            xmlFreeDoc(contexto->myDoc);
+            contexto->myDoc = nullptr;
+        }
         QCOMPARE(ouvinte.conexoes(), 0);
     }
 }

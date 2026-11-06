@@ -24,6 +24,12 @@ fi
 
 : "${NL_TMP_BASE:?defina NL_TMP_BASE (no contêiner, /var/tmp)}"
 cmake --preset "$modo" && cmake --build --preset "$modo" || exit $?
+# NL-3.0h (L-36): no preset de sanitizer, o portão prova pelo binário e pelo canário que o sanitizer e o gate estão ativos. O
+# ctest roda mesmo com o portão vermelho, para o log trazer as duas coisas.
+sanitizer_rc=0
+if [ "$modo" = "asan-ubsan" ]; then
+    python3 -I tools/portoes/sanitizer_ativo.py "$NL_TMP_BASE/notalivre-build/$modo" CMakePresets.json || sanitizer_rc=$?
+fi
 ctest_rc=0
 ctest --preset "$modo" --output-on-failure --no-tests=error || ctest_rc=$?
 # NL-2.14 (DA-2.61): o pulo é lido função a função no junitxml, e o portão sai com as três contagens sempre. NL_DISTRO vazio
@@ -35,5 +41,6 @@ sh tools/portoes/pulos_testes.sh "$NL_TMP_BASE/notalivre-build/$modo" "${NL_DIST
 fora_rc=0
 sh tools/portoes/fora_do_flatpak.sh "$NL_TMP_BASE/notalivre-build/$modo" flatpak/testes_fora_do_flatpak.txt || fora_rc=$?
 [ "$ctest_rc" -eq 0 ] || exit "$ctest_rc"
+[ "$sanitizer_rc" -eq 0 ] || exit "$sanitizer_rc"
 [ "$pulos_rc" -eq 0 ] || exit "$pulos_rc"
 exit "$fora_rc"

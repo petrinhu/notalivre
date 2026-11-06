@@ -912,6 +912,11 @@ private slots:
             QVERIFY2(cru != nullptr, "a libxml2 tem de criar o contexto cru do controle");
             somaDtdLoad(cru.get(), false);
             xmlParseDocument(cru.get());
+            // O documento parseado não é liberado por xmlFreeParserCtxt (NL-3.0h, mesmo vazamento da causa A, medido em mint22.3).
+            if (cru->myDoc != nullptr) {
+                xmlFreeDoc(cru->myDoc);
+                cru->myDoc = nullptr;
+            }
             controle.parar();
             QVERIFY2(controle.conexoes() >= 1, "o controle sem NONET tem de conectar: sem isso o zero do átomo não prova bloqueio");
         }
@@ -925,6 +930,11 @@ private slots:
         somaDtdLoad(ctx.get(), true);
         xmlParseDocument(ctx.get());
         ouvinte.parar();
+        // Mesmo caso do controle: o documento é do teste, e o contexto do produto não o libera (NL-3.0h).
+        if (ctx->myDoc != nullptr) {
+            xmlFreeDoc(ctx->myDoc);
+            ctx->myDoc = nullptr;
+        }
         QCOMPARE(ouvinte.conexoes(), 0);
     }
 
