@@ -10,8 +10,8 @@
 
 namespace {
 
-// Alocado e perdido numa thread que termina: é a forma medida (M5c). Objeto global e ponteiro local na pilha do main podem
-// continuar alcançáveis na varredura do LeakSanitizer, sem relatório (M4, M4b e M6b).
+// Alocado e perdido numa thread que termina: é a única forma medida com relatório (M5c). Objeto global e ponteiro local (M4, M4b
+// e M6b) não foram medidos: o gate estava retirado ou errado, e o ctest oculta a saída de teste verde.
 void vazar()
 {
     std::thread([] {

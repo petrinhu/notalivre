@@ -253,7 +253,7 @@ jobs:
             echo "| Sabotagem do tst_sanidade (deve reprovar) | ${{ steps.sabotagem_sanidade.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # NL-3.0h (ordem do CTO, passo 5): ASan e UBSan em todo push, nas distros com libasan (fedora45 e mint22.3).
+  # NL-3.0h (ordem do CTO, passo 5): ASan e UBSan em push de onda-* e main e em pull_request, nas distros com libasan (fedora45 e mint22.3).
   # O mint22.3 é o único com cliente HTTP da libxml2 (com_http): o ramo que a causa A do validador XSD exige.
   # Atenção (L-36): o LeakSanitizer só reprova o processo de teste quando o CTest não decide pela regex de PASS.
   # Testes com PASS_REGULAR_EXPRESSION (44 sítios, medido) ignoram o código de saída: ver TESTES.md (T4).

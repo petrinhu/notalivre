@@ -80,7 +80,7 @@ caso lista_ausente 14 "__AUSENTE__" 2 "lista_portoes.txt não lida do SHA"
 caso dotdot 14 's/^camadas|/..\/fuga|/' 2 "nome de portão inválido" "$BASE/fuga.log"
 caso barra 14 's/^camadas|/sub\/fuga|/' 2 "nome de portão inválido" "$BASE/d-barra/sub/fuga.log"
 caso vazio 14 's/^camadas|/|/' 2 "nome de portão inválido" "$BASE/d-vazio/.log"
-caso sem_pipe 13 's/^camadas|.*/camadas sem barra vertical/' 2 "sem '|'" ""
+caso sem_pipe 14 's/^camadas|.*/camadas sem barra vertical/' 2 "sem '|'" ""
 caso duplicado 14 's/^autoteste_camadas|/camadas|/' 2 "nome de portão duplicado" ""
 
 echo "casos=$CASOS falhas=$FALHAS"
