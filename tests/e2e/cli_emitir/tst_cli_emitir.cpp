@@ -705,7 +705,7 @@ void TstCliEmitir::cliRecusaCTribMunZeroSemPost()
                                  QStringLiteral("--serie"), QStringLiteral("1"), QStringLiteral("--numero"), QStringLiteral("1"),
                                  QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
     const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
-    QVERIFY2(execucao.codigo != 0, qPrintable(QStringLiteral("cTribMun 000 tinha de ser recusado; saída: %1").arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("cTribMun 000 tinha de sair com 4; rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("cod_trib_municipal.zero"), "a recusa tem de trazer o código do tipo cTribMun");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
@@ -1113,7 +1113,7 @@ void TstCliEmitir::ancorasTlsSozinhasValidamOServidor()
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
     const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
     QVERIFY2(execucao.codigo != -3, "a escrita da senha no terminal falhou: o caso não pode passar em silêncio");
-    QVERIFY2(execucao.codigo != 0, qPrintable(QStringLiteral("a conexão tinha de ser recusada; rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("a conexão tinha de ser recusada, com saída 1; rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(!execucao.saida.contains("emitida: chave "), "sem âncora TLS, nenhuma NFS-e pode sair como emitida");
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
 }
