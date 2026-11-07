@@ -37,6 +37,12 @@ SHA=""
 FONTE=""
 
 [ "$MODO" = docker ] || [ "$MODO" = flatpak ] || { echo "REPROVA: MODO_FLATPAK inválido: $MODO"; exit 1; }
+# NL-3.0k: no modo flatpak o flatpak-builder usa --jobs (cota de núcleos, NL_THREADS, padrão 4), como em job_flatpak.sh.
+# Só este modo: o CI roda o modo docker e não define NL_THREADS. Valor que não seja inteiro positivo reprova antes do build.
+if [ "$MODO" = flatpak ] && ! [[ "${NL_THREADS:-4}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "REPROVA: NL_THREADS=${NL_THREADS} não é inteiro positivo (ex.: NL_THREADS=7)" >&2
+    exit 1
+fi
 mkdir -p "$TRABALHO" || { echo "REPROVA: sem pasta de trabalho em $TRABALHO"; exit 1; }
 
 # Fonte da árvore: o blob commitado (git archive), ou a árvore de trabalho quando pedida explicitamente.
@@ -152,7 +158,7 @@ if ativo flatpak611; then
     else
         flatpak run --user --filesystem="$TRABALHO" --filesystem=xdg-data/flatpak:ro \
             --env=FLATPAK_USER_DIR="$HOME/.local/share/flatpak" --command=flatpak-builder org.flatpak.Builder \
-            --disable-rofiles-fuse --force-clean --state-dir="$d/.fb-state" --repo="$d/.fb-repo" \
+            --jobs="${NL_THREADS:-4}" --disable-rofiles-fuse --force-clean --state-dir="$d/.fb-state" --repo="$d/.fb-repo" \
             "$d/.fb-build" "$d/flatpak/io.github.petrinhu.notalivre.yml" > "$log" 2>&1
     fi
     rc=$?
