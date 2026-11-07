@@ -564,6 +564,13 @@ jobs:
       - name: "Autoteste do portão de sanitizer ativo (NL-3.0h)"
         run: bash tools/portoes/autoteste_sanitizer_ativo.sh
 
+      # NL-3.0i (revisão de edc4cde): o --ensaio do emitir_teste.sh roda no CI, com HOME descartável. Depende de bash,
+      # python3 (já usado por este job em outros passos), sha256sum, stat e coreutils, todos no runner ubuntu-latest.
+      - name: "Ensaio do emitir_teste.sh, contador durável e casos de revisão (NL-3.0i)"
+        run: |
+          mkdir -p "$RUNNER_TEMP/home-ensaio"
+          HOME="$RUNNER_TEMP/home-ensaio" bash tools/producao_restrita/emitir_teste.sh --ensaio
+
   # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
   # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.
   flatpak:

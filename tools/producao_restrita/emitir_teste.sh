@@ -78,10 +78,12 @@ fi
 
 TESTE_DIR="$BASE/teste-lider"
 DEVOLUCAO="$BASE/devolucao"
-# MÉDIA-S2: o contador de números de DPS fica fora de teste-lider (que se limpa); nunca se apaga.
-NDPS_ARQ="$BASE/ultimo-ndps.txt"
+# NL-3.0i: o contador de DPS e o estado da instalação ficam numa pasta durável, fora de /var/tmp (o sistema limpa /var/tmp em
+# 30 dias sem uso). MÉDIA-S2: o contador nunca se apaga; fora de teste-lider (que se limpa).
+DURAVEL="$HOME/.local/share/notalivre/nl210"
+NDPS_ARQ="$DURAVEL/ultimo-ndps.txt"
 DPS_ARQ="$TESTE_DIR/dps-teste.json"
-ESTADO_INST="$BASE/programa-instalado-sha.txt"
+ESTADO_INST="$DURAVEL/programa-instalado-sha.txt"
 CFG_DIR="$HOME/.var/app/$APP/config/notalivre"
 CFG="$CFG_DIR/config.ini"
 RUN_TS=$(date +%Y%m%d-%H%M%S)
@@ -162,6 +164,16 @@ gravar_config() {
     chmod 600 "$CFG"
 }
 
+# NL-3.0i: prepara a pasta durável do contador (0700). Migração única: sem contador no durável e com o da pasta antiga ($BASE,
+# /var/tmp), copia com 0600 e segue; a pasta antiga fica como está. Com os dois presentes, vale o durável.
+preparar_duravel() {
+    mkdir -p -- "$DURAVEL" || falha "não consegui criar a pasta do contador da DPS. Nada foi emitido."
+    chmod 700 -- "$DURAVEL" || falha "não consegui pôr a pasta do contador da DPS em 0700. Nada foi emitido."
+    if [ ! -e "$NDPS_ARQ" ] && [ -f "$BASE/ultimo-ndps.txt" ]; then
+        ( umask 077; cp -- "$BASE/ultimo-ndps.txt" "$NDPS_ARQ" ) || falha "não consegui copiar o contador antigo. Nada foi emitido."
+    fi
+}
+
 # Próximo nDps: lê o último número gravado e soma 1. Não grava nada aqui (NL-2.27, regra do líder): o número só vai ao arquivo
 # depois da tentativa, e só se ela chegou à Sefin (ver gravar_ndps).
 proximo_ndps() {
@@ -198,7 +210,7 @@ devolver_ndps() {
     if [ "$NDPS_ANTES_EXISTIA" = 1 ]; then
         printf '%s\n' "$NDPS_ANTES_VALOR" > "$NDPS_ARQ"
     else
-        rm -f -- "$BASE/ultimo-ndps.txt"
+        rm -f -- "$NDPS_ARQ"
     fi
 }
 
@@ -1349,8 +1361,8 @@ ensaio_caso() {
     mkdir -p "$(dirname "$dir/$pfx_nome")"; printf 'pfxsecreto-ensaio\n' > "$dir/$pfx_nome"
     # NL-2.10g: semente do contador, para provar que a parada antes da Sefin não o mexe.
     if [ -n "$semente" ]; then
-        mkdir -p "$dir/base"
-        printf '%s\n' "$semente" > "$dir/base/ultimo-ndps.txt"
+        mkdir -p "$dir/home/.local/share/notalivre/nl210"
+        printf '%s\n' "$semente" > "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt"
     fi
     entrada=/dev/null
     if [ "$sem_kd" -eq 1 ]; then
@@ -1381,7 +1393,7 @@ ensaio_caso() {
     fd3=$(grep -c 'senha-fd3=ok' "$dir/chamadas.txt" 2>/dev/null || true)
     [ -n "$fd3" ] || fd3=0
     [ "$emit" -eq 0 ] || [ "$fd3" -eq "$emit" ] || problema="$problema senha_fora_do_descritor(fd3=$fd3,emitir=$emit)"
-    [ -f "$dir/base/ultimo-ndps.txt" ] && ndps_atual=$(cat "$dir/base/ultimo-ndps.txt")
+    [ -f "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt" ] && ndps_atual=$(cat "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt")
     [ -z "$ndps_esp" ] || [ "$ndps_atual" = "$ndps_esp" ] || problema="$problema ultimo_ndps=$ndps_atual(esperado $ndps_esp)"
     local cfg_arq="$dir/home/.var/app/$APP/config/notalivre/config.ini" padrao
     if [ -n "$cfg_esp" ]; then
@@ -1585,7 +1597,7 @@ ensaio_sequencia() {
     escrever_stubs "$dir"
     env NL_ENSAIO_SEQ="$seq1" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
     r1=$?
-    ndps1=$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null || echo ausente)
+    ndps1=$(cat "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt" 2>/dev/null || echo ausente)
     env NL_ENSAIO_SEQ="$seq2" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
     [ "$r1" -eq "$rc1_esp" ] || problema="$problema rc1=$r1(esperado $rc1_esp)"
     [ "$ndps1" = "$ndps1_esp" ] || problema="$problema ndps_apos_1=$ndps1(esperado $ndps1_esp)"
@@ -1609,7 +1621,7 @@ ensaio_dois_envios() {
     r1=$?
     env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
     r2=$?
-    ndps=$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null)
+    ndps=$(cat "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt" 2>/dev/null)
     if [ "$r1" -eq 0 ] && [ "$r2" -eq 0 ] && [ "$ndps" = 2 ] && grep -q '"nDps": 2,' "$dir/dps-emitida.json"; then
         printf 'ok %s\n' "$nome"
     else
@@ -1634,7 +1646,7 @@ ensaio_ctribmun_janela() {
     env NL_ENSAIO_SEQ="$seq1,$seq2" NL_ENSAIO_DIR="$dir" $extra bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
     r2=$?
     if grep -q '^ctribmun$' "$dir/perguntas.txt" 2>/dev/null; then janela=sim; else janela=nao; fi
-    ndps2=$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null || echo ausente)
+    ndps2=$(cat "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt" 2>/dev/null || echo ausente)
     [ "$r2" -eq "$rc2_esp" ] || problema="$problema rc2=$r2(esperado $rc2_esp)"
     [ "$janela" = "$janela_esp" ] || problema="$problema janela=$janela(esperada $janela_esp)"
     [ "$ndps2" = "$ndps2_esp" ] || problema="$problema ndps_apos_2=$ndps2(esperado $ndps2_esp)"
@@ -1718,6 +1730,115 @@ ensaio_ptottribsn_sem_vazamento() {
         FALHAS=$(( FALHAS + 1 ))
     fi
     CASOS=$(( CASOS + 1 ))
+}
+
+# NL-3.0i: fecha um caso de contador durável (nome e problema vazio = ok).
+ensaio_duravel_fecha() {
+    if [ -z "$2" ]; then
+        printf 'ok %s\n' "$1"
+    else
+        printf 'FALHA %s:%s\n' "$1" "$2"
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    CASOS=$(( CASOS + 1 ))
+}
+
+# NL-3.0i: o durável sobrevive a apagar a pasta antiga. Corrida 1 grava 1 no durável; a pasta $dir/base é movida (mv, não rm) e
+# a corrida 2 segue do durável: nDps 2.
+ensaio_duravel_sobrevive_a_apagar_base() {
+    local nome=duravel_sobrevive_a_apagar_base dir d r1 r2 problema=""
+    dir="$RAIZ/$nome"; d="$dir/home/.local/share/notalivre/nl210"
+    mkdir -p "$dir/pfxdir-ensaio"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    [ "$r1" -eq 0 ] || problema="$problema rc1=$r1(esperado 0)"
+    [ "$(cat "$d/ultimo-ndps.txt" 2>/dev/null)" = 1 ] || problema="$problema duravel_apos_1=$(cat "$d/ultimo-ndps.txt" 2>/dev/null || echo ausente)(esperado 1)"
+    if [ -d "$dir/base" ]; then
+        mv "$dir/base" "$dir/base-apagada" || problema="$problema mv_base_falhou"
+    else
+        problema="$problema sem_pasta_base_antes_de_apagar"
+    fi
+    env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    r2=$?
+    [ "$r2" -eq 0 ] || problema="$problema rc2=$r2(esperado 0)"
+    grep -q '"nDps": 2,' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_2_nao_e_2"
+    [ "$(cat "$d/ultimo-ndps.txt" 2>/dev/null)" = 2 ] || problema="$problema duravel_apos_2(esperado 2)"
+    ensaio_duravel_fecha "$nome" "$problema"
+}
+
+# NL-3.0i: a pasta antiga com contador e o durável ausente: copia uma vez, com 0600, e segue (corrida 1 -> nDps 8, corrida 2 -> 9).
+# A pasta antiga fica intacta (cópia, não mudança de lugar). A pasta do durável sai com 0700.
+ensaio_duravel_copia_uma_vez() {
+    local nome=duravel_copia_uma_vez dir d r1 r2 problema=""
+    dir="$RAIZ/$nome"; d="$dir/home/.local/share/notalivre/nl210"
+    mkdir -p "$dir/pfxdir-ensaio" "$dir/base"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    printf '7\n' > "$dir/base/ultimo-ndps.txt"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    [ "$r1" -eq 0 ] || problema="$problema rc1=$r1(esperado 0)"
+    grep -q '"nDps": 8,' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_1_nao_e_8"
+    [ "$(stat -c %a "$d/ultimo-ndps.txt" 2>/dev/null)" = 600 ] || problema="$problema modo_do_duravel_nao_600"
+    [ "$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null)" = 7 ] || problema="$problema pasta_antiga_mudou"
+    ensaio_duravel_fecha copia_uma_vez_0600 "$problema"
+    problema=""
+    [ "$(stat -c %a "$d" 2>/dev/null)" = 700 ] || problema="$problema modo_da_pasta_duravel_nao_700"
+    ensaio_duravel_fecha pasta_duravel_0700 "$problema"
+    problema=""
+    env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    r2=$?
+    [ "$r2" -eq 0 ] || problema="$problema rc2=$r2(esperado 0)"
+    grep -q '"nDps": 9,' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_2_nao_e_9"
+    [ "$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null)" = 7 ] || problema="$problema copia_repetida_da_pasta_antiga"
+    ensaio_duravel_fecha copia_uma_vez_segue "$problema"
+}
+
+# NL-3.0i: com o durável e a pasta antiga presentes, vale o durável: corrida grava 4 (durável tinha 3); a pasta antiga (90) fica.
+ensaio_duravel_vale_o_duravel() {
+    local nome=duravel_vale_o_duravel dir d r1 problema=""
+    dir="$RAIZ/$nome"; d="$dir/home/.local/share/notalivre/nl210"
+    mkdir -p "$dir/pfxdir-ensaio" "$dir/base" "$d"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    printf '90\n' > "$dir/base/ultimo-ndps.txt"
+    printf '3\n' > "$d/ultimo-ndps.txt"; chmod 600 "$d/ultimo-ndps.txt"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    [ "$r1" -eq 0 ] || problema="$problema rc1=$r1(esperado 0)"
+    grep -q '"nDps": 4,' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_nao_e_4_vale_o_legado"
+    [ "$(cat "$d/ultimo-ndps.txt" 2>/dev/null)" = 4 ] || problema="$problema duravel_nao_ficou_4"
+    [ "$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null)" = 90 ] || problema="$problema pasta_antiga_mudou"
+    ensaio_duravel_fecha vale_o_duravel_com_os_dois "$problema"
+}
+
+# NL-3.0i (revisão): pasta durável que já existe em 0755 sai 0700 depois de preparar_duravel (mata a ausência do chmod 700).
+ensaio_duravel_pasta_0755_vira_0700() {
+    local nome=duravel_pasta_0755_vira_0700 dir d r1 problema=""
+    dir="$RAIZ/$nome"; d="$dir/home/.local/share/notalivre/nl210"
+    mkdir -p "$dir/pfxdir-ensaio" "$d"; chmod 755 "$d"
+    printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    [ "$r1" -eq 0 ] || problema="$problema rc1=$r1(esperado 0)"
+    [ "$(stat -c %a "$d" 2>/dev/null)" = 700 ] || problema="$problema pasta_preexistente_nao_virou_700(modo=$(stat -c %a "$d" 2>/dev/null))"
+    ensaio_duravel_fecha pasta_preexistente_0755_vira_0700 "$problema"
+}
+
+# NL-3.0i (revisão): contador novo no durável, na primeira gravação, sai 0600. O modo depende do umask 077 global (linha 35 do
+# script), e não do cp de preparar_duravel, que tem umask próprio (mata a retirada do umask 077 global).
+ensaio_duravel_primeira_gravacao_0600() {
+    local nome=duravel_primeira_gravacao_0600 dir d r1 problema=""
+    dir="$RAIZ/$nome"; d="$dir/home/.local/share/notalivre/nl210"
+    mkdir -p "$dir/pfxdir-ensaio"
+    printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    [ "$r1" -eq 0 ] || problema="$problema rc1=$r1(esperado 0)"
+    [ "$(cat "$d/ultimo-ndps.txt" 2>/dev/null)" = 1 ] || problema="$problema contador_primeira_gravacao_nao_e_1"
+    [ "$(stat -c %a "$d/ultimo-ndps.txt" 2>/dev/null)" = 600 ] || problema="$problema modo_primeira_gravacao_nao_600(modo=$(stat -c %a "$d/ultimo-ndps.txt" 2>/dev/null))"
+    ensaio_duravel_fecha primeira_gravacao_0600 "$problema"
 }
 
 ensaio() {
@@ -1971,6 +2092,15 @@ ensaio() {
     # execução seguinte usa o próximo. Falha local devolve o número. O primeiro caso fica vermelho antes da implementação.
     ensaio_sequencia ndps_ctrlc_gasta_o_numero interrompe aceita 130 1 2
     ensaio_sequencia ndps_falha_local_devolve_o_numero local aceita 1 ausente 1
+    # NL-3.0i: o contador de DPS mora em ~/.local/share/notalivre/nl210 (dentro de $dir/home, no ensaio), e não em $BASE, que o
+    # sistema limpa em 30 dias sem uso. Os casos conferem o durável; $dir/base é a pasta antiga (/var/tmp).
+    ensaio_duravel_sobrevive_a_apagar_base
+    ensaio_duravel_copia_uma_vez
+    ensaio_duravel_vale_o_duravel
+    ensaio_duravel_pasta_0755_vira_0700
+    ensaio_duravel_primeira_gravacao_0600
+    # NL-3.0i (revisão): contador semeado em 7, falha local: o número reservado volta e o arquivo fica com 7 (não some).
+    ensaio_caso contador_semeado_falha_local_volta 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=local NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7
     # CISO (BAIXA-S3, condição 1): o script não liga o rastreio do shell.
     local marca_xtrace marca_bash
     marca_xtrace="set -$(printf x)"
@@ -1995,5 +2125,6 @@ case "$MODO" in
         if procura_flag --help "$@" || procura_flag -h "$@"; then ajuda; exit 0; fi
         if procura_flag --esquecer "$@"; then esquecer_lembrar; exit 0; fi
         ler_opcoes "$@"
+        preparar_duravel
         fluxo; exit $? ;;
 esac
