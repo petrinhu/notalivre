@@ -18,6 +18,15 @@
 
 namespace cr = nl::foundation::cripto;
 
+namespace {
+
+QString codigoDe(const nl::base::Erro& erro)
+{
+    return QString::fromStdString(erro.codigo());
+}
+
+} // namespace
+
 class TstCriptoPrimitivas : public QObject
 {
     Q_OBJECT
@@ -26,6 +35,11 @@ private slots:
     void hmacRfc4231();
     void hkdfRfc5869();
     void iguaisEmTempoConstanteDetectaCadaByte();
+    void hkdfSaidaNoLimiteAceita();
+    void hkdfSaidaForaDoLimiteRecusada();
+    void hkdfChaveVaziaRecusada();
+    void hmacChaveVaziaRecusada();
+    void hmacDadoVazioAceito();
 };
 
 void TstCriptoPrimitivas::hmacRfc4231()
@@ -83,6 +97,83 @@ void TstCriptoPrimitivas::iguaisEmTempoConstanteDetectaCadaByte()
     // Tamanhos diferentes dão falso, mesmo quando um é prefixo do outro.
     QVERIFY(!cr::iguaisEmTempoConstante(referencia, referencia.left(31)));
     QVERIFY(!cr::iguaisEmTempoConstante(referencia.left(31), referencia));
+}
+
+void TstCriptoPrimitivas::hkdfSaidaNoLimiteAceita()
+{
+    // RFC 5869, 2.3: L <= 255 * HashLen. Com SHA-256, o máximo é 8160 bytes: fronteira exata (L-43).
+    const QByteArray ikm("chave-de-teste-hkdf");
+    QByteArray okm(8160, '\0');
+    const auto resultado = cr::hkdfSha256(ikm, QByteArray(), QByteArray(),
+        std::span<unsigned char>(reinterpret_cast<unsigned char*>(okm.data()), 8160));
+    QVERIFY2(resultado.has_value(), "HKDF com L = 8160 (255 blocos de SHA-256) precisa aceitar");
+}
+
+void TstCriptoPrimitivas::hkdfSaidaForaDoLimiteRecusada()
+{
+    const QByteArray ikm("chave-de-teste-hkdf");
+
+    // L = 8161 passa do limite de 255 blocos: recusa com cripto.tamanho, sem escrever na saída.
+    QByteArray acima(8161, '\xAA');
+    const auto recusadoAcima = cr::hkdfSha256(ikm, QByteArray(), QByteArray(),
+        std::span<unsigned char>(reinterpret_cast<unsigned char*>(acima.data()), 8161));
+    QVERIFY2(!recusadoAcima.has_value(), "HKDF com L = 8161 precisa recusar");
+    QCOMPARE(codigoDe(recusadoAcima.error()), QStringLiteral("cripto.tamanho"));
+    QCOMPARE(acima, QByteArray(8161, '\xAA'));
+
+    // L = 0 não é saída válida: recusa com cripto.tamanho.
+    QByteArray zero(1, '\xAA');
+    const auto recusadoZero = cr::hkdfSha256(ikm, QByteArray(), QByteArray(),
+        std::span<unsigned char>(reinterpret_cast<unsigned char*>(zero.data()), 0));
+    QVERIFY2(!recusadoZero.has_value(), "HKDF com L = 0 precisa recusar");
+    QCOMPARE(codigoDe(recusadoZero.error()), QStringLiteral("cripto.tamanho"));
+}
+
+void TstCriptoPrimitivas::hkdfChaveVaziaRecusada()
+{
+    // RFC 2104, 3: chave menor que L é "strongly discouraged". Chave vazia dá K_int constante e MAC forjável
+    // (CISO, 06/11/2026, item 6). Vazia e nula recusadas com cripto.tamanho, sem escrever na saída.
+    QByteArray saida(32, '\xAA');
+    const std::span<unsigned char> area(reinterpret_cast<unsigned char*>(saida.data()), 32);
+
+    const auto vazia = cr::hkdfSha256(QByteArray(""), QByteArray(), QByteArray(), area);
+    QVERIFY2(!vazia.has_value(), "HKDF com chave vazia precisa recusar");
+    QCOMPARE(codigoDe(vazia.error()), QStringLiteral("cripto.tamanho"));
+
+    const auto nula = cr::hkdfSha256(QByteArray(), QByteArray(), QByteArray(), area);
+    QVERIFY2(!nula.has_value(), "HKDF com chave nula precisa recusar");
+    QCOMPARE(codigoDe(nula.error()), QStringLiteral("cripto.tamanho"));
+
+    QCOMPARE(saida, QByteArray(32, '\xAA'));
+}
+
+void TstCriptoPrimitivas::hmacChaveVaziaRecusada()
+{
+    // Mesma regra do HKDF (RFC 2104, 3; CISO, 06/11/2026, item 6): vazia e nula recusadas, sem escrever na saída.
+    std::array<unsigned char, 32> saida{};
+    saida.fill(0xAA);
+
+    const auto vazia = cr::hmacSha256(QByteArray(""), QByteArray("dado"), saida);
+    QVERIFY2(!vazia.has_value(), "HMAC com chave vazia precisa recusar");
+    QCOMPARE(codigoDe(vazia.error()), QStringLiteral("cripto.tamanho"));
+
+    const auto nula = cr::hmacSha256(QByteArray(), QByteArray("dado"), saida);
+    QVERIFY2(!nula.has_value(), "HMAC com chave nula precisa recusar");
+    QCOMPARE(codigoDe(nula.error()), QStringLiteral("cripto.tamanho"));
+
+    QCOMPARE(QByteArray(reinterpret_cast<const char*>(saida.data()), 32), QByteArray(32, '\xAA'));
+}
+
+void TstCriptoPrimitivas::hmacDadoVazioAceito()
+{
+    // Dado vazio é entrada legítima do HMAC. Referência independente, calculada com Python (módulos hmac e hashlib da
+    // biblioteca padrão), sem o código sob teste: HMAC-SHA256 com chave de 20 bytes 0x0b e dado vazio.
+    const QByteArray chave = QByteArray::fromHex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
+    std::array<unsigned char, 32> saida{};
+    const auto resultado = cr::hmacSha256(chave, QByteArray(), saida);
+    QVERIFY2(resultado.has_value(), "HMAC com dado vazio precisa aceitar");
+    QCOMPARE(QByteArray(reinterpret_cast<const char*>(saida.data()), 32).toHex(),
+             QByteArray("999a901219f032cd497cadb5e6051e97b6a29ab297bd6ae722bd6062a2f59542"));
 }
 
 QTEST_GUILESS_MAIN(TstCriptoPrimitivas)

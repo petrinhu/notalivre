@@ -141,6 +141,9 @@ void TstCriptoArgon2id::argon2idNoLimiteDoTetoAceita()
     QVERIFY2(cr::argon2id(kSenhaDeTeste, noPiso, areaDe(saida)).has_value(), "exatamente no piso precisa aceitar");
     const cr::ParametrosArgon2id noTetoDePasses{cr::kMemlimitPiso, cr::kOpslimitTeto, kSaltFixo};
     QVERIFY2(cr::argon2id(kSenhaDeTeste, noTetoDePasses, areaDe(saida)).has_value(), "exatamente no teto de passes precisa aceitar");
+    // Fronteira exata do teto de memória (CISO, 06/11/2026, item 5): kMemlimitTeto aceito, o +1 já recusado acima.
+    const cr::ParametrosArgon2id noTetoDeMemoria{cr::kMemlimitTeto, cr::kOpslimitPiso, kSaltFixo};
+    QVERIFY2(cr::argon2id(kSenhaDeTeste, noTetoDeMemoria, areaDe(saida)).has_value(), "exatamente no teto de memória precisa aceitar");
 }
 
 void TstCriptoArgon2id::saltDeTamanhoErradoRecusa()

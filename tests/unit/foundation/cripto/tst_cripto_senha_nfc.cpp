@@ -84,10 +84,13 @@ void TstCriptoSenhaNfc::senhaAsciiNaoPassaPorQString()
 
 void TstCriptoSenhaNfc::utf8InvalidoRecusado()
 {
-    // Sequência truncada, forma longa de "/" (C0 AF), substituto (U+D800, ED A0 80) e acima de U+10FFFF (F4 90 80 80).
+    // Sequência truncada, forma longa de "/" (C0 AF), forma longa de U+0000 em 3 e 4 bytes (E0 80 80, F0 80 80 80),
+    // substituto (U+D800, ED A0 80) e acima de U+10FFFF (F4 90 80 80).
     const QList<QByteArray> invalidas = {
         QByteArray::fromHex("c3"),
         QByteArray::fromHex("c0af"),
+        QByteArray::fromHex("e08080"),
+        QByteArray::fromHex("f0808080"),
         QByteArray::fromHex("eda080"),
         QByteArray::fromHex("f4908080"),
     };

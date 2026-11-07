@@ -59,6 +59,7 @@ private slots:
     void chaveDeTamanhoErradoReprova();
     void claroVazioComAadTagExata();
     void claroVazioComAadDecifraRetornoZero();
+    void claroVazioComAreaNulaDecifraRetornoZero();
 };
 
 // Vetor público do NIST CAVP gcmEncryptExtIV256 (PTlen = 0, AADlen = 16, chave de 256 bits). Lido nas fontes secundárias
@@ -90,6 +91,21 @@ void TstCriptoAead::claroVazioComAadDecifraRetornoZero()
     QByteArray aadTrocada = kAadClaroVazio;
     aadTrocada[0] = static_cast<char>(aadTrocada[0] ^ 0x01);
     const auto reprova = cr::decifrarAes256Gcm(kChaveClaroVazio, kIvClaroVazio, aadTrocada, kTagClaroVazio, areaDe(claro));
+    QVERIFY(!reprova.has_value());
+    QCOMPARE(codigoDe(reprova.error()), QStringLiteral("cripto.tag"));
+}
+
+void TstCriptoAead::claroVazioComAreaNulaDecifraRetornoZero()
+{
+    // Área de ponteiro nulo e tamanho zero: decifrar só a tag com AAD correta não escreve nada (CISO, 06/11/2026, item 5b).
+    const std::span<unsigned char> areaNula;
+    const auto decifrado = cr::decifrarAes256Gcm(kChaveClaroVazio, kIvClaroVazio, kAadClaroVazio, kTagClaroVazio, areaNula);
+    QVERIFY2(decifrado.has_value(), "decifrar só a tag com área nula e AAD correta não pode falhar");
+    QCOMPARE(*decifrado, 0);
+
+    QByteArray tagAdulterada = kTagClaroVazio;
+    tagAdulterada[0] = static_cast<char>(tagAdulterada[0] ^ 0x01);
+    const auto reprova = cr::decifrarAes256Gcm(kChaveClaroVazio, kIvClaroVazio, kAadClaroVazio, tagAdulterada, areaNula);
     QVERIFY(!reprova.has_value());
     QCOMPARE(codigoDe(reprova.error()), QStringLiteral("cripto.tag"));
 }
