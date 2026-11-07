@@ -15,7 +15,7 @@
 #     comando, e a região termina na primeira linha não vazia com indentação igual ou menor.
 #   - Rótulo isento: só em .yml, só fora de região de script, e só chave YAML de verdade: `name:` ou `- name:` seguido
 #     de espaço, tabulação ou fim de linha. `name:x` não é chave. Em .sh não existe isenção.
-#   - Exceção declarada: sabotar_portoes.sh, linha 149, roda a imagem externa "$FLATHUB_KDE" por digest
+#   - Exceção declarada: sabotar_portoes.sh, no modo docker, roda a imagem externa "$FLATHUB_KDE" por digest
 #     (ghcr.io flathub-infra), que precisa de pull; é exatamente UMA (piso conferido pelo script), e só nesse arquivo,
 #     só com "$FLATHUB_KDE" fora de comentário.
 #   - Piso: zero chamadas encontradas é falha (varredura quebrada), nunca verde. Um único awk para todos os arquivos

@@ -26,6 +26,7 @@ passo "autoteste-copiar-arvore" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash t
 passo "autoteste-rodar-espelho" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_rodar_espelho.sh'
 passo "autoteste-pull-never" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_pull_never.sh /src'
 passo "autoteste-sanitizer-ativo" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_sanitizer_ativo.sh'
+passo "autoteste-cota-nucleos" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_cota_nucleos.sh'
 passo "ensaio-emitir-teste" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/producao_restrita/emitir_teste.sh --ensaio'
 [ "$PASSOS_FALHOS" -eq 0 ] && { echo "JOB autotestes: VERDE"; exit 0; }
 echo "JOB autotestes: VERMELHO ($PASSOS_FALHOS passo(s) com rc diferente de 0)"; exit 1

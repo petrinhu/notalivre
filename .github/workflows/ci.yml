@@ -564,6 +564,9 @@ jobs:
       - name: "Autoteste do portão de sanitizer ativo (NL-3.0h)"
         run: bash tools/portoes/autoteste_sanitizer_ativo.sh
 
+      - name: "Autoteste da cota de núcleos do espelho e do build (NL-3.0k)"
+        run: bash tools/espelho/autoteste_cota_nucleos.sh
+
       # NL-3.0i (revisão de edc4cde): o --ensaio do emitir_teste.sh roda no CI, com HOME descartável. Depende de bash,
       # python3 (já usado por este job em outros passos), sha256sum, stat e coreutils, todos no runner ubuntu-latest.
       - name: "Ensaio do emitir_teste.sh, contador durável e casos de revisão (NL-3.0i)"

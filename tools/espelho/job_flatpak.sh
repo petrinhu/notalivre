@@ -5,12 +5,11 @@
 # Local: org.flatpak.Builder (sandbox do flatpak, autorizado pelo líder em NL-0.5), SEM --privileged.
 # O CI usa o contêiner flathub com --privileged (ADR 0001); aqui não há privilégio extra.
 . "$(dirname "${BASH_SOURCE[0]}")/comum.sh"
-# NL-3.0k: o flatpak-builder usa --jobs (cota de núcleos, NL_THREADS, padrão 4). Sem ele usa todos os núcleos (medido em
-# 07/11/2026: 16 núcleos, carga 49, numa máquina dividida). Valor que não seja inteiro positivo reprova antes da trava.
-if ! [[ "${NL_THREADS:-4}" =~ ^[1-9][0-9]*$ ]]; then
-    echo "REPROVA: NL_THREADS=${NL_THREADS} não é inteiro positivo (ex.: NL_THREADS=7)" >&2
-    exit 1
-fi
+# NL-3.0k: a cota de núcleos do flatpak-builder vem de NL_THREADS (padrão 7, regra no átomo tools/conteiner/cota_nucleos.sh).
+# Sem --jobs, o flatpak-builder deixava o build usar os 16 núcleos (medido em 07/11/2026: carga 49, máquina dividida).
+# O --jobs chega ao módulo por FLATPAK_BUILDER_N_JOBS (INFERÊNCIA do CTO); a linha jobs-do-build no log prova isso.
+. "$(dirname "${BASH_SOURCE[0]}")/../conteiner/cota_nucleos.sh"
+JOBS="$(nl_threads_valido "${NL_THREADS:-}" "$(nproc)")" || exit 1
 travar
 D="$ESPELHO_TRAB/flatpak"
 # cwd fora da raiz: flatpak-builder grava .flatpak-builder no diretório atual.
@@ -21,7 +20,20 @@ mkdir -p "$D/state" "$D/repo"
 MANIFESTO="$D/fonte/flatpak/io.github.petrinhu.notalivre.yml"
 FB=(flatpak run --user --filesystem="$D" --filesystem=xdg-data/flatpak:ro
     --env=FLATPAK_USER_DIR="$HOME/.local/share/flatpak" --command=flatpak-builder org.flatpak.Builder)
-passo "flatpak-builder" "${FB[@]}" --jobs="${NL_THREADS:-4}" --disable-rofiles-fuse --force-clean --state-dir="$D/state" --repo="$D/repo" "$D/build" "$MANIFESTO"
+# A saída do builder vai para um log e o rc é guardado logo depois do comando (L-45: nada de pipe que esconda o status).
+FBLOG="$D/flatpak-builder.log"
+"${FB[@]}" --jobs="$JOBS" --disable-rofiles-fuse --force-clean --state-dir="$D/state" --repo="$D/repo" "$D/build" "$MANIFESTO" > "$FBLOG" 2>&1
+rc_fb=$?
+cat "$FBLOG"
+echo "passo=flatpak-builder rc=$rc_fb"
+[ "$rc_fb" -eq 0 ] || PASSOS_FALHOS=$((PASSOS_FALHOS + 1))
+# NL-3.0k: o manifesto imprime jobs-do-build=<N> no log. Tem de ser exatamente a cota pedida; "ausente" reprova (o --jobs não chegou).
+if grep -qx "jobs-do-build=$JOBS" "$FBLOG"; then
+    echo "passo=jobs-do-build rc=0 (jobs-do-build=$JOBS)"
+else
+    echo "passo=jobs-do-build rc=1 (esperado jobs-do-build=$JOBS no log; ausente reprova)"
+    PASSOS_FALHOS=$((PASSOS_FALHOS + 1))
+fi
 passo "bundle" flatpak run --user --filesystem="$D" --filesystem=xdg-data/flatpak:ro \
     --env=FLATPAK_USER_DIR="$HOME/.local/share/flatpak" --command=flatpak org.flatpak.Builder \
     build-bundle "$D/repo" "$D/notalivre.flatpak" io.github.petrinhu.notalivre master
