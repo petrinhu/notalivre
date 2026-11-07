@@ -116,3 +116,20 @@ set_tests_properties(pkcs12.decifrarNaoDeixaProvedorVivo PROPERTIES
                      ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
                      PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                      FAIL_REGULAR_EXPRESSION "FAIL!")
+
+# Interior da SenhaSegura com libsodium (NL-3.2c, ADR-0002). Um teste no CTest por slot (pkcs12.senha.<nome>), sem vírgula
+# (L-45). Sem fixture de certificado: a senha é sintética. Os slots de falha entram pelo AcessoDeTesteSenhaSegura.
+add_executable(tst_senha_segura tst_senha_segura.cpp)
+target_link_libraries(tst_senha_segura PRIVATE Qt6::Core Qt6::Test nl_foundation_pkcs12 nl_warnings)
+
+foreach(nome IN ITEMS
+    tentarDevolveErroSemMemoriaComum
+    deLancaEmFalhaDeAlocacao
+    senhaVaziaFunciona
+    comoCTerminaEmNul
+    sodiumInitFalhoNaoAlocaEmMemoriaComum)
+  nl_registra_teste_qt(NAME pkcs12.senha.${nome} COMMAND tst_senha_segura ${nome})
+  set_tests_properties(pkcs12.senha.${nome} PROPERTIES
+                       PASS_REGULAR_EXPRESSION "Totals: 1 passed, 0 failed"
+                       FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()

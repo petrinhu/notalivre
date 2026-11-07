@@ -6,6 +6,7 @@
 #include <openssl/crypto.h>
 
 #include <cstring>
+#include <new>
 #include <utility>
 
 #if defined(__unix__) || defined(__APPLE__)
@@ -15,11 +16,29 @@
 
 namespace nl::foundation::pkcs12 {
 
+// CORTE DO VERMELHO (NL-3.2c, passo 3): os seams ainda são ignorados e o interior segue em new char[].
 SenhaSegura SenhaSegura::de(QByteArrayView bytes) {
     return criar(bytes, nullptr);
 }
 
+std::expected<SenhaSegura, nl::base::Erro> SenhaSegura::tentar(QByteArrayView bytes) {
+    return criarCom(bytes, nullptr, nullptr, nullptr);
+}
+
 SenhaSegura SenhaSegura::criar(QByteArrayView bytes, GanchoLiberacao gancho) {
+    return criarOuLanca(bytes, gancho, nullptr, nullptr);
+}
+
+SenhaSegura SenhaSegura::criarOuLanca(QByteArrayView bytes, GanchoLiberacao gancho, AlocadorSeguro alocar,
+                                      ProntidaoBiblioteca pronta) {
+    auto senha = criarCom(bytes, gancho, alocar, pronta);
+    return std::move(*senha);
+}
+
+std::expected<SenhaSegura, nl::base::Erro> SenhaSegura::criarCom(QByteArrayView bytes, GanchoLiberacao gancho,
+                                                                 AlocadorSeguro alocar, ProntidaoBiblioteca pronta) {
+    static_cast<void>(alocar);
+    static_cast<void>(pronta);
     const auto tamanho = static_cast<std::size_t>(bytes.size());
     const std::size_t capacidade = tamanho + 1; // NUL final: a API do PKCS#12 lê C-string
     char* dados = new char[capacidade]{};
