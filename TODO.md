@@ -247,6 +247,7 @@
 - (sem ID): NL-3.3: falta de memória em `argon2id.cpp:60` não pode aparecer como senha errada (ADR-0006, T6).
 - (sem ID): NL-3.3: medir o login com 2 derivações; conferir onde ficam os parâmetros do localizador (ADR-0006, T4 e T7).
 - (sem ID): Antes da NL-12, bloqueante: medir em notebook fraco, com o Flatpak (ADR-0006, T5).
+- (sem ID): Em falha de hkdf, hmac ou argon2id, a área de saída não tem valor definido: o cofre não a usa e guarda chave derivada em área que zera em toda saída, com sabotagem (ADR-0003). Reabre se a NL-3.3 criar injeção de falha nessas funções.
 
 ## Backlog
 
