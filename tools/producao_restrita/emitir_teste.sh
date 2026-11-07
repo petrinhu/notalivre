@@ -78,10 +78,12 @@ fi
 
 TESTE_DIR="$BASE/teste-lider"
 DEVOLUCAO="$BASE/devolucao"
-# MÉDIA-S2: o contador de números de DPS fica fora de teste-lider (que se limpa); nunca se apaga.
-NDPS_ARQ="$BASE/ultimo-ndps.txt"
+# NL-3.0i: o contador de DPS e o estado da instalação ficam numa pasta durável, fora de /var/tmp (o sistema limpa /var/tmp em
+# 30 dias sem uso). MÉDIA-S2: o contador nunca se apaga; fora de teste-lider (que se limpa).
+DURAVEL="$HOME/.local/share/notalivre/nl210"
+NDPS_ARQ="$DURAVEL/ultimo-ndps.txt"
 DPS_ARQ="$TESTE_DIR/dps-teste.json"
-ESTADO_INST="$BASE/programa-instalado-sha.txt"
+ESTADO_INST="$DURAVEL/programa-instalado-sha.txt"
 CFG_DIR="$HOME/.var/app/$APP/config/notalivre"
 CFG="$CFG_DIR/config.ini"
 RUN_TS=$(date +%Y%m%d-%H%M%S)
@@ -162,6 +164,16 @@ gravar_config() {
     chmod 600 "$CFG"
 }
 
+# NL-3.0i: prepara a pasta durável do contador (0700). Migração única: sem contador no durável e com o da pasta antiga ($BASE,
+# /var/tmp), copia com 0600 e segue; a pasta antiga fica como está. Com os dois presentes, vale o durável.
+preparar_duravel() {
+    mkdir -p -- "$DURAVEL" || falha "não consegui criar a pasta do contador da DPS. Nada foi emitido."
+    chmod 700 -- "$DURAVEL" || falha "não consegui pôr a pasta do contador da DPS em 0700. Nada foi emitido."
+    if [ ! -e "$NDPS_ARQ" ] && [ -f "$BASE/ultimo-ndps.txt" ]; then
+        ( umask 077; cp -- "$BASE/ultimo-ndps.txt" "$NDPS_ARQ" ) || falha "não consegui copiar o contador antigo. Nada foi emitido."
+    fi
+}
+
 # Próximo nDps: lê o último número gravado e soma 1. Não grava nada aqui (NL-2.27, regra do líder): o número só vai ao arquivo
 # depois da tentativa, e só se ela chegou à Sefin (ver gravar_ndps).
 proximo_ndps() {
@@ -198,7 +210,7 @@ devolver_ndps() {
     if [ "$NDPS_ANTES_EXISTIA" = 1 ]; then
         printf '%s\n' "$NDPS_ANTES_VALOR" > "$NDPS_ARQ"
     else
-        rm -f -- "$BASE/ultimo-ndps.txt"
+        rm -f -- "$NDPS_ARQ"
     fi
 }
 
@@ -1349,8 +1361,8 @@ ensaio_caso() {
     mkdir -p "$(dirname "$dir/$pfx_nome")"; printf 'pfxsecreto-ensaio\n' > "$dir/$pfx_nome"
     # NL-2.10g: semente do contador, para provar que a parada antes da Sefin não o mexe.
     if [ -n "$semente" ]; then
-        mkdir -p "$dir/base"
-        printf '%s\n' "$semente" > "$dir/base/ultimo-ndps.txt"
+        mkdir -p "$dir/home/.local/share/notalivre/nl210"
+        printf '%s\n' "$semente" > "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt"
     fi
     entrada=/dev/null
     if [ "$sem_kd" -eq 1 ]; then
@@ -1381,7 +1393,7 @@ ensaio_caso() {
     fd3=$(grep -c 'senha-fd3=ok' "$dir/chamadas.txt" 2>/dev/null || true)
     [ -n "$fd3" ] || fd3=0
     [ "$emit" -eq 0 ] || [ "$fd3" -eq "$emit" ] || problema="$problema senha_fora_do_descritor(fd3=$fd3,emitir=$emit)"
-    [ -f "$dir/base/ultimo-ndps.txt" ] && ndps_atual=$(cat "$dir/base/ultimo-ndps.txt")
+    [ -f "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt" ] && ndps_atual=$(cat "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt")
     [ -z "$ndps_esp" ] || [ "$ndps_atual" = "$ndps_esp" ] || problema="$problema ultimo_ndps=$ndps_atual(esperado $ndps_esp)"
     local cfg_arq="$dir/home/.var/app/$APP/config/notalivre/config.ini" padrao
     if [ -n "$cfg_esp" ]; then
@@ -1585,7 +1597,7 @@ ensaio_sequencia() {
     escrever_stubs "$dir"
     env NL_ENSAIO_SEQ="$seq1" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
     r1=$?
-    ndps1=$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null || echo ausente)
+    ndps1=$(cat "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt" 2>/dev/null || echo ausente)
     env NL_ENSAIO_SEQ="$seq2" NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
     [ "$r1" -eq "$rc1_esp" ] || problema="$problema rc1=$r1(esperado $rc1_esp)"
     [ "$ndps1" = "$ndps1_esp" ] || problema="$problema ndps_apos_1=$ndps1(esperado $ndps1_esp)"
@@ -1609,7 +1621,7 @@ ensaio_dois_envios() {
     r1=$?
     env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
     r2=$?
-    ndps=$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null)
+    ndps=$(cat "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt" 2>/dev/null)
     if [ "$r1" -eq 0 ] && [ "$r2" -eq 0 ] && [ "$ndps" = 2 ] && grep -q '"nDps": 2,' "$dir/dps-emitida.json"; then
         printf 'ok %s\n' "$nome"
     else
@@ -1634,7 +1646,7 @@ ensaio_ctribmun_janela() {
     env NL_ENSAIO_SEQ="$seq1,$seq2" NL_ENSAIO_DIR="$dir" $extra bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
     r2=$?
     if grep -q '^ctribmun$' "$dir/perguntas.txt" 2>/dev/null; then janela=sim; else janela=nao; fi
-    ndps2=$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null || echo ausente)
+    ndps2=$(cat "$dir/home/.local/share/notalivre/nl210/ultimo-ndps.txt" 2>/dev/null || echo ausente)
     [ "$r2" -eq "$rc2_esp" ] || problema="$problema rc2=$r2(esperado $rc2_esp)"
     [ "$janela" = "$janela_esp" ] || problema="$problema janela=$janela(esperada $janela_esp)"
     [ "$ndps2" = "$ndps2_esp" ] || problema="$problema ndps_apos_2=$ndps2(esperado $ndps2_esp)"
@@ -2079,5 +2091,6 @@ case "$MODO" in
         if procura_flag --help "$@" || procura_flag -h "$@"; then ajuda; exit 0; fi
         if procura_flag --esquecer "$@"; then esquecer_lembrar; exit 0; fi
         ler_opcoes "$@"
+        preparar_duravel
         fluxo; exit $? ;;
 esac
