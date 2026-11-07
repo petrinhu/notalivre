@@ -1759,7 +1759,7 @@ ensaio_duravel_sobrevive_a_apagar_base() {
     else
         problema="$problema sem_pasta_base_antes_de_apagar"
     fi
-    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
     r2=$?
     [ "$r2" -eq 0 ] || problema="$problema rc2=$r2(esperado 0)"
     grep -q '"nDps": 2,' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_2_nao_e_2"
@@ -1786,7 +1786,7 @@ ensaio_duravel_copia_uma_vez() {
     [ "$(stat -c %a "$d" 2>/dev/null)" = 700 ] || problema="$problema modo_da_pasta_duravel_nao_700"
     ensaio_duravel_fecha pasta_duravel_0700 "$problema"
     problema=""
-    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    env NL_ENSAIO_SEQ=aceita,aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
     r2=$?
     [ "$r2" -eq 0 ] || problema="$problema rc2=$r2(esperado 0)"
     grep -q '"nDps": 9,' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_2_nao_e_9"
