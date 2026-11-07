@@ -135,6 +135,7 @@ std::expected<int, nl::base::Erro> decifrarAes256Gcm(QByteArrayView chave, QByte
         return falha("cripto.biblioteca", "o OpenSSL recusou a AAD");
     }
     int escritos = 0;
+    // Com 0 bytes o provider do OpenSSL retorna cedo (lido em 3.0.13 e 4.0.3); o guarda evita depender disso. Mutante sem ele: equivalente.
     if (tamanhoCifra > 0 && EVP_DecryptUpdate(contexto.get(), claro.data(), &escritos, cifra,
                                                static_cast<int>(tamanhoCifra)) != 1) {
         return falha("cripto.biblioteca", "o OpenSSL falhou ao decifrar");
