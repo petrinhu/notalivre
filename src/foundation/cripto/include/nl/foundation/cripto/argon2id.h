@@ -25,9 +25,9 @@ struct ParametrosArgon2id {
     QByteArray salt;
 };
 
-// ADR-0006, item 2, e decisão do líder de 05/11/2026: criação com 128 MiB e 3 passes.
+// ADR-0006, item 2: 128 MiB por decisão do líder de 05/11/2026; 6 passes por decisão do CISO de 06/11/2026.
 inline constexpr qint64 kMemlimitCriacao = 134217728;
-inline constexpr qint64 kOpslimitCriacao = 3;
+inline constexpr qint64 kOpslimitCriacao = 6;
 // ADR-0006, item 5: piso de aceitação ao ler (OWASP: 19 MiB e 2 passes).
 inline constexpr qint64 kMemlimitPiso = 19 * 1024 * 1024;
 inline constexpr qint64 kOpslimitPiso = 2;
