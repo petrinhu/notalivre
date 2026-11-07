@@ -1720,6 +1720,85 @@ ensaio_ptottribsn_sem_vazamento() {
     CASOS=$(( CASOS + 1 ))
 }
 
+# NL-3.0i: fecha um caso de contador durável (nome e problema vazio = ok).
+ensaio_duravel_fecha() {
+    if [ -z "$2" ]; then
+        printf 'ok %s\n' "$1"
+    else
+        printf 'FALHA %s:%s\n' "$1" "$2"
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    CASOS=$(( CASOS + 1 ))
+}
+
+# NL-3.0i: o durável sobrevive a apagar a pasta antiga. Corrida 1 grava 1 no durável; a pasta $dir/base é movida (mv, não rm) e
+# a corrida 2 segue do durável: nDps 2.
+ensaio_duravel_sobrevive_a_apagar_base() {
+    local nome=duravel_sobrevive_a_apagar_base dir d r1 r2 problema=""
+    dir="$RAIZ/$nome"; d="$dir/home/.local/share/notalivre/nl210"
+    mkdir -p "$dir/pfxdir-ensaio"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    [ "$r1" -eq 0 ] || problema="$problema rc1=$r1(esperado 0)"
+    [ "$(cat "$d/ultimo-ndps.txt" 2>/dev/null)" = 1 ] || problema="$problema duravel_apos_1=$(cat "$d/ultimo-ndps.txt" 2>/dev/null || echo ausente)(esperado 1)"
+    if [ -d "$dir/base" ]; then
+        mv "$dir/base" "$dir/base-apagada" || problema="$problema mv_base_falhou"
+    else
+        problema="$problema sem_pasta_base_antes_de_apagar"
+    fi
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    r2=$?
+    [ "$r2" -eq 0 ] || problema="$problema rc2=$r2(esperado 0)"
+    grep -q '"nDps": 2,' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_2_nao_e_2"
+    [ "$(cat "$d/ultimo-ndps.txt" 2>/dev/null)" = 2 ] || problema="$problema duravel_apos_2(esperado 2)"
+    ensaio_duravel_fecha "$nome" "$problema"
+}
+
+# NL-3.0i: a pasta antiga com contador e o durável ausente: copia uma vez, com 0600, e segue (corrida 1 -> nDps 8, corrida 2 -> 9).
+# A pasta antiga fica intacta (cópia, não mudança de lugar). A pasta do durável sai com 0700.
+ensaio_duravel_copia_uma_vez() {
+    local nome=duravel_copia_uma_vez dir d r1 r2 problema=""
+    dir="$RAIZ/$nome"; d="$dir/home/.local/share/notalivre/nl210"
+    mkdir -p "$dir/pfxdir-ensaio" "$dir/base"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    printf '7\n' > "$dir/base/ultimo-ndps.txt"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    [ "$r1" -eq 0 ] || problema="$problema rc1=$r1(esperado 0)"
+    grep -q '"nDps": 8,' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_1_nao_e_8"
+    [ "$(stat -c %a "$d/ultimo-ndps.txt" 2>/dev/null)" = 600 ] || problema="$problema modo_do_duravel_nao_600"
+    [ "$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null)" = 7 ] || problema="$problema pasta_antiga_mudou"
+    ensaio_duravel_fecha copia_uma_vez_0600 "$problema"
+    problema=""
+    [ "$(stat -c %a "$d" 2>/dev/null)" = 700 ] || problema="$problema modo_da_pasta_duravel_nao_700"
+    ensaio_duravel_fecha pasta_duravel_0700 "$problema"
+    problema=""
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-2.txt" 2>&1
+    r2=$?
+    [ "$r2" -eq 0 ] || problema="$problema rc2=$r2(esperado 0)"
+    grep -q '"nDps": 9,' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_2_nao_e_9"
+    [ "$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null)" = 7 ] || problema="$problema copia_repetida_da_pasta_antiga"
+    ensaio_duravel_fecha copia_uma_vez_segue "$problema"
+}
+
+# NL-3.0i: com o durável e a pasta antiga presentes, vale o durável: corrida grava 4 (durável tinha 3); a pasta antiga (90) fica.
+ensaio_duravel_vale_o_duravel() {
+    local nome=duravel_vale_o_duravel dir d r1 problema=""
+    dir="$RAIZ/$nome"; d="$dir/home/.local/share/notalivre/nl210"
+    mkdir -p "$dir/pfxdir-ensaio" "$dir/base" "$d"; printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    printf '90\n' > "$dir/base/ultimo-ndps.txt"
+    printf '3\n' > "$d/ultimo-ndps.txt"; chmod 600 "$d/ultimo-ndps.txt"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    [ "$r1" -eq 0 ] || problema="$problema rc1=$r1(esperado 0)"
+    grep -q '"nDps": 4,' "$dir/dps-emitida.json" 2>/dev/null || problema="$problema ndps_nao_e_4_vale_o_legado"
+    [ "$(cat "$d/ultimo-ndps.txt" 2>/dev/null)" = 4 ] || problema="$problema duravel_nao_ficou_4"
+    [ "$(cat "$dir/base/ultimo-ndps.txt" 2>/dev/null)" = 90 ] || problema="$problema pasta_antiga_mudou"
+    ensaio_duravel_fecha vale_o_duravel_com_os_dois "$problema"
+}
+
 ensaio() {
     # Coordenação (G1c, item 3): o ensaio exige python3 (o parser da consulta à BrasilAPI). Sem ele, para no começo, sem pular caso.
     if ! command -v python3 >/dev/null 2>&1; then
@@ -1971,6 +2050,11 @@ ensaio() {
     # execução seguinte usa o próximo. Falha local devolve o número. O primeiro caso fica vermelho antes da implementação.
     ensaio_sequencia ndps_ctrlc_gasta_o_numero interrompe aceita 130 1 2
     ensaio_sequencia ndps_falha_local_devolve_o_numero local aceita 1 ausente 1
+    # NL-3.0i: o contador de DPS mora em ~/.local/share/notalivre/nl210 (dentro de $dir/home, no ensaio), e não em $BASE, que o
+    # sistema limpa em 30 dias sem uso. Os casos conferem o durável; $dir/base é a pasta antiga (/var/tmp).
+    ensaio_duravel_sobrevive_a_apagar_base
+    ensaio_duravel_copia_uma_vez
+    ensaio_duravel_vale_o_duravel
     # CISO (BAIXA-S3, condição 1): o script não liga o rastreio do shell.
     local marca_xtrace marca_bash
     marca_xtrace="set -$(printf x)"
