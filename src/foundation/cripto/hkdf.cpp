@@ -29,6 +29,12 @@ std::expected<void, nl::base::Erro> hkdfSha256(QByteArrayView chave, QByteArrayV
     using Kdf = std::unique_ptr<EVP_KDF, decltype(&EVP_KDF_free)>;
     using Contexto = std::unique_ptr<EVP_KDF_CTX, decltype(&EVP_KDF_CTX_free)>;
 
+    // Chave vazia recusada, antes de qualquer escrita na saída. RFC 2104, 3: chave menor que L é "strongly discouraged";
+    // vazia dá saída previsível (CISO, 06/11/2026, item 6). Sem piso de 32 bytes: o código de recuperação tem 16
+    // (CISO, item 7).
+    if (chave.isEmpty()) {
+        return std::unexpected(detalhe::erroCripto("cripto.tamanho", "chave do HKDF vazia: recusada (CISO, 06/11/2026)"));
+    }
     if (saida.empty() || saida.size() > kSaidaMaximaHkdfSha256) {
         return std::unexpected(detalhe::erroCripto("cripto.tamanho", "saída do HKDF fora de 1 a 8160 bytes"));
     }

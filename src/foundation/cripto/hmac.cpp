@@ -18,6 +18,12 @@ namespace nl::foundation::cripto {
 std::expected<void, nl::base::Erro> hmacSha256(QByteArrayView chave, QByteArrayView dado,
                                                std::span<unsigned char, 32> saida)
 {
+    // Chave vazia recusada, antes de qualquer escrita na saída. RFC 2104, 3: chave menor que L é "strongly discouraged";
+    // vazia dá K_int constante e MAC forjável (CISO, 06/11/2026, item 6). Sem piso de 32 bytes: o código de recuperação
+    // tem 16 (CISO, item 7).
+    if (chave.isEmpty()) {
+        return std::unexpected(detalhe::erroCripto("cripto.tamanho", "chave do HMAC vazia: recusada (CISO, 06/11/2026)"));
+    }
     using Mac = std::unique_ptr<EVP_MAC, decltype(&EVP_MAC_free)>;
     using Contexto = std::unique_ptr<EVP_MAC_CTX, decltype(&EVP_MAC_CTX_free)>;
 
