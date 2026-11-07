@@ -1811,6 +1811,36 @@ ensaio_duravel_vale_o_duravel() {
     ensaio_duravel_fecha vale_o_duravel_com_os_dois "$problema"
 }
 
+# NL-3.0i (revisão): pasta durável que já existe em 0755 sai 0700 depois de preparar_duravel (mata a ausência do chmod 700).
+ensaio_duravel_pasta_0755_vira_0700() {
+    local nome=duravel_pasta_0755_vira_0700 dir d r1 problema=""
+    dir="$RAIZ/$nome"; d="$dir/home/.local/share/notalivre/nl210"
+    mkdir -p "$dir/pfxdir-ensaio" "$d"; chmod 755 "$d"
+    printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    [ "$r1" -eq 0 ] || problema="$problema rc1=$r1(esperado 0)"
+    [ "$(stat -c %a "$d" 2>/dev/null)" = 700 ] || problema="$problema pasta_preexistente_nao_virou_700(modo=$(stat -c %a "$d" 2>/dev/null))"
+    ensaio_duravel_fecha pasta_preexistente_0755_vira_0700 "$problema"
+}
+
+# NL-3.0i (revisão): contador novo no durável, na primeira gravação, sai 0600. O modo depende do umask 077 global (linha 35 do
+# script), e não do cp de preparar_duravel, que tem umask próprio (mata a retirada do umask 077 global).
+ensaio_duravel_primeira_gravacao_0600() {
+    local nome=duravel_primeira_gravacao_0600 dir d r1 problema=""
+    dir="$RAIZ/$nome"; d="$dir/home/.local/share/notalivre/nl210"
+    mkdir -p "$dir/pfxdir-ensaio"
+    printf 'pfxsecreto-ensaio' > "$dir/pfxdir-ensaio/pfxsecreto-ensaio.p12"
+    escrever_stubs "$dir"
+    env NL_ENSAIO_SEQ=aceita NL_ENSAIO_DIR="$dir" bash "$0" --ensaio-caso < /dev/null > "$dir/saida-1.txt" 2>&1
+    r1=$?
+    [ "$r1" -eq 0 ] || problema="$problema rc1=$r1(esperado 0)"
+    [ "$(cat "$d/ultimo-ndps.txt" 2>/dev/null)" = 1 ] || problema="$problema contador_primeira_gravacao_nao_e_1"
+    [ "$(stat -c %a "$d/ultimo-ndps.txt" 2>/dev/null)" = 600 ] || problema="$problema modo_primeira_gravacao_nao_600(modo=$(stat -c %a "$d/ultimo-ndps.txt" 2>/dev/null))"
+    ensaio_duravel_fecha primeira_gravacao_0600 "$problema"
+}
+
 ensaio() {
     # Coordenação (G1c, item 3): o ensaio exige python3 (o parser da consulta à BrasilAPI). Sem ele, para no começo, sem pular caso.
     if ! command -v python3 >/dev/null 2>&1; then
@@ -2067,6 +2097,10 @@ ensaio() {
     ensaio_duravel_sobrevive_a_apagar_base
     ensaio_duravel_copia_uma_vez
     ensaio_duravel_vale_o_duravel
+    ensaio_duravel_pasta_0755_vira_0700
+    ensaio_duravel_primeira_gravacao_0600
+    # NL-3.0i (revisão): contador semeado em 7, falha local: o número reservado volta e o arquivo fica com 7 (não some).
+    ensaio_caso contador_semeado_falha_local_volta 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=local NL_ENSAIO_SEMENTE=7 NL_ENSAIO_NDPS_ESPERADO=7
     # CISO (BAIXA-S3, condição 1): o script não liga o rastreio do shell.
     local marca_xtrace marca_bash
     marca_xtrace="set -$(printf x)"
