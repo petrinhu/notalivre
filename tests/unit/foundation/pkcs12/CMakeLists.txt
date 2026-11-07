@@ -131,7 +131,9 @@ foreach(nome IN ITEMS
     comoCTerminaEmNul
     sodiumInitFalhoNaoAlocaEmMemoriaComum
     bufferTemPaginaDeGuardaDepois
-    tentarInicializaOSodium)
+    tentarInicializaOSodium
+    regiaoForaDoCoreDump
+    deInicializaOSodium)
   nl_registra_teste_qt(NAME pkcs12.senha.${nome} COMMAND tst_senha_segura ${nome})
   # QTest soma initTestCase e cleanupTestCase implícitos: um slot sem falha sai com "Totals: 3 passed, 0 failed", como os vizinhos.
   set_tests_properties(pkcs12.senha.${nome} PROPERTIES
