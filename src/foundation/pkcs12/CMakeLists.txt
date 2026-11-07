@@ -4,6 +4,9 @@
 # Motor agnóstico de domínio: não conhece Dps nem Tomador. Inscrição sai como texto (CNPJ pode ser alfanumérico).
 # OpenSSL 3: o provider legacy é carregado só num OSSL_LIB_CTX próprio, nunca no processo inteiro.
 find_package(OpenSSL 3.0 REQUIRED)
+# libsodium (NL-3.2c, ADR-0002): só o interior da SenhaSegura usa; privada ao .cpp, como em cripto.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(NL_LIBSODIUM REQUIRED IMPORTED_TARGET libsodium)
 
 # Raízes da ICP-Brasil (NL-2.13, DA-2.47): os .der ficam em third_party, conferidos no configure, e nunca são compilados.
 # O subdiretório exporta NL_ICP_RAIZES_DIR e NL_ICP_RAIZES_MANIFESTO, usados pelos testes da carga.
@@ -26,4 +29,4 @@ add_library(nl_foundation_pkcs12 STATIC
     verificador_cadeia.cpp)
 target_include_directories(nl_foundation_pkcs12 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(nl_foundation_pkcs12 PUBLIC nl_foundation_base Qt6::Core)
-target_link_libraries(nl_foundation_pkcs12 PRIVATE OpenSSL::Crypto nl_warnings)
+target_link_libraries(nl_foundation_pkcs12 PRIVATE OpenSSL::Crypto PkgConfig::NL_LIBSODIUM nl_warnings)
