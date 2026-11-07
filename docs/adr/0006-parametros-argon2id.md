@@ -27,8 +27,8 @@
 
 1. **Algoritmo:** Argon2id, versão 1.3, por `crypto_pwhash` com `crypto_pwhash_ALG_ARGON2ID13`.
 2. **Parâmetros de criação:**
-   - memória: 64 MiB (`memlimit` = 67108864 bytes), que é `m = 2^16 KiB` da RFC 9106;
-   - passes: `opslimit` com valor 3, que corresponde a `t = 3` (INFERÊNCIA sobre o mapeamento, a confirmar em NL-3.2); `[alterado pelo CISO, 25/10/2026]` o mapeamento é FATO pelo código-fonte (Contexto);
+   - memória: 128 MiB (`memlimit` = 134217728 bytes, `m = 2^17` KiB), acima da opção 2 da RFC 9106 (64 MiB), `[decisão do líder, 05/11/2026]` Verbatim: "tente 128 MiB";
+   - passes: `opslimit` com valor 6, acima dos 3 da opção 2 da RFC, com a marca `[decisão do CISO, 06/11/2026, a ratificar pelo líder]`; `[alterado pelo CISO, 25/10/2026]` o mapeamento é FATO pelo código-fonte (Contexto);
    - paralelismo: o valor interno da biblioteca (ver Desvio de risco);
    - salt de 16 bytes gerado por CSPRNG;
    - saída de 32 bytes, para a chave AES-256 da KEK-senha.
@@ -38,6 +38,9 @@
 6. **Subida de custo:** se o registro estiver abaixo dos parâmetros vigentes e acima do piso, o desbloqueio bem-sucedido deriva a KEK com os parâmetros novos, re-envelopa a DEK e regrava o registro. Nenhuma saída de hash é gravada.
 7. **Medição de referência:** a derivação deve levar entre 0,5 s e 1,5 s na máquina de referência do projeto. Abaixo de 0,5 s, ~~sobe-se `opslimit`~~ `[alterado pelo CISO, 25/10/2026]` sobe-se o custo na ordem do subitem abaixo. Valor proposto, a validar em NL-3.2. A medição é custo para o atacante, e não bloqueio.
    - `[alterado pelo CISO, 25/10/2026]` **Ordem de ajuste, decidida por Narciso:** 64 MiB e `opslimit` 3 são o piso de criação, e nunca se cria abaixo dele. Se a derivação ficar abaixo de 0,5 s, sobe primeiro a memória, em potências de 2, até o teto de 256 MiB (o valor `MODERATE` do libsodium); só depois sobe `opslimit`. Memória pesa mais no custo do atacante do que passes. Os valores finais saem da medição de NL-3.2 e entram neste ADR com a máquina de referência.
+   - `[decisão do líder, 05/11/2026]` Verbatim: "tente 128 MiB" (o CISO propôs 256 MiB e 3 passes). Memória de criação: 128 MiB. Para o caso de não bastar, verbatim: "se 218MiB for insuficiente para argon2id, olhe na web o que fazer." (esclarecido por pergunta: 128 MiB, erro de digitação).
+   - `[decisão do CISO, 06/11/2026, a ratificar pelo líder]` Decisão do CISO depois da pesquisa: 6 passes. Medido com 3 passes, uma derivação: 141 ms (fedora45), 145 ms (ubuntu26.04), 142 ms (manjaro), 159 ms (mint22.3), em f3f9264. Com a memória fixada, resta subir os passes, como dizem esta regra, a RFC 9106, seção 4 ("Figure out the maximum t such that the running time does not exceed the affordable time"), e o libsodium ("If the function is so fast that you can afford it to be more computationally intensive without any usability issues, then increase `opslimit`"). O KeePassXC faz o mesmo: memória fixa e rounds calibrados para um alvo de 1000 ms. Nenhuma fonte lida dá piso de tempo; todas dão máximo: OWASP, menos de 1 s para autenticação; libsodium, 5 s para app de desktop com uma senha por sessão; cryptsetup, 1 a 2 s. Medido com 6 passes: 257 a 302 ms por derivação (as quatro imagens, máquina de referência), abaixo de 0,5 s, registrado como desvio de risco. Os passes param em 6, e não nos 11 que fechariam 0,5 s aqui (INFERÊNCIA linear), porque o mesmo valor vale para o notebook do usuário, e 11 passariam de 1,5 s por derivação numa máquina 2,7 vezes mais lenta. Fontes: seção Fontes, lidas em 06/11/2026.
+   - `[decisão do CISO, 06/11/2026]` **Máquina de referência:** Intel i5-12500H, 32 GiB, contêiner com `--cpus 3` e `--memory 8g`, imagens fedora45, ubuntu26.04, manjaro e mint22.3, teste `argon2idVetorParametrosDeCriacao`. Não representa o usuário. **Máquina de teto:** notebook x86-64 de baixo consumo, com 5 anos ou mais, até 4 threads e até 8 GiB de RAM (INFERÊNCIA do CISO), não medida. Nela valem 1,5 s por derivação e 3 s por login (duas derivações, ADR-0003, regras 4 e 12).
 8. **Escopo:** Argon2id deriva a KEK-senha, sobre a entrada canônica da ADR-0003, e o localizador `[pendente: localizar]`. O código de recuperação não passa por ele (HKDF, ADR-0003). A senha do certificado não é derivada pelo app, porque é o segredo do próprio PKCS#12.
 9. `[alterado pelo CISO, 25/10/2026]` **Parâmetros presos ao envelope:** algoritmo, versão, `memlimit`, `opslimit`, salt e versão da entrada canônica entram na AAD do envelope da DEK pela senha (ADR-0003, regra 9). Adulterar o registro faz o desbloqueio falhar, em vez de derivar com outro custo.
 
@@ -58,14 +61,30 @@
 
 | # | Controle compensatório | Como se verifica | Estado |
 |---|---|---|---|
-| C1 | Memória (64 MiB) e passes (3) iguais à opção 2 da RFC | Teste que lê o registro e confere a chamada à biblioteca: `memlimit` = 67108864 e `opslimit` = 3. `[alterado pelo CISO, 25/10/2026]` Como as regras 6 e 7 sobem o custo, o teste confere `memlimit` ≥ 67108864 e `opslimit` ≥ 3 em todo registro criado, e o valor exato da medição de NL-3.2 no registro de referência | Proposto (NL-3.2) |
-| C2 | Tempo de derivação entre 0,5 s e 1,5 s, com `opslimit` ajustável | Medição registrada no relatório da fatia, na máquina de referência | Proposto (NL-3.2) |
+| C1 | Memória e passes acima da opção 2 da RFC (128 MiB e 6 passes, contra 64 MiB e 3 passes), com p=1 | `argon2idVetorParametrosDeCriacao` e `argon2idOraculoOpenssl`, em toda rodada e no CI, conferem os valores pela saída gerada com `openssl kdf`. Em NL-3.3, teste que lê o registro: `memlimit` ≥ 134217728 e `opslimit` ≥ 6 em todo registro criado | Ativo ao fechar NL-3.2b; teste do registro em NL-3.3 |
+| C2 | Tempo de derivação na faixa de 0,5 s a 1,5 s | Medição registrada no relatório da fatia, na máquina de referência (item 7). Medido com 6 passes: 257 a 302 ms. Fora da faixa pelo piso, ver "Desvio de risco: tempo" | Medido, fora da faixa |
 | C3 | Biblioteca reavaliada a cada atualização do libsodium nas quatro distros | Revisão de Narciso em cada atualização. Sem teste automático, porque o paralelismo não é exposto | Por revisão (modelo de ameaças, C7) |
 | C4 | Troca para biblioteca com paralelismo 4 | Decisão de stack, pendente do CTO e do líder | Aberto |
 
+## Desvio de risco: tempo abaixo de 0,5 s (L-77)
+
+**Desvio:** a derivação de criação fica abaixo do piso do item 7 na máquina de referência. Registrado como desvio de risco com controles compensatórios, e não como conformidade. Decisão do CISO, 06/11/2026, a ratificar pelo líder. O custo por tentativa depende da memória e dos passes, e não da máquina de quem defende; o que o desvio deixa sem prova é se o valor cabe e se aproveita o tempo disponível no notebook do usuário.
+
+| # | Controle compensatório | Como se verifica | Quem e quando | Estado |
+|---|---|---|---|---|
+| T1 | Valores de criação presos | C1: reprova por nome com `opslimit` 3 ou 5, `memlimit` de 64 MiB ou `iter` diferente no oráculo | CI, a cada push; mutantes na revisão da fatia | Ativo ao fechar NL-3.2b |
+| T2 | Tempo acompanhado nas 4 imagens | Linha `medição argon2id` no log do contêiner; fora de 200 a 500 ms volta ao CISO | Main, em toda fatia que tocar `src/foundation/cripto`; `internal-auditor`, no capítulo de cada onda | Ativo ao fechar NL-3.2b |
+| T3 | Tempo no Flatpak | Mesma linha no log do job Flatpak; mais de 2 vezes a imagem nativa mais lenta volta ao CISO | Main, ao fechar NL-3.2b e a cada troca de runtime | Proposto |
+| T4 | Login medido de verdade | Duas derivações medidas no login; acima de 2,2 vezes a derivação isolada volta ao CISO | Executor da NL-3.3 | Aberto |
+| T5 | Notebook fraco medido antes da liberação | Item do `TODO.md` que bloqueia a NL-12: derivação até 1,5 s, login até 3 s, derivação de 0,5 s ou mais, e 128 MiB alocados com 4 GiB ou mais de RAM. Fora disso, o CISO ajusta os passes entre 3 e 16; memória volta ao líder. Sem medição até a NL-12, sobe ao líder | Main prepara um comando só; quem roda é o líder ou um testador do beta | Aberto |
+| T6 | Falta de memória não vira "senha errada" | Teste da NL-3.3 sobre o retorno de `argon2id.cpp:60`, com sabotagem | Executor e revisor da NL-3.3 | Aberto |
+| T7 | Custo sobe sem migração | Teste da NL-3.3 sobre o item 6. Antes de subir parâmetro em versão publicada: conferir onde ficam os parâmetros do localizador (ADR-0003, regra 12), e a mudança segue a L-70 | Executor e revisor da NL-3.3; CISO, antes de cada mudança | Aberto |
+
+**Até T4 e T5 fecharem, o custo em máquina fraca é INFERÊNCIA, e nenhum desses controles o prova.** Senha fraca continua o risco principal (Riscos residuais); a política de senha não compensa este desvio.
+
 ## Consequências
 
-- Cada desbloqueio leva o tempo da derivação e usa 64 MiB de RAM.
+- Cada login faz duas derivações, uma por vez, e usa 128 MiB de RAM em cada uma.
 - Trocar parâmetros não exige migração de formato, porque o registro grava `memlimit` e `opslimit`.
 - A dependência é libsodium para Argon2id. Ela precisa existir nas quatro distros e no runtime Flatpak (verificar em NL-3.2).
 
@@ -94,6 +113,7 @@
 - `[alterado pelo CISO, 25/10/2026]` RFC 9106, seções 1, 4 e 5.3, reconferidas em 25/10/2026.
 - Pesquisa: `docs/pesquisa/stack.md`, linha 132 (INFERÊNCIA do CTO sobre a versão do OpenSSL).
 - Plano, NL-1.9 e N6.
+- `[decisão do CISO, 06/11/2026]` Lidas em 06/11/2026: RFC 9106, seção 4; libsodium, `crypto_pwhash`, "Guidelines for choosing the parameters"; OWASP Password Storage Cheat Sheet (links acima). KeePassXC, branch `develop`, como aprendizado, sem cópia: https://github.com/keepassxreboot/keepassxc, `src/crypto/kdf/Argon2Kdf.h` e `src/crypto/kdf/Kdf.h`. Bitwarden: https://bitwarden.com/help/kdf-algorithms/ (32 MiB, 6 iterações, 4 threads). cryptsetup: https://man7.org/linux/man-pages/man8/cryptsetup.8.html. Emissores de nota abertos: nenhum com KDF para certificado foi achado na busca; o código de UniNFe e ACBr não foi inspecionado.
 
 ## Revisão do CISO (25/10/2026)
 
