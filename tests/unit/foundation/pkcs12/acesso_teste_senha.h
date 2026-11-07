@@ -16,7 +16,7 @@
 namespace nl::foundation::pkcs12 {
 
 struct AcessoDeTesteSenhaSegura {
-    /// Gancho chamado na liberação: depois da zeragem, antes do munlock e do delete[].
+    /// Gancho chamado na liberação: depois da zeragem, antes do sodium_free.
     using Gancho = void (*)(const char*, std::size_t) noexcept;
     /// Alocador de teste: a falha de alocação entra por ponteiro de função passado na chamada, nunca por global.
     using Alocador = void* (*)(std::size_t) noexcept;

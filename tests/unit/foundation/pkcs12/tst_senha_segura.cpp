@@ -12,7 +12,11 @@
 #include <QByteArrayView>
 #include <QtTest>
 
+#include <sodium.h>
+#include <unistd.h>
+
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <new>
 #include <string>
@@ -23,6 +27,56 @@ namespace {
 
 using nl::foundation::pkcs12::AcessoDeTesteSenhaSegura;
 using nl::foundation::pkcs12::SenhaSegura;
+
+// Sonda de leitura sem SIGSEGV: write() de 1 byte para um pipe devolve -1 (EFAULT) quando o endereço não é legível.
+// Ler o endereço diretamente derrubaria o processo na página de guarda; a sonda só pergunta ao kernel.
+class SondaDeLeitura {
+public:
+    SondaDeLeitura()
+    {
+        valida_ = pipe(fds_) == 0;
+    }
+    ~SondaDeLeitura()
+    {
+        if (valida_) {
+            close(fds_[0]);
+            close(fds_[1]);
+        }
+    }
+    SondaDeLeitura(const SondaDeLeitura&) = delete;
+    SondaDeLeitura& operator=(const SondaDeLeitura&) = delete;
+
+    bool valida() const noexcept { return valida_; }
+
+    // Verdadeiro se o kernel copia 1 byte do endereço. O byte escrito é descartado logo em seguida.
+    bool legivel(std::uintptr_t endereco) const noexcept
+    {
+        if (write(fds_[1], reinterpret_cast<const void*>(endereco), 1) != 1) {
+            return false;
+        }
+        char descarte = 0;
+        static_cast<void>(read(fds_[0], &descarte, 1));
+        return true;
+    }
+
+private:
+    int fds_[2]{-1, -1};
+    bool valida_{false};
+};
+
+// Primeira página, a partir de `inicio` alinhado para cima, que a sonda não consegue ler; 0 se não houver nas `paginas`.
+std::uintptr_t primeiraPaginaIlegivel(const SondaDeLeitura& sonda, std::uintptr_t inicio, std::size_t tamanhoPagina,
+                                      std::size_t paginas)
+{
+    const std::uintptr_t primeira = (inicio + tamanhoPagina - 1) / tamanhoPagina * tamanhoPagina;
+    for (std::size_t i = 0; i < paginas; ++i) {
+        const std::uintptr_t pagina = primeira + i * tamanhoPagina;
+        if (!sonda.legivel(pagina)) {
+            return pagina;
+        }
+    }
+    return 0;
+}
 
 // Contador do alocador de teste. Vive só no executável de teste; o programa não tem como trocá-lo.
 int gAlocacoes = 0;
@@ -54,6 +108,8 @@ private slots:
     void senhaVaziaFunciona();
     void comoCTerminaEmNul();
     void sodiumInitFalhoNaoAlocaEmMemoriaComum();
+    void bufferTemPaginaDeGuardaDepois();
+    void tentarInicializaOSodium();
 };
 
 // Alocador sem memória: tentar() tem de devolver erro, não senha, e tem de ter pedido a memória uma vez.
@@ -118,6 +174,36 @@ void TesteSenhaSegura::sodiumInitFalhoNaoAlocaEmMemoriaComum()
                                                                &bibliotecaFalha);
     QVERIFY2(!resultado.has_value(), "tentar() devolveu senha com sodium_init falho");
     QCOMPARE(gAlocacoes, 0);
+}
+
+// Propriedade do sodium_malloc (doc memory_management): a região termina no fim de uma página e é seguida de página de
+// guarda, sem permissão. Um buffer de new não tem essa página logo depois, por isso este teste mata a troca por new (M2b).
+// Três tamanhos: um, um que deixa folga de alinhamento e um maior. A sonda confere, por páginas, a primeira ilegível.
+void TesteSenhaSegura::bufferTemPaginaDeGuardaDepois()
+{
+    SondaDeLeitura sonda;
+    QVERIFY2(sonda.valida(), "pipe() falhou: sem sonda de leitura");
+    const auto tamanhoPagina = static_cast<std::size_t>(sysconf(_SC_PAGESIZE));
+    QVERIFY2(tamanhoPagina > 0, "sysconf(_SC_PAGESIZE) inválido");
+    for (const std::size_t tamanho : {std::size_t{1}, std::size_t{17}, std::size_t{100}}) {
+        const QByteArray bytes(static_cast<qsizetype>(tamanho), 'x');
+        auto resultado = SenhaSegura::tentar(bytes);
+        QVERIFY2(resultado.has_value(), "tentar() falhou ao criar a senha do teste");
+        const auto fim = reinterpret_cast<std::uintptr_t>(resultado->comoC()) + tamanho + 1; // capacidade = tamanho + NUL
+        const auto guarda = primeiraPaginaIlegivel(sonda, fim, tamanhoPagina, 2);
+        QVERIFY2(guarda != 0, "nenhuma página ilegível logo após o buffer: a região não é a do sodium_malloc");
+        QVERIFY2(guarda - fim < tamanhoPagina, "a página ilegível está a mais de uma página do fim do buffer");
+        qInfo() << "tamanho" << tamanho << "- página de guarda a" << (guarda - fim) << "bytes do fim do buffer";
+    }
+}
+
+// Prova de que tentar() chama sodium_init antes do primeiro sodium_malloc (doc usage: sodium_init devolve 0 na primeira
+// vez e 1 depois). Slot em processo próprio: se a produção não inicializa, tentar() aborta antes desta asserção.
+void TesteSenhaSegura::tentarInicializaOSodium()
+{
+    auto resultado = SenhaSegura::tentar(QByteArrayLiteral("segredo"));
+    QVERIFY2(resultado.has_value(), "tentar() falhou ao criar a senha do teste");
+    QCOMPARE(sodium_init(), 1);
 }
 
 QTEST_APPLESS_MAIN(TesteSenhaSegura)
