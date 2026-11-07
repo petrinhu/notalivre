@@ -5,3 +5,4 @@
 # motivo: texto livre e obrigatório; é documentação e não é comparado.
 # Comparação por igualdade exata, por distro: um pulo fora desta lista reprova, e uma linha desta lista que não ocorre
 # também reprova. Esta lista nasce vazia: nenhum pulo é esperado em nenhuma distro.
+mint22.3 TstCriptoArgon2idOraculo.argon2idOraculoOpenssl OpenSSL 3.0.13 do mint22.3 não tem ARGON2ID (exige 3.2 ou mais novo); o oráculo declara pulo, e a derivação segue medida nas outras distros (NL-3.2b)

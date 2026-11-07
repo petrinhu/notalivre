@@ -244,6 +244,10 @@
 - (sem ID): Builds OpenSSL ou GnuTLS dos clientes de cada distro (seção 5).
 - (sem ID): Libmysqlclient no pacote MariaDB (seção 2).
 - (sem ID): Argon2id nas versões de pacote (seção 6).
+- (sem ID): NL-3.3: falta de memória em `argon2id.cpp:60` não pode aparecer como senha errada (ADR-0006, T6).
+- (sem ID): NL-3.3: medir o login com 2 derivações; conferir onde ficam os parâmetros do localizador (ADR-0006, T4 e T7).
+- (sem ID): Antes da NL-12, bloqueante: medir em notebook fraco, com o Flatpak (ADR-0006, T5).
+- (sem ID): Em falha de hkdf, hmac ou argon2id, a área de saída não tem valor definido: o cofre não a usa e guarda chave derivada em área que zera em toda saída, com sabotagem (ADR-0003). Reabre se a NL-3.3 criar injeção de falha nessas funções.
 
 ## Backlog
 
@@ -310,7 +314,7 @@
 | NL-3.0h | W3 | Engenharia | ASan e UBSan em push de onda-* e main e em pull_request (job asan, fedora45 e mint22.3); causas A e B; gate de sanitizer; portões sanitizer_ativo e sanitizer_ligado, canário e código de saída próprio do sanitizer. Ordem do CTO, seção 4, e NL-3.0h-correcoes-ordem-cto.md. | Alta (inferido) | NL-3.0g | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-3.P | W3 | Pré-voo | Pesquisa de abertura da Onda 3 (banco, cripto e pacotes); o arquivo docs/pesquisa/onda3_banco_cripto.md ainda não existe. Ordem de serviço NL-3.P, plano do CTO, seção 1.2. | Média (inferido) | NL-P.2 | Média (inferido) | ⏳ Pendente | — |
 | NL-3.2a | W3 | Engenharia | Dependência da libsodium nas imagens de contêiner e no CI, com teste de portão (devops-sre). Plano do CTO, seção 3.4, NL-3.2a. | Média (inferido) | NL-3.P | Média (inferido) | 🔍 Pendente verificação | — |
-| NL-3.2b | W3 | Segurança | Primitivas de cripto na Foundation: AES-256-GCM, Argon2id, HMAC e HKDF, com vetores NIST, suíte do libsodium e oráculo e RFC 4231. Plano, seção 2, NL-3.2, desdobrado. | Média (inferido) | NL-3.2a, NL-1.9 (ADR-S5) | Média (inferido) | ⏳ Pendente | — |
+| NL-3.2b | W3 | Segurança | Primitivas de cripto na Foundation: AES-256-GCM, Argon2id, HMAC e HKDF, com vetores NIST, suíte do libsodium e oráculo e RFC 4231. Plano, seção 2, NL-3.2, desdobrado. | Média (inferido) | NL-3.2a, NL-1.9 (ADR-S5) | Média (inferido) | 🔍 Pendente verificação | — |
 | NL-3.2c | W3 | Segurança | Interior da SenhaSegura com libsodium: sodium_malloc, sodium_mlock, sodium_memzero e sodium_free, com sodium_init por std::call_once; SenhaSegura::de lança std::bad_alloc em falha (decisão do CTO, correção à NL-3.2c do CISO). Em série com a NL-3.2b; sem merge antes de Bibliotecas. Emenda do CTO, seção 2, NL-3.2c. | Média (inferido) | NL-3.2a, NL-3.2b | Média (inferido) | ⏳ Pendente | — |
 | NL-3.1h | W3 | Engenharia | Harness de integração contra MySQL 8.4 e MariaDB 11.8: tools/conteiner/integracao_banco.sh, em rede própria, sem porta no host, senha sorteada por arquivo de 0600 apagado no fim; services no ci.yml; label banco que falha sem variável de conexão, sem pular; autoteste do portão. Plano do CTO, seções 3.1 e 3.5. | Média (inferido) | NL-3.P, Bibliotecas, emenda do CTO às NL-3.1 | Média (inferido) | ⏳ Pendente | — |
 | NL-3.1a | W3 | Engenharia | Executor SQL só com parâmetros vinculados, sem concatenação (CONTRACT 12.1); DDL em API própria, restrita ao migrador. Plano, seção 2, NL-3.1, desdobrado. | Média (inferido) | NL-3.P, Bibliotecas | Média (inferido) | ⏳ Pendente | — |
