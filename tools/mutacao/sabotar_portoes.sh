@@ -37,6 +37,13 @@ SHA=""
 FONTE=""
 
 [ "$MODO" = docker ] || [ "$MODO" = flatpak ] || { echo "REPROVA: MODO_FLATPAK inválido: $MODO"; exit 1; }
+# NL-3.0k: a cota de núcleos vale só no modo flatpak (espelho local). O átomo é carregado por caminho relativo a RAIZ,
+# que é a árvore onde este script está (não a cópia do REF, que só recebe as sabotagens). O modo docker (CI) não carrega o
+# átomo, não passa --jobs e segue com todos os núcleos do contêiner: o CI não define NL_THREADS.
+if [ "$MODO" = flatpak ]; then
+    . "$RAIZ/tools/conteiner/cota_nucleos.sh" || { echo "REPROVA: átomo da cota de núcleos não carrega"; exit 1; }
+    JOBS="$(nl_threads_valido "${NL_THREADS:-}" "$(nproc)")" || exit 1
+fi
 mkdir -p "$TRABALHO" || { echo "REPROVA: sem pasta de trabalho em $TRABALHO"; exit 1; }
 
 # Fonte da árvore: o blob commitado (git archive), ou a árvore de trabalho quando pedida explicitamente.
@@ -152,7 +159,7 @@ if ativo flatpak611; then
     else
         flatpak run --user --filesystem="$TRABALHO" --filesystem=xdg-data/flatpak:ro \
             --env=FLATPAK_USER_DIR="$HOME/.local/share/flatpak" --command=flatpak-builder org.flatpak.Builder \
-            --disable-rofiles-fuse --force-clean --state-dir="$d/.fb-state" --repo="$d/.fb-repo" \
+            --jobs="$JOBS" --disable-rofiles-fuse --force-clean --state-dir="$d/.fb-state" --repo="$d/.fb-repo" \
             "$d/.fb-build" "$d/flatpak/io.github.petrinhu.notalivre.yml" > "$log" 2>&1
     fi
     rc=$?
