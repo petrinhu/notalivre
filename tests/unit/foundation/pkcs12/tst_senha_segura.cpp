@@ -65,7 +65,8 @@ public:
             return false;
         }
         char descarte = 0;
-        static_cast<void>(read(fds_[0], &descarte, 1));
+        // O write já provou a leitura; este read só drena o pipe.
+        [[maybe_unused]] const ssize_t drenado = read(fds_[0], &descarte, 1);
         return true;
     }
 
