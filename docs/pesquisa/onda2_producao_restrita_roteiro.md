@@ -40,7 +40,7 @@ As saídas ficam em `/var/tmp/notalivre-nl210/teste-lider/execucao-<data>/`, e a
 
 Enquanto o script roda, o nome do arquivo do certificado pode aparecer por instantes na lista de processos do computador (a mesma lista que o comando `ps` mostra). O script não grava esse nome em nenhum arquivo de log. Num computador com um único usuário, o risco é baixo. A correção vem numa etapa futura. O teste confere que o nome do certificado e a pasta onde ele está não aparecem fora dos dois usos aceitos; as pastas acima dela não são conferidas, porque são genéricas.
 
-Não apague o arquivo `/var/tmp/notalivre-nl210/ultimo-ndps.txt`. Ele guarda o último número de DPS usado. Se ele sumir, o próximo envio volta a usar o número 1, e a Sefin pode recusar por número repetido.
+Não apague o arquivo `~/.local/share/notalivre/nl210/ultimo-ndps.txt`. Ele guarda o último número de DPS usado. Se ele sumir, o próximo envio volta a usar o número 1, e a Sefin pode recusar por número repetido.
 
 **Lista de opções, para quem quiser.** Cada opção vale como `--opcao valor` ou `--opcao=valor`. Se você não passar uma opção, o script usa o que ficou guardado, a consulta pública ou o padrão, e pergunta só o que faltar.
 
@@ -347,7 +347,7 @@ Não envie esses arquivos por e-mail, por mensagem de aplicativo, para o GitHub,
 rm -- "<caminho exato do arquivo de resposta>"
 ```
 
-Depois que o agente confirmar a análise, apague também as cópias em `/var/tmp/notalivre-nl210/devolucao` e a pasta `/var/tmp/notalivre-nl210/teste-lider`, sempre um caminho exato de cada vez. O arquivo `/var/tmp/notalivre-nl210/ultimo-ndps.txt` (o contador dos números de DPS) não entra nessa limpeza: nunca se apaga.
+Depois que o agente confirmar a análise, apague também as cópias em `/var/tmp/notalivre-nl210/devolucao` e a pasta `/var/tmp/notalivre-nl210/teste-lider`, sempre um caminho exato de cada vez. O arquivo `~/.local/share/notalivre/nl210/ultimo-ndps.txt` (o contador dos números de DPS) não entra nessa limpeza: nunca se apaga.
 
 ---
 
