@@ -361,7 +361,14 @@ executar()
                 echo "PARADA: mutante-mtls sem diretório git comum para montar em /gitrepo; build não iniciado"
                 return 2
             fi
-            corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash tools/mutacao/mutante_mtls.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build/mutante-mtls")
+            # O script do mutante sai do próprio SHA, com o helper extrair_do_sha.sh (copiado da árvore de quem chama e
+            # montado só para leitura, como o corpo do ensaio). tools/mutacao não está em LISTA_FONTE: não entra no /src.
+            corpo_dir="$NL_TMP_BASE/notalivre-mutante-corpo-$sha-$fatia"
+            mkdir -p -- "$corpo_dir"
+            cp -f -- "$RAIZ/tools/conteiner/extrair_do_sha.sh" "$corpo_dir/extrair_do_sha.sh"
+            printf 'NL-EXTRATOR-SHA256=%s\n' "$(sha256sum < "$corpo_dir/extrair_do_sha.sh" | cut -d' ' -f1)"
+            montagem_arnes=(-v "$corpo_dir:/extrator:ro,z")
+            corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash /extrator/extrair_do_sha.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build/mutante-fonte tools/mutacao && bash /var/tmp/notalivre-build/mutante-fonte/tools/mutacao/mutante_mtls.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build/mutante-mtls")
             ;;
     esac
     docker run --pull=never "${extras_arnes[@]}" --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" \
