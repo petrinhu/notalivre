@@ -12,6 +12,7 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/pkcs12.h>
+#include <openssl/ssl.h>
 #include <openssl/x509.h>
 
 #include <QByteArray>
@@ -33,6 +34,7 @@
 
 #include <chrono>
 #include <cerrno>
+#include <string>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -362,6 +364,8 @@ private slots:
     // NL-3.0j (ordem do CISO, seção 4): sonda do RST, recusa em TLS 1.3 com fechamento adiado, corte com RST depois do
     // handshake, e o POST lido antes do RST (M1: quantas vezes o Qt envia o mesmo POST).
     void servidorFalsoCortaComRstNaoFin();
+    // NL-3.0j (E3, CISO parecer): RST depois do POST, por cliente OpenSSL que não é o Qt, nos dois roteiros de corte.
+    void servidorFalsoCortaComRstNoPost();
     void recusaSemCertificadoTls13FechamentoAdiado();
     void recusaOutraAcTls13FechamentoAdiado();
     void corteSemAlertaTls13Transitorio();
@@ -497,6 +501,95 @@ void TesteTransporteHttps::servidorFalsoCortaComRstNaoFin()
 
 namespace {
 
+// Certificado e chave de um .pfx da fixture, como objetos do OpenSSL, para a sonda do RST (E3). Liberados pelo destrutor.
+struct PfxOpenSsl {
+    X509* certificado = nullptr;
+    EVP_PKEY* chave = nullptr;
+    PfxOpenSsl() = default;
+    PfxOpenSsl(const PfxOpenSsl&) = delete;
+    PfxOpenSsl& operator=(const PfxOpenSsl&) = delete;
+    ~PfxOpenSsl()
+    {
+        X509_free(certificado);
+        EVP_PKEY_free(chave);
+    }
+};
+
+void lerPfxOpenSsl(const QString& nome, PfxOpenSsl& saida)
+{
+    const QByteArray pfx = lerFixture(nome);
+    const QByteArray senha = senhaDaFixture();
+    BIO* bio = BIO_new_mem_buf(pfx.constData(), static_cast<int>(pfx.size()));
+    PKCS12* p12 = bio != nullptr ? d2i_PKCS12_bio(bio, nullptr) : nullptr;
+    BIO_free(bio);
+    if (p12 == nullptr) {
+        ERR_clear_error();
+        return;
+    }
+    STACK_OF(X509)* ca = nullptr;
+    const int ok = PKCS12_parse(p12, senha.constData(), &saida.chave, &saida.certificado, &ca);
+    PKCS12_free(p12);
+    sk_X509_pop_free(ca, X509_free);
+    if (ok != 1) {
+        ERR_clear_error();
+        X509_free(saida.certificado);
+        EVP_PKEY_free(saida.chave);
+        saida.certificado = nullptr;
+        saida.chave = nullptr;
+    }
+}
+
+// Resultado da sonda: TLS concluído, POST enviado, e o erro de SSL_read com o errno lido logo depois dele.
+struct SondaDePost {
+    bool handshake = false;
+    bool postEnviado = false;
+    int sslErro = 0;
+    int errnoLeitura = 0;
+};
+
+// Sonda do RST no POST (E3). Cliente OpenSSL, sem o Qt: handshake com o certificado de cliente, POST, e leitura. O servidor
+// corta com RST depois de ler o POST; a leitura tem de dar SSL_ERROR_SYSCALL com ECONNRESET. Fim de arquivo (FIN) dá outro
+// erro de SSL. A confiança no servidor não é testada aqui (SSL_VERIFY_NONE): a sonda prova só o corte.
+SondaDePost sondarPostCortado(int porta, X509* certificado, EVP_PKEY* chave)
+{
+    SondaDePost sonda;
+    SSL_CTX* contexto = SSL_CTX_new(TLS_client_method());
+    if (contexto == nullptr) {
+        return sonda;
+    }
+    SSL_CTX_set_verify(contexto, SSL_VERIFY_NONE, nullptr);
+    if (SSL_CTX_use_certificate(contexto, certificado) == 1 && SSL_CTX_use_PrivateKey(contexto, chave) == 1) {
+        const int descritor = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (descritor >= 0) {
+            timeval tempo{5, 0};
+            ::setsockopt(descritor, SOL_SOCKET, SO_RCVTIMEO, &tempo, sizeof tempo);
+            sockaddr_in destino{};
+            destino.sin_family = AF_INET;
+            destino.sin_port = htons(static_cast<uint16_t>(porta));
+            ::inet_pton(AF_INET, "127.0.0.1", &destino.sin_addr);
+            if (::connect(descritor, reinterpret_cast<sockaddr*>(&destino), sizeof destino) == 0) {
+                SSL* ssl = SSL_new(contexto);
+                SSL_set_fd(ssl, descritor);
+                if (SSL_connect(ssl) == 1) {
+                    sonda.handshake = true;
+                    const std::string corpo = "nao-e-envelope";
+                    const std::string post = "POST /nfse HTTP/1.0\r\nHost: 127.0.0.1\r\nContent-Type: application/xml\r\n"
+                                             "Content-Length: " + std::to_string(corpo.size()) + "\r\n\r\n" + corpo;
+                    sonda.postEnviado = SSL_write(ssl, post.data(), static_cast<int>(post.size())) > 0;
+                    char recebido[256];
+                    const int lidos = SSL_read(ssl, recebido, static_cast<int>(sizeof recebido));
+                    sonda.errnoLeitura = errno;
+                    sonda.sslErro = SSL_get_error(ssl, lidos);
+                }
+                SSL_free(ssl);
+            }
+            ::close(descritor);
+        }
+    }
+    SSL_CTX_free(contexto);
+    return sonda;
+}
+
 // Recusa em TLS 1.3 com fechamento adiado (NL-3.0j, ordem do CISO, seção 4). O cliente conclui o handshake antes de saber da
 // recusa (Go 32202; RFC 8446 §2); o servidor manda o alerta e lê até o cliente fechar. O desfecho esperado é o da DA-2.35:
 // Definitivo/Tls, com a mensagem fixa e versaoTls tls1.3, numa só conexão, sem drenagem estourada.
@@ -520,6 +613,29 @@ void verificarRecusaTls13ComFechamentoAdiado(const QString& slot, const Configur
 }
 
 } // namespace
+
+// NL-3.0j (E3): o RST depois do POST chega ao cliente como reinício de conexão, não como fim de arquivo, nos dois roteiros de
+// corte (o do M1, que não grava, e o do Mid, que grava). Morre com MR1 (sem SO_LINGER, o servidor fecha com FIN).
+void TesteTransporteHttps::servidorFalsoCortaComRstNoPost()
+{
+    PfxOpenSsl cliente;
+    lerPfxOpenSsl(QStringLiteral("cnpj_ok.pfx"), cliente);
+    QVERIFY2(cliente.certificado != nullptr && cliente.chave != nullptr, "não foi possível ler o par de cliente");
+    const QStringList roteiros{QStringLiteral("corte_rst_apos_leitura"), QStringLiteral("corte_rst_apos_gravacao")};
+    for (const QString& roteiro : roteiros) {
+        ServidorDeTeste servidor({QStringLiteral("POST"), QStringLiteral("/nfse"), roteiro});
+        QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+        const SondaDePost sonda = sondarPostCortado(servidor.porta(), cliente.certificado, cliente.chave);
+        const QStringList linhas = servidor.encerrar();
+        gravarMedicao(QStringLiteral("servidorFalsoCortaComRstNoPost;roteiro=%1;handshake=%2;postEnviado=%3;sslErro=%4;errno=%5;conexoes=%6")
+                          .arg(roteiro).arg(sonda.handshake ? 1 : 0).arg(sonda.postEnviado ? 1 : 0).arg(sonda.sslErro)
+                          .arg(sonda.errnoLeitura).arg(conexoesDoServidor(linhas)));
+        QVERIFY2(sonda.handshake, "o TLS da sonda tem de concluir, senão o corte do POST não foi testado");
+        QVERIFY2(sonda.postEnviado, "o POST da sonda tem de sair");
+        QVERIFY2(sonda.sslErro == SSL_ERROR_SYSCALL && sonda.errnoLeitura == ECONNRESET,
+                 "o servidor tem de cortar com RST depois do POST (ECONNRESET), não com FIN (fim de arquivo)");
+    }
+}
 
 void TesteTransporteHttps::recusaSemCertificadoTls13FechamentoAdiado()
 {
