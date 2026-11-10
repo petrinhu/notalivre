@@ -154,7 +154,7 @@ fi
 # antigo deixa de verificar). Aqui o helper roda sobre o .git da fixture, do mesmo tipo que o /gitrepo do contêiner.
 ext="$BASE/extraido"
 if bash "$RAIZ/tools/conteiner/extrair_do_sha.sh" "$F/.git" "$SHA" "$ext" tools/mutacao \
-    && cmp -s "$ext/tools/mutacao/mutante_mtls.sh" "$F/tools/mutacao/mutante_mtls.sh"; then
+    && [ "$(sha256sum < "$ext/tools/mutacao/mutante_mtls.sh")" = "$(sha256sum < "$F/tools/mutacao/mutante_mtls.sh")" ]; then
     ok "mutante-mtls: extração do SHA traz tools/mutacao/mutante_mtls.sh igual ao do commit"
 else
     falha "mutante-mtls: extração do SHA sem tools/mutacao/mutante_mtls.sh igual ao do commit"
