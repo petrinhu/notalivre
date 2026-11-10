@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Senha em buffer dedicado (NL-2.2, ADR-S1 item 4): mlock de melhor esforço, zeragem por OPENSSL_cleanse antes da
-// liberação. Não é libsodium: a dependência nova exige autorização do líder (L-51).
+// Senha em buffer dedicado (NL-2.2, ADR-S1 item 4; NL-3.2c, ADR-0002): a região vem do sodium_malloc (página de
+// guarda, canário e bloqueio de memória por conta do libsodium), zerada por sodium_memzero antes da liberação.
+// A biblioteca é privada ao .cpp (L-51, autorizada pelo líder em 29/10/2026): o cabeçalho não traz nenhum tipo dela.
 #ifndef NL_FOUNDATION_PKCS12_SENHA_SEGURA_H
 #define NL_FOUNDATION_PKCS12_SENHA_SEGURA_H
+
+#include <nl/base/erro.h>
 
 #include <QByteArrayView>
 
 #include <cstddef>
+#include <expected>
 
 namespace nl::foundation::pkcs12 {
 
@@ -15,7 +19,11 @@ namespace nl::foundation::pkcs12 {
 class SenhaSegura {
 public:
     /// Copia os bytes para o buffer seguro. A origem é do chamador, que responde por ela.
+    /// Lança std::bad_alloc se não houver memória segura para a senha.
     [[nodiscard]] static SenhaSegura de(QByteArrayView bytes);
+
+    /// Como de(), mas devolve erro em vez de lançar. Chamador novo de segredo usa este (NL-3.3).
+    [[nodiscard]] static std::expected<SenhaSegura, nl::base::Erro> tentar(QByteArrayView bytes);
 
     SenhaSegura(SenhaSegura&& outra) noexcept;
     SenhaSegura& operator=(SenhaSegura&& outra) noexcept;
@@ -40,8 +48,21 @@ public:
 
 private:
     using GanchoLiberacao = void (*)(const char*, std::size_t) noexcept;
+    /// Alocador da região segura. Em produção é o sodium_malloc; o teste passa um que devolve nulo.
+    using AlocadorSeguro = void* (*)(std::size_t) noexcept;
+    /// Prontidão da biblioteca. Em produção é o sodium_init por std::call_once; o teste passa uma que falha.
+    using ProntidaoBiblioteca = bool (*)() noexcept;
 
-    /// Cria a senha com o gancho de liberação já instalado. O gancho não muda depois (só o movimento o transfere).
+    /// Cria a senha com o gancho e os recursos fixados na chamada (nenhuma variável global). Devolve erro se a
+    /// biblioteca não estiver pronta ou se o alocador devolver nulo.
+    [[nodiscard]] static std::expected<SenhaSegura, nl::base::Erro> criarCom(QByteArrayView bytes,
+                                                                             GanchoLiberacao gancho,
+                                                                             AlocadorSeguro alocar,
+                                                                             ProntidaoBiblioteca pronta);
+    /// Como criarCom(), mas lança std::bad_alloc na falha. Usado por de() e pelo acesso de teste.
+    [[nodiscard]] static SenhaSegura criarOuLanca(QByteArrayView bytes, GanchoLiberacao gancho,
+                                                  AlocadorSeguro alocar, ProntidaoBiblioteca pronta);
+    /// Cria a senha com o gancho já instalado. O gancho não muda depois (só o movimento o transfere).
     [[nodiscard]] static SenhaSegura criar(QByteArrayView bytes, GanchoLiberacao gancho);
     SenhaSegura(char* dados, std::size_t capacidade, std::size_t tamanho, bool bloqueada,
                 GanchoLiberacao gancho) noexcept;
