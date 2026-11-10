@@ -142,12 +142,23 @@ fi
 # Caso mutante-mtls: core=1 em todo docker run, sem pids-limit, e o comando de mutante na etapa 2.
 build "$BASE/mutante.log" NL_SHA="$SHA" -- mutante-mtls fedora45
 if todos_levam "$BASE/mutante.log" "--ulimit core=1 " && nenhum_leva "$BASE/mutante.log" "--pids-limit " \
-    && grep -q -F 'mutante_mtls.sh /gitrepo' "$BASE/mutante.log.docker"; then
+    && grep -q -F 'mutante_mtls.sh /gitrepo' "$BASE/mutante.log.docker" \
+    && grep -q -F 'extrair_do_sha.sh /gitrepo' "$BASE/mutante.log.docker" \
+    && grep -q -F ':/extrator:ro,z' "$BASE/mutante.log.docker"; then
     ok "mutante-mtls: core=1 em todo docker run, sem pids-limit, comando de mutante na etapa 2"
 else
     falha "mutante-mtls: esperava core=1, nenhum pids-limit e mutante_mtls.sh /gitrepo na etapa 2"
 fi
-pacote_tem "mutante-mtls" tools/mutacao/mutante_mtls.sh tools/servidor_falso/servidor.py
+# O modo mutante-mtls tira o script do SHA dentro do contêiner, com o helper extrair_do_sha.sh sobre /gitrepo (o pacote
+# de /src não traz tools/mutacao, LISTA_FONTE fica como está: mudar a lista muda o manifesto de todo SHA, e o log de build
+# antigo deixa de verificar). Aqui o helper roda sobre o .git da fixture, do mesmo tipo que o /gitrepo do contêiner.
+ext="$BASE/extraido"
+if bash "$RAIZ/tools/conteiner/extrair_do_sha.sh" "$F/.git" "$SHA" "$ext" tools/mutacao \
+    && cmp -s "$ext/tools/mutacao/mutante_mtls.sh" "$F/tools/mutacao/mutante_mtls.sh"; then
+    ok "mutante-mtls: extração do SHA traz tools/mutacao/mutante_mtls.sh igual ao do commit"
+else
+    falha "mutante-mtls: extração do SHA sem tools/mutacao/mutante_mtls.sh igual ao do commit"
+fi
 
 # Listas e presets inválidos: erro antes de qualquer docker run.
 caso_invalido() {
