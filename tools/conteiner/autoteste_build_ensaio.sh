@@ -33,7 +33,7 @@ chmod +x "$BASE/bin/docker"
 
 # Fixture com os caminhos de LISTA_FONTE e os três arquivos que os portões leem do SHA (como em autoteste_build_sha.sh).
 F="$BASE/fixture"
-for d in src apps tests third_party tools/conteiner tools/tabelas tools/servidor_falso tools/portoes flatpak .github/workflows; do
+for d in src apps tests third_party tools/conteiner tools/tabelas tools/servidor_falso tools/portoes tools/mutacao flatpak .github/workflows; do
     mkdir -p "$F/$d"
     printf 'x\n' > "$F/$d/conteudo.txt"
 done
@@ -43,6 +43,9 @@ printf "name: ci\n" > "$F/.github/workflows/ci.yml"
 for arq in portoes_estaticos.sh piso_portoes.txt lista_portoes.txt; do
     cp "$RAIZ/tools/conteiner/$arq" "$F/tools/conteiner/$arq" || { echo "ABORTA: falta $arq na árvore"; exit 1; }
 done
+# Arquivos reais que o modo mutante-mtls usa dentro de /src (o pacote é tirado do SHA pelo LISTA_FONTE).
+cp "$RAIZ/tools/mutacao/mutante_mtls.sh" "$F/tools/mutacao/mutante_mtls.sh" || { echo "ABORTA: falta mutante_mtls.sh"; exit 1; }
+cp "$RAIZ/tools/servidor_falso/servidor.py" "$F/tools/servidor_falso/servidor.py" || { echo "ABORTA: falta servidor.py"; exit 1; }
 git -C "$F" init -q
 git -C "$F" add -A
 git -C "$F" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -q -m "test: fixture ensaio" \
@@ -83,6 +86,21 @@ nenhum_leva() {
     [ "${com:-0}" = 0 ]
 }
 
+# O pacote que o executar extrai do SHA (LISTA_FONTE, em evidencia_sha.sh) é o que chega a /src no contêiner. Confere o
+# pacote de verdade, não o log: os caminhos que o modo usa precisam estar nele. Chamar logo depois do build do modo.
+pacote_tem() {
+    local nome="$1" arq faltam=""
+    shift
+    for arq in "$@"; do
+        [ -e "$BASE/tmp/notalivre-src-$SHA-autoteste-ensaio/$arq" ] || faltam="$faltam $arq"
+    done
+    if [ -z "$faltam" ]; then
+        ok "$nome: pacote de /src tem os caminhos do modo"
+    else
+        falha "$nome: pacote de /src sem:$faltam"
+    fi
+}
+
 # Caso normal, sem NL_SEM_CORE: nenhuma cota de arnês, e a etapa 2 de executar foi alcançada.
 build "$BASE/normal.log" -- fedora45 debug
 if [ "$(total_runs "$BASE/normal.log.docker")" -gt 0 ] && nenhum_leva "$BASE/normal.log" "--ulimit " \
@@ -111,6 +129,7 @@ if [ "$rc_ensaio" = 0 ] && todos_levam "$BASE/ensaio.log" "--ulimit core=1 " && 
 else
     falha "ensaio sem NL_SEM_CORE: esperava rc 0, core=1 e pids-limit 512 em todo docker run, corpo com hash (rc=$rc_ensaio)"
 fi
+pacote_tem "ensaio" CMakePresets.json CMakeLists.txt tests
 
 # Caso ensaio com NL_SEM_CORE=0 exportado: o modo ensaio força core=1 de qualquer jeito.
 build "$BASE/ensaio0.log" NL_SEM_CORE=0 NL_ENSAIO='transporte.exemplo:3' -- ensaio fedora45 debug
@@ -128,6 +147,7 @@ if todos_levam "$BASE/mutante.log" "--ulimit core=1 " && nenhum_leva "$BASE/muta
 else
     falha "mutante-mtls: esperava core=1, nenhum pids-limit e mutante_mtls.sh /gitrepo na etapa 2"
 fi
+pacote_tem "mutante-mtls" tools/mutacao/mutante_mtls.sh tools/servidor_falso/servidor.py
 
 # Listas e presets inválidos: erro antes de qualquer docker run.
 caso_invalido() {
