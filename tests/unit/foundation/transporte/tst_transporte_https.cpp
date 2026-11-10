@@ -234,73 +234,24 @@ private:
     QString diagnostico_;
 };
 
-// Ensaio de repetições (NL-3.0j, ordem do CISO e do CTO). O arquivo NL-3.0j-ensaio.txt na pasta de build do contêiner
-// (/var/tmp/notalivre-build, montada do host) manda: REPETICOES=N (linha 1) e, opcional, SLOTS=a,b (linha 2; só esses slots
-// repetem, os outros rodam uma vez). Sem o arquivo, cada slot roda uma vez, como no CI. Cada repetição grava uma linha em
-// NL-3.0j-medicao.txt, na mesma pasta.
+// Medição por execução do slot (NL-3.0j, CTO passo 2). Uma linha `medicao` em qInfo: o -V do ctest a leva ao log, e o arnês
+// de ensaio (tools/conteiner/ensaio_no_conteiner.sh) conta essas linhas. A repetição não mora no teste: cada repetição é um
+// processo novo, criado pelo ctest --repeat until-fail.
 namespace {
 
-const QString kPastaDeBuild = QStringLiteral("/var/tmp/notalivre-build");
 const char* const kMensagemRecusaDepoisDoHandshake = "servidor recusou depois do handshake, provável certificado do cliente";
 
-struct Ensaio {
-    bool ativo = false;
-    int repeticoes = 1;
-    QStringList filtroDeSlots;
-};
-
-Ensaio lerEnsaio()
-{
-    Ensaio ensaio;
-    QFile arquivo(kPastaDeBuild + QStringLiteral("/NL-3.0j-ensaio.txt"));
-    if (!arquivo.open(QIODevice::ReadOnly)) {
-        return ensaio;
-    }
-    ensaio.ativo = true;
-    const QString primeira = QString::fromUtf8(arquivo.readLine()).trimmed();
-    if (primeira.startsWith(QStringLiteral("REPETICOES="))) {
-        ensaio.repeticoes = qMax(1, primeira.mid(11).toInt());
-    }
-    const QString segunda = QString::fromUtf8(arquivo.readLine()).trimmed();
-    if (segunda.startsWith(QStringLiteral("SLOTS="))) {
-        ensaio.filtroDeSlots = segunda.mid(6).split(QLatin1Char(','), Qt::SkipEmptyParts);
-    }
-    return ensaio;
-}
-
-// Roda o corpo do slot quantas vezes o ensaio pedir. QVERIFY dentro do corpo só interrompe a repetição atual; as seguintes
-// rodam, e o QTest já registrou a falha.
-template <typename Corpo>
-void repetirEnsaio(const QString& slot, Corpo corpo)
-{
-    const Ensaio ensaio = lerEnsaio();
-    const bool repete = ensaio.filtroDeSlots.isEmpty() || ensaio.filtroDeSlots.contains(slot);
-    const int n = repete ? ensaio.repeticoes : 1;
-    for (int repeticao = 0; repeticao < n; ++repeticao) {
-        corpo(repeticao);
-    }
-}
-
-// Uma linha de medição: qInfo (quem roda o CI vê só em falha) e, no ensaio, o arquivo da pasta de build.
 void gravarMedicao(const QString& linha)
 {
     qInfo().noquote() << "medicao" << linha;
-    if (!lerEnsaio().ativo) {
-        return;
-    }
-    QFile arquivo(kPastaDeBuild + QStringLiteral("/NL-3.0j-medicao.txt"));
-    if (arquivo.open(QIODevice::Append | QIODevice::Text)) {
-        arquivo.write((linha + QLatin1Char('\n')).toUtf8());
-    }
 }
 
-// Uma linha por repetição: o que o slot precisa para explicar um vermelho sozinho (CTO, passo 2).
-void registrarMedicao(const QString& slot, int repeticao, const ErroTransporte& erro, int conexoes,
+// Uma linha por execução: o que o slot precisa para explicar um vermelho sozinho.
+void registrarMedicao(const QString& slot, const ErroTransporte& erro, int conexoes,
                       const QString& extra = QString())
 {
-    gravarMedicao(QStringLiteral("%1;rep=%2;tipo=%3;causa=%4;codigoQt=%5;handshake=%6;versaoTls=%7;bytesEscritos=%8;conexoes=%9;mensagem=%10%11")
+    gravarMedicao(QStringLiteral("%1;tipo=%2;causa=%3;codigoQt=%4;handshake=%5;versaoTls=%6;bytesEscritos=%7;conexoes=%8;mensagem=%9%10")
         .arg(slot)
-        .arg(repeticao)
         .arg(static_cast<int>(erro.tipo))
         .arg(static_cast<int>(erro.causa))
         .arg(erro.codigoQt)
@@ -424,83 +375,77 @@ void TesteTransporteHttps::semCertificadoDeClienteHandshakeRecusado()
 {
     // NL-3.0j (CTO, passo 3; CISO, seção 4): TLS 1.2 com fechamento adiado. O TLS 1.2 recusa antes do Finished do cliente, então
     // nada chega à aplicação: versaoTls "nenhuma", zero bytes e uma conexão só.
-    repetirEnsaio(QStringLiteral("semCertificadoDeClienteHandshakeRecusado"), [](int repeticao) {
-        ServidorDeTeste servidor({}, {QStringLiteral("--tls-maximo"), QStringLiteral("1.2"), QStringLiteral("--fechamento-adiado")});
-        QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
-        ConfiguracaoTls tls;
-        tls.autoridades = autoridadeDeTeste();
-        TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
-        auto resposta = transporte.enviar(consultaDps());
-        QVERIFY(!resposta.has_value());
-        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
-        const QStringList linhas = servidor.encerrar();
-        registrarMedicao(QStringLiteral("semCertificadoDeClienteHandshakeRecusado"), repeticao, resposta.error(),
-                         conexoesDoServidor(linhas), QStringLiteral("drenagemEstourou=%1").arg(drenagemEstourou(linhas) ? 1 : 0));
-        QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
-        QCOMPARE(resposta.error().causa, CausaErro::Tls);
-        QCOMPARE(QString::fromStdString(resposta.error().versaoTls), QStringLiteral("nenhuma"));
-        QCOMPARE(resposta.error().bytesEscritos, static_cast<qint64>(0));
-        QCOMPARE(conexoesDoServidor(linhas), 1);
-        QVERIFY2(!drenagemEstourou(linhas), "o cliente não fechou dentro do teto do fechamento adiado");
-    });
+    ServidorDeTeste servidor({}, {QStringLiteral("--tls-maximo"), QStringLiteral("1.2"), QStringLiteral("--fechamento-adiado")});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    ConfiguracaoTls tls;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    auto resposta = transporte.enviar(consultaDps());
+    QVERIFY(!resposta.has_value());
+    qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+    const QStringList linhas = servidor.encerrar();
+    registrarMedicao(QStringLiteral("semCertificadoDeClienteHandshakeRecusado"), resposta.error(),
+                     conexoesDoServidor(linhas), QStringLiteral("drenagemEstourou=%1").arg(drenagemEstourou(linhas) ? 1 : 0));
+    QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+    QCOMPARE(resposta.error().causa, CausaErro::Tls);
+    QCOMPARE(QString::fromStdString(resposta.error().versaoTls), QStringLiteral("nenhuma"));
+    QCOMPARE(resposta.error().bytesEscritos, static_cast<qint64>(0));
+    QCOMPARE(conexoesDoServidor(linhas), 1);
+    QVERIFY2(!drenagemEstourou(linhas), "o cliente não fechou dentro do teto do fechamento adiado");
 }
 
 void TesteTransporteHttps::certificadoDeOutraAcRecusado()
 {
     // Certificado autoassinado de outra raiz (cadeia_outra_raiz.pfx): o servidor só confia na AC de teste.
     // NL-3.0j (CTO, passo 3; CISO, seção 4): TLS 1.2 com fechamento adiado, como o slot anterior.
-    repetirEnsaio(QStringLiteral("certificadoDeOutraAcRecusado"), [](int repeticao) {
-        ServidorDeTeste servidor({}, {QStringLiteral("--tls-maximo"), QStringLiteral("1.2"), QStringLiteral("--fechamento-adiado")});
-        QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
-        const ParCliente outra = parDoPfx(QStringLiteral("cadeia_outra_raiz.pfx"));
-        QVERIFY2(!outra.certificado.isNull() && !outra.chave.isNull(), "não foi possível ler o par de outra AC");
-        ConfiguracaoTls tls;
-        tls.certificadoCliente = outra.certificado;
-        tls.chaveCliente = outra.chave;
-        tls.autoridades = autoridadeDeTeste();
-        TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
-        auto resposta = transporte.enviar(consultaDps());
-        QVERIFY(!resposta.has_value());
-        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
-        const QStringList linhas = servidor.encerrar();
-        registrarMedicao(QStringLiteral("certificadoDeOutraAcRecusado"), repeticao, resposta.error(), conexoesDoServidor(linhas),
-                         QStringLiteral("drenagemEstourou=%1").arg(drenagemEstourou(linhas) ? 1 : 0));
-        QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
-        QCOMPARE(resposta.error().causa, CausaErro::Tls);
-        QCOMPARE(QString::fromStdString(resposta.error().versaoTls), QStringLiteral("nenhuma"));
-        QCOMPARE(resposta.error().bytesEscritos, static_cast<qint64>(0));
-        QCOMPARE(conexoesDoServidor(linhas), 1);
-        QVERIFY2(!drenagemEstourou(linhas), "o cliente não fechou dentro do teto do fechamento adiado");
-    });
+    ServidorDeTeste servidor({}, {QStringLiteral("--tls-maximo"), QStringLiteral("1.2"), QStringLiteral("--fechamento-adiado")});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const ParCliente outra = parDoPfx(QStringLiteral("cadeia_outra_raiz.pfx"));
+    QVERIFY2(!outra.certificado.isNull() && !outra.chave.isNull(), "não foi possível ler o par de outra AC");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = outra.certificado;
+    tls.chaveCliente = outra.chave;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    auto resposta = transporte.enviar(consultaDps());
+    QVERIFY(!resposta.has_value());
+    qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+    const QStringList linhas = servidor.encerrar();
+    registrarMedicao(QStringLiteral("certificadoDeOutraAcRecusado"), resposta.error(), conexoesDoServidor(linhas),
+                     QStringLiteral("drenagemEstourou=%1").arg(drenagemEstourou(linhas) ? 1 : 0));
+    QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+    QCOMPARE(resposta.error().causa, CausaErro::Tls);
+    QCOMPARE(QString::fromStdString(resposta.error().versaoTls), QStringLiteral("nenhuma"));
+    QCOMPARE(resposta.error().bytesEscritos, static_cast<qint64>(0));
+    QCOMPARE(conexoesDoServidor(linhas), 1);
+    QVERIFY2(!drenagemEstourou(linhas), "o cliente não fechou dentro do teto do fechamento adiado");
 }
 
 // Sonda do RST (NL-3.0j, MR1). Conexão crua recebe ECONNRESET, não EOF: com FIN, recv devolve 0. Sem o SO_LINGER do servidor,
 // o slot tem de ficar vermelho. O timeout de recepção impede que a sonda trave se o servidor não responder.
 void TesteTransporteHttps::servidorFalsoCortaComRstNaoFin()
 {
-    repetirEnsaio(QStringLiteral("servidorFalsoCortaComRstNaoFin"), [](int repeticao) {
-        ServidorDeTeste servidor({}, {QStringLiteral("--corte-rst-antes-tls")});
-        QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
-        const int descritor = ::socket(AF_INET, SOCK_STREAM, 0);
-        QVERIFY2(descritor >= 0, "socket cru não abriu");
-        timeval tempo{5, 0};
-        ::setsockopt(descritor, SOL_SOCKET, SO_RCVTIMEO, &tempo, sizeof tempo);
-        sockaddr_in destino{};
-        destino.sin_family = AF_INET;
-        destino.sin_port = htons(static_cast<uint16_t>(servidor.porta()));
-        ::inet_pton(AF_INET, "127.0.0.1", &destino.sin_addr);
-        const bool conectou = ::connect(descritor, reinterpret_cast<sockaddr*>(&destino), sizeof destino) == 0;
-        QVERIFY2(conectou, "conexão crua ao servidor falso não completou");
-        char byte = 0;
-        const ssize_t lidos = ::recv(descritor, &byte, 1, 0);
-        const int erro = errno;
-        ::close(descritor);
-        const QStringList linhas = servidor.encerrar();
-        gravarMedicao(QStringLiteral("servidorFalsoCortaComRstNaoFin;rep=%1;lidos=%2;errno=%3;conexoes=%4")
-                          .arg(repeticao).arg(static_cast<qlonglong>(lidos)).arg(erro).arg(conexoesDoServidor(linhas)));
-        QVERIFY2(lidos == -1 && erro == ECONNRESET, "o servidor tem de cortar com RST (ECONNRESET), não com FIN (EOF)");
-        QCOMPARE(conexoesDoServidor(linhas), 1);
-    });
+    ServidorDeTeste servidor({}, {QStringLiteral("--corte-rst-antes-tls")});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const int descritor = ::socket(AF_INET, SOCK_STREAM, 0);
+    QVERIFY2(descritor >= 0, "socket cru não abriu");
+    timeval tempo{5, 0};
+    ::setsockopt(descritor, SOL_SOCKET, SO_RCVTIMEO, &tempo, sizeof tempo);
+    sockaddr_in destino{};
+    destino.sin_family = AF_INET;
+    destino.sin_port = htons(static_cast<uint16_t>(servidor.porta()));
+    ::inet_pton(AF_INET, "127.0.0.1", &destino.sin_addr);
+    const bool conectou = ::connect(descritor, reinterpret_cast<sockaddr*>(&destino), sizeof destino) == 0;
+    QVERIFY2(conectou, "conexão crua ao servidor falso não completou");
+    char byte = 0;
+    const ssize_t lidos = ::recv(descritor, &byte, 1, 0);
+    const int erro = errno;
+    ::close(descritor);
+    const QStringList linhas = servidor.encerrar();
+    gravarMedicao(QStringLiteral("servidorFalsoCortaComRstNaoFin;lidos=%1;errno=%2;conexoes=%3")
+                      .arg(static_cast<qlonglong>(lidos)).arg(erro).arg(conexoesDoServidor(linhas)));
+    QVERIFY2(lidos == -1 && erro == ECONNRESET, "o servidor tem de cortar com RST (ECONNRESET), não com FIN (EOF)");
+    QCOMPARE(conexoesDoServidor(linhas), 1);
 }
 
 namespace {
@@ -508,7 +453,7 @@ namespace {
 // Recusa em TLS 1.3 com fechamento adiado (NL-3.0j, ordem do CISO, seção 4). O cliente conclui o handshake antes de saber da
 // recusa (Go 32202; RFC 8446 §2); o servidor manda o alerta e lê até o cliente fechar. O desfecho esperado é o da DA-2.35:
 // Definitivo/Tls, com a mensagem fixa e versaoTls tls1.3, numa só conexão, sem drenagem estourada.
-void verificarRecusaTls13ComFechamentoAdiado(const QString& slot, const ConfiguracaoTls& tls, int repeticao)
+void verificarRecusaTls13ComFechamentoAdiado(const QString& slot, const ConfiguracaoTls& tls)
 {
     ServidorDeTeste servidor({}, {QStringLiteral("--fechamento-adiado")});
     QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
@@ -516,7 +461,7 @@ void verificarRecusaTls13ComFechamentoAdiado(const QString& slot, const Configur
     auto resposta = transporte.enviar(consultaDps());
     QVERIFY(!resposta.has_value());
     const QStringList linhas = servidor.encerrar();
-    registrarMedicao(slot, repeticao, resposta.error(), conexoesDoServidor(linhas),
+    registrarMedicao(slot, resposta.error(), conexoesDoServidor(linhas),
                      QStringLiteral("drenagemEstourou=%1").arg(drenagemEstourou(linhas) ? 1 : 0));
     QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
     QCOMPARE(resposta.error().causa, CausaErro::Tls);
@@ -530,50 +475,43 @@ void verificarRecusaTls13ComFechamentoAdiado(const QString& slot, const Configur
 
 void TesteTransporteHttps::recusaSemCertificadoTls13FechamentoAdiado()
 {
-    repetirEnsaio(QStringLiteral("recusaSemCertificadoTls13FechamentoAdiado"), [](int repeticao) {
-        ConfiguracaoTls tls;
-        tls.autoridades = autoridadeDeTeste();
-        verificarRecusaTls13ComFechamentoAdiado(QStringLiteral("recusaSemCertificadoTls13FechamentoAdiado"), tls, repeticao);
-    });
+    ConfiguracaoTls tls;
+    tls.autoridades = autoridadeDeTeste();
+    verificarRecusaTls13ComFechamentoAdiado(QStringLiteral("recusaSemCertificadoTls13FechamentoAdiado"), tls);
 }
 
 void TesteTransporteHttps::recusaOutraAcTls13FechamentoAdiado()
 {
-    repetirEnsaio(QStringLiteral("recusaOutraAcTls13FechamentoAdiado"), [](int repeticao) {
-        const ParCliente outra = parDoPfx(QStringLiteral("cadeia_outra_raiz.pfx"));
-        QVERIFY2(!outra.certificado.isNull() && !outra.chave.isNull(), "não foi possível ler o par de outra AC");
-        ConfiguracaoTls tls;
-        tls.certificadoCliente = outra.certificado;
-        tls.chaveCliente = outra.chave;
-        tls.autoridades = autoridadeDeTeste();
-        verificarRecusaTls13ComFechamentoAdiado(QStringLiteral("recusaOutraAcTls13FechamentoAdiado"), tls, repeticao);
-    });
+    const ParCliente outra = parDoPfx(QStringLiteral("cadeia_outra_raiz.pfx"));
+    QVERIFY2(!outra.certificado.isNull() && !outra.chave.isNull(), "não foi possível ler o par de outra AC");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = outra.certificado;
+    tls.chaveCliente = outra.chave;
+    tls.autoridades = autoridadeDeTeste();
+    verificarRecusaTls13ComFechamentoAdiado(QStringLiteral("recusaOutraAcTls13FechamentoAdiado"), tls);
 }
 
 // Corte com RST depois do handshake, com certificado válido (NL-3.0j, ordem do CISO). Vale para toda conexão do slot, porque o
 // Qt pode reenviar (CISO, seção 0). A asserção pede pelo menos uma conexão e Transitorio/Conexao, sem fixar o número.
 void TesteTransporteHttps::corteSemAlertaTls13Transitorio()
 {
-    repetirEnsaio(QStringLiteral("corteSemAlertaTls13Transitorio"), [](int repeticao) {
-        ServidorDeTeste servidor({}, {QStringLiteral("--corte-rst-apos-handshake")});
-        QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
-        const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
-        QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
-        ConfiguracaoTls tls;
-        tls.certificadoCliente = cliente.certificado;
-        tls.chaveCliente = cliente.chave;
-        tls.autoridades = autoridadeDeTeste();
-        TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
-        auto resposta = transporte.enviar(consultaDps());
-        QVERIFY(!resposta.has_value());
-        const QStringList linhas = servidor.encerrar();
-        registrarMedicao(QStringLiteral("corteSemAlertaTls13Transitorio"), repeticao, resposta.error(),
-                         conexoesDoServidor(linhas));
-        QCOMPARE(resposta.error().tipo, TipoErro::Transitorio);
-        QCOMPARE(resposta.error().causa, CausaErro::Conexao);
-        QCOMPARE(QString::fromStdString(resposta.error().versaoTls), QStringLiteral("tls1.3"));
-        QVERIFY2(conexoesDoServidor(linhas) >= 1, "o servidor tem de ter recebido ao menos uma conexão (CONEXOES ausente é falha)");
-    });
+    ServidorDeTeste servidor({}, {QStringLiteral("--corte-rst-apos-handshake")});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = cliente.certificado;
+    tls.chaveCliente = cliente.chave;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    auto resposta = transporte.enviar(consultaDps());
+    QVERIFY(!resposta.has_value());
+    const QStringList linhas = servidor.encerrar();
+    registrarMedicao(QStringLiteral("corteSemAlertaTls13Transitorio"), resposta.error(), conexoesDoServidor(linhas));
+    QCOMPARE(resposta.error().tipo, TipoErro::Transitorio);
+    QCOMPARE(resposta.error().causa, CausaErro::Conexao);
+    QCOMPARE(QString::fromStdString(resposta.error().versaoTls), QStringLiteral("tls1.3"));
+    QVERIFY2(conexoesDoServidor(linhas) >= 1, "o servidor tem de ter recebido ao menos uma conexão (CONEXOES ausente é falha)");
 }
 
 // M1 (NL-3.0j, primeiro lote): o servidor lê o POST inteiro, registra e corta com RST antes de responder, uma vez. Quantas vezes o
@@ -581,32 +519,30 @@ void TesteTransporteHttps::corteSemAlertaTls13Transitorio()
 // repetição, a fatia para e volta ao CISO e ao CTO.
 void TesteTransporteHttps::postLidoComCorteRstNaoReenviaQt()
 {
-    repetirEnsaio(QStringLiteral("postLidoComCorteRstNaoReenviaQt"), [](int repeticao) {
-        ServidorDeTeste servidor({QStringLiteral("POST"), QStringLiteral("/nfse"), QStringLiteral("corte_rst_apos_leitura")});
-        QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
-        const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
-        QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
-        ConfiguracaoTls tls;
-        tls.certificadoCliente = cliente.certificado;
-        tls.chaveCliente = cliente.chave;
-        tls.autoridades = autoridadeDeTeste();
-        TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
-        const RequisicaoHttp envio{QByteArrayLiteral("POST"), QStringLiteral("/nfse"), QByteArrayLiteral("nao-e-envelope"),
-                                   QByteArrayLiteral("application/xml")};
-        auto resposta = transporte.enviar(envio);
-        QVERIFY(!resposta.has_value());
-        // Conta os POST que o servidor leu: a conexão de /_teste/posts é uma conexão a mais, e sai do total de CONEXOES.
-        TransporteHttps registro(urlBase(servidor.porta(), QString(), 5000ms), tls);
-        auto posts = registro.enviar(RequisicaoHttp{QByteArrayLiteral("GET"), QStringLiteral("/_teste/posts"), {}, {}});
-        QVERIFY2(posts.has_value(), "o registro de POST tem de responder");
-        const int quantos = QJsonDocument::fromJson(posts->corpo).array().size();
-        const QStringList linhas = servidor.encerrar();
-        const int conexoesDoEnvio = conexoesDoServidor(linhas) - 1;
-        registrarMedicao(QStringLiteral("postLidoComCorteRstNaoReenviaQt"), repeticao, resposta.error(), conexoesDoEnvio,
-                         QStringLiteral("posts=%1").arg(quantos));
-        QVERIFY2(quantos >= 1, "o POST tem de chegar ao servidor: é nele que o corte acontece");
-        QVERIFY2(conexoesDoEnvio >= 1, "CONEXOES ausente ou zero é falha de medição");
-    });
+    ServidorDeTeste servidor({QStringLiteral("POST"), QStringLiteral("/nfse"), QStringLiteral("corte_rst_apos_leitura")});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    const ParCliente cliente = parDoPfx(QStringLiteral("cnpj_ok.pfx"));
+    QVERIFY2(!cliente.certificado.isNull() && !cliente.chave.isNull(), "não foi possível ler o par de cliente");
+    ConfiguracaoTls tls;
+    tls.certificadoCliente = cliente.certificado;
+    tls.chaveCliente = cliente.chave;
+    tls.autoridades = autoridadeDeTeste();
+    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    const RequisicaoHttp envio{QByteArrayLiteral("POST"), QStringLiteral("/nfse"), QByteArrayLiteral("nao-e-envelope"),
+                               QByteArrayLiteral("application/xml")};
+    auto resposta = transporte.enviar(envio);
+    QVERIFY(!resposta.has_value());
+    // Conta os POST que o servidor leu: a conexão de /_teste/posts é uma conexão a mais, e sai do total de CONEXOES.
+    TransporteHttps registro(urlBase(servidor.porta(), QString(), 5000ms), tls);
+    auto posts = registro.enviar(RequisicaoHttp{QByteArrayLiteral("GET"), QStringLiteral("/_teste/posts"), {}, {}});
+    QVERIFY2(posts.has_value(), "o registro de POST tem de responder");
+    const int quantos = QJsonDocument::fromJson(posts->corpo).array().size();
+    const QStringList linhas = servidor.encerrar();
+    const int conexoesDoEnvio = conexoesDoServidor(linhas) - 1;
+    registrarMedicao(QStringLiteral("postLidoComCorteRstNaoReenviaQt"), resposta.error(), conexoesDoEnvio,
+                     QStringLiteral("posts=%1").arg(quantos));
+    QVERIFY2(quantos >= 1, "o POST tem de chegar ao servidor: é nele que o corte acontece");
+    QVERIFY2(conexoesDoEnvio >= 1, "CONEXOES ausente ou zero é falha de medição");
 }
 
 void TesteTransporteHttps::timeoutViraErroTransitorio()
