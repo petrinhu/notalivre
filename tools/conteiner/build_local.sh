@@ -9,6 +9,9 @@
 #   build_local.sh preparar               imagem fedora45 + Qt (forma antiga da NL-0.2)
 #   build_local.sh <distro> <preset>      configure + build + ctest do preset na distro (exige NL_FATIA)
 #   build_local.sh <preset>               atalho: fedora45 <preset> (forma antiga, mantida; exige NL_FATIA)
+#   build_local.sh ensaio <distro> <preset>   ensaio de repetição (NL-3.0j, CTO): etapa 2 = ensaio_no_conteiner.sh;
+#                                         exige NL_ENSAIO; core=1 e --pids-limit 512 em todo docker run
+#   build_local.sh mutante-mtls <distro>  mutante do E6 (tools/mutacao/mutante_mtls.sh) no SHA de NL_SHA; core=1
 #   distro: fedora45 | ubuntu26.04 | manjaro | mint22.3
 #
 # Variáveis de ambiente:
@@ -25,6 +28,8 @@
 #   NL_LOG            log do run (padrão: $NL_TMP_BASE/notalivre-logs/NL-0.4-<distro>-<preset>.log;
 #                     imagem: $NL_TMP_BASE/notalivre-logs/NL-2.0-imagem-<distro>.log)
 #   NL_BUILD_ROOT     diretório de build no host (padrão: $NL_TMP_BASE/notalivre-build-<distro>-<fatia>)
+#   NL_SEM_CORE       1: todo docker run leva --ulimit core=1 (rodada normal; ensaio e mutante sempre levam)
+#   NL_ENSAIO         ensaio: lista "nome:N" separada por espaço; nome em [A-Za-z0-9_.], N de 1 a 9999
 #   NL_XSD_ZIP_CACHE  diretório no host com o ZIP do XSD (padrão: $NL_TMP_BASE/notalivre-xsd-cache). É montado no
 #                     contêiner em /xsd-cache e exportado como NL_XSD_ZIP_CACHE; o CMake do third_party lê a variável.
 #
@@ -44,6 +49,8 @@ set -euo pipefail
 NL_TMP_BASE="${NL_TMP_BASE:-/var/tmp}"
 export NL_TMP_BASE
 export TMPDIR="$NL_TMP_BASE"
+# Modo do arnês (NL-3.0j): vazio na rodada normal; ensaio ou mutante. Quem define é o despacho (ensaio, mutante-mtls).
+MODO_ARNES="${NL_MODO_ARNES:-}"
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$RAIZ/tools/conteiner/build_local.sh"
@@ -125,6 +132,41 @@ qt_instalar()
     pesado docker run --pull=never --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
         -v "$VOLUME_QT:/opt/qt" "$(imagem_de ubuntu26.04)" \
         sh -c 'mkdir -p "$HOME" && cd "$HOME" && aqt install-qt -O /opt/qt linux desktop 6.12.0 linux_gcc_64 -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets && test -f /opt/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake'
+}
+
+# Arnês de repetição (NL-3.0j, CTO): valida o que vai ao contêiner antes de qualquer docker run e antes da trava.
+# Ensaio: preset de três nomes; NL_ENSAIO é "nome:N" separados por espaço, nome em [A-Za-z0-9_.], N de 1 a 9999 sem zero
+# à esquerda. Os valores vão ao contêiner por argv, nunca dentro de string de shell.
+validar_arnes()
+{
+    local preset="$1" item nome n
+    local -a itens
+    [ "$MODO_ARNES" = ensaio ] || return 0
+    case "$preset" in
+        debug|release|asan-ubsan) ;;
+        *) echo "PARADA: preset '$preset' fora de debug, release e asan-ubsan (ensaio)" >&2; return 2 ;;
+    esac
+    read -r -a itens <<< "${NL_ENSAIO:-}"
+    if [ "${#itens[@]}" -eq 0 ]; then
+        echo "PARADA: NL_ENSAIO vazia (ensaio): informe nome:N" >&2
+        return 2
+    fi
+    for item in "${itens[@]}"; do
+        case "$item" in
+            *:*) ;;
+            *) echo "PARADA: '$item' sem ':' (use nome:N)" >&2; return 2 ;;
+        esac
+        nome="${item%:*}"
+        n="${item##*:}"
+        case "$nome" in
+            ''|*[!A-Za-z0-9_.]*) echo "PARADA: nome '$nome' fora de [A-Za-z0-9_.]" >&2; return 2 ;;
+        esac
+        case "$n" in
+            [1-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]) ;;
+            *) echo "PARADA: N '$n' fora de 1 a 9999 sem zero à esquerda" >&2; return 2 ;;
+        esac
+    done
+    return 0
 }
 
 # Resolve o SHA a construir para 40 hex, sem efeito colateral. Falha com PARADA (rc 2) se não for commit.
@@ -217,6 +259,15 @@ executar()
     printf 'SHA: %s%s fatia=%s distro=%s preset=%s origem=%s data=%s\n' \
         "$sha" "$sufixo" "$fatia" "$distro" "$preset" "$origem" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     trap 'echo "NL-RC=$?"' EXIT
+    validar_arnes "$preset" || return 2
+    # Cotas de contêiner do arnês (NL-3.0j): o ensaio força core=1 e --pids-limit 512 em todo docker run; mutante e
+    # rodada normal levam só core=1 (o mutante sempre, a rodada normal com NL_SEM_CORE=1).
+    local -a extras_arnes=()
+    if [ "$MODO_ARNES" = ensaio ]; then
+        extras_arnes=(--ulimit core=1 --pids-limit 512)
+    elif [ -n "$MODO_ARNES" ] || [ "${NL_SEM_CORE:-}" = 1 ]; then
+        extras_arnes=(--ulimit core=1)
+    fi
 
     fonte="$NL_TMP_BASE/notalivre-src-$sha-$fatia"
     build_host="${NL_BUILD_ROOT:-$NL_TMP_BASE/notalivre-build-$distro-$fatia}"
@@ -246,7 +297,7 @@ executar()
     # no job autotestes do ci.yml.
     local autoteste
     for autoteste in tools/conteiner/autoteste_piso_portoes.sh flatpak/autoteste_suite_flatpak.sh tools/portoes/autoteste_pulos_testes.sh tools/portoes/autoteste_fora_do_flatpak.sh; do
-        if ! docker run --pull=never --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --network none \
+        if ! docker run --pull=never "${extras_arnes[@]}" --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --network none \
             --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -v "$fonte:/src:ro,z" -w /src "$imagem" \
             sh -c "mkdir -p \"\$HOME\" && bash $autoteste"; then
             echo "PARADA: autoteste $autoteste reprovou (L-36); build não iniciado"
@@ -274,7 +325,7 @@ executar()
     fi
 
     # Etapa 1, como root e só de leitura do Qt: tabela de versões e pré-cheque (o índice do gerenciador exige root).
-    if ! docker run --pull=never --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" \
+    if ! docker run --pull=never "${extras_arnes[@]}" --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" \
         -v "$fonte:/src:ro,z" -v "$VOLUME_QT:/opt/qt:ro" \
         -w /src "$imagem" bash tools/conteiner/executar_no_conteiner.sh diagnostico; then
         echo "PARADA: diagnóstico do contêiner reprovou (pré-cheque do Qt ou ambiente); build não iniciado"
@@ -290,15 +341,38 @@ executar()
     if [ -n "$gitcomum" ]; then
         gitopts=(-v "$gitcomum:/gitrepo:ro,z" -e NL_GIT_DIR=/gitrepo -e NL_SHA="$sha")
     fi
-    docker run --pull=never --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" \
+    # Etapa 2 por modo (NL-3.0j): rodada normal (executar_no_conteiner.sh), ensaio (cópia do corpo da árvore de quem
+    # chama, com o hash no log) ou mutante-mtls (script do próprio SHA, lido de /gitrepo).
+    local -a corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash tools/conteiner/executar_no_conteiner.sh $preset")
+    local -a montagem_arnes=() env_arnes=()
+    local corpo_dir
+    case "$MODO_ARNES" in
+        ensaio)
+            corpo_dir="$NL_TMP_BASE/notalivre-ensaio-corpo-$sha-$fatia"
+            mkdir -p -- "$corpo_dir"
+            cp -f -- "$RAIZ/tools/conteiner/ensaio_no_conteiner.sh" "$corpo_dir/ensaio_no_conteiner.sh"
+            printf 'NL-ENSAIO-CORPO-SHA256=%s\n' "$(sha256sum < "$corpo_dir/ensaio_no_conteiner.sh" | cut -d' ' -f1)"
+            montagem_arnes=(-v "$corpo_dir:/ensaio:ro,z")
+            env_arnes=(-e "NL_ENSAIO=$NL_ENSAIO")
+            corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash /ensaio/ensaio_no_conteiner.sh \"\$1\"" sh "$preset")
+            ;;
+        mutante)
+            if [ "${#gitopts[@]}" -eq 0 ]; then
+                echo "PARADA: mutante-mtls sem diretório git comum para montar em /gitrepo; build não iniciado"
+                return 2
+            fi
+            corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash tools/mutacao/mutante_mtls.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build/mutante-mtls")
+            ;;
+    esac
+    docker run --pull=never "${extras_arnes[@]}" --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" \
         --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp -e NL_DISTRO="$distro" \
         -e CMAKE_PREFIX_PATH="$QT_PREFIXO" -e CMAKE_BUILD_PARALLEL_LEVEL="$THREADS" \
         -e NL_XSD_ZIP_CACHE=/xsd-cache \
-        "${gitopts[@]}" \
+        "${gitopts[@]}" "${env_arnes[@]}" \
         -v "$fonte:/src:ro,z" -v "$build_host:/var/tmp/notalivre-build:z" -v "$VOLUME_QT:/opt/qt:ro" \
-        -v "$xsd_host:/xsd-cache:ro,z" \
+        -v "$xsd_host:/xsd-cache:ro,z" "${montagem_arnes[@]}" \
         -w /src "$imagem" \
-        sh -c "mkdir -p \"\$HOME\" && bash tools/conteiner/executar_no_conteiner.sh $preset"
+        "${corpo_etapa2[@]}"
 }
 
 construir()
@@ -336,8 +410,22 @@ case "${1:-}" in
         # Forma antiga (NL-0.2): atalho para fedora45.
         construir fedora45 "$1"
         ;;
+    ensaio)
+        # NL-3.0j: ensaio de repetição (CTO). Mesmo caminho de executar; a etapa 2 vira o corpo do ensaio.
+        checar_distro "${2:?uso: build_local.sh ensaio <distro> <preset>}"
+        NL_MODO_ARNES=ensaio
+        export NL_MODO_ARNES
+        construir "$2" "${3:?uso: build_local.sh ensaio <distro> <preset>}"
+        ;;
+    mutante-mtls)
+        # NL-3.0j: mutante do E6 (mutante_mtls.sh). Mesmo caminho de executar, com core=1 forçado.
+        checar_distro "${2:?uso: build_local.sh mutante-mtls <distro>}"
+        NL_MODO_ARNES=mutante
+        export NL_MODO_ARNES
+        construir "$2" debug
+        ;;
     *)
-        echo "uso: $0 imagem <distro> | qt | preparar | <distro> <preset> | <preset>" >&2
+        echo "uso: $0 imagem <distro> | qt | preparar | <distro> <preset> | ensaio <distro> <preset> | mutante-mtls <distro> | <preset>" >&2
         echo "distro: fedora45 ubuntu26.04 manjaro mint22.3 (todos os builds exigem NL_FATIA)" >&2
         exit 2
         ;;

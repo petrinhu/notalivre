@@ -68,16 +68,18 @@ total_runs() {
     n=$(grep -c '^docker run ' "$1" 2>/dev/null) || true
     echo "${n:-0}"
 }
-# Confere que todo docker run leva o padrão e que há pelo menos um (varredura vazia reprova, L-36).
+# Os docker run do contêiner de build são os que levam a imagem notalivre/build-<distro>. Os do portoes_estaticos.sh
+# (imagem notalivre-higiene) ficam de fora: NL_SEM_CORE não os alcança, declarado no build_local.sh.
+# Confere que todo docker run de build leva o padrão e que há pelo menos um (varredura vazia reprova, L-36).
 todos_levam() {
     local log="$1" padrao="$2" total com
-    total=$(total_runs "$log.docker")
-    com=$(grep '^docker run ' "$log.docker" 2>/dev/null | grep -c -F -- "$padrao" || true)
+    total=$(grep '^docker run ' "$log.docker" 2>/dev/null | grep -c -F 'notalivre/build-' || true)
+    com=$(grep '^docker run ' "$log.docker" 2>/dev/null | grep -F 'notalivre/build-' | grep -c -F -- "$padrao" || true)
     [ "${total:-0}" -gt 0 ] && [ "${com:-0}" = "$total" ]
 }
 nenhum_leva() {
     local log="$1" padrao="$2" com
-    com=$(grep '^docker run ' "$log.docker" 2>/dev/null | grep -c -F -- "$padrao" || true)
+    com=$(grep '^docker run ' "$log.docker" 2>/dev/null | grep -F 'notalivre/build-' | grep -c -F -- "$padrao" || true)
     [ "${com:-0}" = 0 ]
 }
 
@@ -103,7 +105,7 @@ fi
 build "$BASE/ensaio.log" NL_ENSAIO='transporte.exemplo:3' -- ensaio fedora45 debug
 rc_ensaio=$?
 if [ "$rc_ensaio" = 0 ] && todos_levam "$BASE/ensaio.log" "--ulimit core=1 " && todos_levam "$BASE/ensaio.log" "--pids-limit 512 " \
-    && grep -q -F 'ensaio_no_conteiner.sh debug' "$BASE/ensaio.log.docker" \
+    && grep -q -F '/ensaio/ensaio_no_conteiner.sh' "$BASE/ensaio.log.docker" \
     && grep -q -E '^NL-ENSAIO-CORPO-SHA256=[0-9a-f]{64}$' "$BASE/ensaio.log"; then
     ok "ensaio sem NL_SEM_CORE: todo docker run leva --ulimit core=1 e --pids-limit 512, corpo com hash no log"
 else
@@ -132,7 +134,7 @@ caso_invalido() {
     local nome="$1" lista="$2" preset="$3" log="$BASE/invalido-$1.log" rc
     build "$log" NL_ENSAIO="$lista" -- ensaio fedora45 "$preset"
     rc=$?
-    if [ "$rc" != 0 ] && [ "$(total_runs "$log.docker")" = 0 ] && grep -q -F 'PARADA' "$log.saida"; then
+    if [ "$rc" != 0 ] && [ "$(total_runs "$log.docker")" = 0 ] && grep -q -F 'PARADA' "$log"; then
         ok "rejeita $nome antes de qualquer docker run (rc=$rc)"
     else
         falha "$nome: esperava rc != 0 e zero docker run (rc=$rc, docker run=$(total_runs "$log.docker"))"
