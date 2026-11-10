@@ -53,6 +53,8 @@ def main():
     print(f"PORTA {srv.porta}", flush=True)
     sys.stdin.read()  # fica no ar até o dono fechar o stdin
     srv.encerrar()
+    # NL-3.0j (M2): conexões TCP aceitas, para o slot medir se o cliente reconectou (CISO, seção 4).
+    print(f"CONEXOES {srv.conexoes}", flush=True)
     # Ao sair, diz quantas requisições chegaram (DA-2.51): o e2e confere zero quando a CLI recusa antes do envio.
     print(f"REQUISICOES {srv.requisicoes}", flush=True)
     # NL-2.10a: o caminho de cada POST /nfse que chegou, para o e2e provar a rota (sem corpo, sem PII).

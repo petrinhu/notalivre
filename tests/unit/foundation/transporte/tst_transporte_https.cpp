@@ -18,6 +18,7 @@
 #include <QFile>
 #include <QIODevice>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QProcess>
 #include <QSslCertificate>
 #include <QSslKey>
@@ -113,11 +114,13 @@ RequisicaoHttp consultaDps() {
 // roteirizada é a tripla METODO, CAMINHO, FALHA (um único --falha por tripla, como o lançador espera).
 class ServidorDeTeste {
 public:
-    explicit ServidorDeTeste(const QStringList& falha = {}) {
+    // extras: opções do lançador (--tls-maximo, --fechamento-adiado, ...), passadas como estão (NL-3.0j).
+    explicit ServidorDeTeste(const QStringList& falha = {}, const QStringList& extras = {}) {
         QStringList argumentos{QStringLiteral("-I"), QStringLiteral(NL_LANCADOR), pastaFixtures()};
         if (!falha.isEmpty()) {
             argumentos << QStringLiteral("--falha") << falha;
         }
+        argumentos << extras;
         processo_.start(QStringLiteral(NL_PYTHON3), argumentos);
         if (processo_.waitForReadyRead(15000)) {
             const QString linha = QString::fromUtf8(processo_.readLine()).trimmed();
@@ -135,6 +138,21 @@ public:
     }
 
     const QString& diagnostico() const { return diagnostico_; }
+
+    // Fecha a entrada, espera o lançador sair e devolve as linhas que ele escreveu depois da porta (NL-3.0j, M2).
+    QStringList encerrar() {
+        processo_.closeWriteChannel();
+        if (!processo_.waitForFinished(5000)) {
+            processo_.kill();
+            processo_.waitForFinished(2000);
+        }
+        QStringList linhas;
+        const QString saida = QString::fromUtf8(processo_.readAllStandardOutput());
+        for (const QString& linha : saida.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
+            linhas << linha.trimmed();
+        }
+        return linhas;
+    }
 
     ~ServidorDeTeste() {
         processo_.closeWriteChannel();
@@ -206,6 +224,76 @@ private:
     int porta_ = 0;
     QString diagnostico_;
 };
+
+// Ensaio de repetições (NL-3.0j, ordem do CISO e do CTO). Sem o arquivo de ensaio na pasta de build do contêiner, cada slot
+// roda uma vez, como no CI. Com ele (primeira linha REPETICOES=N), o slot roda N vezes e grava uma linha por repetição no
+// arquivo de medição, na mesma pasta. A pasta é a de build do host, montada em /var/tmp/notalivre-build (build_local.sh).
+const QString kPastaDeBuild = QStringLiteral("/var/tmp/notalivre-build");
+
+int repeticoesDoEnsaio()
+{
+    QFile arquivo(kPastaDeBuild + QStringLiteral("/NL-3.0j-ensaio.txt"));
+    if (!arquivo.open(QIODevice::ReadOnly)) {
+        return 1;
+    }
+    const QString linha = QString::fromUtf8(arquivo.readLine()).trimmed();
+    if (!linha.startsWith(QStringLiteral("REPETICOES="))) {
+        return 1;
+    }
+    const int n = linha.mid(11).toInt();
+    return n > 0 ? n : 1;
+}
+
+bool ensaioAtivo()
+{
+    return QFileInfo::exists(kPastaDeBuild + QStringLiteral("/NL-3.0j-ensaio.txt"));
+}
+
+// Roda o corpo do slot quantas vezes o ensaio pedir. QVERIFY dentro do corpo só interrompe a repetição atual; as seguintes
+// rodam, e o QTest já registrou a falha.
+template <typename Corpo>
+void repetirEnsaio(Corpo corpo)
+{
+    const int n = repeticoesDoEnsaio();
+    for (int repeticao = 0; repeticao < n; ++repeticao) {
+        corpo(repeticao);
+    }
+}
+
+// Uma linha por repetição: o que o slot precisa para explicar um vermelho sozinho (CTO, passo 2).
+void registrarMedicao(const QString& slot, int repeticao, const ErroTransporte& erro, int conexoes)
+{
+    const QString linha = QStringLiteral("%1;rep=%2;tipo=%3;causa=%4;codigoQt=%5;handshake=%6;versaoTls=%7;bytesEscritos=%8;conexoes=%9;mensagem=%10")
+        .arg(slot)
+        .arg(repeticao)
+        .arg(static_cast<int>(erro.tipo))
+        .arg(static_cast<int>(erro.causa))
+        .arg(erro.codigoQt)
+        .arg(erro.handshake ? 1 : 0)
+        .arg(QString::fromStdString(erro.versaoTls))
+        .arg(erro.bytesEscritos)
+        .arg(conexoes)
+        .arg(erro.mensagem);
+    qInfo().noquote() << "medicao" << linha;
+    if (!ensaioAtivo()) {
+        return;
+    }
+    QFile arquivo(kPastaDeBuild + QStringLiteral("/NL-3.0j-medicao.txt"));
+    if (arquivo.open(QIODevice::Append | QIODevice::Text)) {
+        arquivo.write((linha + QLatin1Char('\n')).toUtf8());
+    }
+}
+
+// Linhas CONEXOES do lançador. Ausência da linha devolve -1: é falha de medição, nunca zero (criterio, NL-3.0j).
+int conexoesDoServidor(const QStringList& linhas)
+{
+    for (const QString& linha : linhas) {
+        if (linha.startsWith(QStringLiteral("CONEXOES "))) {
+            return linha.mid(9).toInt();
+        }
+    }
+    return -1;
+}
 
 class TesteTransporteHttps : public QObject {
     Q_OBJECT
@@ -291,35 +379,43 @@ void TesteTransporteHttps::h2RecusadoRepetidoEmHttp11()
 
 void TesteTransporteHttps::semCertificadoDeClienteHandshakeRecusado()
 {
-    ServidorDeTeste servidor;
-    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
-    ConfiguracaoTls tls;
-    tls.autoridades = autoridadeDeTeste();
-    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
-    auto resposta = transporte.enviar(consultaDps());
-    QVERIFY(!resposta.has_value());
-    qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
-    QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
-    QCOMPARE(resposta.error().causa, CausaErro::Tls);
+    repetirEnsaio([](int repeticao) {
+        ServidorDeTeste servidor;
+        QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+        ConfiguracaoTls tls;
+        tls.autoridades = autoridadeDeTeste();
+        TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+        auto resposta = transporte.enviar(consultaDps());
+        QVERIFY(!resposta.has_value());
+        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+        registrarMedicao(QStringLiteral("semCertificadoDeClienteHandshakeRecusado"), repeticao, resposta.error(),
+                         conexoesDoServidor(servidor.encerrar()));
+        QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+        QCOMPARE(resposta.error().causa, CausaErro::Tls);
+    });
 }
 
 void TesteTransporteHttps::certificadoDeOutraAcRecusado()
 {
     // Certificado autoassinado de outra raiz (cadeia_outra_raiz.pfx): o servidor só confia na AC de teste.
-    ServidorDeTeste servidor;
-    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
-    const ParCliente outra = parDoPfx(QStringLiteral("cadeia_outra_raiz.pfx"));
-    QVERIFY2(!outra.certificado.isNull() && !outra.chave.isNull(), "não foi possível ler o par de outra AC");
-    ConfiguracaoTls tls;
-    tls.certificadoCliente = outra.certificado;
-    tls.chaveCliente = outra.chave;
-    tls.autoridades = autoridadeDeTeste();
-    TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
-    auto resposta = transporte.enviar(consultaDps());
-    QVERIFY(!resposta.has_value());
-    qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
-    QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
-    QCOMPARE(resposta.error().causa, CausaErro::Tls);
+    repetirEnsaio([](int repeticao) {
+        ServidorDeTeste servidor;
+        QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+        const ParCliente outra = parDoPfx(QStringLiteral("cadeia_outra_raiz.pfx"));
+        QVERIFY2(!outra.certificado.isNull() && !outra.chave.isNull(), "não foi possível ler o par de outra AC");
+        ConfiguracaoTls tls;
+        tls.certificadoCliente = outra.certificado;
+        tls.chaveCliente = outra.chave;
+        tls.autoridades = autoridadeDeTeste();
+        TransporteHttps transporte(urlBase(servidor.porta(), QString(), 5000ms), tls);
+        auto resposta = transporte.enviar(consultaDps());
+        QVERIFY(!resposta.has_value());
+        qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+        registrarMedicao(QStringLiteral("certificadoDeOutraAcRecusado"), repeticao, resposta.error(),
+                         conexoesDoServidor(servidor.encerrar()));
+        QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
+        QCOMPARE(resposta.error().causa, CausaErro::Tls);
+    });
 }
 
 void TesteTransporteHttps::timeoutViraErroTransitorio()

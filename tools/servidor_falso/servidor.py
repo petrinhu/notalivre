@@ -110,6 +110,8 @@ class ServidorFalso(http.server.HTTPServer):
         self.dps_aceitas = {}
         self.notas = {}
         self.requisicoes = 0
+        # NL-3.0j (M2): conexões TCP aceitas, antes do TLS. Com HTTP/1.0, uma requisição é uma conexão.
+        self.conexoes = 0
         # Dupla emissão (DA-2.41): o Id e o nDPS de cada POST /nfse que chega, antes de qualquer falha roteirizada.
         self.posts_recebidos = []
         self.liberar = threading.Event()
@@ -121,6 +123,7 @@ class ServidorFalso(http.server.HTTPServer):
 
     def get_request(self):
         sock, endereco = super().get_request()
+        self.conexoes += 1
         try:
             return self.contexto.wrap_socket(sock, server_side=True), endereco
         except OSError:
