@@ -422,8 +422,10 @@ void TesteTransporteHttps::h2RecusadoRepetidoEmHttp11()
 
 void TesteTransporteHttps::semCertificadoDeClienteHandshakeRecusado()
 {
+    // NL-3.0j (CTO, passo 3; CISO, seção 4): TLS 1.2 com fechamento adiado. O TLS 1.2 recusa antes do Finished do cliente, então
+    // nada chega à aplicação: versaoTls "nenhuma", zero bytes e uma conexão só.
     repetirEnsaio(QStringLiteral("semCertificadoDeClienteHandshakeRecusado"), [](int repeticao) {
-        ServidorDeTeste servidor;
+        ServidorDeTeste servidor({}, {QStringLiteral("--tls-maximo"), QStringLiteral("1.2"), QStringLiteral("--fechamento-adiado")});
         QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
         ConfiguracaoTls tls;
         tls.autoridades = autoridadeDeTeste();
@@ -431,18 +433,24 @@ void TesteTransporteHttps::semCertificadoDeClienteHandshakeRecusado()
         auto resposta = transporte.enviar(consultaDps());
         QVERIFY(!resposta.has_value());
         qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
+        const QStringList linhas = servidor.encerrar();
         registrarMedicao(QStringLiteral("semCertificadoDeClienteHandshakeRecusado"), repeticao, resposta.error(),
-                         conexoesDoServidor(servidor.encerrar()));
+                         conexoesDoServidor(linhas), QStringLiteral("drenagemEstourou=%1").arg(drenagemEstourou(linhas) ? 1 : 0));
         QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
         QCOMPARE(resposta.error().causa, CausaErro::Tls);
+        QCOMPARE(QString::fromStdString(resposta.error().versaoTls), QStringLiteral("nenhuma"));
+        QCOMPARE(resposta.error().bytesEscritos, static_cast<qint64>(0));
+        QCOMPARE(conexoesDoServidor(linhas), 1);
+        QVERIFY2(!drenagemEstourou(linhas), "o cliente não fechou dentro do teto do fechamento adiado");
     });
 }
 
 void TesteTransporteHttps::certificadoDeOutraAcRecusado()
 {
     // Certificado autoassinado de outra raiz (cadeia_outra_raiz.pfx): o servidor só confia na AC de teste.
+    // NL-3.0j (CTO, passo 3; CISO, seção 4): TLS 1.2 com fechamento adiado, como o slot anterior.
     repetirEnsaio(QStringLiteral("certificadoDeOutraAcRecusado"), [](int repeticao) {
-        ServidorDeTeste servidor;
+        ServidorDeTeste servidor({}, {QStringLiteral("--tls-maximo"), QStringLiteral("1.2"), QStringLiteral("--fechamento-adiado")});
         QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
         const ParCliente outra = parDoPfx(QStringLiteral("cadeia_outra_raiz.pfx"));
         QVERIFY2(!outra.certificado.isNull() && !outra.chave.isNull(), "não foi possível ler o par de outra AC");
@@ -454,10 +462,15 @@ void TesteTransporteHttps::certificadoDeOutraAcRecusado()
         auto resposta = transporte.enviar(consultaDps());
         QVERIFY(!resposta.has_value());
         qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
-        registrarMedicao(QStringLiteral("certificadoDeOutraAcRecusado"), repeticao, resposta.error(),
-                         conexoesDoServidor(servidor.encerrar()));
+        const QStringList linhas = servidor.encerrar();
+        registrarMedicao(QStringLiteral("certificadoDeOutraAcRecusado"), repeticao, resposta.error(), conexoesDoServidor(linhas),
+                         QStringLiteral("drenagemEstourou=%1").arg(drenagemEstourou(linhas) ? 1 : 0));
         QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
         QCOMPARE(resposta.error().causa, CausaErro::Tls);
+        QCOMPARE(QString::fromStdString(resposta.error().versaoTls), QStringLiteral("nenhuma"));
+        QCOMPARE(resposta.error().bytesEscritos, static_cast<qint64>(0));
+        QCOMPARE(conexoesDoServidor(linhas), 1);
+        QVERIFY2(!drenagemEstourou(linhas), "o cliente não fechou dentro do teto do fechamento adiado");
     });
 }
 
