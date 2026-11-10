@@ -14,12 +14,39 @@ import hashlib
 import http.server
 import json
 import re
+import socket
 import ssl
+import struct
 import threading
 
 from . import envelope
 from .referencia import id_do_infdps
 from .roteiro import SO_POST_NFSE, Roteiro
+
+# NL-3.0j: teto da drenagem depois de uma falha de handshake com --fechamento-adiado (evento de fim do cliente, não tempo fixo).
+DRENAGEM_TETO_S = 10
+
+
+def _resetar(conexao):
+    """Fecha com RST, sem FIN. SO_LINGER com tempo zero faz o close() descartar o que não saiu e enviar RST (man 7 socket).
+    Não chama shutdown antes: um SHUT_WR mandaria FIN primeiro, e o cliente leria EOF limpo, não reset (NL-3.0j, M1)."""
+    conexao.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    conexao.close()
+
+
+def _drenar_ate_fim(conexao):
+    """Fechamento adiado (RFC 9112 §9.6): lê até o cliente fechar, para o RST não apagar o alerta de TLS que o servidor
+    acabou de mandar. Acaba por evento (EOF); o teto imprime DRENAGEM_TETO, que o slot tem de afirmar ausente."""
+    bruto = socket.socket(fileno=conexao.detach())
+    bruto.settimeout(DRENAGEM_TETO_S)
+    try:
+        while bruto.recv(65536):
+            pass
+    except socket.timeout:
+        print("DRENAGEM_TETO", flush=True)
+    finally:
+        bruto.close()
+
 
 ROTA_DPS = "/dps/"
 ROTA_NFSE = "/nfse/"
@@ -91,7 +118,12 @@ def corpo_nfse_defeituosa(chave, falha):
 class ServidorFalso(http.server.HTTPServer):
     allow_reuse_address = True
 
-    def __init__(self, certs, oraculo, roteiro=None, tls_maximo=None, prefixo=""):
+    def __init__(self, certs, oraculo, roteiro=None, tls_maximo=None, prefixo="", fechamento_adiado=False,
+                 corte_rst_apos_handshake=False, corte_rst_antes_tls=False):
+        # NL-3.0j: opções de cenário (lancador.py). Padrão igual ao de antes; cada uma muda só o caminho de conexão.
+        self.fechamento_adiado = fechamento_adiado
+        self.corte_rst_apos_handshake = corte_rst_apos_handshake
+        self.corte_rst_antes_tls = corte_rst_antes_tls
         # NL-2.10a: prefixo do caminho da API (DA-2.5, p.ex. /SefinNacional), sem barra final. "" quer dizer API na raiz.
         self.prefixo = prefixo.rstrip("/")
         self.contexto = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -124,11 +156,26 @@ class ServidorFalso(http.server.HTTPServer):
     def get_request(self):
         sock, endereco = super().get_request()
         self.conexoes += 1
+        if self.corte_rst_antes_tls:
+            _resetar(sock)
+            raise OSError("corte com RST antes do TLS (cenário da sonda)")
         try:
-            return self.contexto.wrap_socket(sock, server_side=True), endereco
+            tls = self.contexto.wrap_socket(sock, server_side=True, do_handshake_on_connect=False)
         except OSError:
             sock.close()
             raise
+        try:
+            tls.do_handshake()
+        except OSError:
+            if self.fechamento_adiado:
+                _drenar_ate_fim(tls)
+            else:
+                tls.close()
+            raise
+        if self.corte_rst_apos_handshake:
+            _resetar(tls)
+            raise OSError("corte com RST depois do handshake (cenário)")
+        return tls, endereco
 
     def sem_prefixo(self, caminho):
         """Caminho sem o prefixo configurado, ou None quando ele não começa por esse prefixo (então não é rota: 404)."""
@@ -179,6 +226,11 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             # antes de qualquer falha: o que a Sefin recebeu, com o caminho em que chegou (NL-2.10a, teste do prefixo)
             srv.posts_recebidos.append({**registro_do_post(corpo), "caminho": bruto})
         falha = srv.roteiro.consumir(self.command, caminho)
+        if falha == "corte_rst_apos_leitura":
+            # NL-3.0j (M1): o POST foi lido inteiro e registrado; a resposta nunca sai, e a conexão fecha com RST.
+            self.close_connection = True
+            _resetar(self.connection)
+            return None
         if falha == "erro5xx":
             return self._json(503, {"Codigo": "INDISPONIVEL", "Descricao": "falha roteirizada"})
         if falha == "timeout":

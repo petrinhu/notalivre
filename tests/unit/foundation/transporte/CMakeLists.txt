@@ -19,6 +19,11 @@ set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
 foreach(nome IN ITEMS
     semCertificadoDeClienteHandshakeRecusado
     certificadoDeOutraAcRecusado
+    servidorFalsoCortaComRstNaoFin
+    recusaSemCertificadoTls13FechamentoAdiado
+    recusaOutraAcTls13FechamentoAdiado
+    corteSemAlertaTls13Transitorio
+    postLidoComCorteRstNaoReenviaQt
     timeoutViraErroTransitorio
     baseEPrefixoVemDaConfiguracao
     conexaoRecusadaViraErroTransitorio
