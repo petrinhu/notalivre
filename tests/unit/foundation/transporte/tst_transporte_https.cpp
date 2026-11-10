@@ -246,7 +246,7 @@ const char* const kMensagemRecusaDepoisDoHandshake = "servidor recusou depois do
 struct Ensaio {
     bool ativo = false;
     int repeticoes = 1;
-    QStringList slots;
+    QStringList filtroDeSlots;
 };
 
 Ensaio lerEnsaio()
@@ -263,7 +263,7 @@ Ensaio lerEnsaio()
     }
     const QString segunda = QString::fromUtf8(arquivo.readLine()).trimmed();
     if (segunda.startsWith(QStringLiteral("SLOTS="))) {
-        ensaio.slots = segunda.mid(6).split(QLatin1Char(','), Qt::SkipEmptyParts);
+        ensaio.filtroDeSlots = segunda.mid(6).split(QLatin1Char(','), Qt::SkipEmptyParts);
     }
     return ensaio;
 }
@@ -274,7 +274,7 @@ template <typename Corpo>
 void repetirEnsaio(const QString& slot, Corpo corpo)
 {
     const Ensaio ensaio = lerEnsaio();
-    const bool repete = ensaio.slots.isEmpty() || ensaio.slots.contains(slot);
+    const bool repete = ensaio.filtroDeSlots.isEmpty() || ensaio.filtroDeSlots.contains(slot);
     const int n = repete ? ensaio.repeticoes : 1;
     for (int repeticao = 0; repeticao < n; ++repeticao) {
         corpo(repeticao);
