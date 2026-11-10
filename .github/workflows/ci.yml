@@ -535,6 +535,10 @@ jobs:
       - name: Autoteste dos limites de contêiner (NL-2.11, A2 e A3)
         run: bash tools/conteiner/autoteste_build_limites.sh
 
+      # NL-3.0j (CTO, 10/11/2026): arnês de repetição. Cotas do modo ensaio e do mutante, listas inválidas e o corpo do ensaio com ctest de mentira.
+      - name: "Autoteste do arnês de repetição, modo ensaio e corpo (NL-3.0j)"
+        run: bash tools/conteiner/autoteste_build_ensaio.sh
+
       - name: "Autoteste do portão de pulos (NL-2.14, DA-2.61)"
         run: bash tools/portoes/autoteste_pulos_testes.sh
 

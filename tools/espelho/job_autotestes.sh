@@ -16,6 +16,7 @@ passo "piso-dos-portoes-confere" "${CONT[@]}" sh -c \
 passo "autoteste-piso-portoes" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_piso_portoes.sh'
 passo "autoteste-suite-flatpak" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash flatpak/autoteste_suite_flatpak.sh'
 passo "autoteste-build-limites" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_build_limites.sh'
+passo "autoteste-build-ensaio" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_build_ensaio.sh'
 passo "autoteste-pulos-testes" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_pulos_testes.sh'
 passo "autoteste-fora-do-flatpak" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_fora_do_flatpak.sh'
 passo "autoteste-pontos-de-parse" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_pontos_de_parse.sh'
