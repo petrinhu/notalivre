@@ -52,6 +52,22 @@ foreach(nome IN ITEMS
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
+# NL-3.0j, ensaio de repetições (CISO, seção 4): com o arquivo NL-3.0j-ensaio.txt na pasta de build do contêiner, cada slot de
+# recusa de certificado roda até 2000 vezes numa só função, e o vigia padrão do QTest (300 s por função) corta antes. Só nesse
+# caso, o vigia sobe para 1 hora nestes slots. Sem o arquivo (CI e build normal), o valor do QTest não muda.
+if(EXISTS "/var/tmp/notalivre-build/NL-3.0j-ensaio.txt")
+    foreach(nome IN ITEMS
+        semCertificadoDeClienteHandshakeRecusado
+        certificadoDeOutraAcRecusado
+        servidorFalsoCortaComRstNaoFin
+        recusaSemCertificadoTls13FechamentoAdiado
+        recusaOutraAcTls13FechamentoAdiado
+        corteSemAlertaTls13Transitorio
+        postLidoComCorteRstNaoReenviaQt)
+        set_property(TEST transporte.${nome} APPEND PROPERTY ENVIRONMENT "QTEST_FUNCTION_TIMEOUT=3600000")
+    endforeach()
+endif()
+
 # Átomo de classificação (L-34): tabela de códigos do Qt, sem servidor.
 add_executable(tst_classificacao_erro tst_classificacao_erro.cpp)
 target_link_libraries(tst_classificacao_erro PRIVATE Qt6::Core Qt6::Network Qt6::Test nl_foundation_transporte
