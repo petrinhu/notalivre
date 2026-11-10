@@ -65,6 +65,10 @@ def main():
     srv.encerrar()
     # NL-3.0j (M2): conexões TCP aceitas, para o slot medir se o cliente reconectou (CISO, seção 4).
     print(f"CONEXOES {srv.conexoes}", flush=True)
+    # NL-3.0j (E2): uma linha por conexão aceita, com o handshake, as requisições completas e os bytes entregues ao parser.
+    for indice, reg in enumerate(srv.registro_conexoes, 1):
+        print(f"CONEXAO_DETALHE {indice} handshake={int(reg['handshake'])} requisicoes={reg['requisicoes']} "
+              f"bytes={reg['bytes']}", flush=True)
     # Ao sair, diz quantas requisições chegaram (DA-2.51): o e2e confere zero quando a CLI recusa antes do envio.
     print(f"REQUISICOES {srv.requisicoes}", flush=True)
     # NL-2.10a: o caminho de cada POST /nfse que chegou, para o e2e provar a rota (sem corpo, sem PII).

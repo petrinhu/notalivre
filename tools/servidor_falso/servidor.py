@@ -42,10 +42,35 @@ def _drenar_ate_fim(conexao):
     try:
         while bruto.recv(65536):
             pass
+        print("DRENAGEM_FIM eof", flush=True)
     except socket.timeout:
         print("DRENAGEM_TETO", flush=True)
+    except OSError:
+        # NL-3.0j (E5): o cliente fechou com RST; a drenagem também acabou pelo fechamento dele.
+        print("DRENAGEM_FIM reset", flush=True)
     finally:
         bruto.close()
+
+
+class _LeituraContada:
+    """Leitura do manipulador que soma, por conexão, os bytes que chegam ao parser HTTP (NL-3.0j, E2). Só delega."""
+
+    def __init__(self, fonte, registro):
+        self._fonte = fonte
+        self._registro = registro
+
+    def readline(self, *args):
+        dados = self._fonte.readline(*args)
+        self._registro["bytes"] += len(dados)
+        return dados
+
+    def read(self, *args):
+        dados = self._fonte.read(*args)
+        self._registro["bytes"] += len(dados)
+        return dados
+
+    def close(self):
+        self._fonte.close()
 
 
 ROTA_DPS = "/dps/"
@@ -146,6 +171,9 @@ class ServidorFalso(http.server.HTTPServer):
         self.conexoes = 0
         # Dupla emissão (DA-2.41): o Id e o nDPS de cada POST /nfse que chega, antes de qualquer falha roteirizada.
         self.posts_recebidos = []
+        # NL-3.0j (E2): um registro por conexão aceita, com handshake concluído, requisições completas e bytes entregues.
+        self.registro_conexoes = []
+        self._registro_atual = None
         self.liberar = threading.Event()
         super().__init__(("127.0.0.1", 0), ManipuladorApi)
 
@@ -156,6 +184,9 @@ class ServidorFalso(http.server.HTTPServer):
     def get_request(self):
         sock, endereco = super().get_request()
         self.conexoes += 1
+        registro = {"handshake": False, "requisicoes": 0, "bytes": 0}
+        self.registro_conexoes.append(registro)
+        self._registro_atual = registro
         if self.corte_rst_antes_tls:
             _resetar(sock)
             raise OSError("corte com RST antes do TLS (cenário da sonda)")
@@ -172,6 +203,7 @@ class ServidorFalso(http.server.HTTPServer):
             else:
                 tls.close()
             raise
+        registro["handshake"] = True
         if self.corte_rst_apos_handshake:
             _resetar(tls)
             raise OSError("corte com RST depois do handshake (cenário)")
@@ -199,6 +231,11 @@ class ServidorFalso(http.server.HTTPServer):
 class ManipuladorApi(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
 
+    def setup(self):
+        super().setup()
+        self._registro = self.server._registro_atual
+        self.rfile = _LeituraContada(self.rfile, self._registro)
+
     def log_message(self, formato, *args):
         pass
 
@@ -216,6 +253,7 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         srv.requisicoes += 1
         bruto = self.path.split("?", 1)[0]
         corpo = self._ler_corpo()
+        self._registro["requisicoes"] += 1  # requisição completa: o corpo inteiro já foi lido
         if self.command == "GET" and bruto == "/_teste/posts":
             return self._json(200, srv.posts_recebidos)  # registro para o teste, fora da API da Sefin e fora do prefixo
         # NL-2.10a: o prefixo sai antes de casar as rotas; caminho sem o prefixo configurado é 404 e não entra no registro
@@ -228,6 +266,16 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         falha = srv.roteiro.consumir(self.command, caminho)
         if falha == "corte_rst_apos_leitura":
             # NL-3.0j (M1): o POST foi lido inteiro e registrado; a resposta nunca sai, e a conexão fecha com RST.
+            self.close_connection = True
+            _resetar(self.connection)
+            return None
+        if falha == "corte_rst_apos_gravacao":
+            # NL-3.0j (E4): grava a DPS como um POST aceito (Id e chave para a consulta), depois corta com RST sem responder.
+            registro_post = registro_do_post(corpo)
+            if registro_post["id"] is not None:
+                chave = chave_de_teste(registro_post["id"])
+                srv.dps_aceitas[registro_post["id"]] = chave
+                srv.notas[chave] = envelope.decodificar(corpo)
             self.close_connection = True
             _resetar(self.connection)
             return None
