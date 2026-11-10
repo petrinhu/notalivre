@@ -22,6 +22,7 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QSslCertificate>
 #include <QSslKey>
 #include <QSslSocket>
@@ -280,6 +281,50 @@ bool drenagemEstourou(const QStringList& linhas)
     return linhas.contains(QStringLiteral("DRENAGEM_TETO"));
 }
 
+// Linha DRENAGEM_FIM do lançador (E5): a drenagem acabou porque o cliente fechou (EOF ou RST), e não pelo teto. Sem ela, o
+// fechamento adiado não aconteceu, e o slot tem de falhar (o mutante sem drenagem morre aqui).
+bool drenagemTerminouPeloCliente(const QStringList& linhas)
+{
+    for (const QString& linha : linhas) {
+        if (linha.startsWith(QStringLiteral("DRENAGEM_FIM"))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Linhas CONEXAO_DETALHE do lançador (E2): requisições completas por conexão e bytes entregues ao parser em conexão sem
+// requisição completa. `texto` é o registro por conexão, handshake:requisicoes:bytes separados por barra, para a medição.
+struct RegistroDeConexoes {
+    int conexoes = 0;
+    int requisicoes = 0;
+    qint64 bytesSemRequisicao = 0;
+    QString texto;
+};
+
+RegistroDeConexoes registroDeConexoes(const QStringList& linhas)
+{
+    RegistroDeConexoes registro;
+    const QRegularExpression formato(QStringLiteral("^CONEXAO_DETALHE \\d+ handshake=(\\d) requisicoes=(\\d+) bytes=(\\d+)$"));
+    QStringList partes;
+    for (const QString& linha : linhas) {
+        const QRegularExpressionMatch casou = formato.match(linha);
+        if (!casou.hasMatch()) {
+            continue;
+        }
+        const int requisicoes = casou.captured(2).toInt();
+        const qint64 bytes = casou.captured(3).toLongLong();
+        registro.conexoes += 1;
+        registro.requisicoes += requisicoes;
+        if (requisicoes == 0) {
+            registro.bytesSemRequisicao += bytes;
+        }
+        partes << QStringLiteral("%1:%2:%3").arg(casou.captured(1)).arg(requisicoes).arg(bytes);
+    }
+    registro.texto = partes.join(QLatin1Char('|'));
+    return registro;
+}
+
 } // namespace
 
 class TesteTransporteHttps : public QObject {
@@ -384,6 +429,7 @@ void TesteTransporteHttps::semCertificadoDeClienteHandshakeRecusado()
     QVERIFY(!resposta.has_value());
     qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
     const QStringList linhas = servidor.encerrar();
+    QVERIFY2(drenagemTerminouPeloCliente(linhas), "a drenagem tem de acabar pelo fechamento do cliente (DRENAGEM_FIM)");
     registrarMedicao(QStringLiteral("semCertificadoDeClienteHandshakeRecusado"), resposta.error(),
                      conexoesDoServidor(linhas), QStringLiteral("drenagemEstourou=%1").arg(drenagemEstourou(linhas) ? 1 : 0));
     QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
@@ -411,6 +457,7 @@ void TesteTransporteHttps::certificadoDeOutraAcRecusado()
     QVERIFY(!resposta.has_value());
     qInfo().noquote() << "mensagem:" << resposta.error().mensagem;
     const QStringList linhas = servidor.encerrar();
+    QVERIFY2(drenagemTerminouPeloCliente(linhas), "a drenagem tem de acabar pelo fechamento do cliente (DRENAGEM_FIM)");
     registrarMedicao(QStringLiteral("certificadoDeOutraAcRecusado"), resposta.error(), conexoesDoServidor(linhas),
                      QStringLiteral("drenagemEstourou=%1").arg(drenagemEstourou(linhas) ? 1 : 0));
     QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
@@ -461,6 +508,7 @@ void verificarRecusaTls13ComFechamentoAdiado(const QString& slot, const Configur
     auto resposta = transporte.enviar(consultaDps());
     QVERIFY(!resposta.has_value());
     const QStringList linhas = servidor.encerrar();
+    QVERIFY2(drenagemTerminouPeloCliente(linhas), "a drenagem tem de acabar pelo fechamento do cliente (DRENAGEM_FIM)");
     registrarMedicao(slot, resposta.error(), conexoesDoServidor(linhas),
                      QStringLiteral("drenagemEstourou=%1").arg(drenagemEstourou(linhas) ? 1 : 0));
     QCOMPARE(resposta.error().tipo, TipoErro::Definitivo);
@@ -539,9 +587,16 @@ void TesteTransporteHttps::postLidoComCorteRstNaoReenviaQt()
     const int quantos = QJsonDocument::fromJson(posts->corpo).array().size();
     const QStringList linhas = servidor.encerrar();
     const int conexoesDoEnvio = conexoesDoServidor(linhas) - 1;
+    const RegistroDeConexoes conexoesMedidas = registroDeConexoes(linhas);
     registrarMedicao(QStringLiteral("postLidoComCorteRstNaoReenviaQt"), resposta.error(), conexoesDoEnvio,
-                     QStringLiteral("posts=%1").arg(quantos));
-    QVERIFY2(quantos >= 1, "o POST tem de chegar ao servidor: é nele que o corte acontece");
+                     QStringLiteral("posts=%1;conexoesRegistro=%2;requisicoes=%3;bytesSemRequisicao=%4")
+                         .arg(quantos).arg(conexoesMedidas.texto).arg(conexoesMedidas.requisicoes)
+                         .arg(conexoesMedidas.bytesSemRequisicao));
+    // NL-3.0j (E2, CISO parecer): um POST por repetição; a requisição do registro (GET) é a segunda; nenhum byte em conexão
+    // que não entregou requisição completa. Mais de um POST, ou bytes sem requisição, é parada da fatia (volta ao CISO e ao CTO).
+    QCOMPARE(quantos, 1);
+    QCOMPARE(conexoesMedidas.requisicoes, 2);
+    QCOMPARE(conexoesMedidas.bytesSemRequisicao, static_cast<qint64>(0));
     QVERIFY2(conexoesDoEnvio >= 1, "CONEXOES ausente ou zero é falha de medição");
 }
 
