@@ -67,7 +67,7 @@ build() {
     while [ "$#" -gt 0 ] && [ "$1" != -- ]; do envx+=("$1"); shift; done
     shift
     : > "$log.docker"
-    env -u NL_FONTE -u NL_THREADS -u NL_MEMORIA -u NL_SEM_CORE -u NL_ENSAIO -u NL_MODO_ARNES \
+    env -u NL_FONTE -u NL_THREADS -u NL_MEMORIA -u NL_SEM_CORE -u NL_ENSAIO -u NL_MODO_ARNES -u NL_CPUSET -u NL_CPUS_ONLINE_ARQ \
         NL_FATIA=autoteste-ensaio NL_REPO="$F" NL_SHA="$SHA" \
         NL_TMP_BASE="$BASE/tmp" STUB_LOG="$log.docker" NL_LOG="$log" PATH="$BASE/bin:$PATH" \
         "${envx[@]}" timeout 600 bash "$BUILD" "$@" > "$log.saida" 2>&1
@@ -259,6 +259,122 @@ caso_invalido "nome com cifrão" 'transporte.$x:3' debug A-C5b
 caso_invalido "nome com ponto e vírgula" 'transporte;x:3' debug A-C5c
 caso_invalido "nome com asterisco" 'transporte*:3' debug A-C5d
 caso_invalido "nome com colchete" 'transporte[a]:3' debug A-C5e
+
+# CP1 a CP10 (reserva de CPUs, NL-3.0j, ordem do líder de 11/11/2026): todo docker run do contêiner de build leva
+# --cpuset-cpus <lista> imediatamente antes de --cpus; a linha NL-COTAS grava o que valeu; a linha 1 do log continua sendo SHA:.
+# Só contam os docker run da imagem notalivre/build-: os do portoes_estaticos.sh (imagem de higiene) ficam sem a opção por
+# decisão declarada (gêmeos da INBOX, L-17). A lista de CPUs online vem sempre de um arquivo do caso (NL_CPUS_ONLINE_ARQ),
+# para dar o mesmo resultado aqui, no contêiner do autoteste e no runner do CI. A variável nunca chega ao contêiner.
+printf '0-15\n' > "$BASE/online15"
+printf '0-3\n' > "$BASE/online3"
+cpuset_em_todos() { todos_levam "$1" "--cpuset-cpus $2 --cpus "; }
+cotas_no_log() { grep -q -x -F "NL-COTAS=threads=7 memoria=12g cpuset=$2" "$1"; }
+sha_na_linha_1() { [ "$(head -n 1 "$1" | cut -c1-5)" = 'SHA: ' ]; }
+aviso_depois_da_linha_1() {
+    local n
+    n="$(grep -n -m 1 -F 'AVISO' "$1" | cut -d: -f1)"
+    [ -n "$n" ] && [ "$n" -gt 1 ]
+}
+sem_online_arq_no_conteiner() { [ "$(grep -c -F 'NL_CPUS_ONLINE_ARQ' "$1.docker" || true)" = 0 ]; }
+
+# CP1: rodada normal, online 0-15, sem NL_CPUSET: padrão 4-15 em todo docker run, linha NL-COTAS, etapa 2 alcançada.
+build "$BASE/cp1.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" -- fedora45 debug
+rc=$?
+if [ "$rc" = 0 ] && cpuset_em_todos "$BASE/cp1.log" 4-15 && cotas_no_log "$BASE/cp1.log" 4-15 && sha_na_linha_1 "$BASE/cp1.log" \
+    && grep -q -F 'executar_no_conteiner.sh debug' "$BASE/cp1.log.docker" && sem_online_arq_no_conteiner "$BASE/cp1.log"; then
+    ok "CP1 normal, online 0-15: todo docker run leva --cpuset-cpus 4-15 antes de --cpus, NL-COTAS no log, etapa 2 alcançada"
+else
+    falha "CP1 normal, online 0-15: esperava --cpuset-cpus 4-15 em todo docker run, NL-COTAS cpuset=4-15 e a linha 1 SHA: (rc=$rc)"
+fi
+# CP2 e CP3 (gêmeos): o mesmo nos modos ensaio e mutante-mtls.
+build "$BASE/cp2.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" NL_ENSAIO='transporte.exemplo:3' -- ensaio fedora45 debug
+rc=$?
+if [ "$rc" = 0 ] && cpuset_em_todos "$BASE/cp2.log" 4-15 && cotas_no_log "$BASE/cp2.log" 4-15 && sha_na_linha_1 "$BASE/cp2.log" \
+    && grep -q -F '/ensaio/ensaio_no_conteiner.sh' "$BASE/cp2.log.docker"; then
+    ok "CP2 ensaio, online 0-15: todo docker run leva --cpuset-cpus 4-15 antes de --cpus"
+else
+    falha "CP2 ensaio, online 0-15: esperava --cpuset-cpus 4-15 em todo docker run e NL-COTAS cpuset=4-15 (rc=$rc)"
+fi
+build "$BASE/cp3.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" NL_SHA="$SHA" -- mutante-mtls fedora45
+rc=$?
+if [ "$rc" = 0 ] && cpuset_em_todos "$BASE/cp3.log" 4-15 && cotas_no_log "$BASE/cp3.log" 4-15 && sha_na_linha_1 "$BASE/cp3.log" \
+    && grep -q -F 'mutante_no_conteiner.sh /gitrepo' "$BASE/cp3.log.docker"; then
+    ok "CP3 mutante-mtls, online 0-15: todo docker run leva --cpuset-cpus 4-15 antes de --cpus"
+else
+    falha "CP3 mutante-mtls, online 0-15: esperava --cpuset-cpus 4-15 em todo docker run e NL-COTAS cpuset=4-15 (rc=$rc)"
+fi
+# CP4: máquina pequena (online 0-3), sem NL_CPUSET: sem a opção, cpuset=todas, rc 0, linha 1 SHA:, AVISO depois dela.
+build "$BASE/cp4.log" NL_CPUS_ONLINE_ARQ="$BASE/online3" -- fedora45 debug
+rc=$?
+if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp4.log.docker")" -gt 0 ] && nenhum_leva "$BASE/cp4.log" '--cpuset-cpus' \
+    && cotas_no_log "$BASE/cp4.log" todas && sha_na_linha_1 "$BASE/cp4.log" && aviso_depois_da_linha_1 "$BASE/cp4.log"; then
+    ok "CP4 normal, online 0-3: zero --cpuset-cpus, cpuset=todas, linha 1 SHA: e AVISO depois dela"
+else
+    falha "CP4 normal, online 0-3: esperava rc 0, zero --cpuset-cpus, cpuset=todas, linha 1 SHA: e AVISO depois dela (rc=$rc)"
+fi
+# CP5: NL_CPUSET=todas, online 0-15: sem a opção por escolha explícita.
+build "$BASE/cp5.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" NL_CPUSET=todas -- fedora45 debug
+rc=$?
+if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp5.log.docker")" -gt 0 ] && nenhum_leva "$BASE/cp5.log" '--cpuset-cpus' \
+    && cotas_no_log "$BASE/cp5.log" todas && sha_na_linha_1 "$BASE/cp5.log"; then
+    ok "CP5 normal, NL_CPUSET=todas: zero --cpuset-cpus, cpuset=todas, linha 1 SHA:"
+else
+    falha "CP5 normal, NL_CPUSET=todas: esperava rc 0, zero --cpuset-cpus, cpuset=todas e a linha 1 SHA: (rc=$rc)"
+fi
+# CP10: arquivo de CPUs online que não existe: o script não cai, não imprime erro do shell (o caminho não aparece no log), e
+# fica sem a opção. Sem o teste de leitura, o erro do redirecionamento sairia no log com o caminho (SCP10).
+build "$BASE/cp10.log" NL_CPUS_ONLINE_ARQ="$BASE/nao-existe-online" -- fedora45 debug
+rc=$?
+if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp10.log.docker")" -gt 0 ] && nenhum_leva "$BASE/cp10.log" '--cpuset-cpus' \
+    && cotas_no_log "$BASE/cp10.log" todas && sha_na_linha_1 "$BASE/cp10.log" && aviso_depois_da_linha_1 "$BASE/cp10.log" \
+    && [ "$(grep -c -F 'nao-existe-online' "$BASE/cp10.log" || true)" = 0 ]; then
+    ok "CP10 normal, arquivo de CPUs ausente: rc 0, zero --cpuset-cpus, cpuset=todas, sem erro de shell no log"
+else
+    falha "CP10 normal, arquivo de CPUs ausente: esperava rc 0, zero --cpuset-cpus, cpuset=todas e nenhum erro de shell no log (rc=$rc)"
+fi
+# CP6: lista explícita válida, sem CPU reservada: vale a lista em todo docker run.
+build "$BASE/cp6.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" NL_CPUSET=8-11 -- fedora45 debug
+rc=$?
+if [ "$rc" = 0 ] && cpuset_em_todos "$BASE/cp6.log" 8-11 && cotas_no_log "$BASE/cp6.log" 8-11 && sha_na_linha_1 "$BASE/cp6.log"; then
+    ok "CP6 normal, NL_CPUSET=8-11: todo docker run leva --cpuset-cpus 8-11 antes de --cpus"
+else
+    falha "CP6 normal, NL_CPUSET=8-11: esperava --cpuset-cpus 8-11 em todo docker run e NL-COTAS cpuset=8-11 (rc=$rc)"
+fi
+# CP7 e CP8: NL_CPUSET inválida para com rc 2 e PARADA antes de qualquer docker run.
+build "$BASE/cp7.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" NL_CPUSET='4-15;x' -- fedora45 debug
+rc=$?
+if [ "$rc" = 2 ] && [ "$(total_runs "$BASE/cp7.log.docker")" = 0 ] && grep -q -F 'PARADA: NL_CPUSET' "$BASE/cp7.log"; then
+    ok "CP7 NL_CPUSET fora do formato: rc 2, PARADA e zero docker run"
+else
+    falha "CP7 NL_CPUSET fora do formato: esperava rc 2, PARADA e zero docker run (rc=$rc, docker run=$(total_runs "$BASE/cp7.log.docker"))"
+fi
+build "$BASE/cp8.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" NL_CPUSET=4-99 -- fedora45 debug
+rc=$?
+if [ "$rc" = 2 ] && [ "$(total_runs "$BASE/cp8.log.docker")" = 0 ] && grep -q -F 'PARADA: NL_CPUSET' "$BASE/cp8.log"; then
+    ok "CP8 NL_CPUSET=4-99 com online 0-15: rc 2, PARADA e zero docker run"
+else
+    falha "CP8 NL_CPUSET=4-99 com online 0-15: esperava rc 2, PARADA e zero docker run (rc=$rc, docker run=$(total_runs "$BASE/cp8.log.docker"))"
+fi
+# CP9: subcomando qt. O docker de mentira comum sai 0 na sonda e o qt_instalar pararia no primeiro docker run; este segundo
+# docker de mentira reprova só a sonda (test -f fora do aqt), e o subcomando chega aos três docker run.
+mkdir -p "$BASE/binqt"
+cat > "$BASE/binqt/docker" <<'STUB'
+#!/bin/sh
+echo "docker $*" >> "${STUB_LOG:-/dev/null}"
+case "$*" in
+    *aqt*) ;;
+    *"test -f"*) exit 1 ;;
+esac
+exit 0
+STUB
+chmod +x "$BASE/binqt/docker"
+build "$BASE/cp9.log" PATH="$BASE/binqt:$BASE/bin:$PATH" NL_CPUS_ONLINE_ARQ="$BASE/online15" -- qt
+rc=$?
+if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp9.log.docker")" = 3 ] && cpuset_em_todos "$BASE/cp9.log" 4-15 && sem_online_arq_no_conteiner "$BASE/cp9.log"; then
+    ok "CP9 subcomando qt, online 0-15: os 3 docker run levam --cpuset-cpus 4-15 antes de --cpus"
+else
+    falha "CP9 subcomando qt, online 0-15: esperava 3 docker run, todos com --cpuset-cpus 4-15 (rc=$rc, docker run=$(total_runs "$BASE/cp9.log.docker"))"
+fi
 
 # ---------- (b) corpo ensaio_no_conteiner.sh, direto, com cmake e ctest de mentira ----------
 cat > "$BASE/mock/cmake" <<'MOCK'
