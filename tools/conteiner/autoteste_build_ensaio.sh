@@ -168,6 +168,25 @@ if todos_levam "$BASE/mutante.log" "--ulimit core=1 " && nenhum_leva "$BASE/muta
 else
     falha "mutante-mtls: esperava core=1, nenhum pids-limit e mutante_mtls.sh /gitrepo na etapa 2"
 fi
+# A-C3a e A-C3b (C3 da revisão): o modo do arnês vem só do despacho. NL_MODO_ARNES exportado no ambiente não transforma
+# uma rodada normal em mutante nem em ensaio: etapa 2 normal, zero cota de arnês, nenhum corpo de arnês montado.
+build "$BASE/c3a.log" NL_MODO_ARNES=mutante -- fedora45 debug
+if [ "$(total_runs "$BASE/c3a.log.docker")" -gt 0 ] && nenhum_leva "$BASE/c3a.log" "--ulimit " \
+    && grep -q -F 'executar_no_conteiner.sh debug' "$BASE/c3a.log.docker" \
+    && [ "$(grep -c -F -e '/extrator' -e 'mutante_no_conteiner.sh' "$BASE/c3a.log.docker" || true)" = 0 ]; then
+    ok "A-C3a NL_MODO_ARNES=mutante no ambiente: rodada normal, zero --ulimit, nenhum corpo de mutante"
+else
+    falha "A-C3a NL_MODO_ARNES=mutante no ambiente: esperava a etapa 2 normal, zero --ulimit e nenhum corpo de mutante"
+fi
+build "$BASE/c3b.log" NL_MODO_ARNES=ensaio NL_ENSAIO='transporte.exemplo:3' -- executar fedora45 debug
+if [ "$(total_runs "$BASE/c3b.log.docker")" -gt 0 ] && nenhum_leva "$BASE/c3b.log" "--ulimit " && nenhum_leva "$BASE/c3b.log" "--pids-limit " \
+    && grep -q -F 'executar_no_conteiner.sh debug' "$BASE/c3b.log.docker" \
+    && [ "$(grep -c -F '/ensaio/ensaio_no_conteiner.sh' "$BASE/c3b.log.docker" || true)" = 0 ]; then
+    ok "A-C3b NL_MODO_ARNES=ensaio no ambiente com executar: rodada normal, zero cota de arnês, nenhum corpo de ensaio"
+else
+    falha "A-C3b NL_MODO_ARNES=ensaio no ambiente com executar: esperava a etapa 2 normal e nenhuma cota de arnês"
+fi
+
 # O modo mutante-mtls tira o script do SHA dentro do contêiner, com o helper extrair_do_sha.sh sobre /gitrepo (o pacote
 # de /src não traz tools/mutacao, LISTA_FONTE fica como está: mudar a lista muda o manifesto de todo SHA, e o log de build
 # antigo deixa de verificar). Aqui o helper roda sobre o .git da fixture, do mesmo tipo que o /gitrepo do contêiner.
@@ -181,13 +200,13 @@ fi
 
 # Listas e presets inválidos: erro antes de qualquer docker run.
 caso_invalido() {
-    local nome="$1" lista="$2" preset="$3" log="$BASE/invalido-$1.log" rc
+    local nome="$1" lista="$2" preset="$3" id="${4:+$4 }" log="$BASE/invalido-$1.log" rc
     build "$log" NL_ENSAIO="$lista" -- ensaio fedora45 "$preset"
     rc=$?
     if [ "$rc" != 0 ] && [ "$(total_runs "$log.docker")" = 0 ] && grep -q -F 'PARADA' "$log"; then
-        ok "rejeita $nome antes de qualquer docker run (rc=$rc)"
+        ok "${id}rejeita $nome antes de qualquer docker run (rc=$rc)"
     else
-        falha "$nome: esperava rc != 0 e zero docker run (rc=$rc, docker run=$(total_runs "$log.docker"))"
+        falha "${id}$nome: esperava rc != 0 e zero docker run (rc=$rc, docker run=$(total_runs "$log.docker"))"
     fi
 }
 caso_invalido "lista vazia" "" debug
@@ -197,6 +216,13 @@ caso_invalido "N zero" "transporte.exemplo:0" debug
 caso_invalido "N acima de 9999" "transporte.exemplo:10000" debug
 caso_invalido "N com zero à esquerda" "transporte.exemplo:08" debug
 caso_invalido "preset fora da lista" "transporte.exemplo:3" pwn
+# A-C5a a A-C5e (C5 da revisão): N não numérico e os caracteres de shell e de regex $ ; * [ no nome. Caracterização: o código
+# já rejeita; a prova de que os casos distinguem é a sabotagem S11 (aceitar N zero) e o portão do nome, no passo 19.
+caso_invalido "N não numérico" 'transporte.exemplo:3a' debug A-C5a
+caso_invalido "nome com cifrão" 'transporte.$x:3' debug A-C5b
+caso_invalido "nome com ponto e vírgula" 'transporte;x:3' debug A-C5c
+caso_invalido "nome com asterisco" 'transporte*:3' debug A-C5d
+caso_invalido "nome com colchete" 'transporte[a]:3' debug A-C5e
 
 # ---------- (b) corpo ensaio_no_conteiner.sh, direto, com cmake e ctest de mentira ----------
 cat > "$BASE/mock/cmake" <<'MOCK'
