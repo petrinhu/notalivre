@@ -159,7 +159,7 @@ padrao_build="$(sed -n 's/^THREADS="\${NL_THREADS:-\([0-9]*\)}"$/\1/p' "$BUILD_L
 padrao_atomo="$(sed -n 's/^NL_COTA_PADRAO=\([0-9]*\)$/\1/p' "$ATOMO" 2>/dev/null)"
 checar "padrão do build_local.sh ($padrao_build) igual ao do átomo ($padrao_atomo)" padrao_igual "$padrao_build" "$padrao_atomo"
 checar "build_local.sh carrega o átomo por linha de carga inteira" carrega_atomo_linha "$BUILD_LOCAL"
-checar "build_local.sh: os 6 docker run levam \"\${cotas_cpu[@]}\" antes de --cpus" docker_run_com_cpuset "$BUILD_LOCAL"
+checar "build_local.sh: as 6 chamadas de contêiner levam \"\${cotas_cpu[@]}\" antes de --cpus" docker_run_com_cpuset "$BUILD_LOCAL"
 
 echo "## Parte 4: registro no espelho e no CI"
 checar "job_autotestes.sh chama o autoteste" registrado "$JOB_AUTOTESTES"
