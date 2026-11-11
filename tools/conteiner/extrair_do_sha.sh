@@ -8,8 +8,8 @@
 # Uso: extrair_do_sha.sh REPO SHA DESTINO CAMINHO...
 #   REPO     repositório git, ou a pasta .git dele, de onde sai o SHA
 #   SHA      commit de 40 caracteres hexadecimais
-#   DESTINO  pasta criada aqui (mkdir -p), com os caminhos extraídos
-# Rc: 0 extraído; 2 uso ou SHA inválido; 3 git archive falhou.
+#   DESTINO  pasta NOVA, criada aqui (mkdir -p); destino que já existe é erro
+# Rc: 0 extraído; 2 uso, SHA inválido ou destino que já existe; 3 git archive falhou.
 set -o pipefail
 
 repo="${1:?uso: extrair_do_sha.sh REPO SHA DESTINO CAMINHO...}"
@@ -22,6 +22,10 @@ if [ "$#" -lt 1 ]; then
 fi
 if [ "${#sha}" != 40 ] || [ -n "$(printf '%s' "$sha" | tr -d '0-9a-f')" ]; then
     echo "PARADA: SHA '$sha' não tem 40 caracteres hexadecimais minúsculos" >&2
+    exit 2
+fi
+if [ -e "$destino" ]; then
+    echo "PARADA: o destino já existe ($destino); a extração exige pasta nova" >&2
     exit 2
 fi
 mkdir -p -- "$destino" || exit 2

@@ -53,6 +53,8 @@ export TMPDIR="$NL_TMP_BASE"
 # Modo do arnês (NL-3.0j): vazio na rodada normal; ensaio ou mutante. Só o despacho define (ensaio, mutante-mtls), e o modo
 # chega ao subcomando executar como quarto argumento. A variável de ambiente NL_MODO_ARNES não é lida (C3 da revisão).
 MODO_ARNES=""
+# sha256 do tools/mutacao/mutante_mtls.sh do SHA pedido; preenchido por validar_mutante.
+HASH_MUTANTE=""
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$RAIZ/tools/conteiner/build_local.sh"
@@ -171,6 +173,20 @@ validar_arnes()
     return 0
 }
 
+# Mutante (NL-3.0j, I1 da revisão): o script do mutante tem de existir no SHA pedido. O hash do blob vai ao log e ao
+# contêiner, que só executa o arquivo extraído se o hash dele for igual. Roda antes de qualquer docker run e antes da trava.
+validar_mutante()
+{
+    local sha="$1"
+    [ "$MODO_ARNES" = mutante ] || return 0
+    if [ "$(git -C "$NL_REPO" cat-file -t "$sha:tools/mutacao/mutante_mtls.sh" 2>/dev/null || true)" != blob ]; then
+        echo "PARADA: tools/mutacao/mutante_mtls.sh não existe no SHA $sha (mutante-mtls); build não iniciado" >&2
+        return 2
+    fi
+    HASH_MUTANTE="$(git -C "$NL_REPO" show "$sha:tools/mutacao/mutante_mtls.sh" | sha256sum | cut -d' ' -f1)"
+    return 0
+}
+
 # Resolve o SHA a construir para 40 hex, sem efeito colateral. Falha com PARADA (rc 2) se não for commit.
 resolver_sha()
 {
@@ -262,6 +278,7 @@ executar()
         "$sha" "$sufixo" "$fatia" "$distro" "$preset" "$origem" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     trap 'echo "NL-RC=$?"' EXIT
     validar_arnes "$preset" || return 2
+    validar_mutante "$sha" || return 2
     # Cotas de contêiner do arnês (NL-3.0j): o ensaio força core=1 e --pids-limit 512 em todo docker run; mutante e
     # rodada normal levam só core=1 (o mutante sempre, a rodada normal com NL_SEM_CORE=1).
     local -a extras_arnes=()
@@ -364,14 +381,19 @@ executar()
                 echo "PARADA: mutante-mtls sem diretório git comum para montar em /gitrepo; build não iniciado"
                 return 2
             fi
-            # O script do mutante sai do próprio SHA, com o helper extrair_do_sha.sh (copiado da árvore de quem chama e
-            # montado só para leitura, como o corpo do ensaio). tools/mutacao não está em LISTA_FONTE: não entra no /src.
+            # O corpo do modo (mutante_no_conteiner.sh) e o helper de extração vêm da árvore de quem chama, copiados e
+            # montados só para leitura, com o hash de cada um no log (como o corpo do ensaio). O script do mutante sai do
+            # próprio SHA, dentro do contêiner, e só roda se o sha256 do arquivo extraído for igual ao do blob do SHA.
             corpo_dir="$NL_TMP_BASE/notalivre-mutante-corpo-$sha-$fatia"
             mkdir -p -- "$corpo_dir"
             cp -f -- "$RAIZ/tools/conteiner/extrair_do_sha.sh" "$corpo_dir/extrair_do_sha.sh"
+            cp -f -- "$RAIZ/tools/conteiner/mutante_no_conteiner.sh" "$corpo_dir/mutante_no_conteiner.sh"
             printf 'NL-EXTRATOR-SHA256=%s\n' "$(sha256sum < "$corpo_dir/extrair_do_sha.sh" | cut -d' ' -f1)"
+            printf 'NL-MUTANTE-CORPO-SHA256=%s\n' "$(sha256sum < "$corpo_dir/mutante_no_conteiner.sh" | cut -d' ' -f1)"
+            printf 'NL-MUTANTE-SCRIPT-SHA256-DO-SHA=%s\n' "$HASH_MUTANTE"
             montagem_arnes=(-v "$corpo_dir:/extrator:ro,z")
-            corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash /extrator/extrair_do_sha.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build/mutante-fonte tools/mutacao && bash /var/tmp/notalivre-build/mutante-fonte/tools/mutacao/mutante_mtls.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build/mutante-mtls")
+            env_arnes=(-e "NL_MUTANTE_SCRIPT_SHA256=$HASH_MUTANTE")
+            corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash /extrator/mutante_no_conteiner.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build")
             ;;
     esac
     docker run --pull=never "${extras_arnes[@]}" --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" \
