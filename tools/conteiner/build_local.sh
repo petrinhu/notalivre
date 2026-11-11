@@ -352,8 +352,9 @@ executar()
             mkdir -p -- "$corpo_dir"
             cp -f -- "$RAIZ/tools/conteiner/ensaio_no_conteiner.sh" "$corpo_dir/ensaio_no_conteiner.sh"
             printf 'NL-ENSAIO-CORPO-SHA256=%s\n' "$(sha256sum < "$corpo_dir/ensaio_no_conteiner.sh" | cut -d' ' -f1)"
+            printf 'NL-ENSAIO-PEDIDO=%s\n' "$NL_ENSAIO"
             montagem_arnes=(-v "$corpo_dir:/ensaio:ro,z")
-            env_arnes=(-e "NL_ENSAIO=$NL_ENSAIO")
+            env_arnes=(-e "NL_ENSAIO=$NL_ENSAIO" -e "NL_ENSAIO_SHA=$sha")
             corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash /ensaio/ensaio_no_conteiner.sh \"\$1\"" sh "$preset")
             ;;
         mutante)
