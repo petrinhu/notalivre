@@ -7,4 +7,4 @@ fedora45 1560
 ubuntu26.04 1560
 manjaro 1560
 mint22.3 1560
-flatpak 1335
+flatpak 1353
