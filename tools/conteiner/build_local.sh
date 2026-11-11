@@ -12,6 +12,7 @@
 #   build_local.sh ensaio <distro> <preset>   ensaio de repetição (NL-3.0j, CTO): etapa 2 = ensaio_no_conteiner.sh;
 #                                         exige NL_ENSAIO; core=1 e --pids-limit 512 em todo docker run
 #   build_local.sh mutante-mtls <distro>  mutante do E6 (tools/mutacao/mutante_mtls.sh) no SHA de NL_SHA; core=1
+#   Leitura do ensaio: ENSAIO: VERDE (NL-RC 0), VERMELHO (1, slot reprovado) ou INDETERMINADO (7, não é reprovação).
 #   distro: fedora45 | ubuntu26.04 | manjaro | mint22.3
 #
 # Variáveis de ambiente:
@@ -49,8 +50,9 @@ set -euo pipefail
 NL_TMP_BASE="${NL_TMP_BASE:-/var/tmp}"
 export NL_TMP_BASE
 export TMPDIR="$NL_TMP_BASE"
-# Modo do arnês (NL-3.0j): vazio na rodada normal; ensaio ou mutante. Quem define é o despacho (ensaio, mutante-mtls).
-MODO_ARNES="${NL_MODO_ARNES:-}"
+# Modo do arnês (NL-3.0j): vazio na rodada normal; ensaio ou mutante. Só o despacho define (ensaio, mutante-mtls), e o modo
+# chega ao subcomando executar como quarto argumento. A variável de ambiente NL_MODO_ARNES não é lida (C3 da revisão).
+MODO_ARNES=""
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$RAIZ/tools/conteiner/build_local.sh"
@@ -385,14 +387,14 @@ executar()
 
 construir()
 {
-    local distro="$1" preset="$2"
+    local distro="$1" preset="$2" modo="${3:-}"
     local log="${NL_LOG:-$LOG_DIR/NL-0.4-$distro-$preset.log}"
     local rc=0
 
     checar_distro "$distro"
     mkdir -p "$LOG_DIR"
     # A trava é adquirida dentro de executar (cópia da fonte e docker run ficam na mesma seção crítica).
-    nice -n 5 "$SCRIPT" executar "$distro" "$preset" > "$log" 2>&1 || rc=$?
+    nice -n 5 "$SCRIPT" executar "$distro" "$preset" "$modo" > "$log" 2>&1 || rc=$?
     echo "log: $log rc=$rc"
     return "$rc"
 }
@@ -409,6 +411,10 @@ case "${1:-}" in
         qt_instalar
         ;;
     executar)
+        case "${4:-}" in
+            ''|ensaio|mutante) MODO_ARNES="${4:-}" ;;
+            *) echo "PARADA: modo de arnês '${4:-}' desconhecido (aceitos: ensaio e mutante)" >&2; exit 2 ;;
+        esac
         executar "${2:?distro}" "${3:?preset}"
         ;;
     fedora45|ubuntu26.04|manjaro|mint22.3)
@@ -421,16 +427,12 @@ case "${1:-}" in
     ensaio)
         # NL-3.0j: ensaio de repetição (CTO). Mesmo caminho de executar; a etapa 2 vira o corpo do ensaio.
         checar_distro "${2:?uso: build_local.sh ensaio <distro> <preset>}"
-        NL_MODO_ARNES=ensaio
-        export NL_MODO_ARNES
-        construir "$2" "${3:?uso: build_local.sh ensaio <distro> <preset>}"
+        construir "$2" "${3:?uso: build_local.sh ensaio <distro> <preset>}" ensaio
         ;;
     mutante-mtls)
         # NL-3.0j: mutante do E6 (mutante_mtls.sh). Mesmo caminho de executar, com core=1 forçado.
         checar_distro "${2:?uso: build_local.sh mutante-mtls <distro>}"
-        NL_MODO_ARNES=mutante
-        export NL_MODO_ARNES
-        construir "$2" debug
+        construir "$2" debug mutante
         ;;
     *)
         echo "uso: $0 imagem <distro> | qt | preparar | <distro> <preset> | ensaio <distro> <preset> | mutante-mtls <distro> | <preset>" >&2
