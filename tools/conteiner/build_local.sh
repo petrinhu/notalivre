@@ -31,6 +31,12 @@
 #   NL_BUILD_ROOT     diretório de build no host (padrão: $NL_TMP_BASE/notalivre-build-<distro>-<fatia>)
 #   NL_SEM_CORE       1: todo docker run leva --ulimit core=1 (rodada normal; ensaio e mutante sempre levam)
 #   NL_ENSAIO         ensaio: lista "nome:N" separada por espaço; nome em [A-Za-z0-9_.], N de 1 a 9999
+#   NL_CPUSET         lista de CPUs para --cpuset-cpus em todo docker run (ex.: 4-15). Padrão calculado pelo átomo
+#                     cota_nucleos.sh: as 4 primeiras CPUs ficam livres, em máquina com 8 CPUs ou mais; em máquina menor, ou
+#                     com NL_CPUSET=todas, a opção não é posta (AVISO). Inválida: PARADA, rc 2, antes de qualquer docker run.
+#                     A linha NL-COTAS do log grava o que valeu. Só o contêiner de build leva a opção (L-17: os gêmeos
+#                     portoes_estaticos.sh, jobs do espelho, sabotar_portoes.sh e docker build ficam na INBOX).
+#   NL_CPUS_ONLINE_ARQ  só dos autotestes: arquivo no lugar de /sys/devices/system/cpu/online (nunca vai ao contêiner).
 #   NL_XSD_ZIP_CACHE  diretório no host com o ZIP do XSD (padrão: $NL_TMP_BASE/notalivre-xsd-cache). É montado no
 #                     contêiner em /xsd-cache e exportado como NL_XSD_ZIP_CACHE; o CMake do third_party lê a variável.
 #
@@ -41,6 +47,7 @@
 #   - um trabalho pesado por vez: cópia da fonte E docker run ficam DENTRO da mesma trava flock $TRAVA;
 #   - cada fatia tem a própria fonte (notalivre-src-<SHA>-<fatia>) e o próprio build; nada compartilhado;
 #   - cota de CPU e RAM do contêiner: NL_THREADS (padrão 7) e NL_MEMORIA (padrão 12g), por ordem do líder de 30/10/2026;
+#   - reserva de CPUs, por ordem do líder de 11/11/2026: as 4 primeiras CPUs ficam livres para a sessão dele (NL_CPUSET);
 #   - build e temporários em /var/tmp (TMPDIR exportado abaixo), nunca em /tmp (tmpfs);
 #   - o status é o do contêiner: o log é gravado por redirecionamento, nunca por pipe em tail;
 #   - o contêiner roda com --user 1000:1000 e sem --privileged.
@@ -61,6 +68,8 @@ SCRIPT="$RAIZ/tools/conteiner/build_local.sh"
 NL_REPO="${NL_REPO:-$RAIZ}"
 # Funções de evidência por SHA (extrair_do_sha, manifesto_de_dir, manifesto_do_sha) e a lista LISTA_FONTE.
 . "$RAIZ/tools/conteiner/evidencia_sha.sh"
+# Regra da reserva de CPUs (nl_cpuset_valido) e da cota de núcleos: átomo único, a regex fica lá dentro.
+. "$RAIZ/tools/conteiner/cota_nucleos.sh"
 VOLUME_QT="notalivre-qt-6120"
 QT_PREFIXO="/opt/qt/6.12.0/gcc_64"
 # SELinux Enforcing: a fonte (pasta sincronizada com a nuvem) é unlabeled_t e o contêiner não a lê por bind mount.
@@ -71,6 +80,29 @@ TRAVA="$NL_TMP_BASE/notalivre-heavy.lock"
 # Cota dividida com outra sessão desta máquina (ordem do líder de 30/10/2026): 1 núcleo e 4 GiB livres para o sistema.
 THREADS="${NL_THREADS:-7}"
 NL_MEMORIA="${NL_MEMORIA:-12g}"
+# Reserva de CPUs (NL-3.0j): preenchidos por resolver_cpuset, nunca no nível de cima do script.
+CPUSET=""
+cotas_cpu=()
+
+# Decide a lista de CPUs do contêiner e monta cotas_cpu (vazio com "todas", senão --cpuset-cpus <lista>). A regra mora no átomo
+# cota_nucleos.sh. Só roda dentro de executar e de qt_instalar: o AVISO tem de sair depois da linha "SHA:" do log, que
+# evidencia_sha.sh exige como linha 1, e aqui o padrão só avisa em máquina pequena (nesta máquina de 16 CPUs não avisa).
+# Arquivo de CPUs ausente não derruba o script (set -e): texto vazio, e o átomo responde "todas" com AVISO.
+resolver_cpuset()
+{
+    local online="" arq="${NL_CPUS_ONLINE_ARQ:-/sys/devices/system/cpu/online}"
+    if [ -r "$arq" ]; then
+        read -r online < "$arq" || true
+    fi
+    if ! CPUSET="$(nl_cpuset_valido "${NL_CPUSET:-}" "$online")"; then
+        echo "PARADA: NL_CPUSET inválida; build não iniciado" >&2
+        return 2
+    fi
+    cotas_cpu=()
+    if [ "$CPUSET" != todas ]; then
+        cotas_cpu=(--cpuset-cpus "$CPUSET")
+    fi
+}
 
 # Distros aceitas: cada uma tem <distro>-build.Dockerfile e instalar/<distro>.sh (ver ci.yml).
 checar_distro()
@@ -123,17 +155,18 @@ construir_imagem()
 # Instala Qt 6.12 no volume, uma única vez. Se o volume já tem o Qt, não reinstala (aqt reinstalaria tudo).
 qt_instalar()
 {
-    if pesado docker run --pull=never --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 1000:1000 -v "$VOLUME_QT:/opt/qt:ro" "$(imagem_de ubuntu26.04)" \
+    resolver_cpuset || return 2
+    if pesado docker run --pull=never --rm "${cotas_cpu[@]}" --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 1000:1000 -v "$VOLUME_QT:/opt/qt:ro" "$(imagem_de ubuntu26.04)" \
         test -f "$QT_PREFIXO/lib/cmake/Qt6/Qt6Config.cmake"; then
         echo "Qt 6.12 já presente no volume $VOLUME_QT: nada a instalar"
         return 0
     fi
     docker volume create "$VOLUME_QT" > /dev/null
     # O volume nasce com dono root; ajusta uma única vez para o usuário 1000 (dono do host).
-    pesado docker run --pull=never --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" -u 0:0 -v "$VOLUME_QT:/opt/qt" "$(imagem_de ubuntu26.04)" chown 1000:1000 /opt/qt
+    pesado docker run --pull=never --rm "${cotas_cpu[@]}" --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" -u 0:0 -v "$VOLUME_QT:/opt/qt" "$(imagem_de ubuntu26.04)" chown 1000:1000 /opt/qt
     # HOME em /tmp/home (gravável pelo uid 1000 no contêiner; /var/tmp da imagem é do root e aqt falha ali).
     # aqt pode terminar com status 0 mesmo após erro: a conferência final mede o artefato no volume.
-    pesado docker run --pull=never --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
+    pesado docker run --pull=never --rm "${cotas_cpu[@]}" --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
         -v "$VOLUME_QT:/opt/qt" "$(imagem_de ubuntu26.04)" \
         sh -c 'mkdir -p "$HOME" && cd "$HOME" && aqt install-qt -O /opt/qt linux desktop 6.12.0 linux_gcc_64 -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets && test -f /opt/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake'
 }
@@ -277,6 +310,9 @@ executar()
     printf 'SHA: %s%s fatia=%s distro=%s preset=%s origem=%s data=%s\n' \
         "$sha" "$sufixo" "$fatia" "$distro" "$preset" "$origem" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     trap 'echo "NL-RC=$?"' EXIT
+    # Reserva de CPUs (NL-3.0j): depois da linha "SHA:", antes de validar_arnes, da trava e de qualquer docker run.
+    resolver_cpuset || return 2
+    printf 'NL-COTAS=threads=%s memoria=%s cpuset=%s\n' "$THREADS" "$NL_MEMORIA" "$CPUSET"
     validar_arnes "$preset" || return 2
     validar_mutante "$sha" || return 2
     # Cotas de contêiner do arnês (NL-3.0j): o ensaio força core=1 e --pids-limit 512 em todo docker run; mutante e
@@ -316,7 +352,7 @@ executar()
     # no job autotestes do ci.yml.
     local autoteste
     for autoteste in tools/conteiner/autoteste_piso_portoes.sh flatpak/autoteste_suite_flatpak.sh tools/portoes/autoteste_pulos_testes.sh tools/portoes/autoteste_fora_do_flatpak.sh; do
-        if ! docker run --pull=never "${extras_arnes[@]}" --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --network none \
+        if ! docker run --pull=never "${extras_arnes[@]}" --rm "${cotas_cpu[@]}" --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --network none \
             --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -v "$fonte:/src:ro,z" -w /src "$imagem" \
             sh -c "mkdir -p \"\$HOME\" && bash $autoteste"; then
             echo "PARADA: autoteste $autoteste reprovou (L-36); build não iniciado"
@@ -344,7 +380,7 @@ executar()
     fi
 
     # Etapa 1, como root e só de leitura do Qt: tabela de versões e pré-cheque (o índice do gerenciador exige root).
-    if ! docker run --pull=never "${extras_arnes[@]}" --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" \
+    if ! docker run --pull=never "${extras_arnes[@]}" --rm "${cotas_cpu[@]}" --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" \
         -v "$fonte:/src:ro,z" -v "$VOLUME_QT:/opt/qt:ro" \
         -w /src "$imagem" bash tools/conteiner/executar_no_conteiner.sh diagnostico; then
         echo "PARADA: diagnóstico do contêiner reprovou (pré-cheque do Qt ou ambiente); build não iniciado"
@@ -396,7 +432,7 @@ executar()
             corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash /extrator/mutante_no_conteiner.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build")
             ;;
     esac
-    docker run --pull=never "${extras_arnes[@]}" --rm --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" \
+    docker run --pull=never "${extras_arnes[@]}" --rm "${cotas_cpu[@]}" --cpus "$THREADS" --memory "$NL_MEMORIA" --memory-swap "$NL_MEMORIA" \
         --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp -e NL_DISTRO="$distro" \
         -e CMAKE_PREFIX_PATH="$QT_PREFIXO" -e CMAKE_BUILD_PARALLEL_LEVEL="$THREADS" \
         -e NL_XSD_ZIP_CACHE=/xsd-cache \
