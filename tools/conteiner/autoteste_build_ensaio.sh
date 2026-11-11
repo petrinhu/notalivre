@@ -85,6 +85,11 @@ nenhum_leva() {
     com=$(grep '^docker run ' "$log.docker" 2>/dev/null | grep -F 'notalivre/build-' | grep -c -F -- "$padrao" || true)
     [ "${com:-0}" = 0 ]
 }
+# Destinos das montagens (-v origem:destino[:opções]) do primeiro docker run que contém MARCA, ordenados, separados por espaço.
+# Lista fechada (L-17): uma montagem a mais (a árvore de quem chama, por exemplo) muda a lista e reprova o caso.
+montagens_de() {
+    grep '^docker run ' "$1.docker" | grep -F -- "$2" | head -n 1 | grep -o -E -- '-v [^ ]+' | cut -d: -f2 | LC_ALL=C sort | tr '\n' ' '
+}
 
 # O pacote que o executar extrai do SHA (LISTA_FONTE, em evidencia_sha.sh) é o que chega a /src no contêiner. Confere o
 # pacote de verdade, não o log: os caminhos que o modo usa precisam estar nele. Chamar logo depois do build do modo.
@@ -130,6 +135,20 @@ else
     falha "ensaio sem NL_SEM_CORE: esperava rc 0, core=1 e pids-limit 512 em todo docker run, corpo com hash (rc=$rc_ensaio)"
 fi
 pacote_tem "ensaio" CMakePresets.json CMakeLists.txt tests
+
+# A-I3 (I3 e C6 da revisão): o log grava o comando pedido, o SHA vai ao contêiner, o hash do corpo é o do arquivo da árvore, e
+# as montagens da etapa 2 são exatamente as da lista fechada. A costura de pids do autoteste nunca chega ao docker run.
+corpo_hash="$(sha256sum < "$BODY" | cut -d' ' -f1)"
+if grep -q -x -F 'NL-ENSAIO-PEDIDO=transporte.exemplo:3' "$BASE/ensaio.log" \
+    && grep '^docker run ' "$BASE/ensaio.log.docker" | grep -F '/ensaio/ensaio_no_conteiner.sh' | grep -q -F -- "-e NL_ENSAIO_SHA=$SHA" \
+    && grep -q -x -F "NL-ENSAIO-CORPO-SHA256=$corpo_hash" "$BASE/ensaio.log" \
+    && [ "$(montagens_de "$BASE/ensaio.log" '/ensaio/ensaio_no_conteiner.sh')" = '/ensaio /gitrepo /opt/qt /src /var/tmp/notalivre-build /xsd-cache ' ] \
+    && [ "$(grep -c -F 'NL_ENSAIO_ARQ_PIDS_MAX' "$BASE/ensaio.log.docker" || true)" = 0 ]; then
+    ok "A-I3 ensaio: pedido no log, SHA no contêiner, hash do corpo igual ao do arquivo, montagens da lista fechada, sem costura de pids"
+else
+    falha "A-I3 ensaio: esperava pedido, SHA, hash do corpo, montagens fechadas e nenhuma costura de pids"
+    montagens_de "$BASE/ensaio.log" '/ensaio/ensaio_no_conteiner.sh' | sed 's/^/    montagens: /'
+fi
 
 # Caso ensaio com NL_SEM_CORE=0 exportado: o modo ensaio força core=1 de qualquer jeito.
 build "$BASE/ensaio0.log" NL_SEM_CORE=0 NL_ENSAIO='transporte.exemplo:3' -- ensaio fedora45 debug
@@ -188,7 +207,7 @@ MOCK
 cat > "$BASE/mock/ctest" <<'MOCK'
 #!/bin/bash
 { printf 'ctest|'; printf '%s|' "$@"; printf '\n'; } >> "$MOCK_LOG"
-MOCK_TESTES="${MOCK_TESTES:-certificados.gerar transporte.exemplo transporte.a transporte.b}"
+MOCK_TESTES="${MOCK_TESTES:-certificados.gerar transporte.exemplo transporte.a transporte.b transporte.semCertificadoDeClienteHandshakeRecusado}"
 re=''; n=0; prev=''; noerr=0
 for a in "$@"; do
     [ "$prev" = -R ] && re="$a"
@@ -202,32 +221,42 @@ for t in $MOCK_TESTES; do
 done
 if [ -z "$nome" ]; then
     echo "No tests were found!!!"
-    [ "$noerr" = 1 ] && exit 1
+    [ "$noerr" = 1 ] && exit 8
     exit 0
 fi
 if [ "$n" = 0 ]; then
     echo "1/1 Test #1: $nome ....   Passed"
     exit 0
 fi
+if [ -n "${MOCK_SAIDA_ARQUIVO:-}" ]; then
+    cat "$MOCK_SAIDA_ARQUIVO"
+    exit "${MOCK_RC_FINAL:-0}"
+fi
 for k in $(seq 1 "$n"); do
-    [ "${MOCK_PULA_START:-0}" = 1 ] || echo "Start testing of tst_Mock"
+    [ "${MOCK_PULA_START:-0}" = 1 ] || echo "1: ********* Start testing of tst_Mock *********"
     if [ "$nome" = "${MOCK_FALHA_TESTE:-}" ] && [ "$k" = "${MOCK_FALHA_EM:-0}" ]; then
-        echo "FAIL!  : mock falhou na repetição $k"
-        exit 1
+        echo "1: FAIL!  : mock falhou na repetição $k"
+        exit 8
     fi
-    echo "medicao tipo=1 repeticao=$k"
-    echo "Totals: 3 passed, 0 failed, 0 skipped, 0 blacklisted, 1ms"
+    echo "1: QINFO  : mock() medicao tipo=1;repeticao=$k"
+    [ "${MOCK_PULA_TOTALS:-0}" = 1 ] || echo "1: Totals: 3 passed, 0 failed, 0 skipped, 0 blacklisted, 1ms"
 done
-exit 0
+exit "${MOCK_RC_FINAL:-0}"
 MOCK
 chmod +x "$BASE/mock/cmake" "$BASE/mock/ctest"
+
+# Arquivo que o corpo lê no lugar de /sys/fs/cgroup/pids.max (costura só do autoteste): nenhum caso depende do pids.max do
+# contêiner ou do runner. Um caso que queira outro valor passa a variável de novo depois (a última vale).
+printf '512\n' > "$BASE/pids512"
+printf 'max\n' > "$BASE/pidsmax"
 
 # Roda o corpo com RLIMIT_CORE = CORE (soft e hard). Uso: rodar_corpo CORPO CORE LOG SAIDA LISTA [VAR=valor ...]
 rodar_corpo() {
     local corpo="$1" core="$2" log="$3" saida="$4" lista="$5"
     shift 5
     : > "$log"
-    (cd "$BASE/trab" && env PATH="$BASE/mock:$PATH" MOCK_LOG="$log" NL_ENSAIO="$lista" TMPDIR="$BASE/tmp" "$@" \
+    (cd "$BASE/trab" && env PATH="$BASE/mock:$PATH" MOCK_LOG="$log" NL_ENSAIO="$lista" TMPDIR="$BASE/tmp" \
+        NL_ENSAIO_SHA="$SHA" NL_ENSAIO_ARQ_PIDS_MAX="$BASE/pids512" "$@" \
         python3 -I -c 'import os, resource, sys
 m = int(sys.argv[1])
 resource.setrlimit(resource.RLIMIT_CORE, (m, m))
@@ -236,7 +265,7 @@ os.execvp(sys.argv[2], sys.argv[2:])' "$core" bash "$corpo" debug) > "$saida" 2>
 
 # Confere o argv registrado pelo ctest de mentira contra as regras do arnês. Retorna 1 se alguma regra falha.
 checar_chamadas() {
-    local log="$1" total sem_noerr fixtures fixture_repete fora_fs sem_j sem_v regex_ruim rep_total ln_fix ln_rep bad=0
+    local log="$1" total sem_noerr fixtures fixture_repete fora_fs sem_j sem_v regex_ruim rep_total rep_ruim ln_fix ln_rep bad=0
     total=$(grep -c '^ctest|' "$log" 2>/dev/null || true)
     if [ "${total:-0}" -eq 0 ]; then
         echo "  checagem: zero chamadas de ctest (varredura vazia)"
@@ -249,6 +278,7 @@ checar_chamadas() {
     fora_fs=$(grep -F '|--repeat|' "$log" | grep -c -v -F '|-FS|^certificados_teste$|' || true)
     sem_j=$(grep -F '|--repeat|' "$log" | grep -c -v -F '|-j|1|' || true)
     sem_v=$(grep -F '|--repeat|' "$log" | grep -c -v -F '|-V|' || true)
+    rep_ruim=$(grep -F '|--repeat|' "$log" | grep -c -v -E '[|]--repeat[|]until-fail:([1-9][0-9]{0,3})[|]' || true)
     regex_ruim=$(grep -F '|--repeat|' "$log" | grep -c -v -E '[|]-R[|]\^[A-Za-z0-9_]+([[][.][]][A-Za-z0-9_]+)*[$][|]' || true)
     ln_fix=$(grep -n -F '|-R|^certificados[.]gerar$|' "$log" | head -1 | cut -d: -f1)
     ln_rep=$(grep -n -F '|--repeat|' "$log" | head -1 | cut -d: -f1)
@@ -259,6 +289,7 @@ checar_chamadas() {
     [ "${fora_fs:-0}" = 0 ] || { echo "  checagem: $fora_fs repetição(ões) sem -FS da fixture"; bad=1; }
     [ "${sem_j:-0}" = 0 ] || { echo "  checagem: $sem_j repetição(ões) sem -j 1"; bad=1; }
     [ "${sem_v:-0}" = 0 ] || { echo "  checagem: $sem_v repetição(ões) sem -V"; bad=1; }
+    [ "${rep_ruim:-0}" = 0 ] || { echo "  checagem: $rep_ruim repetição(ões) sem --repeat until-fail:N (N de 1 a 9999)"; bad=1; }
     [ "${regex_ruim:-0}" = 0 ] || { echo "  checagem: $regex_ruim regex de slot sem ancora ou sem [.]"; bad=1; }
     if [ -n "$ln_rep" ] && { [ -z "$ln_fix" ] || [ "$ln_fix" -gt "$ln_rep" ]; }; then
         echo "  checagem: fixture depois da primeira repetição"
@@ -267,54 +298,193 @@ checar_chamadas() {
     return "$bad"
 }
 
-# B1: verde. Fixture uma vez, slot com N=3, três processos, três medições, resumo sai.
+# Confere que a saída ou o registro contém todas as cadeias dadas (grep -F). Uso: tem_todas ARQUIVO CADEIA...
+tem_todas() {
+    local arq="$1" s
+    shift
+    for s in "$@"; do
+        grep -q -F -- "$s" "$arq" || { echo "  falta em ${arq##*/}: $s"; return 1; }
+    done
+}
+# Zero chamadas de cmake e de ctest no registro (o corpo parou antes de qualquer build).
+zero_chamadas() {
+    [ "$(grep -c -E '^(ctest|cmake)\|' "$1" || true)" = 0 ]
+}
+# Conta as chamadas de ctest do registro que trazem a cadeia dada.
+chamadas_com() {
+    local n
+    n=$(grep '^ctest|' "$1" | grep -c -F -- "$2") || true
+    echo "${n:-0}"
+}
+
+# B1: verde. Fixture uma vez, slot com N=3, três processos, três medições, resumo sai; a abertura grava o comando recebido.
 rodar_corpo "$BODY" 1 "$BASE/b1.log" "$BASE/b1.saida" 'transporte.exemplo:3'
 rc=$?
 if [ "$rc" = 0 ] && checar_chamadas "$BASE/b1.log" \
-    && grep -q -F 'ensaio teste=transporte.exemplo pedidas=3 processos=3 aprovadas=3 medicao=3 rc=0' "$BASE/b1.saida" \
-    && grep -q -F 'ensaio resumo slots=1 reprovados=0' "$BASE/b1.saida" && grep -q -F 'ENSAIO: VERDE' "$BASE/b1.saida"; then
-    ok "corpo verde: fixture uma vez, -FS, --no-tests=error, -j 1, -V, regex ancorada, 3 de 3"
+    && tem_todas "$BASE/b1.saida" \
+        'ensaio teste=transporte.exemplo pedidas=3 processos=3 aprovadas=3 medicao=3 rc=0 classe=aprovado motivo=nenhum' \
+        'ensaio resumo slots_pedidos=1 slots=1 reprovados=0 indeterminados=0' 'ENSAIO: VERDE' \
+        'NL-ENSAIO-PRESET=debug' "NL-ENSAIO-SHA=$SHA" 'NL-ENSAIO-LISTA=transporte.exemplo:3' 'Max core file size' \
+        'pids.max: 512 (esperado 512)'; then
+    ok "B1 corpo verde: fixture uma vez, -FS, --no-tests=error, -j 1, -V, regex ancorada, 3 de 3, comando na abertura"
 else
-    falha "corpo verde: esperava rc 0 e checagens (rc=$rc)"
+    falha "B1 corpo verde: esperava rc 0, checagens e abertura com preset, SHA, lista, core cru e pids.max (rc=$rc)"
     sed 's/^/    /' "$BASE/b1.saida" | tail -n 12
 fi
 
 # B2: core diferente de 1/1 aborta antes de qualquer ctest e de qualquer cmake.
 rodar_corpo "$BODY" 0 "$BASE/b2.log" "$BASE/b2.saida" 'transporte.exemplo:3'
 rc=$?
-if [ "$rc" = 2 ] && grep -q -F 'ENSAIO PARADA' "$BASE/b2.saida" && [ "$(grep -c -E '^(ctest|cmake)\|' "$BASE/b2.log")" = 0 ]; then
-    ok "core 0/0: aborta com rc 2 antes de cmake e ctest"
+if [ "$rc" = 2 ] && grep -q -F 'ENSAIO PARADA' "$BASE/b2.saida" && zero_chamadas "$BASE/b2.log"; then
+    ok "B2 core 0/0: aborta com rc 2 antes de cmake e ctest"
 else
-    falha "core 0/0: esperava rc 2, PARADA e zero chamadas (rc=$rc)"
+    falha "B2 core 0/0: esperava rc 2, PARADA e zero chamadas (rc=$rc)"
 fi
 
-# B3: nome que não casa com teste nenhum reprova: ctest com --no-tests=error sai com erro; o resumo sai.
+# B2p-a e B2p-b: pids.max diferente de 512 (a exceção do líder à L-11 depende dele) aborta antes de qualquer build.
+rodar_corpo "$BODY" 1 "$BASE/b2pa.log" "$BASE/b2pa.saida" 'transporte.exemplo:3' NL_ENSAIO_ARQ_PIDS_MAX="$BASE/pidsmax"
+rc=$?
+if [ "$rc" = 2 ] && grep -q -F 'ENSAIO PARADA: pids.max' "$BASE/b2pa.saida" && zero_chamadas "$BASE/b2pa.log"; then
+    ok "B2p-a pids.max max: aborta com rc 2 antes de cmake e ctest"
+else
+    falha "B2p-a pids.max max: esperava rc 2, PARADA de pids.max e zero chamadas (rc=$rc)"
+fi
+rodar_corpo "$BODY" 1 "$BASE/b2pb.log" "$BASE/b2pb.saida" 'transporte.exemplo:3' NL_ENSAIO_ARQ_PIDS_MAX="$BASE/naoexiste"
+rc=$?
+if [ "$rc" = 2 ] && grep -q -F 'pids.max: ausente' "$BASE/b2pb.saida" && zero_chamadas "$BASE/b2pb.log"; then
+    ok "B2p-b pids.max ausente: aborta com rc 2 antes de cmake e ctest"
+else
+    falha "B2p-b pids.max ausente: esperava rc 2, 'pids.max: ausente' e zero chamadas (rc=$rc)"
+fi
+
+# B3: nome que não casa com teste nenhum: ctest com --no-tests=error sai com erro e nenhum processo de teste inicia. Não é
+# reprovação do slot, é indeterminado (nao_rodou); o resumo sai.
 rodar_corpo "$BODY" 1 "$BASE/b3.log" "$BASE/b3.saida" 'transporte.inexistente:2'
 rc=$?
-if [ "$rc" != 0 ] && grep -q -F 'ensaio teste=transporte.inexistente pedidas=2 processos=0 aprovadas=0 medicao=0 rc=1' "$BASE/b3.saida" \
-    && grep -q -F 'ensaio resumo slots=1 reprovados=1' "$BASE/b3.saida"; then
-    ok "slot sem teste correspondente: reprova, rc $rc, resumo sai"
+if [ "$rc" = 7 ] && tem_todas "$BASE/b3.saida" \
+    'ensaio teste=transporte.inexistente pedidas=2 processos=0 aprovadas=0 medicao=0 rc=8 classe=indeterminado motivo=nao_rodou' \
+    'ensaio resumo slots_pedidos=1 slots=1 reprovados=0 indeterminados=1' 'ENSAIO: INDETERMINADO'; then
+    ok "B3 slot sem teste correspondente: indeterminado nao_rodou, rc 7, resumo sai"
 else
-    falha "slot sem teste correspondente: esperava rc != 0 e resumo com reprovados=1 (rc=$rc)"
+    falha "B3 slot sem teste correspondente: esperava rc 7 e classe=indeterminado motivo=nao_rodou (rc=$rc)"
 fi
 
-# B4: falha na primeira repetição do slot A para a lista; o slot B não roda.
+# B4: falha na primeira repetição do slot A para a lista; o slot B não roda; o slot é reprovado (rc 8 com processo iniciado).
 rodar_corpo "$BODY" 1 "$BASE/b4.log" "$BASE/b4.saida" 'transporte.a:2 transporte.b:2' MOCK_FALHA_TESTE=transporte.a MOCK_FALHA_EM=1
 rc=$?
-if [ "$rc" != 0 ] && [ "$(grep -c -F '|-R|^transporte[.]b$|' "$BASE/b4.log" || true)" = 0 ] \
-    && grep -q -F 'ensaio teste=transporte.a pedidas=2' "$BASE/b4.saida" && grep -q -F 'ensaio resumo slots=1 reprovados=1' "$BASE/b4.saida"; then
-    ok "falha num slot para a lista: o slot seguinte não roda"
+if [ "$rc" = 1 ] && [ "$(chamadas_com "$BASE/b4.log" '|-R|^transporte[.]b$|')" = 0 ] \
+    && tem_todas "$BASE/b4.saida" \
+        'ensaio teste=transporte.a pedidas=2 processos=1 aprovadas=0 medicao=0 rc=8 classe=reprovado motivo=ctest' \
+        'ensaio resumo slots_pedidos=2 slots=1 reprovados=1 indeterminados=0' 'ENSAIO: VERMELHO'; then
+    ok "B4 falha num slot: reprovado, rc 1, o slot seguinte não roda"
 else
-    falha "falha num slot: esperava rc != 0 e zero chamadas do slot B (rc=$rc)"
+    falha "B4 falha num slot: esperava rc 1, classe=reprovado e zero chamadas do slot B (rc=$rc)"
 fi
 
-# B5: contagem de processos que não bate com N reprova.
+# B5: contagem de processos que não bate com N: indeterminado (contagem), nunca aprovado nem reprovado.
 rodar_corpo "$BODY" 1 "$BASE/b5.log" "$BASE/b5.saida" 'transporte.exemplo:3' MOCK_PULA_START=1
 rc=$?
-if [ "$rc" != 0 ] && grep -q -F 'processos=0 aprovadas=3' "$BASE/b5.saida"; then
-    ok "contagem de processos diferente de N: reprova"
+if [ "$rc" = 7 ] && tem_todas "$BASE/b5.saida" \
+    'processos=0 aprovadas=3 medicao=3 rc=0 classe=indeterminado motivo=contagem' 'ENSAIO: INDETERMINADO'; then
+    ok "B5 contagem de processos diferente de N: indeterminado, rc 7"
 else
-    falha "contagem de processos diferente de N: esperava rc != 0 (rc=$rc)"
+    falha "B5 contagem de processos diferente de N: esperava rc 7 e motivo=contagem (rc=$rc)"
+fi
+
+# B5b: a outra metade do portão de contagem: processos certos e aprovadas diferente de N.
+rodar_corpo "$BODY" 1 "$BASE/b5b.log" "$BASE/b5b.saida" 'transporte.exemplo:3' MOCK_PULA_TOTALS=1
+rc=$?
+if [ "$rc" = 7 ] && tem_todas "$BASE/b5b.saida" \
+    'processos=3 aprovadas=0 medicao=3 rc=0 classe=indeterminado motivo=contagem'; then
+    ok "B5b aprovadas diferente de N: indeterminado, rc 7"
+else
+    falha "B5b aprovadas diferente de N: esperava rc 7 e motivo=contagem (rc=$rc)"
+fi
+
+# B6 (I2): rc do ctest diferente de 0 com processos e aprovadas iguais a N reprova o slot. É o caso do rc que a contagem não vê.
+rodar_corpo "$BODY" 1 "$BASE/b6.log" "$BASE/b6.saida" 'transporte.exemplo:3' MOCK_RC_FINAL=8
+rc=$?
+if [ "$rc" = 1 ] && tem_todas "$BASE/b6.saida" \
+    'processos=3 aprovadas=3 medicao=3 rc=8 classe=reprovado motivo=ctest' 'ENSAIO: VERMELHO'; then
+    ok "B6 rc 8 com contagem perfeita: reprovado, rc 1"
+else
+    falha "B6 rc 8 com contagem perfeita: esperava rc 1 e classe=reprovado (rc=$rc)"
+fi
+
+# B7, B7b, B7c: rc 126 ou mais é a ferramenta (L-49), não reprovação; 125 é o último reprovado (um passo antes da fronteira).
+rodar_corpo "$BODY" 1 "$BASE/b7.log" "$BASE/b7.saida" 'transporte.a:2 transporte.b:2' MOCK_RC_FINAL=137
+rc=$?
+if [ "$rc" = 7 ] && [ "$(chamadas_com "$BASE/b7.log" '|-R|^transporte[.]b$|')" = 0 ] && tem_todas "$BASE/b7.saida" \
+    'rc=137 classe=indeterminado motivo=ferramenta' 'ENSAIO: INDETERMINADO'; then
+    ok "B7 rc 137: indeterminado ferramenta, rc 7, o slot seguinte não roda"
+else
+    falha "B7 rc 137: esperava rc 7, motivo=ferramenta e zero chamadas do slot B (rc=$rc)"
+fi
+rodar_corpo "$BODY" 1 "$BASE/b7b.log" "$BASE/b7b.saida" 'transporte.exemplo:3' MOCK_RC_FINAL=126
+rc=$?
+if [ "$rc" = 7 ] && tem_todas "$BASE/b7b.saida" 'rc=126 classe=indeterminado motivo=ferramenta'; then
+    ok "B7b rc 126: indeterminado ferramenta, rc 7"
+else
+    falha "B7b rc 126: esperava rc 7 e motivo=ferramenta (rc=$rc)"
+fi
+rodar_corpo "$BODY" 1 "$BASE/b7c.log" "$BASE/b7c.saida" 'transporte.exemplo:3' MOCK_RC_FINAL=125
+rc=$?
+if [ "$rc" = 1 ] && tem_todas "$BASE/b7c.saida" 'rc=125 classe=reprovado motivo=ctest'; then
+    ok "B7c rc 125: reprovado, rc 1 (um passo antes da fronteira)"
+else
+    falha "B7c rc 125: esperava rc 1 e classe=reprovado (rc=$rc)"
+fi
+
+# B8 (C7): lista vazia no corpo é uso inválido, rc 5, antes de qualquer build.
+rodar_corpo "$BODY" 1 "$BASE/b8.log" "$BASE/b8.saida" ''
+rc=$?
+if [ "$rc" = 5 ] && grep -q -F 'ENSAIO PARADA: NL_ENSAIO vazia' "$BASE/b8.saida" && zero_chamadas "$BASE/b8.log"; then
+    ok "B8 lista vazia no corpo: rc 5 antes de cmake e ctest"
+else
+    falha "B8 lista vazia no corpo: esperava rc 5, PARADA e zero chamadas (rc=$rc)"
+fi
+
+# B10 (I3): sem NL_ENSAIO_SHA o corpo não roda, porque o log não provaria de qual commit era.
+rodar_corpo "$BODY" 1 "$BASE/b10.log" "$BASE/b10.saida" 'transporte.exemplo:3' NL_ENSAIO_SHA=
+rc=$?
+if [ "$rc" = 5 ] && grep -q -F 'ENSAIO PARADA: NL_ENSAIO_SHA ausente ou fora de 40 hexadecimais' "$BASE/b10.saida" \
+    && zero_chamadas "$BASE/b10.log"; then
+    ok "B10 NL_ENSAIO_SHA vazio: rc 5 antes de cmake e ctest"
+else
+    falha "B10 NL_ENSAIO_SHA vazio: esperava rc 5, PARADA e zero chamadas (rc=$rc)"
+fi
+
+# B11: dois slots aprovados; cada slot roda uma vez e o laço só para no fim da lista.
+rodar_corpo "$BODY" 1 "$BASE/b11.log" "$BASE/b11.saida" 'transporte.a:2 transporte.b:2'
+rc=$?
+if [ "$rc" = 0 ] && [ "$(grep -c -F 'classe=aprovado' "$BASE/b11.saida" || true)" = 2 ] \
+    && [ "$(chamadas_com "$BASE/b11.log" '|-R|^transporte[.]a$|')" = 1 ] \
+    && [ "$(chamadas_com "$BASE/b11.log" '|-R|^transporte[.]b$|')" = 1 ] \
+    && tem_todas "$BASE/b11.saida" 'ensaio resumo slots_pedidos=2 slots=2 reprovados=0 indeterminados=0' 'ENSAIO: VERDE'; then
+    ok "B11 dois slots aprovados: uma chamada de cada, resumo 2 de 2, verde"
+else
+    falha "B11 dois slots aprovados: esperava rc 0, duas linhas aprovado e uma chamada de cada slot (rc=$rc)"
+fi
+
+# G1 e G2: saída REAL do CTest 4.3.0 guardada em arquivo (tira a circularidade de o ctest de mentira imprimir o que o corpo lê).
+DADOS="$RAIZ/tools/conteiner/dados_autoteste_ensaio"
+rodar_corpo "$BODY" 1 "$BASE/g1.log" "$BASE/g1.saida" 'transporte.semCertificadoDeClienteHandshakeRecusado:3' \
+    MOCK_SAIDA_ARQUIVO="$DADOS/ctest_verde_n3.txt"
+rc=$?
+if [ "$rc" = 0 ] && tem_todas "$BASE/g1.saida" \
+    'pedidas=3 processos=3 aprovadas=3 medicao=3 rc=0 classe=aprovado motivo=nenhum'; then
+    ok "G1 saída real do CTest (verde, 3 repetições): processos 3, aprovadas 3, medicao 3, aprovado"
+else
+    falha "G1 saída real do CTest (verde): esperava rc 0 e 3/3/3 aprovado (rc=$rc)"
+fi
+rodar_corpo "$BODY" 1 "$BASE/g2.log" "$BASE/g2.saida" 'transporte.semCertificadoDeClienteHandshakeRecusado:3' \
+    MOCK_SAIDA_ARQUIVO="$DADOS/ctest_vermelho_rep1.txt" MOCK_RC_FINAL=8
+rc=$?
+if [ "$rc" = 1 ] && tem_todas "$BASE/g2.saida" \
+    'pedidas=3 processos=1 aprovadas=0 medicao=0 rc=8 classe=reprovado motivo=ctest'; then
+    ok "G2 saída real do CTest (falha na repetição 1): processos 1 (o bloco repetido sem prefixo não conta), reprovado"
+else
+    falha "G2 saída real do CTest (falha): esperava rc 1, processos=1 e reprovado (rc=$rc)"
 fi
 
 # S1 e S2: sabotagens do corpo, em cópias. O checador tem de reprovar cada uma (a fixture dentro da repetição; o ctest
@@ -347,6 +517,33 @@ if sabotar "$BASE/corpo-sem-noerr.sh" " --no-tests=error" ""; then
     fi
 else
     falha "sabotagem sem --no-tests=error: trecho não encontrado no corpo, sabotagem não aplicada"
+fi
+
+# SB-rc: sem o gate de rc do ctest o B6 (rc 8 com contagem perfeita) sairia verde. Prova que o B6 distingue.
+if sabotar "$BASE/corpo-sem-gate-rc.sh" '    elif [ "$rc" -ne 0 ]; then' '    elif false; then'; then
+    rodar_corpo "$BASE/corpo-sem-gate-rc.sh" 1 "$BASE/sbrc.log" "$BASE/sbrc.saida" 'transporte.exemplo:3' MOCK_RC_FINAL=8
+    rc=$?
+    if [ "$rc" = 0 ] && grep -q -F 'ENSAIO: VERDE' "$BASE/sbrc.saida"; then
+        ok "SB-rc: sem o gate de rc o corpo diz VERDE com rc 8 (o B6 distingue)"
+    else
+        falha "SB-rc: a sabotagem sem o gate de rc não produziu VERDE (rc=$rc): o B6 não prova o gate"
+    fi
+else
+    falha "SB-rc: trecho do gate de rc não encontrado no corpo, sabotagem não aplicada"
+fi
+
+# SB-vazia: sem a validação de lista vazia o corpo nunca pode dizer VERDE com zero slot (rc 7, slots_pedidos=0).
+if sabotar "$BASE/corpo-sem-lista-vazia.sh" 'if [ "${#itens[@]}" -eq 0 ]; then' 'if false; then'; then
+    rodar_corpo "$BASE/corpo-sem-lista-vazia.sh" 1 "$BASE/sbvazia.log" "$BASE/sbvazia.saida" ''
+    rc=$?
+    if [ "$rc" = 7 ] && grep -q -F 'slots_pedidos=0' "$BASE/sbvazia.saida" \
+        && [ "$(grep -c -F 'ENSAIO: VERDE' "$BASE/sbvazia.saida" || true)" = 0 ]; then
+        ok "SB-vazia: sem a validação da lista vazia o corpo sai com rc 7 e nunca diz VERDE"
+    else
+        falha "SB-vazia: esperava rc 7, slots_pedidos=0 e nenhuma linha VERDE (rc=$rc)"
+    fi
+else
+    falha "SB-vazia: trecho da lista vazia não encontrado no corpo, sabotagem não aplicada"
 fi
 
 echo "FALHAS=$FALHAS"
