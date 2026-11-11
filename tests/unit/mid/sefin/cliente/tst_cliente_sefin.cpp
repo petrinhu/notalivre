@@ -1013,10 +1013,24 @@ private slots:
         QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
         auto m = montar(srv.porta(), *cred);
         auto resultado = m->cliente->emitir(*dps);
+        // Medição por execução (NL-3.0j, CTO, 11/11/2026): o -V do ctest leva a linha ao log do ensaio, e uma
+        // repetição vermelha se explica sozinha. Só o resultado, a sequência METODO:status e a contagem de POST.
+        const std::vector<std::string> obtida = sequencia(m->destino.str());
+        const int posts = postsNoServidor(srv.porta(), *cred);
+        QStringList passos;
+        for (const std::string& passo : obtida) {
+            passos << QString::fromStdString(passo);
+        }
+        const QString medida =
+            QStringLiteral("corpoEscritoComRstConsultaAntesDeResponder;resultado=%1;sequencia=%2;posts=%3")
+                .arg(resultado.has_value() ? 1 : 0)
+                .arg(passos.join(QLatin1Char(',')))
+                .arg(posts);
+        qInfo().noquote() << "medicao" << medida;
         QVERIFY2(resultado.has_value(), "com corpo gravado e RST, a consulta GET /dps devolve a chave");
         const std::vector<std::string> esperado{"GET:200", "GET:200"};
-        QVERIFY2(sequencia(m->destino.str()) == esperado, "POST com bytes escritos consulta antes de responder");
-        QVERIFY2(postsNoServidor(srv.porta(), *cred) == 1, "o servidor recebeu o POST uma vez");
+        QVERIFY2(obtida == esperado, "POST com bytes escritos consulta antes de responder");
+        QVERIFY2(posts == 1, "o servidor recebeu o POST uma vez");
     }
 
     // Adendo de 30/10/2026: conexão fechada antes do TLS, sem nenhum byte escrito. Transitoria, sem consulta. Servidor
