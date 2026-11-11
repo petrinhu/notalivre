@@ -43,13 +43,20 @@ printf "name: ci\n" > "$F/.github/workflows/ci.yml"
 for arq in portoes_estaticos.sh piso_portoes.txt lista_portoes.txt; do
     cp "$RAIZ/tools/conteiner/$arq" "$F/tools/conteiner/$arq" || { echo "ABORTA: falta $arq na árvore"; exit 1; }
 done
-# Arquivos reais que o modo mutante-mtls usa dentro de /src (o pacote é tirado do SHA pelo LISTA_FONTE).
-cp "$RAIZ/tools/mutacao/mutante_mtls.sh" "$F/tools/mutacao/mutante_mtls.sh" || { echo "ABORTA: falta mutante_mtls.sh"; exit 1; }
+# Arquivo real que o modo mutante-mtls usa dentro de /src (o pacote é tirado do SHA pelo LISTA_FONTE).
 cp "$RAIZ/tools/servidor_falso/servidor.py" "$F/tools/servidor_falso/servidor.py" || { echo "ABORTA: falta servidor.py"; exit 1; }
+# Dois commits: SHA_SEM não tem tools/mutacao/mutante_mtls.sh; SHA tem, com uma linha a mais no fim ("# fixture"), para o
+# arquivo do commit ser DIFERENTE do da árvore (sem isso, trocar o hash do SHA pelo da árvore passaria despercebido).
 git -C "$F" init -q
 git -C "$F" add -A
-git -C "$F" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -q -m "test: fixture ensaio" \
-    || { echo "ABORTA: commit da fixture"; exit 1; }
+git -C "$F" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -q -m "test: fixture ensaio sem mutante" \
+    || { echo "ABORTA: commit da fixture sem mutante"; exit 1; }
+SHA_SEM="$(git -C "$F" rev-parse HEAD)" || { echo "ABORTA: rev-parse"; exit 1; }
+cp "$RAIZ/tools/mutacao/mutante_mtls.sh" "$F/tools/mutacao/mutante_mtls.sh" || { echo "ABORTA: falta mutante_mtls.sh"; exit 1; }
+printf '# fixture\n' >> "$F/tools/mutacao/mutante_mtls.sh"
+git -C "$F" add -A
+git -C "$F" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -q -m "test: fixture ensaio com mutante" \
+    || { echo "ABORTA: commit da fixture com mutante"; exit 1; }
 SHA="$(git -C "$F" rev-parse HEAD)" || { echo "ABORTA: rev-parse"; exit 1; }
 
 # Roda build_local.sh com o docker de mentira. Uso: build ARQ_LOG [VAR=valor ...] -- ARGS...
@@ -161,12 +168,33 @@ fi
 # Caso mutante-mtls: core=1 em todo docker run, sem pids-limit, e o comando de mutante na etapa 2.
 build "$BASE/mutante.log" NL_SHA="$SHA" -- mutante-mtls fedora45
 if todos_levam "$BASE/mutante.log" "--ulimit core=1 " && nenhum_leva "$BASE/mutante.log" "--pids-limit " \
-    && grep -q -F 'mutante_mtls.sh /gitrepo' "$BASE/mutante.log.docker" \
-    && grep -q -F 'extrair_do_sha.sh /gitrepo' "$BASE/mutante.log.docker" \
+    && grep -q -F 'mutante_no_conteiner.sh /gitrepo' "$BASE/mutante.log.docker" \
     && grep -q -F ':/extrator:ro,z' "$BASE/mutante.log.docker"; then
-    ok "mutante-mtls: core=1 em todo docker run, sem pids-limit, comando de mutante na etapa 2"
+    ok "mutante-mtls: core=1 em todo docker run, sem pids-limit, corpo do mutante na etapa 2"
 else
-    falha "mutante-mtls: esperava core=1, nenhum pids-limit e mutante_mtls.sh /gitrepo na etapa 2"
+    falha "mutante-mtls: esperava core=1, nenhum pids-limit e mutante_no_conteiner.sh /gitrepo na etapa 2"
+fi
+# A-I1a (I1 da revisão): o hash do blob do SHA vai ao log e ao contêiner (igual ao do blob da fixture, que difere do da
+# árvore), o hash do corpo do mutante é o do arquivo da árvore, e as montagens da etapa 2 são exatamente a lista fechada.
+hash_blob="$(git -C "$F" show "$SHA:tools/mutacao/mutante_mtls.sh" | sha256sum | cut -d' ' -f1)"
+hash_corpo_mut="$(sha256sum < "$RAIZ/tools/conteiner/mutante_no_conteiner.sh" | cut -d' ' -f1)"
+if grep '^docker run ' "$BASE/mutante.log.docker" | grep -F 'mutante_no_conteiner.sh /gitrepo' | grep -q -F -- "-e NL_MUTANTE_SCRIPT_SHA256=$hash_blob" \
+    && grep -q -x -F "NL-MUTANTE-SCRIPT-SHA256-DO-SHA=$hash_blob" "$BASE/mutante.log" \
+    && grep -q -x -F "NL-MUTANTE-CORPO-SHA256=$hash_corpo_mut" "$BASE/mutante.log" \
+    && [ "$(montagens_de "$BASE/mutante.log" '/extrator/mutante_no_conteiner.sh')" = '/extrator /gitrepo /opt/qt /src /var/tmp/notalivre-build /xsd-cache ' ] \
+    && [ "$hash_blob" != "$(sha256sum < "$RAIZ/tools/mutacao/mutante_mtls.sh" | cut -d' ' -f1)" ]; then
+    ok "A-I1a mutante-mtls: hash do blob do SHA no log e no contêiner, hash do corpo da árvore, montagens da lista fechada"
+else
+    falha "A-I1a mutante-mtls: esperava hash do blob do SHA no log e em NL_MUTANTE_SCRIPT_SHA256, hash do corpo e montagens fechadas"
+    montagens_de "$BASE/mutante.log" '/extrator/mutante_no_conteiner.sh' | sed 's/^/    montagens: /'
+fi
+# A-I1b: mutante_mtls.sh ausente no SHA pedido para com PARADA antes de qualquer docker run.
+build "$BASE/i1b.log" NL_SHA="$SHA_SEM" -- mutante-mtls fedora45
+rc=$?
+if [ "$rc" != 0 ] && [ "$(total_runs "$BASE/i1b.log.docker")" = 0 ] && grep -q -F 'PARADA' "$BASE/i1b.log"; then
+    ok "A-I1b mutante-mtls com SHA sem tools/mutacao/mutante_mtls.sh: PARADA antes de qualquer docker run (rc=$rc)"
+else
+    falha "A-I1b mutante-mtls com SHA sem o script: esperava rc != 0, PARADA e zero docker run (rc=$rc, docker run=$(total_runs "$BASE/i1b.log.docker"))"
 fi
 # A-C3a e A-C3b (C3 da revisão): o modo do arnês vem só do despacho. NL_MODO_ARNES exportado no ambiente não transforma
 # uma rodada normal em mutante nem em ensaio: etapa 2 normal, zero cota de arnês, nenhum corpo de arnês montado.
@@ -196,6 +224,14 @@ if bash "$RAIZ/tools/conteiner/extrair_do_sha.sh" "$F/.git" "$SHA" "$ext" tools/
     ok "mutante-mtls: extração do SHA traz tools/mutacao/mutante_mtls.sh igual ao do commit"
 else
     falha "mutante-mtls: extração do SHA sem tools/mutacao/mutante_mtls.sh igual ao do commit"
+fi
+# A-C4 (C4 da revisão): a segunda extração no mesmo destino para com rc 2, sem misturar resto de rodada anterior.
+saida_c4="$(bash "$RAIZ/tools/conteiner/extrair_do_sha.sh" "$F/.git" "$SHA" "$ext" tools/mutacao 2>&1)"
+rc=$?
+if [ "$rc" = 2 ] && printf '%s' "$saida_c4" | grep -q -F 'já existe'; then
+    ok "A-C4 extração em destino que já existe: rc 2 e 'já existe'"
+else
+    falha "A-C4 extração em destino que já existe: esperava rc 2 e 'já existe' (rc=$rc)"
 fi
 
 # Listas e presets inválidos: erro antes de qualquer docker run.
@@ -515,16 +551,17 @@ fi
 
 # S1 e S2: sabotagens do corpo, em cópias. O checador tem de reprovar cada uma (a fixture dentro da repetição; o ctest
 # sem --no-tests=error). Sem a aplicação da sabotagem, o caso não prova nada e reprova.
+# Uso: sabotar ORIGEM SAIDA TROCAR POR (a origem é o corpo do ensaio ou o do mutante; a troca tem de casar).
 sabotar() {
-    local saida="$1" trocar="$2" por="$3"
+    local origem="$1" saida="$2" trocar="$3" por="$4"
     python3 -I -c 'import sys
 origem, destino, velho, novo = sys.argv[1:5]
 texto = open(origem, encoding="utf-8").read()
 if velho not in texto:
     sys.exit(3)
-open(destino, "w", encoding="utf-8").write(texto.replace(velho, novo))' "$BODY" "$saida" "$trocar" "$por"
+open(destino, "w", encoding="utf-8").write(texto.replace(velho, novo))' "$origem" "$saida" "$trocar" "$por"
 }
-if sabotar "$BASE/corpo-sem-fs.sh" "-FS '^certificados_teste\$' " "" ; then
+if sabotar "$BODY" "$BASE/corpo-sem-fs.sh" "-FS '^certificados_teste\$' " "" ; then
     rodar_corpo "$BASE/corpo-sem-fs.sh" 1 "$BASE/s1.log" "$BASE/s1.saida" 'transporte.exemplo:2'
     if checar_chamadas "$BASE/s1.log"; then
         falha "sabotagem sem -FS: o checador NÃO reprovou (fixture entrou na repetição)"
@@ -534,7 +571,7 @@ if sabotar "$BASE/corpo-sem-fs.sh" "-FS '^certificados_teste\$' " "" ; then
 else
     falha "sabotagem sem -FS: trecho não encontrado no corpo, sabotagem não aplicada"
 fi
-if sabotar "$BASE/corpo-sem-noerr.sh" " --no-tests=error" ""; then
+if sabotar "$BODY" "$BASE/corpo-sem-noerr.sh" " --no-tests=error" ""; then
     rodar_corpo "$BASE/corpo-sem-noerr.sh" 1 "$BASE/s2.log" "$BASE/s2.saida" 'transporte.exemplo:2'
     if checar_chamadas "$BASE/s2.log"; then
         falha "sabotagem sem --no-tests=error: o checador NÃO reprovou"
@@ -546,7 +583,7 @@ else
 fi
 
 # SB-rc: sem o gate de rc do ctest o B6 (rc 8 com contagem perfeita) sairia verde. Prova que o B6 distingue.
-if sabotar "$BASE/corpo-sem-gate-rc.sh" '    elif [ "$rc" -ne 0 ]; then' '    elif false; then'; then
+if sabotar "$BODY" "$BASE/corpo-sem-gate-rc.sh" '    elif [ "$rc" -ne 0 ]; then' '    elif false; then'; then
     rodar_corpo "$BASE/corpo-sem-gate-rc.sh" 1 "$BASE/sbrc.log" "$BASE/sbrc.saida" 'transporte.exemplo:3' MOCK_RC_FINAL=8
     rc=$?
     if [ "$rc" = 0 ] && grep -q -F 'ENSAIO: VERDE' "$BASE/sbrc.saida"; then
@@ -559,7 +596,7 @@ else
 fi
 
 # SB-vazia: sem a validação de lista vazia o corpo nunca pode dizer VERDE com zero slot (rc 7, slots_pedidos=0).
-if sabotar "$BASE/corpo-sem-lista-vazia.sh" 'if [ "${#itens[@]}" -eq 0 ]; then' 'if false; then'; then
+if sabotar "$BODY" "$BASE/corpo-sem-lista-vazia.sh" 'if [ "${#itens[@]}" -eq 0 ]; then' 'if false; then'; then
     rodar_corpo "$BASE/corpo-sem-lista-vazia.sh" 1 "$BASE/sbvazia.log" "$BASE/sbvazia.saida" ''
     rc=$?
     if [ "$rc" = 7 ] && grep -q -F 'slots_pedidos=0' "$BASE/sbvazia.saida" \
@@ -570,6 +607,117 @@ if sabotar "$BASE/corpo-sem-lista-vazia.sh" 'if [ "${#itens[@]}" -eq 0 ]; then' 
     fi
 else
     falha "SB-vazia: trecho da lista vazia não encontrado no corpo, sabotagem não aplicada"
+fi
+
+# ---------- (c) corpo mutante_no_conteiner.sh, direto (I1 da revisão) ----------
+# Fixture F2: SHA2_SEM não tem tools/mutacao; SHA2 tem um mutante_mtls.sh falso que imprime MARCA-DO-SHA e sai com
+# FALSO_RC; depois, sem commit, o arquivo da ÁRVORE de F2 vira outro que imprime MARCA-DA-ARVORE. O corpo só pode executar
+# o arquivo do commit, e só se o sha256 dele for o esperado.
+CORPO_MUT="$RAIZ/tools/conteiner/mutante_no_conteiner.sh"
+F2="$BASE/f2"
+mkdir -p "$F2"
+git -C "$F2" init -q
+printf 'x\n' > "$F2/leia.txt"
+git -C "$F2" add -A
+git -C "$F2" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -q -m "test: f2 sem mutacao" \
+    || { echo "ABORTA: commit F2 sem mutacao"; exit 1; }
+SHA2_SEM="$(git -C "$F2" rev-parse HEAD)" || { echo "ABORTA: rev-parse F2"; exit 1; }
+mkdir -p "$F2/tools/mutacao"
+printf '#!/bin/bash\necho MARCA-DO-SHA\nexit "${FALSO_RC:-0}"\n' > "$F2/tools/mutacao/mutante_mtls.sh"
+git -C "$F2" add -A
+git -C "$F2" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -q -m "test: f2 com mutante falso" \
+    || { echo "ABORTA: commit F2 com mutante"; exit 1; }
+SHA2="$(git -C "$F2" rev-parse HEAD)" || { echo "ABORTA: rev-parse F2"; exit 1; }
+ESP2="$(git -C "$F2" show "$SHA2:tools/mutacao/mutante_mtls.sh" | sha256sum | cut -d' ' -f1)"
+printf '#!/bin/bash\necho MARCA-DA-ARVORE\n' > "$F2/tools/mutacao/mutante_mtls.sh"
+ESP_ARV="$(sha256sum < "$F2/tools/mutacao/mutante_mtls.sh" | cut -d' ' -f1)"
+
+# Roda o corpo do mutante com RLIMIT_CORE = CORE (soft e hard).
+# Uso: rodar_mutante CORPO CORE SAIDA REPO SHA BASEDIR HASH [VAR=valor ...]
+rodar_mutante() {
+    local corpo="$1" core="$2" saida="$3" repo="$4" sha="$5" basedir="$6" hash="$7"
+    shift 7
+    (cd "$BASE/trab" && env TMPDIR="$BASE/tmp" NL_MUTANTE_SCRIPT_SHA256="$hash" "$@" \
+        python3 -I -c 'import os, resource, sys
+m = int(sys.argv[1])
+resource.setrlimit(resource.RLIMIT_CORE, (m, m))
+os.execvp(sys.argv[2], sys.argv[2:])' "$core" bash "$corpo" "$repo" "$sha" "$basedir") > "$saida" 2>&1
+}
+nenhuma_marca() {
+    [ "$(grep -c -F 'MARCA-' "$1" || true)" = 0 ]
+}
+
+# MU1: caminho feliz. Executa o arquivo do SHA (MARCA-DO-SHA), nunca o da árvore; o hash extraído é o esperado.
+rodar_mutante "$CORPO_MUT" 1 "$BASE/mu1.saida" "$F2/.git" "$SHA2" "$BASE/mu1" "$ESP2"
+rc=$?
+if [ "$rc" = 0 ] && tem_todas "$BASE/mu1.saida" 'MARCA-DO-SHA' "NL-MUTANTE-SCRIPT-SHA256-EXTRAIDO=$ESP2" \
+    'NL-MUTANTE-SCRIPT-EXECUTADO=' && [ "$(grep -c -F 'MARCA-DA-ARVORE' "$BASE/mu1.saida" || true)" = 0 ]; then
+    ok "MU1 corpo do mutante: executa o script do SHA, hash extraído igual ao esperado, nunca o da árvore"
+else
+    falha "MU1 corpo do mutante: esperava rc 0, MARCA-DO-SHA, hash extraído igual ao esperado e nenhuma MARCA-DA-ARVORE (rc=$rc)"
+    sed 's/^/    /' "$BASE/mu1.saida" | tail -n 10
+fi
+# MU2: o código de saída do script do mutante sai do corpo.
+rodar_mutante "$CORPO_MUT" 1 "$BASE/mu2.saida" "$F2/.git" "$SHA2" "$BASE/mu2" "$ESP2" FALSO_RC=9
+rc=$?
+if [ "$rc" = 9 ]; then
+    ok "MU2 corpo do mutante: o rc do script do mutante (9) é o do corpo"
+else
+    falha "MU2 corpo do mutante: esperava rc 9 (rc=$rc)"
+fi
+# MU3: hash esperado diferente do do arquivo extraído (hash do arquivo da árvore): nada é executado, rc 24.
+rodar_mutante "$CORPO_MUT" 1 "$BASE/mu3.saida" "$F2/.git" "$SHA2" "$BASE/mu3" "$ESP_ARV"
+rc=$?
+if [ "$rc" = 24 ] && grep -q -F 'MUTANTE PARADA' "$BASE/mu3.saida" && nenhuma_marca "$BASE/mu3.saida"; then
+    ok "MU3 corpo do mutante: hash esperado diferente do extraído, rc 24, nada executado"
+else
+    falha "MU3 corpo do mutante: esperava rc 24, MUTANTE PARADA e nenhuma linha MARCA- (rc=$rc)"
+fi
+# MU4: caminho ausente no SHA: rc 23, nada executado.
+rodar_mutante "$CORPO_MUT" 1 "$BASE/mu4.saida" "$F2/.git" "$SHA2_SEM" "$BASE/mu4" "$ESP2"
+rc=$?
+if [ "$rc" = 23 ] && grep -q -F 'MUTANTE PARADA' "$BASE/mu4.saida" && nenhuma_marca "$BASE/mu4.saida"; then
+    ok "MU4 corpo do mutante: tools/mutacao ausente no SHA, rc 23, nada executado"
+else
+    falha "MU4 corpo do mutante: esperava rc 23, MUTANTE PARADA e nenhuma linha MARCA- (rc=$rc)"
+fi
+# MU5: segunda rodada na base do MU1 (mutante-fonte já existe): rc 23, 'já existe', nada executado.
+rodar_mutante "$CORPO_MUT" 1 "$BASE/mu5.saida" "$F2/.git" "$SHA2" "$BASE/mu1" "$ESP2"
+rc=$?
+if [ "$rc" = 23 ] && grep -q -F 'já existe' "$BASE/mu5.saida" && nenhuma_marca "$BASE/mu5.saida"; then
+    ok "MU5 corpo do mutante: base de rodada anterior, rc 23, 'já existe', nada executado"
+else
+    falha "MU5 corpo do mutante: esperava rc 23, 'já existe' e nenhuma linha MARCA- (rc=$rc)"
+fi
+# MU6: core 0 aborta com rc 21 antes de extrair qualquer coisa (o mutante derruba teste de propósito).
+rodar_mutante "$CORPO_MUT" 0 "$BASE/mu6.saida" "$F2/.git" "$SHA2" "$BASE/mu6" "$ESP2"
+rc=$?
+if [ "$rc" = 21 ] && nenhuma_marca "$BASE/mu6.saida" && [ ! -e "$BASE/mu6/mutante-fonte" ]; then
+    ok "MU6 corpo do mutante: core 0/0, rc 21, nada extraído nem executado"
+else
+    falha "MU6 corpo do mutante: esperava rc 21, nenhuma linha MARCA- e mutante-fonte não criada (rc=$rc)"
+fi
+# MU7: hash esperado vazio: rc 20.
+rodar_mutante "$CORPO_MUT" 1 "$BASE/mu7.saida" "$F2/.git" "$SHA2" "$BASE/mu7" ""
+rc=$?
+if [ "$rc" = 20 ] && nenhuma_marca "$BASE/mu7.saida"; then
+    ok "MU7 corpo do mutante: hash esperado vazio, rc 20, nada executado"
+else
+    falha "MU7 corpo do mutante: esperava rc 20 e nenhuma linha MARCA- (rc=$rc)"
+fi
+# MS1: sem a comparação dos hashes o MU3 sairia executando o script (MARCA-DO-SHA, rc 0). Prova que o MU3 distingue.
+mkdir -p "$BASE/ms1"
+cp "$RAIZ/tools/conteiner/extrair_do_sha.sh" "$BASE/ms1/extrair_do_sha.sh"
+if sabotar "$CORPO_MUT" "$BASE/ms1/mutante_no_conteiner.sh" 'if [ "$obtido" != "$esperado" ]; then' 'if false; then'; then
+    rodar_mutante "$BASE/ms1/mutante_no_conteiner.sh" 1 "$BASE/ms1.saida" "$F2/.git" "$SHA2" "$BASE/ms1base" "$ESP_ARV"
+    rc=$?
+    if [ "$rc" = 0 ] && grep -q -F 'MARCA-DO-SHA' "$BASE/ms1.saida"; then
+        ok "MS1 sem a comparação de hash o corpo do mutante executa o script (o MU3 distingue)"
+    else
+        falha "MS1 a sabotagem sem a comparação de hash não executou o script (rc=$rc): o MU3 não prova a comparação"
+    fi
+else
+    falha "MS1 trecho da comparação de hash não encontrado no corpo do mutante, sabotagem não aplicada"
 fi
 
 echo "FALHAS=$FALHAS"
