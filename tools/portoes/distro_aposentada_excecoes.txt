@@ -15,6 +15,6 @@ docs/superpowers/plans/2026-10-25-notalivre-plano.md 19
 docs/superpowers/specs/2026-10-25-notalivre-design.md 2
 tests/fixtures/xmldsig/tabela_http_por_distro.txt 1
 tests/fixtures/xmldsig/tabela_sha1_por_distro.txt 1
-TODO.md 7
+TODO.md 8
 tools/portoes/distro_aposentada.txt 1
 tools/portoes/distro_aposentada_excecoes.txt 1
