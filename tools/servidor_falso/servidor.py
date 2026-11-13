@@ -14,12 +14,64 @@ import hashlib
 import http.server
 import json
 import re
+import socket
 import ssl
+import struct
 import threading
 
 from . import envelope
 from .referencia import id_do_infdps
 from .roteiro import SO_POST_NFSE, Roteiro
+
+# NL-3.0j: teto da drenagem depois de uma falha de handshake com --fechamento-adiado (evento de fim do cliente, não tempo fixo).
+DRENAGEM_TETO_S = 10
+
+
+def _resetar(conexao):
+    """Fecha com RST, sem FIN. SO_LINGER com tempo zero faz o close() descartar o que não saiu e enviar RST (man 7 socket).
+    Não chama shutdown antes: um SHUT_WR mandaria FIN primeiro, e o cliente leria EOF limpo, não reset (NL-3.0j, M1)."""
+    conexao.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    conexao.close()
+
+
+def _drenar_ate_fim(conexao):
+    """Fechamento adiado (RFC 9112 §9.6): lê até o cliente fechar, para o RST não apagar o alerta de TLS que o servidor
+    acabou de mandar. Acaba por evento (EOF); o teto imprime DRENAGEM_TETO, que o slot tem de afirmar ausente."""
+    bruto = socket.socket(fileno=conexao.detach())
+    bruto.settimeout(DRENAGEM_TETO_S)
+    try:
+        while bruto.recv(65536):
+            pass
+        print("DRENAGEM_FIM eof", flush=True)
+    except socket.timeout:
+        print("DRENAGEM_TETO", flush=True)
+    except OSError:
+        # NL-3.0j (E5): o cliente fechou com RST; a drenagem também acabou pelo fechamento dele.
+        print("DRENAGEM_FIM reset", flush=True)
+    finally:
+        bruto.close()
+
+
+class _LeituraContada:
+    """Leitura do manipulador que soma, por conexão, os bytes que chegam ao parser HTTP (NL-3.0j, E2). Só delega."""
+
+    def __init__(self, fonte, registro):
+        self._fonte = fonte
+        self._registro = registro
+
+    def readline(self, *args):
+        dados = self._fonte.readline(*args)
+        self._registro["bytes"] += len(dados)
+        return dados
+
+    def read(self, *args):
+        dados = self._fonte.read(*args)
+        self._registro["bytes"] += len(dados)
+        return dados
+
+    def close(self):
+        self._fonte.close()
+
 
 ROTA_DPS = "/dps/"
 ROTA_NFSE = "/nfse/"
@@ -91,7 +143,12 @@ def corpo_nfse_defeituosa(chave, falha):
 class ServidorFalso(http.server.HTTPServer):
     allow_reuse_address = True
 
-    def __init__(self, certs, oraculo, roteiro=None, tls_maximo=None, prefixo=""):
+    def __init__(self, certs, oraculo, roteiro=None, tls_maximo=None, prefixo="", fechamento_adiado=False,
+                 corte_rst_apos_handshake=False, corte_rst_antes_tls=False):
+        # NL-3.0j: opções de cenário (lancador.py). Padrão igual ao de antes; cada uma muda só o caminho de conexão.
+        self.fechamento_adiado = fechamento_adiado
+        self.corte_rst_apos_handshake = corte_rst_apos_handshake
+        self.corte_rst_antes_tls = corte_rst_antes_tls
         # NL-2.10a: prefixo do caminho da API (DA-2.5, p.ex. /SefinNacional), sem barra final. "" quer dizer API na raiz.
         self.prefixo = prefixo.rstrip("/")
         self.contexto = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -110,8 +167,13 @@ class ServidorFalso(http.server.HTTPServer):
         self.dps_aceitas = {}
         self.notas = {}
         self.requisicoes = 0
+        # NL-3.0j (M2): conexões TCP aceitas, antes do TLS. Com HTTP/1.0, uma requisição é uma conexão.
+        self.conexoes = 0
         # Dupla emissão (DA-2.41): o Id e o nDPS de cada POST /nfse que chega, antes de qualquer falha roteirizada.
         self.posts_recebidos = []
+        # NL-3.0j (E2): um registro por conexão aceita, com handshake concluído, requisições completas e bytes entregues.
+        self.registro_conexoes = []
+        self._registro_atual = None
         self.liberar = threading.Event()
         super().__init__(("127.0.0.1", 0), ManipuladorApi)
 
@@ -121,11 +183,31 @@ class ServidorFalso(http.server.HTTPServer):
 
     def get_request(self):
         sock, endereco = super().get_request()
+        self.conexoes += 1
+        registro = {"handshake": False, "requisicoes": 0, "bytes": 0}
+        self.registro_conexoes.append(registro)
+        self._registro_atual = registro
+        if self.corte_rst_antes_tls:
+            _resetar(sock)
+            raise OSError("corte com RST antes do TLS (cenário da sonda)")
         try:
-            return self.contexto.wrap_socket(sock, server_side=True), endereco
+            tls = self.contexto.wrap_socket(sock, server_side=True, do_handshake_on_connect=False)
         except OSError:
             sock.close()
             raise
+        try:
+            tls.do_handshake()
+        except OSError:
+            if self.fechamento_adiado:
+                _drenar_ate_fim(tls)
+            else:
+                tls.close()
+            raise
+        registro["handshake"] = True
+        if self.corte_rst_apos_handshake:
+            _resetar(tls)
+            raise OSError("corte com RST depois do handshake (cenário)")
+        return tls, endereco
 
     def sem_prefixo(self, caminho):
         """Caminho sem o prefixo configurado, ou None quando ele não começa por esse prefixo (então não é rota: 404)."""
@@ -149,6 +231,11 @@ class ServidorFalso(http.server.HTTPServer):
 class ManipuladorApi(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
 
+    def setup(self):
+        super().setup()
+        self._registro = self.server._registro_atual
+        self.rfile = _LeituraContada(self.rfile, self._registro)
+
     def log_message(self, formato, *args):
         pass
 
@@ -166,6 +253,7 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
         srv.requisicoes += 1
         bruto = self.path.split("?", 1)[0]
         corpo = self._ler_corpo()
+        self._registro["requisicoes"] += 1  # requisição completa: o corpo inteiro já foi lido
         if self.command == "GET" and bruto == "/_teste/posts":
             return self._json(200, srv.posts_recebidos)  # registro para o teste, fora da API da Sefin e fora do prefixo
         # NL-2.10a: o prefixo sai antes de casar as rotas; caminho sem o prefixo configurado é 404 e não entra no registro
@@ -176,6 +264,21 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             # antes de qualquer falha: o que a Sefin recebeu, com o caminho em que chegou (NL-2.10a, teste do prefixo)
             srv.posts_recebidos.append({**registro_do_post(corpo), "caminho": bruto})
         falha = srv.roteiro.consumir(self.command, caminho)
+        if falha == "corte_rst_apos_leitura":
+            # NL-3.0j (M1): o POST foi lido inteiro e registrado; a resposta nunca sai, e a conexão fecha com RST.
+            self.close_connection = True
+            _resetar(self.connection)
+            return None
+        if falha == "corte_rst_apos_gravacao":
+            # NL-3.0j (E4): grava a DPS como um POST aceito (Id e chave para a consulta), depois corta com RST sem responder.
+            registro_post = registro_do_post(corpo)
+            if registro_post["id"] is not None:
+                chave = chave_de_teste(registro_post["id"])
+                srv.dps_aceitas[registro_post["id"]] = chave
+                srv.notas[chave] = envelope.decodificar(corpo)
+            self.close_connection = True
+            _resetar(self.connection)
+            return None
         if falha == "erro5xx":
             return self._json(503, {"Codigo": "INDISPONIVEL", "Descricao": "falha roteirizada"})
         if falha == "timeout":

@@ -1001,6 +1001,38 @@ private slots:
         QVERIFY2(postsNoServidor(srv.porta(), *cred) == 1, "o servidor recebeu o POST uma vez");
     }
 
+    // NL-3.0j (E4, CISO parecer): gêmeo do slot acima com RST em vez de fechamento limpo. O servidor grava a DPS e corta com RST
+    // antes de responder; a consulta GET /dps decide, e a nota volta com um POST só. Um POST a mais, ou outro Id, é parada.
+    void corpoEscritoComRstConsultaAntesDeResponder()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse corte_rst_apos_gravacao")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto resultado = m->cliente->emitir(*dps);
+        // Medição por execução (NL-3.0j, CTO, 11/11/2026): o -V do ctest leva a linha ao log do ensaio, e uma
+        // repetição vermelha se explica sozinha. Só o resultado, a sequência METODO:status e a contagem de POST.
+        const std::vector<std::string> obtida = sequencia(m->destino.str());
+        const int posts = postsNoServidor(srv.porta(), *cred);
+        QStringList passos;
+        for (const std::string& passo : obtida) {
+            passos << QString::fromStdString(passo);
+        }
+        const QString medida =
+            QStringLiteral("corpoEscritoComRstConsultaAntesDeResponder;resultado=%1;sequencia=%2;posts=%3")
+                .arg(resultado.has_value() ? 1 : 0)
+                .arg(passos.join(QLatin1Char(',')))
+                .arg(posts);
+        qInfo().noquote() << "medicao" << medida;
+        QVERIFY2(resultado.has_value(), "com corpo gravado e RST, a consulta GET /dps devolve a chave");
+        const std::vector<std::string> esperado{"GET:200", "GET:200"};
+        QVERIFY2(obtida == esperado, "POST com bytes escritos consulta antes de responder");
+        QVERIFY2(posts == 1, "o servidor recebeu o POST uma vez");
+    }
+
     // Adendo de 30/10/2026: conexão fechada antes do TLS, sem nenhum byte escrito. Transitoria, sem consulta. Servidor
     // próprio em QTcpServer: fecha a conexão assim que ela chega, antes de qualquer TLS.
     void conexaoFechadaAntesDoTlsSemBytesEhTransitoria()

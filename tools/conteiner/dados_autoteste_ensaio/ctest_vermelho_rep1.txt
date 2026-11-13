@@ -1,0 +1,50 @@
+UpdateCTestConfiguration  from :/src/DartConfiguration.tcl
+Test project /var/tmp/notalivre-build/debug
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 140
+    Start 140: transporte.semCertificadoDeClienteHandshakeRecusado
+
+140: Test command: /var/tmp/notalivre-build/debug/tests/unit/foundation/transporte/tst_transporte_https "-o" "-,txt" "-o" "/var/tmp/notalivre-build/debug/junit/transporte.semCertificadoDeClienteHandshakeRecusado.xml,junitxml" "semCertificadoDeClienteHandshakeRecusado"
+140: Working Directory: /var/tmp/notalivre-build/debug/tests/unit/foundation/transporte
+140: Environment variables: 
+140:  NL_CERTIFICADOS_DIR=/var/tmp/notalivre-build/debug/certificados_teste
+140: Test timeout computed to be: 10000000
+140: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+140: Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+140: If this causes problems, reconfigure your locale. See the locale(1) manual
+140: for more information.
+140: ********* Start testing of TesteTransporteHttps *********
+140: Config: Using QtTest library 6.12.0, Qt 6.12.0 (x86_64-little_endian-lp64 shared (dynamic) release build; by GCC 11.5.0 20240719 (Red Hat 11.5.0-5)), fedora 45
+140: PASS   : TesteTransporteHttps::initTestCase()
+140: FAIL!  : TesteTransporteHttps::semCertificadoDeClienteHandshakeRecusado() '!resposta.has_value()' returned FALSE. ()
+140:    Loc: [/src/tests/unit/foundation/transporte/tst_transporte_https.cpp(433)]
+140: PASS   : TesteTransporteHttps::cleanupTestCase()
+140: Totals: 2 passed, 1 failed, 0 skipped, 0 blacklisted, 598ms
+140: ********* Finished testing of TesteTransporteHttps *********
+    Test #140: transporte.semCertificadoDeClienteHandshakeRecusado ...***Failed  Error regular expression found in output. Regex=[FAIL!]  0.61 sec
+Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+If this causes problems, reconfigure your locale. See the locale(1) manual
+for more information.
+********* Start testing of TesteTransporteHttps *********
+Config: Using QtTest library 6.12.0, Qt 6.12.0 (x86_64-little_endian-lp64 shared (dynamic) release build; by GCC 11.5.0 20240719 (Red Hat 11.5.0-5)), fedora 45
+PASS   : TesteTransporteHttps::initTestCase()
+FAIL!  : TesteTransporteHttps::semCertificadoDeClienteHandshakeRecusado() '!resposta.has_value()' returned FALSE. ()
+   Loc: [/src/tests/unit/foundation/transporte/tst_transporte_https.cpp(433)]
+PASS   : TesteTransporteHttps::cleanupTestCase()
+Totals: 2 passed, 1 failed, 0 skipped, 0 blacklisted, 598ms
+********* Finished testing of TesteTransporteHttps *********
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.62 sec
+
+The following tests FAILED:
+	140 - transporte.semCertificadoDeClienteHandshakeRecusado (Failed)
+Errors while running CTest

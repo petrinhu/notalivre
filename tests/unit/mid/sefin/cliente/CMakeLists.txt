@@ -62,6 +62,7 @@ else()
         conexaoFechadaAntesDoTlsSemBytesEhTransitoria
         recusaNoHandshakeTls12NaoEscreveCorpoESemConsulta
         corpoEscritoEConexaoFechadaConsultaAntesDeResponder
+        corpoEscritoComRstConsultaAntesDeResponder
         recusaDoCertificadoNoTls13NuncaReenviaAsCegas
         conflito409ComConsultaSemResolverViraIndeterminado
         base64ComIgualNoMeioRecusado

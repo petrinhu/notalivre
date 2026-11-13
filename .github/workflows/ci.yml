@@ -253,7 +253,8 @@ jobs:
             echo "| Sabotagem do tst_sanidade (deve reprovar) | ${{ steps.sabotagem_sanidade.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # NL-3.0h (ordem do CTO, passo 5): ASan e UBSan em push de onda-* e main e em pull_request, nas distros com libasan (fedora45 e mint22.3).
+  # NL-3.0h (ordem do CTO, passo 5): ASan e UBSan em push de onda-* e main e em pull_request, nas distros fedora45 e mint22.3.
+  # Não é falta de libasan: o preset roda também em ubuntu26.04 e manjaro (NL-3.2c). ubuntu26.04 fica fora por vazamento em aberto (INBOX).
   # O mint22.3 é o único com cliente HTTP da libxml2 (com_http): o ramo que a causa A do validador XSD exige.
   # Atenção (L-36): o LeakSanitizer só reprova o processo de teste quando o CTest não decide pela regex de PASS.
   # Testes com PASS_REGULAR_EXPRESSION (44 sítios, medido) ignoram o código de saída: ver TESTES.md (T4).
@@ -533,6 +534,10 @@ jobs:
 
       - name: Autoteste dos limites de contêiner (NL-2.11, A2 e A3)
         run: bash tools/conteiner/autoteste_build_limites.sh
+
+      # NL-3.0j (CTO, 10/11/2026): arnês de repetição. Cotas do modo ensaio e do mutante, listas inválidas e o corpo do ensaio com ctest de mentira.
+      - name: "Autoteste do arnês de repetição, modo ensaio e corpo (NL-3.0j)"
+        run: bash tools/conteiner/autoteste_build_ensaio.sh
 
       - name: "Autoteste do portão de pulos (NL-2.14, DA-2.61)"
         run: bash tools/portoes/autoteste_pulos_testes.sh

@@ -8,7 +8,7 @@ find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
 
 add_executable(tst_transporte_https tst_transporte_https.cpp)
 target_link_libraries(tst_transporte_https PRIVATE Qt6::Core Qt6::Network Qt6::Test nl_foundation_transporte
-                      OpenSSL::Crypto nl_warnings)
+                      OpenSSL::Crypto OpenSSL::SSL nl_warnings)
 target_compile_definitions(tst_transporte_https PRIVATE
     NL_LANCADOR="${CMAKE_SOURCE_DIR}/tools/servidor_falso/lancador.py"
     NL_PYTHON3="${Python3_EXECUTABLE}"
@@ -19,6 +19,12 @@ set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
 foreach(nome IN ITEMS
     semCertificadoDeClienteHandshakeRecusado
     certificadoDeOutraAcRecusado
+    servidorFalsoCortaComRstNaoFin
+    servidorFalsoCortaComRstNoPost
+    recusaSemCertificadoTls13FechamentoAdiado
+    recusaOutraAcTls13FechamentoAdiado
+    corteSemAlertaTls13Transitorio
+    postLidoComCorteRstNaoReenviaQt
     timeoutViraErroTransitorio
     baseEPrefixoVemDaConfiguracao
     conexaoRecusadaViraErroTransitorio
