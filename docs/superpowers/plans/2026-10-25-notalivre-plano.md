@@ -170,7 +170,7 @@ Cada onda abre com uma **pesquisa de abertura** (L-22), despachada pelo main com
 
 ### Tags por onda (DECISÃO DO LÍDER, 25/10/2026, ponto L12: "Tag a cada onda fechada")
 
-Cada onda fechada pela própria definição de fechamento e mesclada em `main` ganha tag de marco `vA.B.C.D`, sempre com aval explícito do líder no contexto. Nenhum GitHub Release e nenhuma publicação no Flathub antes de `v1.0.0.0`.
+Cada onda fechada pela própria definição de fechamento e mesclada em `main` ganha tag de marco `vA.B.C.D`, sempre com aval explícito do líder no contexto. Nenhum GitHub Release e nenhuma publicação no Flathub antes de `v1.0.0.0`. No fechamento de cada onda, antes do merge em `main` e da tag, confere-se que a versão de `project(NotaLivre VERSION ...)` em `CMakeLists.txt` é a da tag da onda. Origem: DA-2.104 (a tag `v0.2.0.0` saiu com o CMake em `0.1.0.0`, contra a linha "o CMake sobe junto no merge" da tabela abaixo; corrigido a partir da Onda 2, em `0.3.0.0`). Destino escolhido na triagem do Chief of Staff de 13/11/2026, lote 4 (decisão do líder: "Arrumar e tirar (Recomendado)").
 
 | Momento | Tag de marco |
 |---|---|
