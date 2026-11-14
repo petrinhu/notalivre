@@ -53,7 +53,7 @@ set_tests_properties(mid.composicao.validarXmlRecusaXmlQueNaoConfereNoXsd PROPER
 
 add_executable(tst_codigo_saida tst_codigo_saida.cpp)
 target_link_libraries(tst_codigo_saida PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_base nl_warnings)
-foreach(nome IN ITEMS codigosDeValorDaDpsSaemComQuatro codigosInternosDeValorSaemComSetenta codigosDeDocumentoSaemComQuatro codigosDeAmbienteXsdSaemComDois codigosDeRecusaSaemComUm dpsDuplicadaSaiComCinco comparacaoIndisponivelSaiComSete codigoDesconhecidoSaiComSetenta configuracaoSaiComDez codigosDoSegredoSaemComDois headlessSemAutorizacaoSaiComOnze)
+foreach(nome IN ITEMS codigosDeValorDaDpsSaemComQuatro codigosInternosDeValorSaemComSetenta codigosDeDocumentoSaemComQuatro codigosDeAmbienteXsdSaemComDois codigosDeRecusaSaemComUm dpsDuplicadaSaiComCinco comparacaoIndisponivelSaiComSete codigoDesconhecidoSaiComSetenta configuracaoSaiComDez codigosDoSegredoSaemComDois headlessSemAutorizacaoSaiComOnze certificadoProvavelSaiComOito servidorNaoConfirmadoSaiComDoze redeENaoConcluidoSaemComSeis estadoIncertoSaiComSete falhaInternaERespostaSemCodigoSaemComSetenta configuracaoDaConexaoSaiComDez envioDesconhecidoSaiComSetenta)
     nl_registra_teste_qt(NAME mid.composicao.codigoSaida.${nome} COMMAND tst_codigo_saida ${nome})
     set_tests_properties(mid.composicao.codigoSaida.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
@@ -103,3 +103,27 @@ target_include_directories(tst_leitor_inscricao PRIVATE ${CMAKE_SOURCE_DIR}/src/
 target_link_libraries(tst_leitor_inscricao PRIVATE Qt6::Core Qt6::Test nl_mid nl_back nl_foundation_base nl_warnings)
 nl_registra_teste_qt(NAME mid.composicao.leitorInscricao COMMAND tst_leitor_inscricao)
 set_tests_properties(mid.composicao.leitorInscricao PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
+
+# Classe da falha de envio (NL-3.C, plano 4.3): tabela de 126 combinações e regra de nulo. Slots mid.composicao.classeFalhaEnvio.<nome>.
+add_executable(tst_classe_falha_envio tst_classe_falha_envio.cpp)
+target_link_libraries(tst_classe_falha_envio PRIVATE Qt6::Core Qt6::Test nl_mid nl_back nl_warnings)
+foreach(nome IN ITEMS tabelaInteiraDeMotivoCausaECodigo combinacaoImpossivelViraEstadoIncerto soRecusaComCodigoEDpsDuplicadaFicamSemClasse)
+  nl_registra_teste_qt(NAME mid.composicao.classeFalhaEnvio.${nome} COMMAND tst_classe_falha_envio ${nome})
+  set_tests_properties(mid.composicao.classeFalhaEnvio.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()
+
+# Catálogo da falha de envio (NL-3.C, plano 4.4): texto e código das 10 classes, com os invariantes léxicos da seção 1.5.
+add_executable(tst_catalogo_falha_envio tst_catalogo_falha_envio.cpp)
+target_link_libraries(tst_catalogo_falha_envio PRIVATE Qt6::Core Qt6::Test nl_mid nl_warnings)
+foreach(nome IN ITEMS
+    todaClasseTemTextoECodigo
+    codigosSaoUnicosEComPrefixoEnvio
+    textoSemDadoProibido
+    nadaFoiEnviadoSoOndeNadaSaiu
+    semConviteARepetirOndeRepetirEProibido
+    estadoIncertoMandaOMesmoNumeroEOMesmoArquivo
+    provavelOndeACausaNaoEProvada
+    ehFalhaDeEnvioReconheceSoOsCodigosDoCatalogo)
+  nl_registra_teste_qt(NAME mid.composicao.catalogoFalhaEnvio.${nome} COMMAND tst_catalogo_falha_envio ${nome})
+  set_tests_properties(mid.composicao.catalogoFalhaEnvio.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()

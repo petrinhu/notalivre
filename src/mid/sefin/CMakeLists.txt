@@ -13,6 +13,7 @@ target_sources(nl_mid PRIVATE
     cliente/catalogo_erros_sefin.cpp
     cliente/leitor_erro_sefin.cpp
     cliente/cliente_sefin.cpp
+    cliente/falhas_do_envio.cpp
     cliente/registro_transporte.cpp
     cliente/comparador_infdps_c14n.cpp
     cliente/allowlist_log_sefin.cpp

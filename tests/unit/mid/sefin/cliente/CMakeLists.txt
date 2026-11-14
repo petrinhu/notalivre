@@ -87,3 +87,18 @@ foreach(nome IN LISTS NL_SLOTS_CLIENTE)
                        FAIL_REGULAR_EXPRESSION "FAIL!"
                        TIMEOUT 120)  # teto explícito por slot: sem ele o CTest espera 1500 s por teste travado
 endforeach()
+
+# Falhas do envio (NL-3.C, plano 3.3 e 4.2): átomo puro, causa tipada, sem rede. Slots mid.sefin.falhasDoEnvio.<nome>.
+add_executable(tst_falhas_do_envio tst_falhas_do_envio.cpp)
+target_link_libraries(tst_falhas_do_envio PRIVATE Qt6::Core Qt6::Test nl_mid nl_back nl_foundation_transporte nl_warnings)
+foreach(nome IN ITEMS
+    causaDoTransporteCobreTodasAsCausas
+    semBytesTlsDeixaDeSerTransitoria
+    semBytesRedeContinuaTransitoria
+    semBytesConfiguracaoViraConfiguracaoDaConexao
+    falhaDeRedeNaConsultaLevaACausa
+    semBytesNoReenvioViraNaoConcluido
+    indeterminadoDepoisDaConsultaLevaACausa)
+  nl_registra_teste_qt(NAME mid.sefin.falhasDoEnvio.${nome} COMMAND tst_falhas_do_envio ${nome})
+  set_tests_properties(mid.sefin.falhasDoEnvio.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()

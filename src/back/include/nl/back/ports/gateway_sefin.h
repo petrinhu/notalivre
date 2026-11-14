@@ -9,6 +9,7 @@
 #include <nl/back/dps/chave_acesso.h>
 #include <nl/back/dps/dps_assinada.h>
 #include <nl/back/dps/id_dps.h>
+#include <nl/back/ports/causa_falha_sefin.h>
 
 #include <QByteArray>
 
@@ -31,7 +32,8 @@ enum class MotivoFalhaSefin {
 struct FalhaSefin {
     MotivoFalhaSefin motivo;
     std::string codigoE;   ///< Código E da Sefin, quando houver (ex.: "E1207"). Vazio nas falhas de rede.
-    std::string mensagem;  ///< Texto do catálogo do Mid para o código E. Nunca o texto livre da API.
+    std::string mensagem;  ///< Texto do catálogo do Mid para o código E (vazio sem código E; o texto ao usuário vem do catálogo da fachada, NL-3.C). Nunca o texto livre da API.
+    CausaFalhaSefin causa = CausaFalhaSefin::Nenhuma; ///< O que se sabe da causa (NL-3.C). Só o Mid preenche; nenhum fluxo decide por texto.
 };
 
 struct NotaSefin {

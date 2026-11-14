@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Testes do código de saída da emissão (NL-2.9, DA-2.51 e DA-2.57c): cada código classificado sai com a sua classe, e um
 // código fora da lista sai como 70, nunca como uma recusa comum.
+#include <nl/mid/composicao/catalogo_falha_envio.h>
 #include <nl/mid/composicao/codigo_saida.h>
 
 #include <array>
@@ -36,6 +37,14 @@ private slots:
     // NL-2.10j, J1-r2 (DA-2.101, varredura L-17): erro de valor digitado na DPS é culpa do documento (4); erro interno não.
     void codigosDeValorDaDpsSaemComQuatro();
     void codigosInternosDeValorSaemComSetenta();
+    // NL-3.C (plano 4.5): cada classe de falha do envio sai com o código de saída da sua classe (seção 1.6).
+    void certificadoProvavelSaiComOito();
+    void servidorNaoConfirmadoSaiComDoze();
+    void redeENaoConcluidoSaemComSeis();
+    void estadoIncertoSaiComSete();
+    void falhaInternaERespostaSemCodigoSaemComSetenta();
+    void configuracaoDaConexaoSaiComDez();
+    void envioDesconhecidoSaiComSetenta();
 };
 
 using nl::mid::composicao::codigoDeSaidaDaEmissao;
@@ -102,7 +111,7 @@ void TstCodigoSaida::codigosDeAmbienteXsdSaemComDois()
 
 void TstCodigoSaida::codigosDeRecusaSaemComUm()
 {
-    for (const char* codigo : {"credencial.nao_carregou", "assinatura.algoritmo_bloqueado", "confirmacao.diferente_do_a1", "sefin.falha"}) {
+    for (const char* codigo : {"credencial.nao_carregou", "assinatura.algoritmo_bloqueado", "confirmacao.diferente_do_a1", "sefin.E1207"}) {
         QCOMPARE(codigoDeSaidaDaEmissao(codigo), 1);
     }
 }
@@ -136,6 +145,45 @@ void TstCodigoSaida::codigoDesconhecidoSaiComSetenta()
     QCOMPARE(codigoDeSaidaDaEmissao("codigo_que_nao_existe"), 70);
     // NL-2.10b, MÉDIA-1: ambiente do pedido divergente do host sai com 70, por entrada explícita (interno, não recusa).
     QCOMPARE(codigoDeSaidaDaEmissao("emissao.ambiente_divergente"), 70);
+}
+
+void TstCodigoSaida::certificadoProvavelSaiComOito()
+{
+    QCOMPARE(codigoDeSaidaDaEmissao(nl::mid::composicao::kCodigoCertificadoProvavel), 8);
+}
+
+void TstCodigoSaida::servidorNaoConfirmadoSaiComDoze()
+{
+    QCOMPARE(codigoDeSaidaDaEmissao(nl::mid::composicao::kCodigoServidorNaoConfirmado), 12);
+}
+
+void TstCodigoSaida::redeENaoConcluidoSaemComSeis()
+{
+    QCOMPARE(codigoDeSaidaDaEmissao(nl::mid::composicao::kCodigoRedeAntesDoEnvio), 6);
+    QCOMPARE(codigoDeSaidaDaEmissao(nl::mid::composicao::kCodigoNaoConcluido), 6);
+}
+
+void TstCodigoSaida::estadoIncertoSaiComSete()
+{
+    QCOMPARE(codigoDeSaidaDaEmissao(nl::mid::composicao::kCodigoEstadoIncerto), 7);
+    QCOMPARE(codigoDeSaidaDaEmissao(nl::mid::composicao::kCodigoEstadoIncertoCertificadoProvavel), 7);
+}
+
+void TstCodigoSaida::falhaInternaERespostaSemCodigoSaemComSetenta()
+{
+    QCOMPARE(codigoDeSaidaDaEmissao(nl::mid::composicao::kCodigoFalhaAntesDoEnvio), 70);
+    QCOMPARE(codigoDeSaidaDaEmissao(nl::mid::composicao::kCodigoRespostaSemCodigo), 70);
+}
+
+void TstCodigoSaida::configuracaoDaConexaoSaiComDez()
+{
+    QCOMPARE(codigoDeSaidaDaEmissao(nl::mid::composicao::kCodigoConfiguracaoDaConexao), 10);
+}
+
+void TstCodigoSaida::envioDesconhecidoSaiComSetenta()
+{
+    // Código envio.* sem entrada no catálogo cai em 70, nunca em 1 (seção 1.6).
+    QCOMPARE(codigoDeSaidaDaEmissao("envio.desconhecido"), 70);
 }
 
 QTEST_APPLESS_MAIN(TstCodigoSaida)
