@@ -47,7 +47,7 @@ flock -w 1200 9 || { echo "sem trava de trabalho pesado em 1200 s" | tee -a "$LO
 
     if ! docker image inspect "$IMAGEM" > /dev/null 2>&1; then
         echo "== construindo imagem $IMAGEM"
-        nice -n 5 docker build -t "$IMAGEM" -f "$DEST/tools/portoes/higiene.Dockerfile" "$DEST/tools/portoes"
+        nice -n 5 docker build -t "$IMAGEM" "${NL_COTAS_DOCKER_BUILD[@]}" -f "$DEST/tools/portoes/higiene.Dockerfile" "$DEST/tools/portoes"
         echo "build_rc=$?"
     else
         echo "== imagem $IMAGEM ja existe, reutilizada"

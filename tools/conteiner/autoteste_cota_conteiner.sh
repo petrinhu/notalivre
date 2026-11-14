@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Autoteste do átomo do teto de contêiner (NL-3.K; L-36). Só shell: não sobe contêiner. Tabela de nl_memoria_valida e do vetor
-# de nl_cotas_docker, com nproc e a lista de CPUs online trocados por costura (NL_NPROC_TESTE, NL_CPUS_ONLINE_ARQ), para dar o
+# Autoteste do átomo do teto de contêiner (NL-3.K; L-36). Só shell: não sobe contêiner. Tabela de nl_memoria_valida e dos
+# vetores de nl_cotas_docker (run e build), com nproc e a lista de CPUs online trocados por costura (NL_NPROC_TESTE, NL_CPUS_ONLINE_ARQ), para dar o
 # mesmo resultado aqui, no contêiner do espelho e no runner do CI. Tabela vazia reprova.
 # Uso: bash tools/conteiner/autoteste_cota_conteiner.sh   (RAIZ = a árvore onde este script está)
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -68,6 +68,35 @@ vetor 4 4 "" "" 2 ""
 vetor 16 "" 13g "" 2 ""
 vetor 16 "" "" 4-99 2 ""
 vetor 16 "" "" "4-15;x" 2 ""
+# vetor_build NPROC THREADS MEMORIA CPUSET RC VETOR: o mesmo, para o vetor do docker build (NL-3.K, revisão, A-1).
+vetor_build() {
+    local obtido
+    obtido="$( (NL_NPROC_TESTE="$1"; NL_THREADS="$2"; NL_MEMORIA="$3"; NL_CPUSET="$4"; NL_CPUS_ONLINE_ARQ="$BASE/online15"
+                nl_cotas_docker 2>/dev/null; echo "rc=$? vetor=${NL_COTAS_DOCKER_BUILD[*]}") )"
+    CASOS=$((CASOS + 1))
+    if [ "$obtido" = "rc=$5 vetor=$6" ]; then
+        echo "ok: vetor_build nproc=[$1] threads=[$2] memoria=[$3] cpuset=[$4]: $obtido"
+    else
+        echo "REPROVA: vetor_build nproc=[$1] threads=[$2] memoria=[$3] cpuset=[$4]: esperado [rc=$5 vetor=$6], obtido [$obtido]"
+        FALHAS=$((FALHAS + 1))
+    fi
+}
+vetor_build 16 "" "" "" 0 "--cpu-period 100000 --cpu-quota 700000 --memory 12g --memory-swap 12g"
+vetor_build 16 2 4g 8-11 0 "--cpuset-cpus 8-11 --cpu-period 100000 --cpu-quota 200000 --memory 4g --memory-swap 4g"
+vetor_build 16 8 "" "" 2 ""
+# Sem a costura, o número de CPUs é o da máquina (nproc --all), também dentro de um contêiner com --cpus (revisão, A-3).
+todas="$(nproc --all)"
+esperado=$((todas - 1))
+[ "$esperado" -le "$NL_COTA_PADRAO" ] || esperado="$NL_COTA_PADRAO"
+[ "$esperado" -ge 1 ] || esperado=1
+obtido="$( (unset NL_NPROC_TESTE NL_THREADS NL_MEMORIA NL_CPUSET; nl_cotas_docker 2>/dev/null; echo "$NL_COTA_THREADS") )"
+CASOS=$((CASOS + 1))
+if [ "$obtido" = "$esperado" ]; then
+    echo "ok: sem costura, nproc --all=$todas dá teto de CPU $obtido (nproc simples aqui: $(nproc))"
+else
+    echo "REPROVA: sem costura, nproc --all=$todas devia dar teto de CPU $esperado, obtido [$obtido] (nproc simples aqui: $(nproc))"
+    FALHAS=$((FALHAS + 1))
+fi
 aviso="$( (NL_NPROC_TESTE=4; nl_cotas_docker 2>&1 >/dev/null) )"
 CASOS=$((CASOS + 1))
 if [[ "$aviso" == *"AVISO: máquina com 4 CPUs"* ]]; then
@@ -78,7 +107,7 @@ else
 fi
 
 echo "cota_conteiner: casos=$CASOS falharam=$FALHAS"
-if [ "$FALHAS" -eq 0 ] && [ "$CASOS" -ge 23 ]; then
+if [ "$FALHAS" -eq 0 ] && [ "$CASOS" -ge 27 ]; then
     echo "PASSA: teto de contêiner (átomo)"
     exit 0
 fi

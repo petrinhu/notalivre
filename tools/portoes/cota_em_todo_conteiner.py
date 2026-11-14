@@ -5,16 +5,18 @@
 
 Decisão do líder, 13/11/2026: "Consertar só o teto (Recomendado)": todo contêiner com teto de CPU e de memória, de um ponto
 único, para que nenhum build tome a máquina, sem prender núcleos. O ponto único é tools/conteiner/cota_conteiner.sh, que monta
-o vetor NL_COTAS_DOCKER que todo docker run desta máquina recebe.
+os vetores NL_COTAS_DOCKER (docker run) e NL_COTAS_DOCKER_BUILD (docker build).
 
 Regra: em todo arquivo .sh rastreado, toda chamada `docker run` fora de aspas e de comentário traz o vetor
-"${NL_COTAS_DOCKER[@]}" no mesmo comando. Linhas com barra invertida no fim se juntam. O .yml do CI fica fora: roda no
+"${NL_COTAS_DOCKER[@]}" no mesmo comando, e toda chamada `docker build`, o vetor "${NL_COTAS_DOCKER_BUILD[@]}". Sem lacuna
+nem teto por arquivo (NL-3.K, revisão, A-1). Linhas com barra invertida no fim se juntam. O .yml do CI fica fora: roda no
 runner do GitHub, não nesta máquina.
 Exceção declarada, exatamente uma: tools/mutacao/sabotar_portoes.sh, o docker run de "$FLATHUB_KDE" (modo docker, só no CI).
-LACUNA DECLARADA (NL-3.K, passo 0): `docker build` não recebe a cota por opção; as chamadas de hoje ficam num teto por
-arquivo (LACUNAS_BUILD), e qualquer docker build novo, ou além do teto, reprova.
+Piso de varredura (NL-3.K, revisão, A-4; L-36): a varredura acha pelo menos PISO_RUN chamadas run e PISO_BUILD build. Abaixo
+disso o parser perdeu chamadas, e reprova. Lançador novo sobe a contagem sem mexer no piso; lançador tirado exige baixar o
+piso no mesmo commit, o que aparece no diff.
 
-Saída, sempre: "arquivos=N run=R build=B sem_cota=V excecoes=E lacunas=L". Zero arquivos ou zero chamadas reprova.
+Saída, sempre: "arquivos=N run=R build=B sem_cota=V excecoes=E piso_run=P piso_build=Q". Zero arquivos reprova.
 LIMITE DECLARADO: comando montado em variável, por eval ou dentro de aspas (sh -c "docker run ...") fica fora da varredura.
 
 Uso: python3 -I cota_em_todo_conteiner.py RAIZ        (verificação)
@@ -29,8 +31,11 @@ import sys
 import tempfile
 
 VETOR_RUN = '"${NL_COTAS_DOCKER[@]}"'
+VETOR_BUILD = '"${NL_COTAS_DOCKER_BUILD[@]}"'
 MARCA_RUN = "@@COTA_RUN@@"
-LACUNAS_BUILD = {"tools/conteiner/build_local.sh": 1, "tools/espelho/comum.sh": 2, "tools/portoes/rodar_higiene_conteiner.sh": 1}
+MARCA_BUILD = "@@COTA_BUILD@@"
+PISO_RUN = 17
+PISO_BUILD = 4
 RE_CHAMADA = re.compile(r"docker[ \t]+(run|build)\b")
 RE_FIM = re.compile(r"&&|\|\||;|\|")
 EXCECAO_ARQUIVO = "tools/mutacao/sabotar_portoes.sh"
@@ -78,13 +83,13 @@ def comandos(texto):
 
 
 def conferir_texto(nome, texto):
-    """Devolve (run, build, violações, exceções, lacunas) de um arquivo."""
-    run = build = excecoes = lacunas = 0
+    """Devolve (run, build, violações, exceções) de um arquivo."""
+    run = build = excecoes = 0
     violacoes = []
     for numero, comando in comandos(texto):
         if comando.lstrip().startswith("#"):
             continue
-        marcado = comando.replace(VETOR_RUN, MARCA_RUN)
+        marcado = comando.replace(VETOR_RUN, MARCA_RUN).replace(VETOR_BUILD, MARCA_BUILD)
         marcado = marcado.replace(EXCECAO_TEXTO, MARCA_EXCECAO)
         limpo = sem_aspas_e_comentario(marcado)
         for casou in RE_CHAMADA.finditer(limpo):
@@ -102,11 +107,10 @@ def conferir_texto(nome, texto):
                 violacoes.append(f"{nome}:{numero}: docker run sem a cota (vetor {VETOR_RUN})")
                 continue
             build += 1
-            if lacunas < LACUNAS_BUILD.get(nome, 0):
-                lacunas += 1
+            if MARCA_BUILD in trecho:
                 continue
-            violacoes.append(f"{nome}:{numero}: docker build fora da lacuna declarada (LACUNAS_BUILD)")
-    return run, build, violacoes, excecoes, lacunas
+            violacoes.append(f"{nome}:{numero}: docker build sem a cota (vetor {VETOR_BUILD})")
+    return run, build, violacoes, excecoes
 
 
 def arquivos_sh(raiz):
@@ -116,9 +120,9 @@ def arquivos_sh(raiz):
     return [nome for nome in saida.stdout.decode("utf-8", "replace").split("\0") if nome]
 
 
-def verificar(raiz):
+def verificar(raiz, piso_run=PISO_RUN, piso_build=PISO_BUILD):
     nomes = []
-    run = build = excecoes = lacunas = 0
+    run = build = excecoes = 0
     violacoes = []
     try:
         nomes = arquivos_sh(raiz)
@@ -131,14 +135,17 @@ def verificar(raiz):
         except (OSError, UnicodeDecodeError) as erro:
             violacoes.append(f"{nome}: não lido ({erro})")
             continue
-        r, b, v, e, lac = conferir_texto(nome, texto)
-        run, build, excecoes, lacunas = run + r, build + b, excecoes + e, lacunas + lac
+        r, b, v, e = conferir_texto(nome, texto)
+        run, build, excecoes = run + r, build + b, excecoes + e
         violacoes += v
     if excecoes != EXCECOES_ESPERADAS and nomes:
         violacoes.append(f"exceções declaradas: {excecoes}, esperada {EXCECOES_ESPERADAS} ({EXCECAO_ARQUIVO}, {EXCECAO_TEXTO})")
+    if nomes and (run < piso_run or build < piso_build):
+        violacoes.append(f"abaixo do piso de varredura: run={run} (piso {piso_run}), build={build} (piso {piso_build})")
     for violacao in violacoes:
         print(f"VIOLACAO {violacao}")
-    print(f"arquivos={len(nomes)} run={run} build={build} sem_cota={len(violacoes)} excecoes={excecoes} lacunas={lacunas}")
+    print(f"arquivos={len(nomes)} run={run} build={build} sem_cota={len(violacoes)} excecoes={excecoes} piso_run={piso_run} "
+          f"piso_build={piso_build}")
     if not nomes or run + build == 0:
         print("REPROVA: varredura vazia")
         return 1
@@ -152,12 +159,15 @@ def verificar(raiz):
 EXC = 'docker run --pull=never --rm --privileged -v x "$FLATHUB_KDE" cmd\n'
 BOM_RUN = 'docker run --pull=never "${NL_COTAS_DOCKER[@]}" --rm img sh\n'
 BUILD = "docker build -t x .\n"
+BOM_BUILD = 'docker build -t x "${NL_COTAS_DOCKER_BUILD[@]}" .\n'
 CASOS = (
-    ("positivo", {"a.sh": BOM_RUN, "tools/espelho/comum.sh": BUILD + BUILD, EXCECAO_ARQUIVO: EXC}, 0, "lacunas=2"),
+    ("positivo", {"a.sh": BOM_RUN + BOM_BUILD, EXCECAO_ARQUIVO: EXC}, 0, "PASSA"),
     ("run_sem_cota", {"a.sh": "docker run --pull=never --rm img sh\n", EXCECAO_ARQUIVO: EXC}, 1, "a.sh:1: docker run"),
-    ("build_fora_da_lacuna", {"a.sh": BOM_RUN + BUILD, EXCECAO_ARQUIVO: EXC}, 1, "a.sh:2: docker build"),
-    ("build_acima_do_teto", {"a.sh": BOM_RUN, "tools/espelho/comum.sh": BUILD * 3, EXCECAO_ARQUIVO: EXC}, 1,
-     "tools/espelho/comum.sh:3: docker build"),
+    ("build_sem_cota", {"a.sh": BOM_RUN + BUILD, EXCECAO_ARQUIVO: EXC}, 1, "a.sh:2: docker build sem a cota"),
+    ("build_sem_cota_onde_havia_lacuna", {"tools/conteiner/build_local.sh": BOM_RUN + BUILD, EXCECAO_ARQUIVO: EXC}, 1,
+     "tools/conteiner/build_local.sh:2: docker build sem a cota"),
+    ("vetor_de_run_no_build", {"a.sh": BOM_RUN + BUILD.replace("-t x", '-t x "${NL_COTAS_DOCKER[@]}"'), EXCECAO_ARQUIVO: EXC}, 1,
+     "a.sh:2: docker build sem a cota"),
     ("vetor_errado", {"a.sh": BOM_RUN.replace("NL_COTAS_DOCKER[@]", "OUTRO[@]"), EXCECAO_ARQUIVO: EXC}, 1, "a.sh:1:"),
     ("vetor_em_comentario", {"a.sh": 'docker run --rm img # "${NL_COTAS_DOCKER[@]}"\n', EXCECAO_ARQUIVO: EXC}, 1, "a.sh:1:"),
     ("vetor_em_outro_comando", {"a.sh": 'docker run --rm img && echo "${NL_COTAS_DOCKER[@]}"\n', EXCECAO_ARQUIVO: EXC}, 1,
@@ -171,6 +181,14 @@ CASOS = (
     ("vazia", {"leia.txt": "nada\n"}, 1, "varredura vazia"),
     ("sem_chamada", {"a.sh": "echo oi\n", EXCECAO_ARQUIVO: "echo oi\n"}, 1, "exceções declaradas: 0"),
     ("sem_git", None, 1, "git ls-files falhou"),
+)
+# Casos do piso (NL-3.K, revisão, A-4): (nome, arquivos, (piso_run, piso_build), rc, trecho). Os de CASOS rodam com piso 0.
+CASOS_PISO = (
+    ("no_piso", {"a.sh": BOM_RUN + BOM_BUILD, EXCECAO_ARQUIVO: EXC}, (2, 1), 0, "piso_run=2 piso_build=1"),
+    ("run_abaixo_do_piso", {"a.sh": BOM_RUN + BOM_BUILD, EXCECAO_ARQUIVO: EXC}, (3, 1), 1, "abaixo do piso de varredura: run=2"),
+    ("build_abaixo_do_piso", {"a.sh": BOM_RUN + BOM_BUILD, EXCECAO_ARQUIVO: EXC}, (2, 2), 1, "abaixo do piso de varredura: run=2 (piso 2), build=1"),
+    ("continuacao_conta_no_piso", {"a.sh": 'CONT=(docker run --pull=never \\\n  "${NL_COTAS_DOCKER[@]}" img)\n' + BOM_BUILD,
+                                             EXCECAO_ARQUIVO: EXC}, (2, 1), 0, "run=2"),
 )
 
 
@@ -189,7 +207,7 @@ def autoteste():
     falhas = 0
     with tempfile.TemporaryDirectory(prefix="notalivre-cota-conteiner-") as base:
         os.environ["GIT_CEILING_DIRECTORIES"] = base
-        for nome, arquivos, rc_esperado, trecho in CASOS:
+        for nome, arquivos, piso, rc_esperado, trecho in [(c[0], c[1], (0, 0), c[2], c[3]) for c in CASOS] + list(CASOS_PISO):
             pasta = os.path.join(base, nome)
             if arquivos is None:
                 os.makedirs(pasta)
@@ -200,7 +218,7 @@ def autoteste():
                 antigo = sys.stdout
                 sys.stdout = saida
                 try:
-                    rc = verificar(pasta)
+                    rc = verificar(pasta, *piso)
                 finally:
                     sys.stdout = antigo
             with open(caminho, encoding="utf-8") as entrada:
@@ -210,7 +228,7 @@ def autoteste():
             if not certo:
                 falhas += 1
                 print(texto)
-    print(f"casos={len(CASOS)} falharam={falhas}")
+    print(f"casos={len(CASOS) + len(CASOS_PISO)} falharam={falhas}")
     return 1 if falhas or not CASOS else 0
 
 

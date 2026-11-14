@@ -83,8 +83,9 @@ THREADS=""
 CPUSET=""
 
 # Monta o teto do contêiner pelo átomo tools/conteiner/cota_conteiner.sh (NL-3.K): o vetor NL_COTAS_DOCKER, que todo docker
-# run deste script recebe, e os efetivos THREADS, NL_MEMORIA e CPUSET da linha NL-COTAS. Só roda dentro de executar e de
-# qt_instalar: um AVISO do átomo tem de sair depois da linha "SHA:" do log, que evidencia_sha.sh exige como linha 1.
+# run e docker build deste script recebem, e os efetivos THREADS, NL_MEMORIA e CPUSET da linha NL-COTAS. Só roda dentro de
+# executar, de qt_instalar e de construir_imagem: um AVISO do átomo tem de sair depois da linha "SHA:" do log, que
+# evidencia_sha.sh exige como linha 1.
 resolver_cpuset()
 {
     if ! nl_cotas_docker; then
@@ -136,7 +137,8 @@ construir_imagem()
     sha="$(resolver_sha)" || exit 2
     printf 'SHA: %s fatia=imagem distro=%s origem=arvore-de-trabalho data=%s\n' \
         "$sha" "$distro" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$log"
-    pesado docker build -t "$(imagem_de "$distro")" \
+    resolver_cpuset || return 2
+    pesado docker build -t "$(imagem_de "$distro")" "${NL_COTAS_DOCKER_BUILD[@]}" \
         -f "$RAIZ/tools/conteiner/$distro-build.Dockerfile" "$RAIZ/tools/conteiner" \
         >> "$log" 2>&1 || rc=$?
     echo "NL-RC=$rc" >> "$log"
