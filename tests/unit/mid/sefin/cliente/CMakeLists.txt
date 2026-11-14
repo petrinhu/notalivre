@@ -10,7 +10,6 @@ target_link_libraries(tst_registro_transporte PRIVATE Qt6::Core Qt6::Test nl_mid
 foreach(nome IN ITEMS eventoTemSoCamposFechados valorForaDoConjuntoVira_outro camposNovosSaoFechados versaoForaDoConjuntoVira_outro codigosSslLimitadosEm16)
   nl_registra_teste_qt(NAME mid.sefin.registroTransporte.${nome} COMMAND tst_registro_transporte ${nome})
   set_tests_properties(mid.sefin.registroTransporte.${nome} PROPERTIES
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!"
                        ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${CMAKE_BINARY_DIR}/logs_pii_cli"
                        DEPENDS cli.limpaLogsPii)
@@ -85,7 +84,6 @@ foreach(nome IN LISTS NL_SLOTS_CLIENTE)
   set_tests_properties(mid.sefin.cliente.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "${NL_AMBIENTE_CLIENTE}"
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!"
                        TIMEOUT 120)  # teto explícito por slot: sem ele o CTest espera 1500 s por teste travado
 endforeach()

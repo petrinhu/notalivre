@@ -241,8 +241,9 @@ pe2=$!
 wait "$pe1"; re1=$?
 wait "$pe2"; re2=$?
 resumo_e="$(conc_resumo "$BASE/c9e.conc" 2>/dev/null)"
-# Piso medido em 06/11/2026: 2 processos x 20 chamadas de docker (diagnóstico, build, 4 autotestes e 14 portões) = 40 pares S/E.
-if [ "$re1" -eq 0 ] && [ "$re2" -eq 0 ] && [ "$resumo_e" = "pares=40 sobreposicoes=0" ]; then
+# Piso medido em 06/11/2026 e ajustado na NL-3.A: 2 processos x 21 chamadas de docker (diagnóstico, build, 4 autotestes e
+# 15 portões) = 42 pares S/E.
+if [ "$re1" -eq 0 ] && [ "$re2" -eq 0 ] && [ "$resumo_e" = "pares=42 sobreposicoes=0" ]; then
     ok "C9 executar em paralelo sem sobreposição de contêiner ($resumo_e)"
 else
     falha "C9 executar em paralelo com contêineres sobrepostos ou sem piso (rc=$re1/$re2, $resumo_e)"

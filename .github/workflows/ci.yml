@@ -256,8 +256,8 @@ jobs:
   # NL-3.0h (ordem do CTO, passo 5): ASan e UBSan em push de onda-* e main e em pull_request, nas distros fedora45 e mint22.3.
   # Não é falta de libasan: o preset roda também em ubuntu26.04 e manjaro (NL-3.2c). ubuntu26.04 fica fora por vazamento em aberto (INBOX).
   # O mint22.3 é o único com cliente HTTP da libxml2 (com_http): o ramo que a causa A do validador XSD exige.
-  # Atenção (L-36): o LeakSanitizer só reprova o processo de teste quando o CTest não decide pela regex de PASS.
-  # Testes com PASS_REGULAR_EXPRESSION (44 sítios, medido) ignoram o código de saída: ver TESTES.md (T4).
+  # NL-3.A (L-36): nenhum teste usa regex de passe (portão codigo_de_saida), então o código 86 do sanitizer reprova todo
+  # teste; o texto do relatório reprova também, pelo gate de tests/cmake/nl_registra_teste.cmake: ver TESTES.md (T4).
   asan:
     name: asan (${{ matrix.distro }})
     needs: qt-cache
@@ -356,7 +356,19 @@ jobs:
         run: python3 -I tools/portoes/sanitizer_ativo.py "$NL_TMP_BASE/notalivre-build/asan-ubsan" CMakePresets.json
 
       - name: ctest (preset asan-ubsan)
+        id: ctest_asan
         run: ctest --preset asan-ubsan --output-on-failure --no-tests=error
+
+      # NL-3.A (L-17, L-36): o mesmo portão de pulos do job nativo e do contêiner local (executar_no_conteiner.sh). Sem regex
+      # de passe, o pulo e a contagem exata de funções do build asan são conferidos aqui, pelo junitxml.
+      - name: "Pulos de teste por função, preset asan-ubsan (NL-2.14, NL-3.A)"
+        if: ${{ always() && steps.ctest_asan.outcome != 'skipped' }}
+        env:
+          NL_DISTRO: ${{ matrix.distro }}
+          NL_BASE_REF: origin/onda-2
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
+          sh tools/portoes/pulos_testes.sh "$NL_TMP_BASE/notalivre-build/asan-ubsan" "$NL_DISTRO" tests/pulos_esperados_por_distro.txt
 
   higiene:
     name: higiene (segredos e travessão)
@@ -427,6 +439,13 @@ jobs:
         run: |
           docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/sanitizer_ligado.py /src && python3 -I /src/tools/portoes/sanitizer_ligado.py --autoteste'
+
+      # NL-3.A (L-36): nenhum teste decide pelo regex de passe, por WILL_FAIL ou por SKIP_*; o código de saída decide.
+      - name: Código de saída decide os testes (portão codigo_de_saida, NL-3.A)
+        id: codigo_de_saida
+        run: |
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/codigo_de_saida.py /src'
 
       # NL-1.8 (L-36): hexadecimal de cor só em apps/gui/qml/Theme.qml; o tema gerado tem de bater com a spec visual.
       - name: Hexadecimal só no Theme (portão nenhum_hex_fora_do_theme)
@@ -571,6 +590,9 @@ jobs:
 
       - name: "Autoteste do portão de sanitizer ativo (NL-3.0h)"
         run: bash tools/portoes/autoteste_sanitizer_ativo.sh
+
+      - name: "Autoteste do portão do código de saída (NL-3.A)"
+        run: bash tools/portoes/autoteste_codigo_de_saida.sh
 
       - name: "Autoteste da cota de núcleos do espelho e do build (NL-3.0k)"
         run: bash tools/espelho/autoteste_cota_nucleos.sh

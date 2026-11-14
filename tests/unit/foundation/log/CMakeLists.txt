@@ -31,6 +31,5 @@ foreach(nome IN ITEMS
     chaveForaDoLeiauteDescartada)
   nl_registra_teste_qt(NAME foundation.log.${nome} COMMAND tst_mascara_chave ${nome})
   set_tests_properties(foundation.log.${nome} PROPERTIES
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()

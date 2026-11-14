@@ -63,27 +63,27 @@ caso() {
     fi
 }
 
-# Controle positivo: a lista e o piso do SHA batem, o laço roda 14 portões e nenhum reprova.
-caso verde 14 "" 0 "portoes=14 falharam=0 (piso 14)"
-# Sabotagem 1: um portão sai da lista do SHA (o laço roda 13). Sem piso, passaria verde.
-caso lista_sem_um 14 '/^segredos_historico|/d' 1 "a lista de PORTOES tem 13 portões, o piso é 14"
+# Controle positivo: a lista e o piso do SHA batem, o laço roda 15 portões e nenhum reprova.
+caso verde 15 "" 0 "portoes=15 falharam=0 (piso 15)"
+# Sabotagem 1: um portão sai da lista do SHA (o laço roda 14). Sem piso, passaria verde.
+caso lista_sem_um 15 '/^segredos_historico|/d' 1 "a lista de PORTOES tem 14 portões, o piso é 15"
 # Sabotagem 2: lista esvaziada no SHA (zero portões, o falso verde de origem).
-caso lista_vazia 14 '/^[^#]/d' 1 "a lista de PORTOES tem 0 portões, o piso é 14"
+caso lista_vazia 15 '/^[^#]/d' 1 "a lista de PORTOES tem 0 portões, o piso é 15"
 # Sabotagem 3: piso 0 no SHA.
 caso piso_zero 0 "" 2 "piso 0 recusado"
-# Sabotagem 4: piso maior que a lista do SHA (lista de 14, piso 15).
-caso piso_maior 15 "" 1 "a lista de PORTOES tem 14 portões, o piso é 15"
+# Sabotagem 4: piso maior que a lista do SHA (lista de 15, piso 16).
+caso piso_maior 16 "" 1 "a lista de PORTOES tem 15 portões, o piso é 16"
 # Sabotagem 5: piso ilegível no SHA.
 caso piso_ilegivel "1x" "" 2 "piso ilegível"
 # Sabotagem 6: SHA sem lista (a lista não pode vir da árvore de trabalho).
-caso lista_ausente 14 "__AUSENTE__" 2 "lista_portoes.txt não lida do SHA"
+caso lista_ausente 15 "__AUSENTE__" 2 "lista_portoes.txt não lida do SHA"
 # Sabotagens 7 a 11 (revisão ALTA, NL-3.0g): nome de portão vindo do SHA não pode sair de DESTINO nem chegar ao host.
 # Antes do conserto, cada um destes casos deve ficar vermelho (o nome entra em caminho sem checagem).
-caso dotdot 14 's/^camadas|/..\/fuga|/' 2 "nome de portão inválido" "$BASE/fuga.log"
-caso barra 14 's/^camadas|/sub\/fuga|/' 2 "nome de portão inválido" "$BASE/d-barra/sub/fuga.log"
-caso vazio 14 's/^camadas|/|/' 2 "nome de portão inválido" "$BASE/d-vazio/.log"
-caso sem_pipe 14 's/^camadas|.*/camadas sem barra vertical/' 2 "sem '|'" ""
-caso duplicado 14 's/^autoteste_camadas|/camadas|/' 2 "nome de portão duplicado" ""
+caso dotdot 15 's/^camadas|/..\/fuga|/' 2 "nome de portão inválido" "$BASE/fuga.log"
+caso barra 15 's/^camadas|/sub\/fuga|/' 2 "nome de portão inválido" "$BASE/d-barra/sub/fuga.log"
+caso vazio 15 's/^camadas|/|/' 2 "nome de portão inválido" "$BASE/d-vazio/.log"
+caso sem_pipe 15 's/^camadas|.*/camadas sem barra vertical/' 2 "sem '|'" ""
+caso duplicado 15 's/^autoteste_camadas|/camadas|/' 2 "nome de portão duplicado" ""
 
 echo "casos=$CASOS falhas=$FALHAS"
 if [ "$FALHAS" -eq 0 ]; then

@@ -478,4 +478,5 @@ if __name__ == "__main__":
         sys.exit(f"teste desconhecido: {nome}")
     suite = unittest.TestSuite([classe(nome)])
     resultado = unittest.TextTestRunner(verbosity=2).run(suite)
-    sys.exit(0 if resultado.wasSuccessful() else 1)
+    # NL-3.A: o código de saída decide; a suíte tem de ter rodado exatamente um caso (antes, o regex "Ran 1 test in").
+    sys.exit(0 if resultado.wasSuccessful() and resultado.testsRun == 1 else 1)

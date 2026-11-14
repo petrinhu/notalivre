@@ -16,3 +16,4 @@ fixacao_ci|python3 -I /src/tools/portoes/fixacao_ci.py /src && python3 -I /src/t
 pontos_de_parse|python3 -I /src/tools/portoes/pontos_de_parse.py /src && bash /src/tools/portoes/autoteste_pontos_de_parse.sh
 distro_base|git config --global --add safe.directory /src && python3 -I /src/tools/portoes/distro_base.py /src && python3 -I /src/tools/portoes/distro_base.py --autoteste
 sanitizer_ligado|git config --global --add safe.directory /src && python3 -I /src/tools/portoes/sanitizer_ligado.py /src && python3 -I /src/tools/portoes/sanitizer_ligado.py --autoteste
+codigo_de_saida|git config --global --add safe.directory /src && python3 -I /src/tools/portoes/codigo_de_saida.py /src

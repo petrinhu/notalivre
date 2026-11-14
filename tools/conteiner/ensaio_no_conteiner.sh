@@ -23,8 +23,8 @@
 #                  de 0 e nenhum processo de teste imprimiu o início: nome errado, teste não registrado neste SHA ou
 #                  processo que morreu antes da primeira linha) ou motivo=contagem (rc 0 com contagem diferente de N).
 #                  Não é reprovação nem aprovação do slot.
-# Limite declarado (CTO, 11/11/2026): o veredito de cada repetição é o do CTest. Em teste com PASS_REGULAR_EXPRESSION o
-# CTest ignora o código de saída do processo; sinal, tempo esgotado e FAIL_REGULAR_EXPRESSION reprovam.
+# Veredito (CTO, 11/11/2026; NL-3.A, 13/11/2026): o veredito de cada repetição é o do CTest. Desde a NL-3.A nenhum teste
+# usa regex de passe, então o código de saída do processo conta; sinal, tempo esgotado e FAIL_REGULAR_EXPRESSION reprovam.
 # Códigos: 0 verde; 1 slot reprovado; 2 core fora de 1 1 ou pids.max fora de 512; 3 configure ou build; 4 fixture;
 # 5 lista, SHA ou uso inválidos; 6 temporário não criado; 7 indeterminado.
 # NL_ENSAIO_ARQ_PIDS_MAX é costura só do autoteste (arquivo lido no lugar de /sys/fs/cgroup/pids.max). O build_local.sh
@@ -41,7 +41,7 @@ preset="$1"
 echo "NL-ENSAIO-PRESET=$preset"
 echo "NL-ENSAIO-SHA=${NL_ENSAIO_SHA:-ausente}"
 echo "NL-ENSAIO-LISTA=${NL_ENSAIO:-}"
-echo "ensaio limite: veredito de cada repetição é o do CTest; com PASS_REGULAR_EXPRESSION o código de saída do processo não conta"
+echo "ensaio veredito: o do CTest; sem regex de passe (NL-3.A), o código de saída do processo conta"
 
 grep '^Max core file size' /proc/self/limits || echo "Max core file size: linha ausente em /proc/self/limits"
 limite_core="$(awk '/^Max core file size/ {print $5 " " $6}' /proc/self/limits)"
