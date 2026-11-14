@@ -1197,6 +1197,11 @@ emitir_stub() {
             echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"400"},"descartados":0}'
             echo "ensaio (envio.resposta_sem_codigo)"
             exit 70 ;;
+        resposta_sem_codigo_antigo)
+            # NL-3.C S4b (D2c, CISO): 4xx sem código no pacote antigo; a DPS saiu, a classificação é incerta, nunca recusa.
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"400"},"descartados":0}'
+            echo "emissão recusada (sefin.falha): "
+            exit 1 ;;
         comparacao_novo)
             # NL-3.C (S3): comparação indisponível, linha nova (C9, saída 7).
             echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"409"},"descartados":0}'
@@ -1939,7 +1944,8 @@ ensaio() {
     ensaio_caso envio_incerto 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=envio_incerto NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso envio_nao_concluido 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=envio_nao_concluido NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso envio_falha_interna 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=envio_falha_interna NL_ENSAIO_NDPS_ESPERADO=ausente
-    ensaio_caso envio_resposta_sem_codigo 1 "A Sefin recusou" 1 1 "" NL_ENSAIO_SEQ=envio_resposta_sem_codigo NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso envio_resposta_sem_codigo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=envio_resposta_sem_codigo NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso resposta_sem_codigo_antigo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=resposta_sem_codigo_antigo NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso comparacao_novo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=comparacao_novo NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso comparacao_antigo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=comparacao_antigo NL_ENSAIO_NDPS_ESPERADO=1
     # NL-2.27 (Emenda 1, item 5): kdialog cancelado = senha vazia na CLI (saída 2, local): o número não é consumido.
