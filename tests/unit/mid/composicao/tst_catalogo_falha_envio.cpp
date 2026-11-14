@@ -8,6 +8,8 @@
 #include <QStringList>
 #include <QtTest>
 
+#include <array>
+#include <cstddef>
 #include <set>
 #include <string>
 
@@ -83,6 +85,45 @@ QString violacaoGeral(const QString& texto)
     return {};
 }
 
+// NL-3.C S5 (A2 da revisão): cada classe tem uma marca de texto que só ela tem. Trocar o texto de duas classes reprova aqui, sem
+// afirmar a frase aprovada inteira (DA-3C.9). A marca é um trecho do texto aprovado, em minúsculas, na ordem de kTodasAsClasses.
+struct MarcaDaClasse {
+    cp::ClasseFalhaEnvio classe;
+    const char* marca;
+};
+
+constexpr std::array<MarcaDaClasse, 10> kMarcas{{
+    {cp::ClasseFalhaEnvio::CertificadoProvavel, "não tenha sido aceito"},
+    {cp::ClasseFalhaEnvio::ServidorNaoConfirmado, "não confirmou que fala"},
+    {cp::ClasseFalhaEnvio::RedeAntesDoEnvio, "antes de a nota sair do computador"},
+    {cp::ClasseFalhaEnvio::EstadoIncerto, "não houve confirmação do sistema nacional da nfs-e. a nota"},
+    {cp::ClasseFalhaEnvio::EstadoIncertoCertificadoProvavel, "provável problema no certificado"},
+    {cp::ClasseFalhaEnvio::NaoConcluido, "não concluiu a emissão"},
+    {cp::ClasseFalhaEnvio::FalhaAntesDoEnvio, "falhou ao preparar a nota"},
+    {cp::ClasseFalhaEnvio::RespostaSemCodigo, "não conseguiu ler a resposta"},
+    {cp::ClasseFalhaEnvio::ConfiguracaoDaConexao, "configuração da conexão segura está incompleta"},
+    {cp::ClasseFalhaEnvio::ComparacaoIndisponivel, "conferir a nota que já existe"},
+}};
+
+// NL-3.C S5 (A2, gêmeo do código): cada classe devolve o próprio código estável, na ordem de kTodasAsClasses.
+struct CodigoDaClasse {
+    cp::ClasseFalhaEnvio classe;
+    std::string_view codigo;
+};
+
+constexpr std::array<CodigoDaClasse, 10> kCodigosEsperados{{
+    {cp::ClasseFalhaEnvio::CertificadoProvavel, cp::kCodigoCertificadoProvavel},
+    {cp::ClasseFalhaEnvio::ServidorNaoConfirmado, cp::kCodigoServidorNaoConfirmado},
+    {cp::ClasseFalhaEnvio::RedeAntesDoEnvio, cp::kCodigoRedeAntesDoEnvio},
+    {cp::ClasseFalhaEnvio::EstadoIncerto, cp::kCodigoEstadoIncerto},
+    {cp::ClasseFalhaEnvio::EstadoIncertoCertificadoProvavel, cp::kCodigoEstadoIncertoCertificadoProvavel},
+    {cp::ClasseFalhaEnvio::NaoConcluido, cp::kCodigoNaoConcluido},
+    {cp::ClasseFalhaEnvio::FalhaAntesDoEnvio, cp::kCodigoFalhaAntesDoEnvio},
+    {cp::ClasseFalhaEnvio::RespostaSemCodigo, cp::kCodigoRespostaSemCodigo},
+    {cp::ClasseFalhaEnvio::ConfiguracaoDaConexao, cp::kCodigoConfiguracaoDaConexao},
+    {cp::ClasseFalhaEnvio::ComparacaoIndisponivel, cp::kCodigoComparacaoIndisponivel},
+}};
+
 } // namespace
 
 class TesteCatalogoFalhaEnvio : public QObject
@@ -100,6 +141,8 @@ private slots:
     void estadoIncertoMandaOMesmoNumeroEOMesmoArquivo();
     void provavelOndeACausaNaoEProvada();
     void ehFalhaDeEnvioReconheceSoOsCodigosDoCatalogo();
+    void textoDeCadaClasseTemMarcaPropria();
+    void codigoDeCadaClasseEOProprio();
 };
 
 void TesteCatalogoFalhaEnvio::initTestCase()
@@ -248,6 +291,32 @@ void TesteCatalogoFalhaEnvio::ehFalhaDeEnvioReconheceSoOsCodigosDoCatalogo()
     }
     for (const char* recusado : {"sefin.E1207", "sefin.dps_duplicada", "credencial.nao_carregou", "envio.desconhecido", ""}) {
         QVERIFY2(!cp::ehFalhaDeEnvio(recusado), recusado);
+    }
+}
+
+void TesteCatalogoFalhaEnvio::textoDeCadaClasseTemMarcaPropria()
+{
+    QVERIFY2(kMarcas.size() == cp::kTodasAsClasses.size(), "tabela de marcas sem todas as classes");
+    for (std::size_t i = 0; i < kMarcas.size(); ++i) {
+        QVERIFY2(kMarcas[i].classe == cp::kTodasAsClasses[i], "tabela de marcas fora da ordem das classes");
+        QVERIFY2(contem(kMarcas[i].classe, kMarcas[i].marca), kMarcas[i].marca);
+        int donos = 0;
+        for (cp::ClasseFalhaEnvio outra : cp::kTodasAsClasses) {
+            if (contem(outra, kMarcas[i].marca)) {
+                ++donos;
+            }
+        }
+        QVERIFY2(donos == 1, kMarcas[i].marca);
+    }
+}
+
+void TesteCatalogoFalhaEnvio::codigoDeCadaClasseEOProprio()
+{
+    QVERIFY2(kCodigosEsperados.size() == cp::kTodasAsClasses.size(), "tabela de codigos sem todas as classes");
+    for (std::size_t i = 0; i < kCodigosEsperados.size(); ++i) {
+        QVERIFY2(kCodigosEsperados[i].classe == cp::kTodasAsClasses[i], "tabela de codigos fora da ordem das classes");
+        QVERIFY2(cp::textoDaClasse(kCodigosEsperados[i].classe).codigo == kCodigosEsperados[i].codigo,
+                 kCodigosEsperados[i].codigo.data());
     }
 }
 

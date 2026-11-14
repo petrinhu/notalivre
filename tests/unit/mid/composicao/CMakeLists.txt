@@ -123,7 +123,9 @@ foreach(nome IN ITEMS
     semConviteARepetirOndeRepetirEProibido
     estadoIncertoMandaOMesmoNumeroEOMesmoArquivo
     provavelOndeACausaNaoEProvada
-    ehFalhaDeEnvioReconheceSoOsCodigosDoCatalogo)
+    ehFalhaDeEnvioReconheceSoOsCodigosDoCatalogo
+    textoDeCadaClasseTemMarcaPropria
+    codigoDeCadaClasseEOProprio)
   nl_registra_teste_qt(NAME mid.composicao.catalogoFalhaEnvio.${nome} COMMAND tst_catalogo_falha_envio ${nome})
   set_tests_properties(mid.composicao.catalogoFalhaEnvio.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
