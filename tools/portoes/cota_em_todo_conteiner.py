@@ -182,6 +182,10 @@ CASOS = (
     ("sem_chamada", {"a.sh": "echo oi\n", EXCECAO_ARQUIVO: "echo oi\n"}, 1, "exceções declaradas: 0"),
     ("sem_git", None, 1, "git ls-files falhou"),
 )
+# Valor do piso da varredura real, fixado no autoteste (NL-3.K, revisão do K2, A-4): o portão no caminho do CI (o wrapper
+# autoteste_cota_em_todo_conteiner.sh roda o --autoteste antes da varredura) reprova se PISO_RUN ou PISO_BUILD mudarem sem
+# este par mudar junto, no mesmo diff. Lançador tirado de propósito: baixar os dois juntos.
+PISO_ESPERADO = (17, 4)
 # Casos do piso (NL-3.K, revisão, A-4): (nome, arquivos, (piso_run, piso_build), rc, trecho). Os de CASOS rodam com piso 0.
 CASOS_PISO = (
     ("no_piso", {"a.sh": BOM_RUN + BOM_BUILD, EXCECAO_ARQUIVO: EXC}, (2, 1), 0, "piso_run=2 piso_build=1"),
@@ -228,7 +232,12 @@ def autoteste():
             if not certo:
                 falhas += 1
                 print(texto)
-    print(f"casos={len(CASOS) + len(CASOS_PISO)} falharam={falhas}")
+    if (PISO_RUN, PISO_BUILD) == PISO_ESPERADO:
+        print(f"--- caso piso_padrao_fixado: PISO_RUN={PISO_RUN} PISO_BUILD={PISO_BUILD} OK")
+    else:
+        falhas += 1
+        print(f"--- caso piso_padrao_fixado: PISO_RUN={PISO_RUN} PISO_BUILD={PISO_BUILD}, esperado {PISO_ESPERADO} FALHOU")
+    print(f"casos={len(CASOS) + len(CASOS_PISO) + 1} falharam={falhas}")
     return 1 if falhas or not CASOS else 0
 
 
