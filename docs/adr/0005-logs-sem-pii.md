@@ -40,6 +40,7 @@
 - **Stack trace:** só com tipo da exceção e posição no código. Mensagem de exceção de biblioteca passa pela mesma allowlist.
 - `[alterado pelo CISO, 25/10/2026]` **Saída de Qt e de bibliotecas:** o app instala `qInstallMessageHandler` no início do processo, e toda mensagem de `qDebug`, `qWarning`, `qCritical` e `qFatal` (do app, do Qt e do QML) passa pelo `Log` e pela allowlist. Nada vai cru para a saída de erro, que no Flatpak pode acabar no journal do usuário. Erro do OpenSSL e do xmlsec entra só pelo código numérico e pelo nome da função, nunca pelo texto montado com dado de entrada.
 - **Erro para o usuário:** não mostra conteúdo de log. Mostra mensagem genérica com o código `E` da API.
+- `[alterado pelo CISO, 14/11/2026, NL-3.C; requisito de 07/11/2026]` **Falha do envio sem recusa com código E** (transporte, consulta ou comparação com a nota já existente): texto fixo por classe, com o estado do envio, do catálogo da fachada; nunca texto de biblioteca, URL, host, Id inteiro da DPS, chave de acesso, inscrição nem dado do certificado; série, número e código estável podem aparecer.
 
 ### 4. Auditoria (separada do log técnico)
 
@@ -77,6 +78,7 @@
 - `[alterado pelo CISO, 25/10/2026]` `[alterado pelo CISO, 28/10/2026, DA-2.21]` NL-2.9 (CLI) e NL-4.5 (GUI), teste do manipulador de mensagens: um `qWarning` com o CPF da fixture não aparece nem no arquivo de log nem na saída de erro capturada do processo. Sabotagem: não instalar o manipulador e ver o teste vermelho.
 - `[alterado pelo CISO, 25/10/2026]` `[alterado pelo CISO, 28/10/2026, DA-2.21]` NL-2.8, teste de erro da API: uma resposta do servidor falso com texto livre contendo o CPF da fixture gera só o código `E` no log.
 - `[alterado pelo CISO, 28/10/2026, DA-2.21]` NL-2.9, teste de exceção: exceção que chega ao topo da CLI entra no log só com o tipo e a posição no código; a mensagem passa pela allowlist (seção 3, stack trace).
+- `[alterado pelo CISO, 14/11/2026, NL-3.C]` NL-3.C: invariantes do catálogo de falhas do envio (`tst_catalogo_falha_envio`) e saída de erro da CLI sem URL, host, Id inteiro nem dado da fixture (`e2e.cliEmitir.semConexaoSaiComSeisETextoDoCatalogo`).
 
 ## Pendências
 
