@@ -340,6 +340,10 @@ classificar() {
         # chegado). Local só com a etapa POST e zero bytes escritos.
         if awk '/"evento":"sefin.transporte_falhou"/ && !/"bytesEscritos":"0"/ { achou = 1 } END { exit !achou }' "$2"; then
             RESULTADO=incerta
+        elif awk '/"evento":"sefin.requisicao"/ && /"metodo":"POST"/ { achou = 1 } END { exit !achou }' "$2"; then
+            # NL-3.C S5 (A1 da revisão, R-10 b do CISO): zero bytes num reenvio, depois de um POST já respondido, não prova que nada
+            # chegou à Sefin: incerta, e o número fica gasto. Local só sem nenhum POST registrado na saída.
+            RESULTADO=incerta
         elif awk '/"evento":"sefin.transporte_falhou"/ && /"etapa":"POST"/ && /"bytesEscritos":"0"/ { achou = 1 } END { exit !achou }' "$2"; then
             RESULTADO=local
         else
