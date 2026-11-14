@@ -34,6 +34,21 @@ else()
     find_program(NL_XMLSEC1_CLIENTE xmlsec1 REQUIRED)
     set(NL_SLOTS_CLIENTE
         sucessoExtraiChaveDe50Posicoes
+        consultaDps200SemChaveDaRespostaSemCodigo
+        consultaDps200NaoObjetoDaRespostaSemCodigo
+        consultaNota200NaoObjetoDaRespostaSemCodigo
+        consultaDps404SemCodigoValidoDaRespostaSemCodigo
+        consultaNotaInexistenteDaRespostaSemCodigo
+        consultaDpsSemConexaoDaRede
+        consultaDpsRecusadaNoTls12DaCertificadoProvavel
+        consultaDps5xxPersistenteDaSefinIndisponivel
+        consultaSemTentativaNaoEnviaNada
+        naoGeradaSemTentativaDaNaoConcluido
+        consulta5xxDepoisDoEnvioPropagaACausa
+        conflito409ComConsulta5xxPropagaACausa
+        emitirSemTentativaNaoEnviaNada
+        servidorDeOutraRaizSemBytesDaServidorNaoConfirmado
+        zeroBytesNoReenvioDepoisDeE2404NaoDizNadaFoiEnviado
         falhaDePostVaiAoLogComEtapaPost
         falhaDeGetVaiAoLogComEtapaGet
         ancorasTlsVaziasSaiComCausaDeConfiguracao
