@@ -9,6 +9,9 @@ RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TRAVA="$NL_TMP_BASE/notalivre-heavy.lock"
 ESPELHO_TRAB="$NL_TMP_BASE/notalivre-espelho"
 IMAGEM_HIGIENE="notalivre-higiene:ci"
+# Teto de contêiner (NL-3.K): todo docker run dos jobs recebe "${NL_COTAS_DOCKER[@]}", do átomo único.
+. "$RAIZ/tools/conteiner/cota_conteiner.sh"
+nl_cotas_docker || { echo "REPROVA: teto de contêiner inválido"; exit 2; }
 
 # Trava única de trabalho pesado (L-11). Cada job_*.sh chama travar antes de qualquer contêiner.
 travar() {
@@ -55,12 +58,12 @@ copiar_arvore() {
 # Imagem de higiene (mesma do CI). Reconstruída a cada espelho: o digest fixado no Dockerfile é o que vale, e uma imagem
 # antiga com digest diferente não pode ficar em uso (NL-3.0g). Com cache de camadas o build é rápido.
 garantir_imagem_higiene() {
-    docker build -q -t "$IMAGEM_HIGIENE" -f "$RAIZ/tools/portoes/higiene.Dockerfile" "$RAIZ/tools/portoes" >/dev/null || return 1
+    docker build -q -t "$IMAGEM_HIGIENE" "${NL_COTAS_DOCKER_BUILD[@]}" -f "$RAIZ/tools/portoes/higiene.Dockerfile" "$RAIZ/tools/portoes" >/dev/null || return 1
 }
 
 # Imagem de ostree da conferência do repositório Flatpak (NL-3.0g). Mesma regra: reconstruída a cada espelho, com cache.
 garantir_imagem_ostree() {
-    docker build -q -t notalivre/ostree-fedora45:nl-3.0g -f "$RAIZ/tools/conteiner/ostree-fedora45.Dockerfile" "$RAIZ/tools/conteiner" >/dev/null || return 1
+    docker build -q -t notalivre/ostree-fedora45:nl-3.0g "${NL_COTAS_DOCKER_BUILD[@]}" -f "$RAIZ/tools/conteiner/ostree-fedora45.Dockerfile" "$RAIZ/tools/conteiner" >/dev/null || return 1
 }
 
 # Um passo do job: roda, imprime o rc e acumula a falha. Uso: passo NOME COMANDO...

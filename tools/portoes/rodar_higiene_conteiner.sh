@@ -20,6 +20,9 @@ PORTOES_ALT="${3:-}"
 IMAGEM="notalivre/higiene-fedora45:nl-3.0g"
 NL_TMP_BASE="${NL_TMP_BASE:-/var/tmp}"; export NL_TMP_BASE; export TMPDIR="$NL_TMP_BASE"
 DEST="$NL_TMP_BASE/notalivre-higiene-src"
+# Teto de contêiner (NL-3.K), do átomo único.
+. "$(dirname "${BASH_SOURCE[0]}")/../conteiner/cota_conteiner.sh"
+nl_cotas_docker || { echo "teto de contêiner inválido"; exit 2; }
 
 mkdir -p "$(dirname "$LOG")"
 exec 9> "$NL_TMP_BASE/notalivre-heavy.lock"
@@ -44,7 +47,7 @@ flock -w 1200 9 || { echo "sem trava de trabalho pesado em 1200 s" | tee -a "$LO
 
     if ! docker image inspect "$IMAGEM" > /dev/null 2>&1; then
         echo "== construindo imagem $IMAGEM"
-        nice -n 5 docker build -t "$IMAGEM" -f "$DEST/tools/portoes/higiene.Dockerfile" "$DEST/tools/portoes"
+        nice -n 5 docker build -t "$IMAGEM" "${NL_COTAS_DOCKER_BUILD[@]}" -f "$DEST/tools/portoes/higiene.Dockerfile" "$DEST/tools/portoes"
         echo "build_rc=$?"
     else
         echo "== imagem $IMAGEM ja existe, reutilizada"
@@ -58,7 +61,7 @@ flock -w 1200 9 || { echo "sem trava de trabalho pesado em 1200 s" | tee -a "$LO
     fi
 
     echo "== autoteste no conteiner (sem rede, arvore so leitura)"
-    nice -n 5 docker run --rm --network none \
+    nice -n 5 docker run --rm "${NL_COTAS_DOCKER[@]}" --network none \
         -v "$DEST:/src:ro,z" -e TMPDIR=/var/tmp "${extra[@]}" \
         "$IMAGEM" bash /src/tools/portoes/autoteste_higiene.sh
     RC=$?

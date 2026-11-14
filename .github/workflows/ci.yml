@@ -535,6 +535,9 @@ jobs:
       - name: Autoteste dos limites de contêiner (NL-2.11, A2 e A3)
         run: bash tools/conteiner/autoteste_build_limites.sh
 
+      - name: Autoteste dos limites de contêiner dos portões estáticos (NL-2.11, NL-3.K)
+        run: bash tools/conteiner/autoteste_portoes_limites.sh
+
       # NL-3.0j (CTO, 10/11/2026): arnês de repetição. Cotas do modo ensaio e do mutante, listas inválidas e o corpo do ensaio com ctest de mentira.
       - name: "Autoteste do arnês de repetição, modo ensaio e corpo (NL-3.0j)"
         run: bash tools/conteiner/autoteste_build_ensaio.sh
@@ -571,6 +574,12 @@ jobs:
 
       - name: "Autoteste da cota de núcleos do espelho e do build (NL-3.0k)"
         run: bash tools/espelho/autoteste_cota_nucleos.sh
+
+      - name: "Autoteste do teto de contêiner, átomo (NL-3.K)"
+        run: bash tools/conteiner/autoteste_cota_conteiner.sh
+
+      - name: "Teto em todo contêiner, casos e varredura (NL-3.K)"
+        run: bash tools/portoes/autoteste_cota_em_todo_conteiner.sh "$GITHUB_WORKSPACE"
 
       # NL-3.0i (revisão de edc4cde): o --ensaio do emitir_teste.sh roda no CI, com HOME descartável. Depende de bash,
       # python3 (já usado por este job em outros passos), sha256sum, stat e coreutils, todos no runner ubuntu-latest.

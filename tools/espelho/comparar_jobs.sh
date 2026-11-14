@@ -7,4 +7,6 @@
 # Sem um dos dois, o comparador recusa o uso (NL-3.0g: sem run padrão de branch fixa).
 set -u
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-docker run --pull=never --rm -v "$RAIZ:/src:ro,z" -e TMPDIR=/var/tmp notalivre-higiene:ci python3 -I /src/tools/espelho/comparar_jobs.py /src "${1:-}"
+. "$RAIZ/tools/conteiner/cota_conteiner.sh"
+nl_cotas_docker || { echo "REPROVA: teto de contêiner inválido"; exit 2; }
+docker run --pull=never "${NL_COTAS_DOCKER[@]}" --rm -v "$RAIZ:/src:ro,z" -e TMPDIR=/var/tmp notalivre-higiene:ci python3 -I /src/tools/espelho/comparar_jobs.py /src "${1:-}"

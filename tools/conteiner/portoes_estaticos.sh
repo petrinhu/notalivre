@@ -12,12 +12,14 @@
 # NL-3.0g (CISO, 05/11/2026): a lista de portões (tools/conteiner/lista_portoes.txt) e o piso (piso_portoes.txt) são lidos
 # SÓ do SHA, por git show. Nunca de arquivo da árvore de trabalho nem de dirname: quem muda a lista ou o piso muda o SHA.
 # Variável: NL_HIGIENE_IMAGEM (padrão notalivre-higiene:ci, a mesma imagem do job higiene do CI)
-# Cota desta máquina (ordem do líder de 30/10/2026, dividida com outra sessão): cada contêiner tem 7 núcleos e 12 GiB.
+# Teto de contêiner (NL-3.K): cada contêiner recebe o vetor NL_COTAS_DOCKER do átomo tools/conteiner/cota_conteiner.sh.
 # Saída: uma linha "portao=<nome> rc=<rc>" por portão e o total "portoes=N falharam=K (piso P)".
 # Rc: 2 para piso ilegível, piso 0, lista ou piso não lidos do SHA, e para os erros de SHA e destino;
 # 1 para lista com número diferente do piso (lista vazia reprova por aí) e para portão que falha.
 # Autoteste de estreia: autoteste_piso_portoes.sh.
 set -u
+. "$(dirname "${BASH_SOURCE[0]}")/cota_conteiner.sh"
+nl_cotas_docker || { echo "PARADA: teto de contêiner inválido (rc 2)"; exit 2; }
 
 REPO="${1:?uso: portoes_estaticos.sh REPO SHA DESTINO}"
 SHA="${2:?uso: portoes_estaticos.sh REPO SHA DESTINO}"
@@ -88,7 +90,7 @@ for item in "${PORTOES[@]}"; do
     nome="${item%%|*}"
     cmd="${item#*|}"
     rodados=$((rodados + 1))
-    docker run --pull=never --rm --cpus 7 --memory 12g --memory-swap 12g --network none --user 1000:1000 -e HOME=/tmp \
+    docker run --pull=never "${NL_COTAS_DOCKER[@]}" --rm --network none --user 1000:1000 -e HOME=/tmp \
         -v "$ARVORE:/src:ro,z" -w /src "$IMG" sh -c "$cmd" > "$DESTINO/$nome.log" 2>&1
     rc=$?
     echo "portao=$nome rc=$rc"

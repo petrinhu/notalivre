@@ -6,12 +6,12 @@
 # Não é executável. Chamadores: tools/espelho/job_flatpak.sh e tools/mutacao/sabotar_portoes.sh (modo flatpak), que usam
 # nl_threads_valido; e tools/conteiner/build_local.sh, que usa nl_cpuset_valido.
 
-# Cota padrão, em núcleos. Igual ao THREADS de tools/conteiner/build_local.sh. A máquina é dividida: 7 de 16 para este projeto.
+# Teto de CPU por contêiner e cota do flatpak-builder, em núcleos (NL-3.K; o porquê está no plano da NL-3.K, seção 1).
 NL_COTA_PADRAO=7
 
 # nl_threads_valido VALOR NPROC: imprime a cota efetiva em stdout e sai 0; sai 1 com REPROVA em stderr se for inválida.
 # VALOR vazio vale NL_COTA_PADRAO. Só passa inteiro positivo sem zero à esquerda, até NPROC-1 (um núcleo fica ao sistema).
-# De NL_COTA_PADRAO+1 até NPROC-1 passa com AVISO: acima da cota exige ok do GlintFx (memória feedback_divisao_maquina_glintfx).
+# Acima de NL_COTA_PADRAO reprova: é o teto (NL-3.K, decisão do líder de 13/11/2026, "Consertar só o teto (Recomendado)").
 # Valor com mais de 4 dígitos reprova antes da comparação: a aritmética do bash estoura em número longo e daria verde falso.
 nl_threads_valido() {
     local valor="${1:-}" np="${2:?uso: nl_threads_valido VALOR NPROC}" teto
@@ -26,7 +26,8 @@ nl_threads_valido() {
         return 1
     fi
     if [ "$valor" -gt "$NL_COTA_PADRAO" ]; then
-        echo "AVISO: NL_THREADS=$valor acima da cota de $NL_COTA_PADRAO núcleos; exige ok do GlintFx" >&2
+        echo "REPROVA: NL_THREADS=$valor acima do teto de $NL_COTA_PADRAO núcleos (NL-3.K)" >&2
+        return 1
     fi
     echo "$valor"
 }
