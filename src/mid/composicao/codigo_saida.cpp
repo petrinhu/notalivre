@@ -3,7 +3,7 @@
 // Código de saída da emissão (NL-2.9, DA-2.57c). Ver codigo_saida.h. Listas exatas primeiro; prefixos depois; o resto é 70.
 #include <nl/mid/composicao/codigo_saida.h>
 
-#include <nl/mid/composicao/catalogo_falha_envio.h>
+#include <nl/mid/composicao/codigos_falha_envio.h>
 
 #include <array>
 #include <string>

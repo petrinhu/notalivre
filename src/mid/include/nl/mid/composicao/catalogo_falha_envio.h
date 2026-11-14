@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Catálogo da falha de envio sem código E (NL-3.C, plano seções 1.5 e 3.4): texto fixo por classe, aprovado pelo líder em
-// 14/11/2026, e código estável envio.* (ou sefin.comparacao_indisponivel). Átomo próprio (L-34): o texto muda quando o
+// 14/11/2026, com o código estável de `codigos_falha_envio.h`. Átomo próprio (L-34): o texto muda quando o
 // líder muda o texto, sem tocar a regra de classe nem o código de saída.
 #ifndef NL_MID_COMPOSICAO_CATALOGO_FALHA_ENVIO_H
 #define NL_MID_COMPOSICAO_CATALOGO_FALHA_ENVIO_H
+
+#include <nl/mid/composicao/codigos_falha_envio.h>
 
 #include <array>
 #include <string_view>
@@ -37,18 +39,6 @@ inline constexpr std::array<ClasseFalhaEnvio, 10> kTodasAsClasses{
     ClasseFalhaEnvio::ConfiguracaoDaConexao,
     ClasseFalhaEnvio::ComparacaoIndisponivel,
 };
-
-// Códigos estáveis: o script, o log e o código de saída usam estas constantes; nenhuma string repetida.
-inline constexpr std::string_view kCodigoCertificadoProvavel = "envio.certificado_provavel";
-inline constexpr std::string_view kCodigoServidorNaoConfirmado = "envio.servidor_nao_confirmado";
-inline constexpr std::string_view kCodigoRedeAntesDoEnvio = "envio.rede_antes_do_envio";
-inline constexpr std::string_view kCodigoEstadoIncerto = "envio.estado_incerto";
-inline constexpr std::string_view kCodigoEstadoIncertoCertificadoProvavel = "envio.estado_incerto_certificado_provavel";
-inline constexpr std::string_view kCodigoNaoConcluido = "envio.nao_concluido";
-inline constexpr std::string_view kCodigoFalhaAntesDoEnvio = "envio.falha_antes_do_envio";
-inline constexpr std::string_view kCodigoRespostaSemCodigo = "envio.resposta_sem_codigo";
-inline constexpr std::string_view kCodigoConfiguracaoDaConexao = "envio.configuracao_da_conexao";
-inline constexpr std::string_view kCodigoComparacaoIndisponivel = "sefin.comparacao_indisponivel";
 
 /// Código estável e texto fixo de uma classe. Os dois são de conjunto fechado.
 struct TextoDaFalha {

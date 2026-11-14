@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Testes do código de saída da emissão (NL-2.9, DA-2.51 e DA-2.57c): cada código classificado sai com a sua classe, e um
 // código fora da lista sai como 70, nunca como uma recusa comum.
-#include <nl/mid/composicao/catalogo_falha_envio.h>
+#include <nl/mid/composicao/codigos_falha_envio.h>
 #include <nl/mid/composicao/codigo_saida.h>
 
 #include <array>
