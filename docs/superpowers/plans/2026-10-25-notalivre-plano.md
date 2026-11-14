@@ -896,7 +896,7 @@ Executor das telas: frontend-engineer. Revisão: qa-engineer (capturas em contê
 - (i) Contagem de erros do quiz por número: dura até destravar ou até o cofre nascer.
 - (j) Regras: alternativas erradas geradas, nunca dado real de terceiro; nenhuma fonte não oficial de CPF.
 - (k) Registro do aceite dado antes do cofre: proposta do CLO, vai ao cofre quando ele nasce; sem cofre, não fica registro.
-- K6, política de privacidade: seção "O que outras pessoas deste computador podem ver" (o número em remoção aparece aos admins, por até 30 dias, só o número); frase em "O que sai deste computador" (o CNPJ vai ao serviço de consulta, depois do aceite, e o serviço vê o endereço de internet); e a limpeza do cofre removido roda na abertura do app depois do prazo.
+- K6, política de privacidade: seção "O que outras pessoas deste computador podem ver" (o número em remoção aparece aos admins, por até 30 dias, só o número); frase em "O que sai deste computador" (o CNPJ vai ao serviço de consulta, depois do aceite, e o serviço vê o endereço de internet); e a limpeza do cofre removido roda na abertura do app depois do prazo, quando o app confere o pedido; sem isso, o cofre fica guardado, cifrado e sem uso, até a conferência voltar ou a prova ser repetida.
 
 ---
 
