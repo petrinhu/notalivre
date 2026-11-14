@@ -9,6 +9,9 @@ RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TRAVA="$NL_TMP_BASE/notalivre-heavy.lock"
 ESPELHO_TRAB="$NL_TMP_BASE/notalivre-espelho"
 IMAGEM_HIGIENE="notalivre-higiene:ci"
+# Teto de contêiner (NL-3.K): todo docker run dos jobs recebe "${NL_COTAS_DOCKER[@]}", do átomo único.
+. "$RAIZ/tools/conteiner/cota_conteiner.sh"
+nl_cotas_docker || { echo "REPROVA: teto de contêiner inválido"; exit 2; }
 
 # Trava única de trabalho pesado (L-11). Cada job_*.sh chama travar antes de qualquer contêiner.
 travar() {

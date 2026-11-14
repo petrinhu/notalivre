@@ -14,6 +14,9 @@ mkdir -p "$BASE/bin" "$BASE/fixture"
 printf '#!/bin/sh\necho "docker $*" >> "%s/docker.log"\nexit 0\n' "$BASE" > "$BASE/bin/docker"
 chmod +x "$BASE/bin/docker"
 export PATH="$BASE/bin:$PATH"
+# NL-3.K: o teto padrão (7) só vale em máquina com 8 CPUs ou mais; a costura fixa 16, como nesta máquina.
+export NL_NPROC_TESTE=16
+unset NL_THREADS NL_MEMORIA NL_CPUSET
 FALHAS=0
 
 ok() { echo "[VERDE] $1"; }
@@ -22,6 +25,10 @@ falha() { echo "[VERMELHO] $1"; FALHAS=$((FALHAS + 1)); }
 # Repositório de brincadeira com um commit (o portão clona um SHA dele).
 git -C "$BASE/fixture" init -q
 printf 'x\n' > "$BASE/fixture/arquivo.txt"
+# NL-3.K: o portão lê piso e lista do SHA. Sem eles, saía com rc 2 antes de qualquer docker run, e este autoteste, que
+# não rodava em lugar nenhum, estava vermelho sem ninguém ver.
+mkdir -p "$BASE/fixture/tools/conteiner"
+for arq in piso_portoes.txt lista_portoes.txt; do cp "$RAIZ/tools/conteiner/$arq" "$BASE/fixture/tools/conteiner/$arq"; done
 git -C "$BASE/fixture" add -A
 git -C "$BASE/fixture" -c core.hooksPath=/dev/null -c user.name=autoteste -c user.email=autoteste@invalid commit -q -m "test: fixture" || { echo "ABORTA: commit da fixture"; exit 1; }
 SHA="$(git -C "$BASE/fixture" rev-parse HEAD)" || { echo "ABORTA: rev-parse"; exit 1; }

@@ -9,13 +9,14 @@ travar
 copiar_arvore "$ESPELHO_TRAB/autotestes" || { echo "REPROVA: cópia da árvore falhou"; exit 1; }
 D="$ESPELHO_TRAB/autotestes"
 IMAGEM_BUILD="notalivre/build-fedora45:nl-2.0"
-CONT=(docker run --pull=never --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp/home -e TMPDIR=/var/tmp \
+CONT=(docker run --pull=never "${NL_COTAS_DOCKER[@]}" --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp/home -e TMPDIR=/var/tmp \
     -v "$D:/src:ro,z" -w /src "$IMAGEM_BUILD")
 passo "piso-dos-portoes-confere" "${CONT[@]}" sh -c \
     'n=$(grep -vc "^#" tools/conteiner/lista_portoes.txt) && p=$(sed -n 1p tools/conteiner/piso_portoes.txt) && echo "piso=$p lista=$n" && [ "$n" = "$p" ]'
 passo "autoteste-piso-portoes" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_piso_portoes.sh'
 passo "autoteste-suite-flatpak" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash flatpak/autoteste_suite_flatpak.sh'
 passo "autoteste-build-limites" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_build_limites.sh'
+passo "autoteste-portoes-limites" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_portoes_limites.sh'
 passo "autoteste-build-ensaio" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_build_ensaio.sh'
 passo "autoteste-pulos-testes" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_pulos_testes.sh'
 passo "autoteste-fora-do-flatpak" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_fora_do_flatpak.sh'
@@ -28,6 +29,8 @@ passo "autoteste-rodar-espelho" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash t
 passo "autoteste-pull-never" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_pull_never.sh /src'
 passo "autoteste-sanitizer-ativo" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_sanitizer_ativo.sh'
 passo "autoteste-cota-nucleos" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_cota_nucleos.sh'
+passo "autoteste-cota-conteiner" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_cota_conteiner.sh'
+passo "teto-em-todo-conteiner" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_cota_em_todo_conteiner.sh /src'
 passo "ensaio-emitir-teste" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/producao_restrita/emitir_teste.sh --ensaio'
 [ "$PASSOS_FALHOS" -eq 0 ] && { echo "JOB autotestes: VERDE"; exit 0; }
 echo "JOB autotestes: VERMELHO ($PASSOS_FALHOS passo(s) com rc diferente de 0)"; exit 1

@@ -31,6 +31,8 @@ caso() {
     mkdir -p "$dir/tools/conteiner"
     git -C "$dir" init -q
     cp "$ORIGEM/portoes_estaticos.sh" "$dir/tools/conteiner/portoes_estaticos.sh"
+    # NL-3.K: o portão carrega os átomos do teto de contêiner da própria pasta; o caso roda o script daqui.
+    cp "$ORIGEM/cota_conteiner.sh" "$ORIGEM/cota_nucleos.sh" "$dir/tools/conteiner/"
     printf '%s\n' "$piso" > "$dir/tools/conteiner/piso_portoes.txt"
     if [ "$sabotagem" != "__AUSENTE__" ]; then
         cp "$ORIGEM/lista_portoes.txt" "$dir/tools/conteiner/lista_portoes.txt"

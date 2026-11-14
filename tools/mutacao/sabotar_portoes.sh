@@ -37,9 +37,11 @@ SHA=""
 FONTE=""
 
 [ "$MODO" = docker ] || [ "$MODO" = flatpak ] || { echo "REPROVA: MODO_FLATPAK inválido: $MODO"; exit 1; }
-# NL-3.0k: a cota de núcleos vale só no modo flatpak (espelho local). O átomo é carregado por caminho relativo a RAIZ,
-# que é a árvore onde este script está (não a cópia do REF, que só recebe as sabotagens). O modo docker (CI) não carrega o
-# átomo, não passa --jobs e segue com todos os núcleos do contêiner: o CI não define NL_THREADS.
+# NL-3.K: o teto de contêiner vale nos dois modos (no runner de 4 CPUs do CI, o átomo reduz o teto de CPU com AVISO).
+# NL-3.0k: a cota de núcleos do flatpak-builder vale só no modo flatpak (espelho local). Os átomos são carregados por caminho
+# relativo a RAIZ, que é a árvore onde este script está (não a cópia do REF, que só recebe as sabotagens).
+. "$RAIZ/tools/conteiner/cota_conteiner.sh" || { echo "REPROVA: átomo do teto de contêiner não carrega"; exit 1; }
+nl_cotas_docker || { echo "REPROVA: teto de contêiner inválido"; exit 1; }
 if [ "$MODO" = flatpak ]; then
     . "$RAIZ/tools/conteiner/cota_nucleos.sh" || { echo "REPROVA: átomo da cota de núcleos não carrega"; exit 1; }
     JOBS="$(nl_threads_valido "${NL_THREADS:-}" "$(nproc)")" || exit 1
@@ -95,7 +97,7 @@ registrar() {
 
 # Contêiner de portão: sem rede, usuário do host (escreve só na cópia de rascunho).
 em_conteiner() {
-    docker run --pull=never --rm --network none --user "$(id -u):$(id -g)" -e HOME=/var/tmp -e TMPDIR=/var/tmp "$@"
+    docker run --pull=never "${NL_COTAS_DOCKER[@]}" --rm --network none --user "$(id -u):$(id -g)" -e HOME=/var/tmp -e TMPDIR=/var/tmp "$@"
 }
 
 # 1. A2 de camadas: include de camada proibida (back incluindo mid). Sem sabotagem no controle do harness.
@@ -114,7 +116,7 @@ if ativo gitleaks; then
     d=$(copiar gitleaks) || { echo "copia gitleaks falhou"; exit 1; }
     log="$TRABALHO/gitleaks.log"
     # ssh-keygen precisa de entrada no passwd: gera como root no contêiner e devolve a posse ao UID do host.
-    docker run --pull=never --rm --network none --user 0:0 -e HOME=/var/tmp -e TMPDIR=/var/tmp -v "$d:/src:z" "$IMAGEM" sh -c \
+    docker run --pull=never "${NL_COTAS_DOCKER[@]}" --rm --network none --user 0:0 -e HOME=/var/tmp -e TMPDIR=/var/tmp -v "$d:/src:z" "$IMAGEM" sh -c \
         'ssh-keygen -q -t ed25519 -N "" -C mutacao-nao-real -f /src/chave_de_mutacao && chown '"$(id -u):$(id -g)"' /src/chave_de_mutacao /src/chave_de_mutacao.pub && bash /src/tools/portoes/higiene_segredos.sh /src' \
         > "$log" 2>&1
     rc=$?

@@ -79,11 +79,11 @@ sem_regex() { ! grep -q -- '=~' "$1"; }
 # O build_local.sh carrega o átomo por uma linha de carga inteira (menção ao caminho num comentário não conta).
 carrega_atomo_linha() { grep -q -x -F '. "$RAIZ/tools/conteiner/cota_nucleos.sh"' "$1"; }
 # Todo docker run do build_local.sh (texto "run --pull=never": o portão de pull=never varre o texto "docker run" deste arquivo)
-# leva "${cotas_cpu[@]}" imediatamente antes de --cpus. A contagem é 6; zero seria varredura quebrada (L-36).
+# leva o vetor "${NL_COTAS_DOCKER[@]}" do átomo (NL-3.K). A contagem é 6; zero seria varredura quebrada (L-36).
 docker_run_com_cpuset() {
     local total com
     total="$(grep -c -F 'run --pull=never' "$1" || true)"
-    com="$(grep -F 'run --pull=never' "$1" | grep -c -F '"${cotas_cpu[@]}" --cpus "$THREADS"' || true)"
+    com="$(grep -F 'run --pull=never' "$1" | grep -c -F '"${NL_COTAS_DOCKER[@]}"' || true)"
     [ "${total:-0}" = 6 ] && [ "${com:-0}" = 6 ]
 }
 carrega_atomo() { grep -q -- 'conteiner/cota_nucleos.sh' "$1"; }
@@ -96,8 +96,8 @@ sem_build_puro() {
     [ -z "$puros" ]
 }
 registrado() { grep -q -- 'autoteste_cota_nucleos.sh' "$1"; }
-padrao_igual() { [ -n "$1" ] && [ "$1" = "$2" ]; }
-aviso_acima_da_cota() { nl_threads_valido 8 16 2>&1 >/dev/null | grep -q AVISO; }
+sem_teto_fixo() { ! grep -n -E -- '--cpus [0-9]|NL_THREADS:-[0-9]|NL_MEMORIA:-[0-9]' "$1"; }
+reprova_acima_do_teto() { nl_threads_valido 8 16 2>&1 >/dev/null | grep -q REPROVA; }
 
 echo "## Parte 1: tabela da regra (átomo, NPROC 16)"
 checar "átomo existe e carrega" test -f "$ATOMO"
@@ -106,8 +106,8 @@ if [ -f "$ATOMO" ]; then
     caso "" ok
     caso 1 ok
     caso 7 ok
-    caso 8 ok
-    caso 15 ok
+    caso 8 reprova
+    caso 15 reprova
     caso 0 reprova
     caso 07 reprova
     caso -1 reprova
@@ -117,7 +117,7 @@ if [ -f "$ATOMO" ]; then
     caso 1000000 reprova
     caso 99999999999999999999 reprova
     checar "tabela não vazia" [ "$CASOS" -ge 1 ]
-    checar "8 (acima da cota) emite AVISO" aviso_acima_da_cota
+    checar "8 (acima do teto) reprova com REPROVA" reprova_acima_do_teto
     # Reserva de CPUs (NL-3.0j): tabela da função nl_cpuset_valido.
     caso_cpuset "" 0-15 4-15 -
     caso_cpuset "" 0-7 4-7 -
@@ -155,11 +155,9 @@ checar "job_flatpak.sh confere jobs-do-build no log" tem_conferencia "$JOB"
 echo "## Parte 3: manifesto e padrão do build_local.sh"
 checar "manifesto tem --parallel com nproc de reserva" tem_parallel "$MANIFESTO"
 checar "manifesto sem cmake --build _build puro" sem_build_puro "$MANIFESTO"
-padrao_build="$(sed -n 's/^THREADS="\${NL_THREADS:-\([0-9]*\)}"$/\1/p' "$BUILD_LOCAL")"
-padrao_atomo="$(sed -n 's/^NL_COTA_PADRAO=\([0-9]*\)$/\1/p' "$ATOMO" 2>/dev/null)"
-checar "padrão do build_local.sh ($padrao_build) igual ao do átomo ($padrao_atomo)" padrao_igual "$padrao_build" "$padrao_atomo"
+checar "build_local.sh não fixa teto próprio (o teto é o do átomo, NL-3.K)" sem_teto_fixo "$BUILD_LOCAL"
 checar "build_local.sh carrega o átomo por linha de carga inteira" carrega_atomo_linha "$BUILD_LOCAL"
-checar "build_local.sh: as 6 chamadas de contêiner levam \"\${cotas_cpu[@]}\" antes de --cpus" docker_run_com_cpuset "$BUILD_LOCAL"
+checar "build_local.sh: as 6 chamadas de contêiner levam \"\${NL_COTAS_DOCKER[@]}\"" docker_run_com_cpuset "$BUILD_LOCAL"
 
 echo "## Parte 4: registro no espelho e no CI"
 checar "job_autotestes.sh chama o autoteste" registrado "$JOB_AUTOTESTES"
