@@ -2,6 +2,9 @@
 # Formato: <nome do teste> | <motivo> | coberto no build nativo
 # Conferido por tools/portoes/fora_do_flatpak.sh por igualdade exata com os testes ausentes no configure ON.
 # Emenda 1 (CTO, 31/10/2026): xmldsig com xmllint ou xmlsec1 e servidor falso ficam fora; o resto entra no Flatpak.
+# NL-2.34 (medido na NL-3.A em 14/11/2026): o canal de senha por descritor dentro do Flatpak só é medido no job smoke-host do
+# CI (flatpak/host/senha_fd.sh, chamado em .github/workflows/ci.yml); o espelho local não roda esse medidor (tools/espelho
+# sem senha_fd). cliEmiteComSenhaPeloDescritor fica fora do Flatpak pelo motivo escrito na linha dele.
 cli.portaoPiiVarreLogsDaCli | depende do segredo de referência gerado pelo e2e | coberto no build nativo
 e2e.cliEmitir.algoritmoRsaSha1NoXmlPadrao | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 e2e.cliEmitir.algoritmoRsaSha256NoXmlEnviado | servidor falso em Python com oráculo ausente no SDK | coberto no build nativo

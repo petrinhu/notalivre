@@ -22,7 +22,6 @@ foreach(nome IN ITEMS
   set_tests_properties(mid.cofre.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
@@ -31,7 +30,6 @@ foreach(nome IN ITEMS materialDaCredencialViva credencialDescartadaNaoEntregaMat
   set_tests_properties(mid.cofre.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
@@ -50,7 +48,6 @@ foreach(nome IN ITEMS
   set_tests_properties(mid.cofre.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_ICP_RAIZES_DIR=${NL_ICP_RAIZES_DIR}"
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
@@ -65,7 +62,6 @@ foreach(nome IN ITEMS
     semTerminalContinuaSenhaAusente)
   nl_registra_teste_qt(NAME mid.cofre.${nome} COMMAND tst_terminal_segundo_plano ${nome})
   set_tests_properties(mid.cofre.${nome} PROPERTIES
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
@@ -89,7 +85,6 @@ foreach(nome IN ITEMS
     recusaFechaODescritor)
   nl_registra_teste_qt(NAME mid.cofre.${nome} COMMAND tst_descritor_de_segredo ${nome})
   set_tests_properties(mid.cofre.${nome} PROPERTIES
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
@@ -103,6 +98,5 @@ foreach(nome IN ITEMS
     fechadoNaEntradaRecusaSemTomar)
   nl_registra_teste_qt(NAME mid.cofre.${nome} COMMAND tst_tomada_descritor ${nome})
   set_tests_properties(mid.cofre.${nome} PROPERTIES
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()

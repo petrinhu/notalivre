@@ -33,11 +33,9 @@ foreach(nome IN ITEMS
     pfxTemCadeiaDaAc)
   add_test(NAME certificados.${nome}
            COMMAND Python3::Interpreter -I "${NL_CERT_TESTES}" ${nome})
-  nl_gate_sanitizer_registra(certificados.${nome})
   set_tests_properties(certificados.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
-                       PASS_REGULAR_EXPRESSION "Ran 1 test in"
                        FAIL_REGULAR_EXPRESSION "FAILED")
 endforeach()
 
@@ -45,10 +43,8 @@ endforeach()
 foreach(nome IN ITEMS senhaAleatoriaPorExecucao senhaNasceCom0600 dvAlfanumericoVetoresOficiais)
   add_test(NAME certificados.${nome}
            COMMAND Python3::Interpreter -I "${NL_CERT_TESTES}" ${nome})
-  nl_gate_sanitizer_registra(certificados.${nome})
-  # Passa só se o unittest rodou exatamente um caso (linha "Ran 1 test in") e não houve FAILED.
-  # Sem isso, uma suíte vazia ("Ran 0 tests", OK) dava verde com RC 0.
+  # O código de saída decide (NL-3.A): test_certificados.py monta uma suíte de exatamente um caso e sai com 1 se o caso
+  # não passar ou se a suíte não rodar exatamente um caso. FAILED no texto reprova também.
   set_tests_properties(certificados.${nome} PROPERTIES
-                       PASS_REGULAR_EXPRESSION "Ran 1 test in"
                        FAIL_REGULAR_EXPRESSION "FAILED")
 endforeach()

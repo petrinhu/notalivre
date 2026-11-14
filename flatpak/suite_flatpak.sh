@@ -91,7 +91,7 @@ cat "$BUILD/suite-executados.txt" | tail -n 3
 # log do job mostra apenas o tail. Quando algum teste falha, as linhas de reprovação dos portões e dos testes vão ao log.
 if [ "$rc" -ne 0 ] || [ "$falharam" -ne 0 ]; then
     echo "suite_flatpak: linhas de reprovação dos testes que falharam:"
-    grep -E 'VIOLACAO|violacoes=|encontrados=|Traceback|AssertionError|FAIL!|Error|No such|not a git' "$BUILD/suite-executados.txt" | head -n 60
+    grep -E 'VIOLACAO|violacoes=|encontrados=|Traceback|AssertionError|FAIL!|Error|No such|not a git|\((Failed|Exception|Timeout)\)' "$BUILD/suite-executados.txt" | head -n 60
 fi
 
 if [ "$analisados" -ne "$encontrados" ]; then

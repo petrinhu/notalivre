@@ -2,16 +2,19 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 """Portão do sanitizer ativo (NL-3.0h; L-36). Roda no build do preset asan-ubsan, antes do ctest, e prova pelo objeto:
-  1. todo teste com PASS_REGULAR_EXPRESSION carrega, por igualdade, os regex do gate; WILL_FAIL e SKIP_* não existem;
+  1. nenhum teste tem PASS_REGULAR_EXPRESSION, WILL_FAIL ou SKIP_* (NL-3.A: com PASS o CTest ignora o código de saída), e
+     todo teste do CTest carrega, por igualdade, os regex do gate, sem isentos (condição C4.1 do CISO, forma (a));
   2. todo executável de teste do build, a CLI e a GUI são ELF com o símbolo __asan_init;
   3. o canário, com o ambiente do test preset: leak, heap e ub dão relatório e saem com o código próprio; ok sai limpo;
-  4. o CTest real reprova o canário que vaza quando os regex do gate estão lá, aprova o limpo e, sem os regex, deixa o
-     vazamento passar (é o furo que o gate fecha);
+  4. o CTest real aprova o canário limpo e reprova o que vaza: com os regex do gate, só pelo código de saída, e com PASS e
+     os regex, onde só o regex pode reprovar (condição C4.2 do CISO); com PASS e sem os regex, deixa o vazamento passar
+     (é o furo que fez a NL-3.A proibir o PASS);
   5. guarda cruzada: sanitizer_ligado.py continua na lista de portões e no job higiene. Portão retirado de lá não roda e não
      avisa; quem avisa é este, que roda em outro job. O inverso está em sanitizer_ligado.py. Retirar os dois no mesmo commit
      nenhum portão pega: é risco aceito, só a revisão do diff vê.
 
-Saída, sempre: "testes=N com_pass=P binarios=B canarios=C violacoes=V". Zero testes, zero com PASS ou zero binários reprova.
+Saída, sempre: "testes=N com_gate=G isentos=0 binarios=B canarios=C violacoes=V". Zero testes, zero com gate ou zero
+binários reprova.
 Um único processo por etapa, nenhum por arquivo (L-11).
 
 Uso: python3 -I sanitizer_ativo.py BUILD PRESETS   (BUILD: pasta de build do preset; PRESETS: CMakePresets.json)
@@ -66,8 +69,8 @@ def listar_testes(build, ambiente):
 
 
 def conferir_testes(testes):
-    """Devolve (quantos têm PASS, violações)."""
-    com_pass = 0
+    """Devolve (quantos testes trazem os dois regex do gate, violações). NL-3.A: nenhum teste tem PASS; todo teste traz o gate."""
+    com_gate = 0
     violacoes = []
     for teste in testes:
         nome = teste.get("name", "?")
@@ -75,15 +78,16 @@ def conferir_testes(testes):
         for proibida in PROPRIEDADES_PROIBIDAS:
             if propriedades.get(proibida) not in (None, False):
                 violacoes.append(f"{nome}: {proibida} esconde o erro do sanitizer")
-        if "PASS_REGULAR_EXPRESSION" not in propriedades:
-            continue
-        com_pass += 1
+        if "PASS_REGULAR_EXPRESSION" in propriedades:
+            violacoes.append(f"{nome}: tem PASS_REGULAR_EXPRESSION, e com ela o CTest ignora o código de saída")
         falha = propriedades.get("FAIL_REGULAR_EXPRESSION", [])
         falha = [falha] if isinstance(falha, str) else falha
-        for regex in REGEX_GATE:
-            if regex not in falha:
-                violacoes.append(f"{nome}: tem PASS e não tem o regex do gate [{regex}]")
-    return com_pass, violacoes
+        faltam = [regex for regex in REGEX_GATE if regex not in falha]
+        for regex in faltam:
+            violacoes.append(f"{nome}: não tem o regex do gate [{regex}]")
+        if not faltam:
+            com_gate += 1
+    return com_gate, violacoes
 
 
 def executaveis_dos_testes(build, testes):
@@ -135,19 +139,23 @@ def conferir_canario(canario, ambiente):
 
 
 def conferir_ctest(canario, pasta, ambiente):
-    """O CTest real decide: é a regra que o gate usa, na versão do CTest do próprio job."""
+    """O CTest real decide: é a regra que o gate usa, na versão do CTest do próprio job (NL-3.A: sem PASS; C4.2 do CISO)."""
     os.makedirs(pasta, exist_ok=True)
     falha = ";".join(REGEX_GATE)
-    casos = (("canario_limpo", "ok", True, 0), ("canario_vazando", "leak", True, 1), ("canario_sem_gate", "leak", False, 0))
+    casos = (("canario_limpo", "ok", True, False, 0), ("canario_vazando", "leak", True, False, 1),
+             ("canario_so_codigo", "leak", False, False, 1), ("canario_pass_com_gate", "leak", True, True, 1),
+             ("canario_pass_sem_gate", "leak", False, True, 0))
     linhas = []
-    for nome, modo, com_gate, _ in casos:
+    for nome, modo, com_gate, com_pass, _ in casos:
         linhas.append(f'add_test([=[{nome}]=] "{canario}" "{modo}")')
+        passe = f' PASS_REGULAR_EXPRESSION "{MARCA}"' if com_pass else ""
         extra = f' FAIL_REGULAR_EXPRESSION "{falha}"' if com_gate else ""
-        linhas.append(f'set_tests_properties([=[{nome}]=] PROPERTIES PASS_REGULAR_EXPRESSION "{MARCA}"{extra})')
+        if passe or extra:
+            linhas.append(f"set_tests_properties([=[{nome}]=] PROPERTIES{passe}{extra})")
     with open(os.path.join(pasta, "CTestTestfile.cmake"), "w", encoding="utf-8") as saida:
         saida.write("\n".join(linhas) + "\n")
     violacoes = []
-    for nome, _, _, esperado in casos:
+    for nome, _, _, _, esperado in casos:
         rodada = subprocess.run(["ctest", "--test-dir", pasta, "--no-tests=error", "-R", f"^{nome}$"], capture_output=True,
                                 env=ambiente, check=False)
         if (rodada.returncode != 0) != bool(esperado):
@@ -194,14 +202,14 @@ def verificar(build, presets, canario=None, extras=None):
     if extras is None:
         extras = [os.path.join(build, "apps", "cli", "notalivre-cli"), os.path.join(build, "apps", "gui", "notalivre-gui")]
     testes = []
-    com_pass = 0
+    com_gate = 0
     binarios = []
     violacoes = []
     canarios = 0
     try:
         ambiente = {**os.environ, **ambiente_do_preset(presets)}
         testes = listar_testes(build, ambiente)
-        com_pass, violacoes = conferir_testes(testes)
+        com_gate, violacoes = conferir_testes(testes)
         violacoes += conferir_guarda_cruzada(os.path.dirname(os.path.abspath(presets)))
         de_testes = executaveis_dos_testes(build, testes)
         binarios = sorted(set(de_testes) | set(extras))
@@ -215,8 +223,8 @@ def verificar(build, presets, canario=None, extras=None):
         violacoes.append(str(erro))
     for violacao in violacoes:
         print(f"VIOLACAO {violacao}")
-    print(f"testes={len(testes)} com_pass={com_pass} binarios={len(binarios)} canarios={canarios} violacoes={len(violacoes)}")
-    if not testes or not com_pass or not binarios:
+    print(f"testes={len(testes)} com_gate={com_gate} isentos=0 binarios={len(binarios)} canarios={canarios} violacoes={len(violacoes)}")
+    if not testes or not com_gate or not binarios:
         print("REPROVA: varredura vazia")
         return 1
     if violacoes:
@@ -255,9 +263,9 @@ CI_BOM = f"""jobs:
 """
 
 
-def montar(pasta, falha=FALHA_BOA, extra_um="", com_pass=True, com_simbolo=True, sem_testes=False, canario_txt=CANARIO_BOM,
-           presets=None, com_canario=True, lista=LISTA_BOA, ci=CI_BOM):
-    """Build de brincadeira: dois testes, um com PASS. Nada aqui executa o executável de teste: o ctest só o lista."""
+def montar(pasta, falha=FALHA_BOA, extra_um="", com_gate=True, dois_com_gate=True, um_fora_do_build=False, com_simbolo=True,
+           sem_testes=False, canario_txt=CANARIO_BOM, presets=None, com_canario=True, lista=LISTA_BOA, ci=CI_BOM):
+    """Build de brincadeira: "um" roda o executável do build, "dois" roda /bin/sh, fora do build. O ctest só os lista."""
     os.makedirs(pasta)
     binario = os.path.join(pasta, "bin_teste")
     with open(binario, "wb") as saida:
@@ -265,11 +273,14 @@ def montar(pasta, falha=FALHA_BOA, extra_um="", com_pass=True, com_simbolo=True,
     os.chmod(binario, 0o755)
     linhas = []
     if not sem_testes:
-        linhas.append(f'add_test([=[um]=] "{binario}")')
-        if com_pass:
-            propriedades = f'PASS_REGULAR_EXPRESSION "Totals" FAIL_REGULAR_EXPRESSION "{falha}"{extra_um}'
+        comando_um = '"/bin/sh" "-c" "true"' if um_fora_do_build else f'"{binario}"'
+        linhas.append(f"add_test([=[um]=] {comando_um})")
+        if com_gate:
+            propriedades = f'FAIL_REGULAR_EXPRESSION "{falha}"{extra_um}'
             linhas.append(f"set_tests_properties([=[um]=] PROPERTIES {propriedades})")
-        linhas.append(f'add_test([=[dois]=] "{binario}")')
+        linhas.append('add_test([=[dois]=] "/bin/sh" "-c" "true")')
+        if dois_com_gate:
+            linhas.append(f'set_tests_properties([=[dois]=] PROPERTIES FAIL_REGULAR_EXPRESSION "{FALHA_BOA}")')
     with open(os.path.join(pasta, "CTestTestfile.cmake"), "w", encoding="utf-8") as saida:
         saida.write("\n".join(linhas) + "\n")
     canario = os.path.join(pasta, "canario.sh")
@@ -307,7 +318,12 @@ def autoteste():
         ("canario_ausente", {"com_canario": False}, 1, "canário ok"),
         ("preset_sem_ambiente", {"presets": {"testPresets": [{"name": PRESET}]}}, 1, "sem environment"),
         ("vazia_sem_testes", {"sem_testes": True}, 1, "varredura vazia"),
-        ("vazia_sem_pass", {"com_pass": False}, 1, "varredura vazia"),
+        ("vazia_sem_executavel_do_build", {"um_fora_do_build": True}, 1, "varredura vazia"),
+        ("com_pass", {"extra_um": ' PASS_REGULAR_EXPRESSION "Totals"'}, 1, "tem PASS_REGULAR_EXPRESSION"),
+        ("um_sem_gate", {"com_gate": False}, 1, "um: não tem o regex do gate"),
+        ("dois_sem_gate", {"dois_com_gate": False}, 1, "dois: não tem o regex do gate"),
+        ("leak_sai_zero_com_relatorio", {"canario_txt": CANARIO_BOM.replace(LINHA_LEAK, LINHA_LEAK.replace("exit 86", "exit 0"))},
+         1, "ctest canario_so_codigo"),
         ("ligado_fora_da_lista", {"lista": "camadas|true\n"}, 1, "sem a linha exata de sanitizer_ligado"),
         ("ligado_neutro_na_lista", {"lista": "sanitizer_ligado|true\n"}, 1, "sem a linha exata de sanitizer_ligado"),
         ("ligado_fora_do_higiene", {"ci": CI_BOM.replace(COMANDO_LIGADO, "true")}, 1, "job higiene sem sanitizer_ligado"),

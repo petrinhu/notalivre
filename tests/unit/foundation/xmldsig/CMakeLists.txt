@@ -99,8 +99,7 @@ foreach(nome IN LISTS NL_SLOTS_XMLDSIG)
     set_tests_properties(xmldsig.${nome} PROPERTIES
                          FIXTURES_REQUIRED certificados_teste
                          ENVIRONMENT "${NL_AMBIENTE_XMLDSIG}"
-                         PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed, 0 skipped"
-                         FAIL_REGULAR_EXPRESSION "FAIL!")
+                         FAIL_REGULAR_EXPRESSION "FAIL!;Totals: [0-9]+ passed, [0-9]+ failed, [1-9][0-9]* skipped")
 endforeach()
 
 # O slot contextoDoParserBloqueiaRede não pula mais e não grava marca em arquivo (NL-2.14, MÉDIA-2): a obrigação de rodar nas
@@ -112,5 +111,4 @@ nl_registra_teste_qt(NAME xmldsig.contextoProprioIgnoraConfiguracaoGlobal COMMAN
 set_tests_properties(xmldsig.contextoProprioIgnoraConfiguracaoGlobal PROPERTIES
                      FIXTURES_REQUIRED certificados_teste
                      ENVIRONMENT "${NL_AMBIENTE_XMLDSIG};OPENSSL_CONF=${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/openssl_global_restrito.cnf"
-                     PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed, 0 skipped"
-                     FAIL_REGULAR_EXPRESSION "FAIL!")
+                     FAIL_REGULAR_EXPRESSION "FAIL!;Totals: [0-9]+ passed, [0-9]+ failed, [1-9][0-9]* skipped")

@@ -49,7 +49,6 @@ foreach(nome IN ITEMS
   set_tests_properties(transporte.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
@@ -64,6 +63,5 @@ foreach(nome IN ITEMS
     redirecionamentoEhSo3xx)
   nl_registra_teste_qt(NAME transporte.classificacao.${nome} COMMAND tst_classificacao_erro ${nome})
   set_tests_properties(transporte.classificacao.${nome} PROPERTIES
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()

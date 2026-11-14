@@ -28,6 +28,7 @@ passo "autoteste-copiar-arvore" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash t
 passo "autoteste-rodar-espelho" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_rodar_espelho.sh'
 passo "autoteste-pull-never" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_pull_never.sh /src'
 passo "autoteste-sanitizer-ativo" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_sanitizer_ativo.sh'
+passo "autoteste-codigo-de-saida" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_codigo_de_saida.sh'
 passo "autoteste-cota-nucleos" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_cota_nucleos.sh'
 passo "autoteste-cota-conteiner" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_cota_conteiner.sh'
 passo "teto-em-todo-conteiner" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_cota_em_todo_conteiner.sh /src'

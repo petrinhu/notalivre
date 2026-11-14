@@ -17,30 +17,27 @@ function(nl_registra_teste_qt)
     set(NL_TESTE_XML "${CMAKE_BINARY_DIR}/junit/${NL_TESTE_NAME}.xml")
     add_test(NAME ${NL_TESTE_NAME}
              COMMAND ${NL_TESTE_EXECUTAVEL} -o -,txt -o ${NL_TESTE_XML},junitxml ${NL_TESTE_COMMAND})
-    nl_gate_sanitizer_registra(${NL_TESTE_NAME})
 endfunction()
 
-# Gate de sanitizer (NL-3.0h, decisão do main). Um processo de teste que sai com erro do LeakSanitizer ou do
-# AddressSanitizer tem de reprovar o teste. O CTest ignora o código de saída quando PASS_REGULAR_EXPRESSION casa (medido:
-# o processo sai com 1 e o teste fica Passed). Por isso o FAIL de sanitizer é acrescentado a todo teste que tem PASS,
-# por um ponto único: nl_gate_sanitizer_fecha(), chamado no topo depois de add_subdirectory(tests).
-# O FAIL vence o PASS quando os dois casam (medido nas quatro imagens). Cada teste que não sai pelo nl_registra_teste_qt
-# se registra com nl_gate_sanitizer_registra(NAME). O regex não exige "ERROR:", porque "LeakSanitizer has encountered a fatal
-# error" sai sem isso. tools/portoes/sanitizer_ativo.py confere estes dois regex, por igualdade, em todo teste com PASS.
-function(nl_gate_sanitizer_registra nome)
-    set_property(GLOBAL APPEND PROPERTY NL_GATE_TESTES "${nome}|${CMAKE_CURRENT_SOURCE_DIR}")
-endfunction()
-
+# Gate de sanitizer (NL-3.0h; NL-3.A, condição C4.1 do CISO, forma (a)). O CTest ignora o código de saída quando
+# PASS_REGULAR_EXPRESSION casa, e por isso nenhum teste usa regex de passe (portão estático tools/portoes/codigo_de_saida.py):
+# o código de saída decide, e o do sanitizer é 86. O texto do LeakSanitizer, do AddressSanitizer e do UBSan reprova também,
+# como segunda defesa, TODO teste do CTest: nl_gate_sanitizer_fecha(), chamado no topo depois de add_subdirectory(tests),
+# percorre a árvore de diretórios (propriedades SUBDIRECTORIES e TESTS) e põe os dois regex em cada teste, sem registro
+# manual e sem isentos. O regex não exige "ERROR:", porque "LeakSanitizer has encountered a fatal error" sai sem isso.
+# tools/portoes/sanitizer_ativo.py confere estes dois regex, por igualdade, em todo teste.
 function(nl_gate_sanitizer_fecha)
-    get_property(registrados GLOBAL PROPERTY NL_GATE_TESTES)
-    foreach(entrada IN LISTS registrados)
-        string(REPLACE "|" ";" partes "${entrada}")
-        list(GET partes 0 nome)
-        list(GET partes 1 diretorio)
-        get_property(comPass TEST ${nome} DIRECTORY ${diretorio} PROPERTY PASS_REGULAR_EXPRESSION SET)
-        if(comPass)
-            set_property(TEST ${nome} DIRECTORY ${diretorio} APPEND PROPERTY
-                         FAIL_REGULAR_EXPRESSION "(Leak|Address)Sanitizer" "runtime error:")
-        endif()
+    nl_gate_sanitizer_aplica("${CMAKE_SOURCE_DIR}")
+endfunction()
+
+function(nl_gate_sanitizer_aplica diretorio)
+    get_property(testes DIRECTORY "${diretorio}" PROPERTY TESTS)
+    foreach(nome IN LISTS testes)
+        set_property(TEST "${nome}" DIRECTORY "${diretorio}" APPEND PROPERTY
+                     FAIL_REGULAR_EXPRESSION "(Leak|Address)Sanitizer" "runtime error:")
+    endforeach()
+    get_property(filhos DIRECTORY "${diretorio}" PROPERTY SUBDIRECTORIES)
+    foreach(filho IN LISTS filhos)
+        nl_gate_sanitizer_aplica("${filho}")
     endforeach()
 endfunction()

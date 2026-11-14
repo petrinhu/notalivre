@@ -60,7 +60,6 @@ foreach(nome IN ITEMS
   set_tests_properties(pkcs12.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
@@ -69,7 +68,6 @@ foreach(nome IN ITEMS cifraLegadaIndisponivelSemProvider modernoNaoPrecisaDeLega
   set_tests_properties(pkcs12.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};OPENSSL_MODULES=${NL_PROVEDORES_VAZIOS}"
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
@@ -102,7 +100,6 @@ foreach(nome IN ITEMS
   set_tests_properties(pkcs12.raizes.${nome} PROPERTIES
                        FIXTURES_REQUIRED certificados_teste
                        ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_ICP_RAIZES_DIR=${NL_ICP_RAIZES_DIR};NL_ICP_RAIZES_MANIFESTO=${NL_ICP_RAIZES_MANIFESTO}"
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
 
@@ -114,7 +111,6 @@ nl_registra_teste_qt(NAME pkcs12.decifrarNaoDeixaProvedorVivo COMMAND tst_vazame
 set_tests_properties(pkcs12.decifrarNaoDeixaProvedorVivo PROPERTIES
                      FIXTURES_REQUIRED certificados_teste
                      ENVIRONMENT "NL_CERTIFICADOS_DIR=${NL_CERT_DIR}"
-                     PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                      FAIL_REGULAR_EXPRESSION "FAIL!")
 
 # Interior da SenhaSegura com libsodium (NL-3.2c, ADR-0002). Um teste no CTest por slot (pkcs12.senha.<nome>), sem vírgula
@@ -135,8 +131,6 @@ foreach(nome IN ITEMS
     regiaoForaDoCoreDump
     deInicializaOSodium)
   nl_registra_teste_qt(NAME pkcs12.senha.${nome} COMMAND tst_senha_segura ${nome})
-  # QTest soma initTestCase e cleanupTestCase implícitos: um slot sem falha sai com "Totals: 3 passed, 0 failed", como os vizinhos.
   set_tests_properties(pkcs12.senha.${nome} PROPERTIES
-                       PASS_REGULAR_EXPRESSION "Totals: 3 passed, 0 failed"
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
