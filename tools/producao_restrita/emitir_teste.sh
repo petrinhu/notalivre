@@ -1190,6 +1190,21 @@ emitir_stub() {
             echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"5","etapa":"POST"},"descartados":0}'
             echo "ensaio (envio.nao_concluido)"
             exit 6 ;;
+        post503_zero_no_reenvio)
+            # NL-3.C S5 (A1 da revisão, R-10 b do CISO): o POST recebeu 503, a consulta deu E2404 e o reenvio falhou com zero bytes
+            # (C6, saída 6). Houve POST respondido: nunca "antes da Sefin".
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"503"},"descartados":0}'
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"GET","status":"404"},"descartados":0}'
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"0","etapa":"POST"},"descartados":0}'
+            echo "ensaio (envio.nao_concluido)"
+            exit 6 ;;
+        post503_zero_no_reenvio_antigo)
+            # NL-3.C S5 (A1, gêmeo do pacote antigo): a mesma sequência, com a moldura antiga de erro.
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"503"},"descartados":0}'
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"GET","status":"404"},"descartados":0}'
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"0","etapa":"POST"},"descartados":0}'
+            echo "emissão recusada (sefin.falha): "
+            exit 1 ;;
         envio_falha_interna)
             # NL-3.C (S3): falha do próprio programa antes do envio, sem nenhum evento (C7a, saída 70).
             echo "ensaio (envio.falha_antes_do_envio)"
@@ -1945,6 +1960,8 @@ ensaio() {
     ensaio_caso envio_config 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=envio_config NL_ENSAIO_NDPS_ESPERADO=ausente
     ensaio_caso envio_incerto 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=envio_incerto NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso envio_nao_concluido 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=envio_nao_concluido NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso post503_zero_no_reenvio 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=post503_zero_no_reenvio NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso post503_zero_no_reenvio_antigo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=post503_zero_no_reenvio_antigo NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso envio_falha_interna 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=envio_falha_interna NL_ENSAIO_NDPS_ESPERADO=ausente
     ensaio_caso envio_resposta_sem_codigo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=envio_resposta_sem_codigo NL_ENSAIO_NDPS_ESPERADO=1
     ensaio_caso resposta_sem_codigo_antigo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=resposta_sem_codigo_antigo NL_ENSAIO_NDPS_ESPERADO=1
