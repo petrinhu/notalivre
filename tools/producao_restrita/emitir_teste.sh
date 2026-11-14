@@ -347,12 +347,14 @@ classificar() {
         fi
         return
     fi
-    # NL-3.C (S3, DA-3C.10, paridade com a regra da recusa): resposta da Sefin sem código válido com POST registrado é recusa.
+    # NL-3.C (S4b, emenda da DA-3C.10, R-9 a do CISO): resposta sem código válido com POST registrado: a DPS saiu, então é incerta, nunca recusa.
     if grep -q '(envio\.resposta_sem_codigo)' "$2" && awk '/"evento":"sefin.requisicao"/ && /"metodo":"POST"/ { achou = 1 } END { exit !achou }' "$2"; then
-        RESULTADO=sefin
+        RESULTADO=incerta
         return
     fi
     if grep -q 'emissão recusada (sefin\.E[0-9]' "$2"; then RESULTADO=sefin; return; fi
+    # NL-3.C (S4b): no pacote antigo, sefin.falha nunca prova recusa (DA-2.80); com resposta registrada também é incerta.
+    if grep -q 'emissão recusada (sefin\.falha)' "$2"; then RESULTADO=incerta; return; fi
     if grep -q 'emissão recusada (sefin\.' "$2"; then
         if awk '/"evento":"sefin.requisicao"/ { achou = 1 } END { exit !achou }' "$2"; then
             RESULTADO=sefin
