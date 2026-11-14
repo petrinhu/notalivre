@@ -85,7 +85,7 @@
 
 ## Revisão do CISO (25/10/2026)
 
-**Revisor:** Narciso (CISO), distinto do security-engineer que escreveu este ADR (L-12). Modo autônomo (L-15): as decisões abaixo estão no registro de decisões autônomas; ratificação pendente da pergunta "Registro".
+**Revisor:** Narciso (CISO), distinto do security-engineer que escreveu este ADR (L-12). Modo autônomo (L-15): as decisões abaixo estão no registro de decisões autônomas; ratificação pendente da pergunta "Registro" (Bloco C; dono CISO; sem fatia; antes da NL-3.3).
 
 **Veredito: ACEITO** (N2). Todas as mudanças que exigi já estão escritas no corpo, marcadas `[alterado pelo CISO, 25/10/2026]`. O que resta é verificação nas fatias que este ADR já cita (NL-2.2, NL-2.5, NL-3.3, NL-4.3, NL-8.9), e não condição deste aceite.
 
