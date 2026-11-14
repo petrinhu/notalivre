@@ -17,6 +17,8 @@
 #include <nl/mid/sefin/cliente/comparador_infdps_c14n.h>
 #include <nl/mid/composicao/confirmacao_inscricao.h>
 #include <nl/mid/composicao/registro_cli.h>
+#include <nl/mid/composicao/catalogo_falha_envio.h>
+#include <nl/mid/composicao/classe_falha_envio.h>
 #include <nl/mid/cofre/raizes_producao.h>
 #include <nl/mid/cofre/descritor_de_segredo.h>
 #include <nl/mid/cofre/tomada_descritor.h>
@@ -144,11 +146,13 @@ FalhaEmissao falhaDoEnvio(const nl::back::FalhaSefin& falhaSefin)
     if (falhaSefin.motivo == nl::back::MotivoFalhaSefin::DpsDuplicada) {
         return falha("sefin.dps_duplicada", "a DPS já existe na Sefin com outro conteúdo: nada foi renumerado");
     }
-    if (falhaSefin.motivo == nl::back::MotivoFalhaSefin::ComparacaoIndisponivel) {
-        return falha("sefin.comparacao_indisponivel", "não foi possível comparar a DPS com a nota já existente");
+    // NL-3.C (S3): toda falha com classe (C1 a C9) sai com o código estável e o texto fixo do catálogo; só a recusa com código E
+    // (Rejeitada ou DpsNaoGerada) segue pelo caminho antigo sefin.<E>, com saída 1. Não existe mais um código genérico de falha.
+    if (const auto classe = nl::mid::composicao::classeDaFalha(falhaSefin)) {
+        const nl::mid::composicao::TextoDaFalha texto = nl::mid::composicao::textoDaClasse(*classe);
+        return falha(std::string(texto.codigo), std::string(texto.texto));
     }
-    std::string codigo = falhaSefin.codigoE.empty() ? std::string("sefin.falha") : std::string("sefin.") + falhaSefin.codigoE;
-    return falha(std::move(codigo), falhaSefin.mensagem);
+    return falha(std::string("sefin.") + falhaSefin.codigoE, falhaSefin.mensagem);
 }
 
 } // namespace

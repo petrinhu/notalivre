@@ -323,6 +323,8 @@ emitir_tentativa() {
 # Classifica o resultado: aceita, 404 (rota), e0714 (algoritmo), sefin (outra recusa da Sefin) ou local (antes da Sefin).
 classificar() {
     if [ "$1" -eq 0 ]; then RESULTADO=aceita; return; fi
+    # NL-3.C (S3, DA-3C.10): saída 7 é estado incerto ou comparação indisponível: o número fica gasto até confirmar na Sefin.
+    if [ "$1" -eq 7 ]; then RESULTADO=incerta; return; fi
     # MÉDIA-S1: só o POST de emissão com 404 diz que a rota de envio não existe; GET de consulta não conta.
     if awk '/"evento":"sefin.requisicao"/ && /"metodo":"POST"/ && /"status":"404"/ { achou = 1 } END { exit !achou }' "$2"; then
         RESULTADO=404
@@ -343,6 +345,11 @@ classificar() {
         else
             RESULTADO=incerta
         fi
+        return
+    fi
+    # NL-3.C (S3, DA-3C.10, paridade com a regra da recusa): resposta da Sefin sem código válido com POST registrado é recusa.
+    if grep -q '(envio\.resposta_sem_codigo)' "$2" && awk '/"evento":"sefin.requisicao"/ && /"metodo":"POST"/ { achou = 1 } END { exit !achou }' "$2"; then
+        RESULTADO=sefin
         return
     fi
     if grep -q 'emissão recusada (sefin\.E[0-9]' "$2"; then RESULTADO=sefin; return; fi
