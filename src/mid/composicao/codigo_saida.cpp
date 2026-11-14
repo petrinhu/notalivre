@@ -3,8 +3,11 @@
 // Código de saída da emissão (NL-2.9, DA-2.57c). Ver codigo_saida.h. Listas exatas primeiro; prefixos depois; o resto é 70.
 #include <nl/mid/composicao/codigo_saida.h>
 
+#include <nl/mid/composicao/catalogo_falha_envio.h>
+
 #include <array>
 #include <string>
+#include <utility>
 
 namespace nl::mid::composicao {
 namespace {
@@ -44,6 +47,24 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
         "substituicao.", "telefone.", "tipooperacao.", "tribissqn."};
     constexpr std::array<std::string_view, 2> ambienteXsd{"xsd.esquema", "xsd.interno"};
     constexpr std::array<std::string_view, 5> recusaPrefixo{"credencial.", "assinatura.", "confirmacao.", "cofre.", "sefin."};
+    // Falha do envio sem código E (NL-3.C, plano 1.6): lista exata por código estável do catálogo, antes dos prefixos.
+    // Preparo e resposta sem código saem com 70 por entrada explícita; o envio.* sem entrada cai no 70 final.
+    constexpr std::array<std::pair<std::string_view, int>, 9> envioExato{{
+        {kCodigoCertificadoProvavel, 8},
+        {kCodigoServidorNaoConfirmado, 12},
+        {kCodigoRedeAntesDoEnvio, 6},
+        {kCodigoEstadoIncerto, 7},
+        {kCodigoEstadoIncertoCertificadoProvavel, 7},
+        {kCodigoNaoConcluido, 6},
+        {kCodigoFalhaAntesDoEnvio, 70},
+        {kCodigoRespostaSemCodigo, 70},
+        {kCodigoConfiguracaoDaConexao, 10},
+    }};
+    for (const auto& [exato, saida] : envioExato) {
+        if (codigo == exato) {
+            return saida;
+        }
+    }
     // Configuração (NL-2.10a, emenda 4): saída 10 por entrada explícita, antes de qualquer prefixo, porque "assinatura." e
     // "certificado." não podem cair na recusa comum.
     // Âncora definida fora de Homologação (NL-2.10b, condição do CISO de 31/10/2026, emenda 2): também sai com 10.
@@ -95,7 +116,7 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
     if (codigo == "sefin.dps_duplicada") {
         return kSaidaDuplicada;
     }
-    if (codigo == "sefin.comparacao_indisponivel") {
+    if (codigo == kCodigoComparacaoIndisponivel) {
         return kSaidaComparacaoIndisponivel;
     }
     for (auto prefixo : recusaPrefixo) {

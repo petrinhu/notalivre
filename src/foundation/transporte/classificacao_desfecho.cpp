@@ -56,22 +56,30 @@ ErroTransporte erroDeRede(QNetworkReply::NetworkError codigo, bool handshake, in
     return erroRede;
 }
 
+// NL-3.C (plano 7.1): todo ramo de erro leva o código do Qt e o estado do handshake do desfecho (requisito 3 do CISO).
+ErroTransporte comDadosDoQt(ErroTransporte erroTransporte, const Desfecho& d)
+{
+    erroTransporte.codigoQt = static_cast<int>(d.codigo);
+    erroTransporte.handshake = d.handshake;
+    return erroTransporte;
+}
+
 // Transforma o que o Qt observou no resultado do transporte. Ordem: teto do corpo, tempo limite, status recebido,
 // e por fim erro sem status.
 std::expected<RespostaHttp, ErroTransporte> classificarDesfechoSemDados(const Desfecho& d)
 {
     if (d.excedeuTeto) {
-        return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
-                                    mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)));
+        return std::unexpected(comDadosDoQt(erro(TipoErro::Definitivo, CausaErro::Protocolo,
+                                    mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)), d));
     }
     if (d.expirou) {
-        return std::unexpected(erro(TipoErro::Transitorio, CausaErro::Timeout,
-                                    mensagemDeRede(CausaErro::Timeout, d.codigo, d.handshake, d.sslErros)));
+        return std::unexpected(comDadosDoQt(erro(TipoErro::Transitorio, CausaErro::Timeout,
+                                    mensagemDeRede(CausaErro::Timeout, d.codigo, d.handshake, d.sslErros)), d));
     }
     if (d.status > 0) {
         if (ehRedirecionamento(d.status) || !d.contentEncodingIdentidade) {
-            return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
-                                        mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)));
+            return std::unexpected(comDadosDoQt(erro(TipoErro::Definitivo, CausaErro::Protocolo,
+                                        mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)), d));
         }
         if (ehCodigoDeRespostaCompleta(d.codigo)) {
             return RespostaHttp{d.status, d.corpo, d.tipoConteudo};
@@ -79,16 +87,16 @@ std::expected<RespostaHttp, ErroTransporte> classificarDesfechoSemDados(const De
         // Erro de rede (1 a 99) depois do status: corpo incompleto ou conexão cortada, nunca resposta.
         const int codigo = static_cast<int>(d.codigo);
         if (codigo >= 1 && codigo <= 99) {
-            return std::unexpected(erro(TipoErro::Transitorio, CausaErro::Conexao,
-                                        mensagemDeRede(CausaErro::Conexao, d.codigo, d.handshake, d.sslErros)));
+            return std::unexpected(comDadosDoQt(erro(TipoErro::Transitorio, CausaErro::Conexao,
+                                        mensagemDeRede(CausaErro::Conexao, d.codigo, d.handshake, d.sslErros)), d));
         }
-        return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
-                                    mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)));
+        return std::unexpected(comDadosDoQt(erro(TipoErro::Definitivo, CausaErro::Protocolo,
+                                    mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)), d));
     }
     // Recusa do servidor depois do handshake: sinal encrypted, sem status, código UnknownNetworkError (DA-2.35).
     if (d.handshake && d.codigo == QNetworkReply::UnknownNetworkError) {
-        return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Tls,
-                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente")));
+        return std::unexpected(comDadosDoQt(erro(TipoErro::Definitivo, CausaErro::Tls,
+                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente")), d));
     }
     return std::unexpected(erroDeRede(d.codigo, d.handshake, d.sslErros));
 }
