@@ -719,6 +719,8 @@ private slots:
         auto consulta = m->cliente->consultarDps(dps->id);
         QVERIFY2(!consulta.has_value(), "sem DPS gerada, a consulta devolve erro, não chave");
         QVERIFY2(consulta.error().motivo == bk::MotivoFalhaSefin::DpsNaoGerada, "E2404 tem de ser DpsNaoGerada");
+        QVERIFY2(consulta.error().causa == bk::CausaFalhaSefin::Nenhuma, "E2404 não tem causa de rede nem de resposta: a nota não existe");
+        QVERIFY2(consulta.error().codigoE == "E2404", "o código E2404 vai no erro");
         const std::vector<std::string> esperado{"GET:503", "GET:404"};
         QVERIFY2(sequencia(m->destino.str()) == esperado, "GET repete com backoff depois do 5xx");
     }
@@ -1560,6 +1562,34 @@ private slots:
         QVERIFY2(!ultimo.empty(), "o reenvio que falhou tem de estar no log como sefin.transporte_falhou");
         QVERIFY2(ultimo.find("\"etapa\":\"POST\"") != std::string::npos, "a falha do reenvio é de etapa POST");
         QVERIFY2(ultimo.find("\"bytesEscritos\":\"0\"") != std::string::npos, "o reenvio falhou com zero bytes escritos");
+    }
+
+    // NL-3.C (S2, passo 4.6d, v5): 409 com a DPS gravada; a consulta da chave responde 200 e a busca da NFS-e cai por 5xx em
+    // todas as tentativas. Não se sabe se a nota é a desta DPS: Indeterminado, com a causa da busca (linha 315 do cliente).
+    void conflito409ComNotaIndisponivelPropagaACausa()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste primeiro({});
+        QVERIFY2(primeiro.porta() > 0, qPrintable(primeiro.diagnostico()));
+        auto m1 = montar(primeiro.porta(), *cred);
+        auto nota = m1->cliente->emitir(*dps);
+        QVERIFY2(nota.has_value(), "o primeiro servidor tem de gerar a nota, para ler a chave");
+        const QString busca = QStringLiteral("GET /nfse/") + nota->chave.texto() + QStringLiteral(" erro5xx");
+        QStringList falhas{QStringLiteral("POST /nfse conflito409_gravado")};
+        falhas << busca << busca << busca;
+        ServidorDeTeste segundo(falhas);
+        QVERIFY2(segundo.porta() > 0, qPrintable(segundo.diagnostico()));
+        auto m2 = montar(segundo.porta(), *cred);
+        auto resultado = m2->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "sem a nota buscada, o 409 não vira nota");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Indeterminado, "409 com a busca da nota sem resposta é Indeterminado, nunca DpsDuplicada");
+        QVERIFY2(resultado.error().causa == bk::CausaFalhaSefin::SefinIndisponivel, "a causa da busca da nota chega ao erro");
+        const std::vector<std::string> esperado{"POST:409", "GET:200", "GET:503", "GET:503", "GET:503"};
+        QVERIFY2(sequencia(m2->destino.str()) == esperado, "a busca da nota tentou três vezes e o POST não repetiu");
+        QVERIFY2(postsNoServidor(segundo.porta(), *cred) == 1, "o servidor recebeu o POST uma vez");
     }
 };
 

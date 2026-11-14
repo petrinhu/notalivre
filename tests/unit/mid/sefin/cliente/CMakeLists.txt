@@ -34,6 +34,7 @@ else()
     find_program(NL_XMLSEC1_CLIENTE xmlsec1 REQUIRED)
     set(NL_SLOTS_CLIENTE
         sucessoExtraiChaveDe50Posicoes
+        conflito409ComNotaIndisponivelPropagaACausa
         consultaDps200SemChaveDaRespostaSemCodigo
         consultaDps200NaoObjetoDaRespostaSemCodigo
         consultaNota200NaoObjetoDaRespostaSemCodigo
