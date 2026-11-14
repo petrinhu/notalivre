@@ -389,7 +389,7 @@ QSslCertificate certificadoDeOutraRaiz()
     BIO_free(bio);
     if (p12 == nullptr) {
         ERR_clear_error();
-        return {};
+        return QSslCertificate();
     }
     EVP_PKEY* chave = nullptr;
     X509* cert = nullptr;
