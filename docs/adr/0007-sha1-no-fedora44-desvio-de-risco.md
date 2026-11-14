@@ -1,6 +1,6 @@
 # ADR 0007: SHA-1 no arnês de teste do fedora44 (desvio de risco com controles compensatórios)
 
-**Status:** ACEITO por Narciso (CISO) em 30/10/2026, decisão autônoma (L-15) a ratificar pelo líder, depois da re-revisão que aprovou a NL-2.3 (`/var/tmp/notalivre-logs/NL-2.3-rev2-revisao.log`, merge 20eb6bf). Condição de 27/10 cumprida: o controle 1 foi visto vermelho e verde no job Flatpak, e o controle 2 foi visto verde no job higiene do CI (evidência na tabela). Antes: PROPOSTO (DA-2.27, decisão do CTO), reprovado nas rodadas 1 e 2 do revisor.
+**Status:** ACEITO por Narciso (CISO) em 30/10/2026, decisão autônoma (L-15) ratificada pelo líder em 13/11/2026 ("Ratificar as duas (Recomendado)"), depois da re-revisão que aprovou a NL-2.3 (`/var/tmp/notalivre-logs/NL-2.3-rev2-revisao.log`, merge 20eb6bf). Condição de 27/10 cumprida: o controle 1 foi visto vermelho e verde no job Flatpak, e o controle 2 foi visto verde no job higiene do CI (evidência na tabela). Antes: PROPOSTO (DA-2.27, decisão do CTO), reprovado nas rodadas 1 e 2 do revisor.
 **Data:** 27/10/2026 (revisto em 28/10/2026, rodadas 2 e 3 do revisor).
 **Origem:** plano, NL-2.6 (Desvio de risco, DA-2.10) e NL-2.3 (assinador). Medição: `/var/tmp/notalivre-smoke-NL-2.6/` (matriz de quatro imagens, rc medido).
 **Relacionadas:** ADR-0003 (envelope e hierarquia de chaves); DA-2.1 e DA-2.2 (assinatura com OpenSSL, rsa-sha1 como contrato de interoperabilidade).

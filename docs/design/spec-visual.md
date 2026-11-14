@@ -52,7 +52,7 @@
 **Ponto aberto para o Cláudio (não decidido aqui):** OFL 1.1 é software livre, mas a compatibilidade com GPL é contestada. Parecer da Red Hat, no kernel Linux (2023): https://lkml.iu.edu/hypermail/linux/kernel/2311.0/01472.html. A FSF não foi lida (HTTP 429). As fontes entram como arquivos separados no Flatpak. Cláudio confirma antes do empacotamento.
 
 **Resoluções posteriores dos itens em aberto (25/10/2026).** Origem marcada em cada item (tabela da seção 10).
-- **Decisão do líder:** senha do certificado, padrão ao reabrir o app, após 15 min parado e ao bloquear a tela; "a cada 20 notas" disponível e desligada por padrão; sempre antes de Produção. Banco: o assistente mostra script SQL para colar com sudo; senha de administrador fica só em memória, e só quando o servidor aceitar; MariaDB aceito (Manjaro usa mariadb). Vários emissores por instalação, sem limite fixo. CPF como emissor entra na v1. Atualizar tabelas "se houver versao nova apenas" (rodada 8, já no spec funcional): não é desvio. Botão de atualizar tabelas no cabeçalho. Outlook por OAuth, com registro no Entra em nome do líder.
+- **Decisão do líder:** senha do certificado, padrão ao reabrir o app, após 15 min parado e ao bloquear a tela; "a cada 20 notas" disponível e desligada por padrão; sempre antes de Produção. Banco: o assistente mostra script SQL para colar com sudo; o app não pede a senha de administrador (decisão do líder, 13/11/2026, via AskUserQuestion: "Só o script (Recomendado)"); MariaDB aceito (Manjaro usa mariadb). Vários emissores por instalação, sem limite fixo. CPF como emissor entra na v1. Atualizar tabelas "se houver versao nova apenas" (rodada 8, já no spec funcional): não é desvio. Botão de atualizar tabelas no cabeçalho. Outlook por OAuth, com registro no Entra em nome do líder.
 - **Decisão do orquestrador, a confirmar:** código de recuperação mostrado uma vez no primeiro uso, com opção de salvar em arquivo ou imprimir; o app não guarda em claro (detalhe no ADR de Narciso). Variáveis do e-mail e anexos. Anexo VII v1.03.00, versão gravada por DPS. Alvo mínimo de 40 px. Contador por caracteres Unicode. Sidebar recolhível para ícones. Estados "Emitindo..." e "Nota emitida" com número. Preferência de movimento reduzido do sistema. Parecer do Cláudio sobre OFL e GPL entra no plano antes do empacotamento.
 - **Responsabilidade de texto:** texto da confirmação forte em Produção fica com o `ux-writer`.
 
@@ -266,12 +266,12 @@ Mockup de referência: `docs/design/mockups/04-telas-principais.html` (claro e e
 
 - **Objetivo:** deixar o banco pronto sem o usuário precisar saber SQL.
 - **Passos:** (1) procurar o MySQL no sistema; (2) criar banco e usuário da NotaLivre; (3) ligar a cifra dos dados. Cada passo com número e estado (feito, pendente, falhou).
-- **Banco (decisão do líder):** o assistente mostra um script SQL para colar com sudo, que cria banco e usuário. A senha de administrador fica só em memória, e só quando o servidor aceitar. MariaDB é aceito (Manjaro usa mariadb).
+- **Banco (decisão do líder):** o assistente mostra um script SQL para colar com sudo, que cria banco e usuário. O app não pede a senha de administrador (decisão do líder, 13/11/2026). MariaDB é aceito (Manjaro usa mariadb).
 - **Se o MySQL ou MariaDB não estiver instalado:** mostra o comando da distribuição, copiável, e o botão "Testar de novo". O app não instala pacotes (conforme spec funcional, seção 4.4).
   - Fedora: `sudo dnf install mysql-server`
   - Ubuntu e Mint: `sudo apt install mysql-server`
   - Manjaro: `sudo pacman -S mariadb`
-- **Credencial administrativa para o passo 2:** só em memória, e só quando o servidor aceitar (decisão do líder).
+- **Credencial administrativa para o passo 2:** nenhuma; o script colado com sudo cria banco e usuário (decisão do líder, 13/11/2026).
 - **Estados:** encontrado, ausente com comando, falha de conexão com a causa e a ação, sucesso com "Banco pronto". "Continuar" fica desabilitado até o passo 2 passar, com o motivo escrito.
 
 ### 7.10 Confirmação forte para Produção

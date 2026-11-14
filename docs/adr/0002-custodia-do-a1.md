@@ -30,8 +30,8 @@
 5. **Recuperação "1+2" depende do arquivo original.** Ver a escolha A ou B abaixo. `[alterado pelo CISO, 25/10/2026]` Decidido: opção A.
 6. `[alterado pelo CISO, 25/10/2026]` **Senha do certificado em repouso.** Se o usuário guardar a senha do certificado pelo chaveiro (decisão do líder, spec 4.5), ela só pode ficar em repouso cifrada sob a KEK-chaveiro (ADR-0003), nunca sob a DEK. Motivo: se a DEK abrisse a senha do certificado, a senha-mestra passaria a abrir a chave privada (senha-mestra, DEK, senha do certificado, chave privada), e a separação de senhas decidida pelo líder (spec 4.4 e 4.5) cairia. O desenho do armazenamento fica com NL-4.3; esta regra é o limite dele. `[alterado pelo CISO, 25/10/2026]` Ressalva: com o chaveiro ativo ao mesmo tempo para a senha-mestra (ADR-0003, regra 4) e para a senha do certificado, o segredo do portal sozinho chega à DEK e à senha do certificado, e portanto à chave privada. É escolha do usuário, mas a tela de ativação tem que dizer isso com essas palavras, e o teste de NL-4.3 confere que o aviso aparece.
 7. `[alterado pelo CISO, 25/10/2026]` **Depois de qualquer recuperação** (pelo código ou pelo A1), o app exige senha-mestra nova e gera código de recuperação novo antes de liberar o uso, re-envelopa a DEK com os dois e grava o evento na auditoria (ADR-0005, seção 4). Sem isso, um código já exposto continuaria válido. Isso não corta quem tem o `.pfx` e a senha dele: ele pode recuperar de novo, e quem recupera escolhe a senha nova (ADR-0003, C5; risco aceito pelo líder em 04/11/2026). A recuperação também desliga o segundo passo (ADR-0003, regra 17).
-8. `[alterado pelo CISO, 25/10/2026]` **Recuperação com certificado vencido.** O vencimento impede assinar e conectar, mas não impede abrir a cópia da DEK: na recuperação, o app aceita o A1 cuja cópia da DEK está gravada, mesmo vencido. Para saber qual cópia abrir sem guardar o certificado em claro, o envelope grava ao lado só a impressão SHA-256 do certificado. O certificado em si traz nome e CPF ou CNPJ do titular e fica só dentro do contêiner cifrado.
-9. `[alterado pelo CISO, 25/10/2026]` **Tipo de chave e uso da chave.** O importador lê `keyUsage` e o tipo de chave do A1 e registra os dois. O que acontece com um A1 que não sirva à cópia da DEK depende da pergunta "Certificado" (ADR-0003). A leitura é condição de entrada da NL-3.3; FATO, o carregador hoje só lê o EKU (`carregador_pkcs12.cpp:37-58`). Em nenhum caso o app usa a chave para uma operação que o `keyUsage` do certificado não autorize: na ICP-Brasil a extensão é crítica (FATO, PC AC FECOMERCIO MG RFB A1, v1.1, item 7.1.2.2 b).
+8. `[alterado pelo CISO, 25/10/2026]` **Recuperação com certificado vencido.** Vale para o A1 que tem a cópia da DEK, com chave RSA e `keyEncipherment` (ADR-0003, Cópia pelo A1; decisão 9). O vencimento impede assinar e conectar, mas não impede abrir a cópia da DEK: na recuperação, o app aceita o A1 cuja cópia da DEK está gravada, mesmo vencido. Para saber qual cópia abrir sem guardar o certificado em claro, o envelope grava ao lado só a impressão SHA-256 do certificado. O certificado em si traz nome e CPF ou CNPJ do titular e fica só dentro do contêiner cifrado.
+9. `[alterado pelo CISO, 25/10/2026]` **Tipo de chave e uso da chave.** O importador lê `keyUsage` e o tipo de chave do A1 e registra os dois. Decisão do líder, 13/11/2026, pergunta "Certificado": "Sem caminho, com aviso (Recomendado)". Leitura registrada (L-07), a partir da descrição da opção ("Um método só, padronizado, sem usar a chave para o que o certificado não declara"): o A1 sem `keyEncipherment` ou sem chave RSA é aceito para emitir e fica sem a cópia da DEK; o aviso de que, nesse caso, perder a senha e o código é perder os dados sai na importação do certificado, que, no cadastro sem certificado, vem depois do cadastro (ADR-0003, Cópia pelo A1 e regra 10). A leitura é condição de entrada da NL-3.3; FATO, o carregador hoje só lê o EKU (`carregador_pkcs12.cpp:37-58`). Em nenhum caso o app usa a chave para uma operação que o `keyUsage` do certificado não autorize: na ICP-Brasil a extensão é crítica (FATO, PC AC FECOMERCIO MG RFB A1, v1.1, item 7.1.2.2 b).
 
 ## Escolha para Narciso: contêiner cifrado pela DEK ou sem essa camada
 
@@ -85,7 +85,7 @@
 
 ## Revisão do CISO (25/10/2026)
 
-**Revisor:** Narciso (CISO), distinto do security-engineer que escreveu este ADR (L-12). Modo autônomo (L-15): as decisões abaixo estão no registro de decisões autônomas; ratificação pendente da pergunta "Registro".
+**Revisor:** Narciso (CISO), distinto do security-engineer que escreveu este ADR (L-12). Modo autônomo (L-15): as decisões abaixo estão no registro de decisões autônomas; ratificação pendente da pergunta "Registro" (Bloco C; dono CISO; sem fatia; antes da NL-3.3).
 
 **Veredito: ACEITO** (N2). Todas as mudanças que exigi já estão escritas no corpo, marcadas `[alterado pelo CISO, 25/10/2026]`. O que resta é verificação nas fatias que este ADR já cita (NL-2.2, NL-2.5, NL-3.3, NL-4.3, NL-8.9), e não condição deste aceite.
 
@@ -96,13 +96,13 @@
 3. **Recuperação força senha-mestra nova e código novo** (decisão 7), com registro na auditoria.
 4. **Recuperação aceita o A1 vencido** cuja cópia está gravada, localizado pela impressão SHA-256 do certificado (decisão 8).
 5. **Memória de segredo por `SenhaSegura` (`OPENSSL_cleanse`, mlock de melhor esforço); libsodium só com autorização do líder (L-51); `RLIMIT_CORE` = 0 fica fora da NL-2.2** (decisão 7 do CISO, 29/10/2026). Torna concreto o "buffer dedicado". A decisão 4 original falava em libsodium como dependência do projeto, o que não era verdade no momento da revisão (corrigido em 29/10/2026).
-6. **O importador registra `keyUsage` e tipo de chave e nunca usa a chave fora do que o certificado autoriza** (decisão 9). O destino de um A1 que não sirva ao envelope é do líder (ADR-0003, ponto 7).
+6. **O importador registra `keyUsage` e tipo de chave e nunca usa a chave fora do que o certificado autoriza** (decisão 9). O destino de um A1 que não sirva ao envelope foi decidido pelo líder em 13/11/2026 (decisão 9).
 
 **Por quê:** o modelo de ameaças mostra que o ativo de maior impacto é a chave privada (C1.2, C1.3). Cada mudança fecha um caminho em que um segredo abriria outro que o líder quis separado, ou em que um acesso de uma vez viraria acesso permanente.
 
 **Risco residual que registro, e não mitigo por desenho:** o `.pfx` original costuma ficar no mesmo disco do banco, e o PKCS#12 pode ser fraco contra força bruta offline (seção "Riscos residuais"). A mitigação é orientação no assistente de primeiro uso (NL-8.9). O líder aceitou o trade-off da cópia pelo A1 em 04/11/2026 ("Aceitar o risco (Recomendado)").
 
-**Sobe ao líder só:** a pergunta "Certificado" e a confirmação do registro destas decisões ("Registro").
+**Sobe ao líder só:** a confirmação do registro destas decisões ("Registro", Bloco C). A pergunta "Certificado" foi respondida em 13/11/2026 (decisão 9).
 
 ## Decisões do CISO na NL-2.2 (29/10/2026, ratificadas pelo líder em 31/10/2026, 23:08)
 

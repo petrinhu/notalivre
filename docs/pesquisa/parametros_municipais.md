@@ -1,6 +1,6 @@
 # Parâmetros municipais da API do Sistema Nacional NFS-e
 
-**Fatia:** NL-2.10h, H2 (pesquisa, sem código). **Data:** 02/11/2026. **Base:** onda-2 (2eeda1c). **Ordem:** `/var/tmp/notalivre-logs/NL-2.10h-ordem.md`, seção H2. **Decisão relacionada:** DA-2.98 (a ratificar pelo líder).
+**Fatia:** NL-2.10h, H2 (pesquisa, sem código). **Data:** 02/11/2026. **Base:** onda-2 (2eeda1c). **Ordem:** `/var/tmp/notalivre-logs/NL-2.10h-ordem.md`, seção H2. **Decisão relacionada:** DA-2.98 (ratificada pelo líder em 13/11/2026).
 
 **Rótulos usados.** FATO: o texto está em fonte citada com URL e trecho curto. INFERÊNCIA: conclusão de quem pesquisou, a partir de fatos ou de fontes secundárias. SECUNDÁRIO: relato de terceiro, não verificado em fonte oficial. NÃO ENCONTRADO: procurado e não achado, com a busca descrita.
 
