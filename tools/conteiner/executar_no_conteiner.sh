@@ -40,7 +40,12 @@ sh tools/portoes/pulos_testes.sh "$NL_TMP_BASE/notalivre-build/$modo" "${NL_DIST
 # versionada, por igualdade exata. Roda também com ctest ou pulos vermelhos, para o log trazer as contagens.
 fora_rc=0
 sh tools/portoes/fora_do_flatpak.sh "$NL_TMP_BASE/notalivre-build/$modo" flatpak/testes_fora_do_flatpak.txt || fora_rc=$?
+# NL-2.20 (S2): toda função declarada num programa que o CTest chama por função está registrada, salvo exceção listada
+# em tests/funcoes_fora_do_ctest.txt. Roda também com os portões acima vermelhos, para o log trazer as contagens.
+funcoes_rc=0
+python3 -I tools/portoes/funcoes_no_ctest.py --raiz . --build "$NL_TMP_BASE/notalivre-build/$modo" --excecoes tests/funcoes_fora_do_ctest.txt || funcoes_rc=$?
 [ "$ctest_rc" -eq 0 ] || exit "$ctest_rc"
 [ "$sanitizer_rc" -eq 0 ] || exit "$sanitizer_rc"
 [ "$pulos_rc" -eq 0 ] || exit "$pulos_rc"
-exit "$fora_rc"
+[ "$fora_rc" -eq 0 ] || exit "$fora_rc"
+exit "$funcoes_rc"

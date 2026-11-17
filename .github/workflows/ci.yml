@@ -211,6 +211,12 @@ jobs:
         if: ${{ always() && steps.ctest.outcome != 'skipped' }}
         run: sh tools/portoes/fora_do_flatpak.sh "$NL_TMP_BASE/notalivre-build/debug" flatpak/testes_fora_do_flatpak.txt
 
+      # NL-2.20 (S2): toda função declarada num programa que o CTest chama por função está registrada, salvo exceção
+      # listada em tests/funcoes_fora_do_ctest.txt. Roda com ctest vermelho, para o log trazer as contagens.
+      - name: "Funções declaradas e registradas no CTest (NL-2.20)"
+        if: ${{ always() && steps.ctest.outcome != 'skipped' }}
+        run: python3 -I tools/portoes/funcoes_no_ctest.py --raiz . --build "$NL_TMP_BASE/notalivre-build/debug" --excecoes tests/funcoes_fora_do_ctest.txt
+
       # NL-2.14 (DA-2.63, R5-3): diff das listas e contagens contra o merge-base com a onda-2, no resumo do job. O checkout acima
       # traz o histórico inteiro (fetch-depth 0); NL_BASE_REF aponta para o ref da onda-2 que esse checkout baixa.
       - name: "Diff das listas e contagens contra a onda-2 (NL-2.14, DA-2.63 R5-3)"
@@ -369,6 +375,12 @@ jobs:
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
           sh tools/portoes/pulos_testes.sh "$NL_TMP_BASE/notalivre-build/asan-ubsan" "$NL_DISTRO" tests/pulos_esperados_por_distro.txt
+
+      # NL-2.20 (S2): toda função declarada num programa que o CTest chama por função está registrada, salvo exceção
+      # listada em tests/funcoes_fora_do_ctest.txt. Roda com ctest vermelho, para o log trazer as contagens.
+      - name: "Funções declaradas e registradas no CTest, preset asan-ubsan (NL-2.20)"
+        if: ${{ always() && steps.ctest_asan.outcome != 'skipped' }}
+        run: python3 -I tools/portoes/funcoes_no_ctest.py --raiz . --build "$NL_TMP_BASE/notalivre-build/asan-ubsan" --excecoes tests/funcoes_fora_do_ctest.txt
 
   higiene:
     name: higiene (segredos e travessão)
@@ -566,6 +578,9 @@ jobs:
 
       - name: "Autoteste do portão fora do Flatpak (NL-2.15, DA-2.65)"
         run: bash tools/portoes/autoteste_fora_do_flatpak.sh
+
+      - name: "Autoteste do portão de funções no CTest (NL-2.20)"
+        run: bash tools/portoes/autoteste_funcoes_no_ctest.sh
 
       - name: "Autoteste do portão de pontos de parse (NL-2.21, DA-2.67)"
         run: bash tools/portoes/autoteste_pontos_de_parse.sh

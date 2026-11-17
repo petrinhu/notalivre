@@ -20,6 +20,7 @@ passo "autoteste-portoes-limites" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash
 passo "autoteste-build-ensaio" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_build_ensaio.sh'
 passo "autoteste-pulos-testes" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_pulos_testes.sh'
 passo "autoteste-fora-do-flatpak" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_fora_do_flatpak.sh'
+passo "autoteste-funcoes-no-ctest" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_funcoes_no_ctest.sh'
 passo "autoteste-pontos-de-parse" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_pontos_de_parse.sh'
 passo "autoteste-cabecalhos-sodium" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_cabecalhos_sodium.sh'
 passo "autoteste-cabecalhos-openssl" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_cabecalhos_openssl.sh'
