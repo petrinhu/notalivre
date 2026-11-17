@@ -3,13 +3,15 @@
 // ClienteSefin (NL-2.8, DA-2.41). Fluxo do POST /nfse: envelope da NL-2.4, envio pelo TransporteHttps da NL-2.5.
 // Depois de qualquer envio que pode ter chegado à Sefin, a consulta GET /dps/{id} decide o estado antes de qualquer
 // resposta: chave é sucesso; 404 com E2404 libera o reenvio da mesma DPS; qualquer outro resultado é Indeterminado,
-// nunca Definitiva nem Rejeitada. Falha antes do envio é Transitoria, sem consulta. O código E só entra se casar com
+// nunca Definitiva nem Rejeitada. Falha antes do envio é Transitoria (rede) ou Definitiva (conexão segura, configuração
+// ou preparo), sem consulta, e leva a causa tipada (NL-3.C). O código E só entra se casar com
 // ^E\d{3,4}$. O log leva metodo, status, código E (ou codigo_invalido) e etapa, nunca o texto livre da API.
 #include <nl/mid/sefin/cliente/cliente_sefin.h>
 
 #include <nl/mid/sefin/cliente/catalogo_erros_sefin.h>
 #include <nl/mid/sefin/cliente/campos_lidos_sefin.h>
 #include <nl/mid/sefin/cliente/leitor_erro_sefin.h>
+#include <nl/mid/sefin/cliente/falhas_do_envio.h>
 #include <nl/mid/sefin/leiaute/prodrest_20261020/envelope_dps.h>
 // Teto do XML (kLimiteXmlNfse): o número mora só na pasta do leiaute (include relativo, como codec_dps.cpp).
 #include "../leiaute/prodrest_20261020/limites_leiaute.h"
@@ -43,10 +45,16 @@ namespace lx = nl::mid::sefin::prodrest_20261020;
 
 using Desfecho = std::expected<bk::NotaSefin, bk::FalhaSefin>;
 
-bk::FalhaSefin falha(bk::MotivoFalhaSefin motivo, std::string codigoE = {})
+bk::FalhaSefin falha(bk::MotivoFalhaSefin motivo, std::string codigoE = {}, bk::CausaFalhaSefin causa = bk::CausaFalhaSefin::Nenhuma)
 {
     std::string mensagem = codigoE.empty() ? std::string{} : std::string(CatalogoErrosSefin::mensagem(codigoE));
-    return bk::FalhaSefin{motivo, std::move(codigoE), std::move(mensagem)};
+    return bk::FalhaSefin{motivo, std::move(codigoE), std::move(mensagem), causa};
+}
+
+// Código E ausente ou fora do formato: a resposta não tem o que o cliente lê (RespostaSemCodigoValido, NL-3.C).
+bk::CausaFalhaSefin causaDoCodigo(const std::string& codigoValido)
+{
+    return codigoValido.empty() ? bk::CausaFalhaSefin::RespostaSemCodigoValido : bk::CausaFalhaSefin::Nenhuma;
 }
 
 // Código E só entra se casar com ^E\d{3,4}$ (DA-2.41, b). Fora disso, o valor vem vazio e nem o log nem o erro o veem.
@@ -96,7 +104,7 @@ std::expected<bk::ChaveAcesso, bk::FalhaSefin> chaveDoObjeto(const QJsonObject& 
 {
     auto chave = bk::ChaveAcesso::de(obj.value(QLatin1StringView(kCampoChaveAcesso.data(), static_cast<qsizetype>(kCampoChaveAcesso.size()))).toString());
     if (!chave) {
-        return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva));
+        return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva, {}, bk::CausaFalhaSefin::RespostaSemCodigoValido));
     }
     return *chave;
 }
@@ -147,7 +155,7 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> notaDoCorpo(const QByteArray& corpo
 {
     const QJsonDocument doc = QJsonDocument::fromJson(corpo);
     if (!doc.isObject()) {
-        return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva));
+        return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva, {}, bk::CausaFalhaSefin::RespostaSemCodigoValido));
     }
     auto chave = chaveDoObjeto(doc.object());
     if (!chave) {
@@ -165,7 +173,7 @@ std::expected<bk::ChaveAcesso, bk::FalhaSefin> chaveDoCorpo(const QByteArray& co
 {
     const QJsonDocument doc = QJsonDocument::fromJson(corpo);
     if (!doc.isObject()) {
-        return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva));
+        return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva, {}, bk::CausaFalhaSefin::RespostaSemCodigoValido));
     }
     return chaveDoObjeto(doc.object());
 }
@@ -207,13 +215,7 @@ std::expected<ft::RespostaHttp, bk::FalhaSefin> getComRetry(ft::TransporteHttps&
             if (resposta.error().tipo == ft::TipoErro::Transitorio && !ultima) {
                 continue;
             }
-            bk::FalhaSefin falhaDeRede = falha(resposta.error().tipo == ft::TipoErro::Transitorio
-                                                   ? bk::MotivoFalhaSefin::Transitoria
-                                                   : bk::MotivoFalhaSefin::Definitiva);
-            if (resposta.error().causa == ft::CausaErro::Tls) {
-                falhaDeRede.mensagem = "certificado recusado";  // marca para a reconciliação dizer "na consulta"
-            }
-            return std::unexpected(falhaDeRede);
+            return std::unexpected(falhaDeRedeNaConsulta(resposta.error()));
         }
         registrarRequisicao(registro, "GET", resposta->status);
         observar(observador, "GET", rota, *resposta);
@@ -221,7 +223,7 @@ std::expected<ft::RespostaHttp, bk::FalhaSefin> getComRetry(ft::TransporteHttps&
             continue;
         }
         if (resposta->status >= 500) {
-            return std::unexpected(falha(bk::MotivoFalhaSefin::Transitoria));
+            return std::unexpected(falha(bk::MotivoFalhaSefin::Transitoria, {}, bk::CausaFalhaSefin::SefinIndisponivel));
         }
         return *resposta;
     }
@@ -244,7 +246,8 @@ std::expected<bk::ChaveAcesso, bk::FalhaSefin> consultarDpsCom(ft::TransporteHtt
     if (resposta->status == 404 && bruto == "E2404") {
         return std::unexpected(falha(bk::MotivoFalhaSefin::DpsNaoGerada, "E2404"));
     }
-    return std::unexpected(falha(bk::MotivoFalhaSefin::Rejeitada, codigoSeValido(bruto)));
+    const std::string codigo = codigoSeValido(bruto);
+    return std::unexpected(falha(bk::MotivoFalhaSefin::Rejeitada, codigo, causaDoCodigo(codigo)));
 }
 
 std::expected<bk::NotaSefin, bk::FalhaSefin> consultarNotaCom(ft::TransporteHttps& transporte, fl::Log& registro,
@@ -260,7 +263,8 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> consultarNotaCom(ft::TransporteHttp
     }
     const std::string bruto = codigoDoErro(resposta->corpo).value_or(std::string{});
     registrarErro(registro, bruto);
-    return std::unexpected(falha(bk::MotivoFalhaSefin::Rejeitada, codigoSeValido(bruto)));
+    const std::string codigo = codigoSeValido(bruto);
+    return std::unexpected(falha(bk::MotivoFalhaSefin::Rejeitada, codigo, causaDoCodigo(codigo)));
 }
 
 // Nota da chave da consulta. Se o GET /nfse falha, a chave vale: a nota fica pendente e o XML vem depois (DA-2.39).
@@ -288,15 +292,11 @@ std::optional<Desfecho> resolverPosEnvio(ft::TransporteHttps& transporte, fl::Lo
         if (podeReenviar) {
             return std::nullopt;  // E2404: a nota não existe, o reenvio da mesma DPS está liberado
         }
-        return Desfecho{std::unexpected(falha(bk::MotivoFalhaSefin::Transitoria))};  // sem tentativa restante
+        return Desfecho{std::unexpected(falha(bk::MotivoFalhaSefin::Transitoria, {}, bk::CausaFalhaSefin::NaoGerada))};  // sem tentativa restante
     }
-    // Qualquer outro resultado da consulta (código que não é E2404, 5xx, falha de rede): o estado é desconhecido.
-    // Se a própria consulta foi recusada pelo certificado, a mensagem diz isso para o usuário (DA-2.41, adendo de 30/10).
-    bk::FalhaSefin indeterminado = falha(bk::MotivoFalhaSefin::Indeterminado);
-    if (consulta.error().mensagem == "certificado recusado") {
-        indeterminado.mensagem = "certificado recusado na consulta";
-    }
-    return Desfecho{std::unexpected(indeterminado)};
+    // Qualquer outro resultado da consulta (código que não é E2404, 5xx, falha de rede): o estado é desconhecido, e a causa
+    // da consulta segue no erro (NL-3.C): o texto ao usuário sai do catálogo da fachada, nunca deste marcador.
+    return Desfecho{std::unexpected(indeterminadoDepoisDaConsulta(consulta.error()))};
 }
 
 // E0014 (adendo da DA-2.41, 29/10/2026): a nota pode ter nascido numa execução anterior, e E0014 também pode ser outra
@@ -308,10 +308,13 @@ Desfecho reconciliarPorInfDps(ft::TransporteHttps& transporte, fl::Log& registro
 {
     auto consulta = consultarDpsCom(transporte, registro, politica, dps.id, observador);
     if (!consulta) {
-        return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
+        return std::unexpected(indeterminadoDepoisDaConsulta(consulta.error()));
     }
     auto nota = consultarNotaCom(transporte, registro, politica, *consulta, observador);
-    if (!nota || nota->xmlPendente) {
+    if (!nota) {
+        return std::unexpected(indeterminadoDepoisDaConsulta(nota.error()));
+    }
+    if (nota->xmlPendente) {
         return std::unexpected(falha(bk::MotivoFalhaSefin::Indeterminado));
     }
     switch (comparador.comparar(dps.id, dps.xml, nota->xmlNfse)) {
@@ -342,12 +345,12 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
     auto gzip = nl::foundation::gzip::comprimir(std::span<const std::byte>(
         reinterpret_cast<const std::byte*>(xml.constData()), static_cast<std::size_t>(xml.size())));
     if (!gzip) {
-        return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva));
+        return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva, {}, bk::CausaFalhaSefin::PreparacaoDoEnvio));
     }
     const QByteArray gzipBytes(reinterpret_cast<const char*>(gzip->data()), static_cast<qsizetype>(gzip->size()));
     auto envelope = lx::montarEnvelopeDps(gzipBytes);
     if (!envelope) {
-        return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva));
+        return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva, {}, bk::CausaFalhaSefin::PreparacaoDoEnvio));
     }
 
     // O reenvio só acontece depois de consulta com E2404, com o mesmo envelope e o mesmo Id: nunca um número novo.
@@ -369,10 +372,8 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
             // Critério por bytes escritos (DA-2.41, adendo de 30/10/2026): zero bytes é falha antes do envio; com bytes, o
             // POST pode ter chegado, e a consulta decide. O código do Qt não entra na decisão.
             if (resposta.error().bytesEscritos == 0) {
-                // Nada chegou à Sefin: sem consulta. Configuração inválida é definitiva; o resto vale tentar de novo.
-                return std::unexpected(falha(resposta.error().causa == ft::CausaErro::Configuracao
-                                                 ? bk::MotivoFalhaSefin::Definitiva
-                                                 : bk::MotivoFalhaSefin::Transitoria));
+                // Nada chegou à Sefin: sem consulta. O átomo decide o motivo e a causa (NL-3.C; R-10 b, zero bytes no reenvio).
+                return std::unexpected(falhaSemBytesEscritos(resposta.error(), envio > 1));
             }
             // Conexão aberta e depois caiu: os bytes podem ter chegado. Consulta antes de qualquer decisão.
             if (auto desfecho = resolverPosEnvio(transporte_, registro_, politica_, dps, podeReenviar, observador_)) {
@@ -403,7 +404,7 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
             if (!codigo.empty()) {
                 return std::unexpected(falha(bk::MotivoFalhaSefin::Rejeitada, codigo));
             }
-            return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva));
+            return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva, {}, bk::CausaFalhaSefin::RespostaSemCodigoValido));
         }
 
         // 2xx sem chave, 2xx fora de 200 e 201, 3xx e 5xx: a DPS pode ter sido gravada. A consulta decide.

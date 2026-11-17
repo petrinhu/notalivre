@@ -87,3 +87,50 @@ foreach(nome IN LISTS NL_SLOTS_CLIENTE)
                        FAIL_REGULAR_EXPRESSION "FAIL!"
                        TIMEOUT 120)  # teto explícito por slot: sem ele o CTest espera 1500 s por teste travado
 endforeach()
+
+# Falhas de envio do cliente Sefin (NL-3.C; S5b, DA-3C.22): os 16 slots da causa tipada, em executável próprio. Mesmo nome de
+# CTest (mid.sefin.cliente.<nome>) e mesmas propriedades do laço de cima. Fora do build Flatpak, como eles (DA-2.28).
+if(NOT NL_FLATPAK_BUILD)
+    add_executable(tst_cliente_sefin_falhas_envio tst_cliente_sefin_falhas_envio.cpp)
+    target_link_libraries(tst_cliente_sefin_falhas_envio PRIVATE Qt6::Core Qt6::Network Qt6::Test nl_mid nl_back
+                          nl_foundation_pkcs12 nl_foundation_transporte nl_foundation_log OpenSSL::Crypto nl_warnings)
+    foreach(nome IN ITEMS
+        consultaDps200SemChaveDaRespostaSemCodigo
+        consultaDps200NaoObjetoDaRespostaSemCodigo
+        consultaNota200NaoObjetoDaRespostaSemCodigo
+        consultaDps404SemCodigoValidoDaRespostaSemCodigo
+        consultaNotaInexistenteDaRespostaSemCodigo
+        consultaDpsSemConexaoDaRede
+        consultaDpsRecusadaNoTls12DaCertificadoProvavel
+        consultaDps5xxPersistenteDaSefinIndisponivel
+        consultaSemTentativaNaoEnviaNada
+        naoGeradaSemTentativaDaNaoConcluido
+        consulta5xxDepoisDoEnvioPropagaACausa
+        conflito409ComConsulta5xxPropagaACausa
+        emitirSemTentativaNaoEnviaNada
+        servidorDeOutraRaizSemBytesDaServidorNaoConfirmado
+        zeroBytesNoReenvioDepoisDeE2404NaoDizNadaFoiEnviado
+        conflito409ComNotaIndisponivelPropagaACausa)
+      nl_registra_teste_qt(NAME mid.sefin.cliente.${nome} COMMAND tst_cliente_sefin_falhas_envio ${nome})
+      set_tests_properties(mid.sefin.cliente.${nome} PROPERTIES
+                           FIXTURES_REQUIRED certificados_teste
+                           ENVIRONMENT "${NL_AMBIENTE_CLIENTE}"
+                           FAIL_REGULAR_EXPRESSION "FAIL!"
+                           TIMEOUT 120)
+    endforeach()
+endif()
+
+# Falhas do envio (NL-3.C, plano 3.3 e 4.2): átomo puro, causa tipada, sem rede. Slots mid.sefin.falhasDoEnvio.<nome>.
+add_executable(tst_falhas_do_envio tst_falhas_do_envio.cpp)
+target_link_libraries(tst_falhas_do_envio PRIVATE Qt6::Core Qt6::Test nl_mid nl_back nl_foundation_transporte nl_warnings)
+foreach(nome IN ITEMS
+    causaDoTransporteCobreTodasAsCausas
+    semBytesTlsDeixaDeSerTransitoria
+    semBytesRedeContinuaTransitoria
+    semBytesConfiguracaoViraConfiguracaoDaConexao
+    falhaDeRedeNaConsultaLevaACausa
+    semBytesNoReenvioViraNaoConcluido
+    indeterminadoDepoisDaConsultaLevaACausa)
+  nl_registra_teste_qt(NAME mid.sefin.falhasDoEnvio.${nome} COMMAND tst_falhas_do_envio ${nome})
+  set_tests_properties(mid.sefin.falhasDoEnvio.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()

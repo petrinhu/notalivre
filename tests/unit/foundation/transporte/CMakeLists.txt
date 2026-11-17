@@ -65,3 +65,17 @@ foreach(nome IN ITEMS
   set_tests_properties(transporte.classificacao.${nome} PROPERTIES
                        FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
+
+# Átomo do desfecho do Qt (NL-3.C, plano 1.7 e 4.1): tabela de ramos sobre o Desfecho já preenchido, sem servidor.
+add_executable(tst_classificacao_desfecho tst_classificacao_desfecho.cpp)
+target_link_libraries(tst_classificacao_desfecho PRIVATE Qt6::Core Qt6::Network Qt6::Test nl_foundation_transporte
+                      nl_warnings)
+
+foreach(nome IN ITEMS
+    cadaRamoPreencheCodigoQtEHandshake
+    codigo99SemHandshakeNaoViraTls
+    codigo99ComHandshakeViraTlsComMensagemFixa
+    dadosTlsEBytesVaoAoErro)
+  nl_registra_teste_qt(NAME transporte.desfecho.${nome} COMMAND tst_classificacao_desfecho ${nome})
+  set_tests_properties(transporte.desfecho.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()

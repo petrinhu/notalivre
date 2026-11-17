@@ -57,6 +57,22 @@ mid.sefin.cliente.sucessoExtraiChaveDe50Posicoes | xmlsec1 ausente no SDK KDE 6.
 mid.sefin.cliente.textoLivreDaApiComCpfSoLogaCodigoE | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.xmlIlegivelNumSucessoNaoLiberaReenvio | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 mid.sefin.cliente.xmlNfseGuardaXmlDescomprimido | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.consultaDps200SemChaveDaRespostaSemCodigo | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.consultaDps200NaoObjetoDaRespostaSemCodigo | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.consultaNota200NaoObjetoDaRespostaSemCodigo | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.consultaDps404SemCodigoValidoDaRespostaSemCodigo | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.consultaNotaInexistenteDaRespostaSemCodigo | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.consultaDpsSemConexaoDaRede | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.consultaDpsRecusadaNoTls12DaCertificadoProvavel | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.consultaDps5xxPersistenteDaSefinIndisponivel | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.consultaSemTentativaNaoEnviaNada | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.naoGeradaSemTentativaDaNaoConcluido | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.consulta5xxDepoisDoEnvioPropagaACausa | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.conflito409ComConsulta5xxPropagaACausa | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.emitirSemTentativaNaoEnviaNada | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.servidorDeOutraRaizSemBytesDaServidorNaoConfirmado | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.zeroBytesNoReenvioDepoisDeE2404NaoDizNadaFoiEnviado | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.conflito409ComNotaIndisponivelPropagaACausa | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
 servidor_falso.ambienteDoXmlsec1SoNaDistroBloqueada | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
 servidor_falso.assinaturaSha1AceitaPeloOraculo | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
 servidor_falso.contentEncodingGzipDaFalha | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo
@@ -102,3 +118,5 @@ e2e.cliEmitir.cliEmiteIndTotTribMeiPeloServidorFalso | servidor falso em Python 
 e2e.cliEmitir.cliRecusaIndTotTribMeEppSemPost | servidor falso em Python com oráculo ausente no SDK (NL-2.10j, J1) | coberto no build nativo
 e2e.cliEmitir.cliRecusaPercentualMalFormadoSaiCom4 | servidor falso em Python com oráculo ausente no SDK (NL-2.10j, J1-r2) | coberto no build nativo
 tst_cripto_argon2id_oraculo | oráculo usa o binário openssl, que o SDK KDE 6.11 não traz (NL-3.2b, ciso item 6) | coberto no build nativo
+e2e.cliEmitir.semConexaoSaiComSeisETextoDoCatalogo | NL-3.C, S3: conexão recusada na porta 1, sem servidor falso; fora do Flatpak pela lista do CMake (NL-2.15) | coberto no build nativo
+e2e.cliEmitir.estadoIncertoSaiComSeteERepetirRecuperaANota | servidor falso em Python com oráculo ausente no SDK (NL-2.10j, J1) | coberto no build nativo

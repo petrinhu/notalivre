@@ -11,6 +11,7 @@
 #include <string>
 
 #include <nl/mid/composicao/emissao_cli.h>
+#include <nl/mid/composicao/catalogo_falha_envio.h>
 #include <nl/mid/composicao/codigo_saida.h>
 #include <nl/mid/composicao/politica_emissao.h>
 #include <nl/mid/composicao/registro_cli.h>
@@ -237,9 +238,16 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
             erro << QString::fromStdString(chave.error().codigo) << ": " << QString::fromStdString(chave.error().mensagem) << Qt::endl;
             return nl::mid::composicao::codigoDeSaidaDaEmissao(chave.error().codigo);
         }
-        erro << QStringLiteral("emissão recusada (%1): %2")
-                    .arg(QString::fromStdString(chave.error().codigo), QString::fromStdString(chave.error().mensagem))
-             << Qt::endl;
+        // NL-3.C (S3, DA-3C.8): falha do envio sem código E sai como "<texto do catálogo> (<código estável>)"; a recusa com código E
+        // (e a DPS duplicada) mantém "emissão recusada (...)".
+        if (nl::mid::composicao::ehFalhaDeEnvio(chave.error().codigo)) {
+            erro << QString::fromStdString(chave.error().mensagem) << QStringLiteral(" (") << QString::fromStdString(chave.error().codigo)
+                 << QStringLiteral(")") << Qt::endl;
+        } else {
+            erro << QStringLiteral("emissão recusada (%1): %2")
+                        .arg(QString::fromStdString(chave.error().codigo), QString::fromStdString(chave.error().mensagem))
+                 << Qt::endl;
+        }
         return nl::mid::composicao::codigoDeSaidaDaEmissao(chave.error().codigo);
     }
     saida << QStringLiteral("emitida: chave ") << *chave << Qt::endl;

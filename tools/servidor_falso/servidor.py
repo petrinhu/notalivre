@@ -291,6 +291,15 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             codigo = falha.split(":", 1)[1]
             return self._json(400, {"Codigo": codigo,
                                     "Descricao": "texto livre devolvido pela API com CPF 12345678909"})
+        # NL-3.C (S2): respostas de consulta e de NFS-e que não trazem o que o cliente lê (RespostaSemCodigoValido).
+        if falha == "consulta_200_sem_chave":
+            return self._json(200, {"Codigo": "OK", "Descricao": "200 sem chaveAcesso"})
+        if falha == "consulta_200_nao_objeto":
+            return self._json(200, [])
+        if falha == "consulta_404_sem_codigo":
+            return self._json(404, {"Codigo": "NAO_E_CODIGO", "Descricao": "fora do formato"})
+        if falha == "nfse_200_nao_objeto":
+            return self._json(200, [])
         if falha == "consulta_404_outro":
             # DA-2.41: a consulta respondeu 404 com um código que não é E2404 (o cliente tem de tratar como Indeterminado)
             return self._json(404, {"Codigo": "E2999", "Descricao": "fora do catálogo"})

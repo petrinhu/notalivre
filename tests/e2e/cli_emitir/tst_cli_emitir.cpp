@@ -60,17 +60,29 @@ QByteArray lerArquivo(const QString& caminho)
     return arquivo.readAll();
 }
 
+// Falha agendada além da do POST /nfse: vira --falha METODO CAMINHO FALHA no lançador (NL-3.C, S3). O caminho vai sem o prefixo.
+struct FalhaAgendada
+{
+    QString metodo;
+    QString caminho;
+    QString falha;
+};
+
 // Servidor falso em processo próprio, com oráculo. Fecha o stdin ao sair.
 class ServidorFalso
 {
 public:
     /// falhaPost, se vier, é o roteiro do POST /nfse (ex.: rejeicao_gerada:E0014, DA-2.58). prefixo, se vier, é o caminho da API
-    /// (DA-2.5, NL-2.10a): o servidor responde só nele.
-    explicit ServidorFalso(const QString& falhaPost = QString(), const QString& prefixo = QStringLiteral("/SefinNacional"))
+    /// (DA-2.5, NL-2.10a): o servidor responde só nele. extras são falhas de outras rotas (cada uma vale uma vez).
+    explicit ServidorFalso(const QString& falhaPost = QString(), const QString& prefixo = QStringLiteral("/SefinNacional"),
+                           const std::vector<FalhaAgendada>& extras = {})
     {
         QStringList argumentos{QStringLiteral("-I"), kLancador, kCertificados, QStringLiteral("--com-oraculo")};
         if (!falhaPost.isEmpty()) {
             argumentos << QStringLiteral("--falha") << QStringLiteral("POST") << QStringLiteral("/nfse") << falhaPost;
+        }
+        for (const FalhaAgendada& agendada : extras) {
+            argumentos << QStringLiteral("--falha") << agendada.metodo << agendada.caminho << agendada.falha;
         }
         if (!prefixo.isEmpty()) {
             argumentos << QStringLiteral("--prefixo") << prefixo;
@@ -549,6 +561,8 @@ private slots:
     // NL-2.27b (DA-2.72, DA-2.73): a recusa de descritor legível por outros diz só o tipo, sem nome nem caminho. O nome do arquivo de
     // fixture traz um CNPJ fictício, que não pode aparecer na saída de erro, no JSON nem no log.
     void descritorRecusadoNaoNomeiaOArquivo();
+    void semConexaoSaiComSeisETextoDoCatalogo();
+    void estadoIncertoSaiComSeteERepetirRecuperaANota();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -789,6 +803,7 @@ void TstCliEmitir::e0014SemComparacaoSaiComSete()
     }
     QVERIFY2(execucao.codigo == 7, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     QVERIFY2(execucao.saida.contains("sefin.comparacao_indisponivel"), "a comparação impossível tem de sair com o código de comparação indisponível");
+    QVERIFY2(!execucao.saida.contains("emissão recusada"), "a comparação indisponível não pode sair como recusa (NL-3.C, C9)");
 }
 
 namespace {
@@ -1113,9 +1128,89 @@ void TstCliEmitir::ancorasTlsSozinhasValidamOServidor()
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
     const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
     QVERIFY2(execucao.codigo != -3, "a escrita da senha no terminal falhou: o caso não pode passar em silêncio");
-    QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("a conexão tinha de ser recusada, com saída 1; rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.codigo == 10, qPrintable(QStringLiteral("a conexão tinha de ser recusada, com saída 10 (configuração, NL-3.C C8); rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("(envio.configuracao_da_conexao)"), "a saída tem de trazer o código estável da configuração da conexão");
     QVERIFY2(!execucao.saida.contains("emitida: chave "), "sem âncora TLS, nenhuma NFS-e pode sair como emitida");
     QCOMPARE(servidor.requisicoesAoFechar(), 0);
+}
+
+namespace {
+
+// Id da DPS da fixture mei_minima.json com a série 1 e o número 1: "DPS" + cLocEmi (4305108) + tipo 2 (CNPJ) + inscrição
+// + série (5) + número (15). Conferido pelo id_dps.cpp:36, serie.cpp:32 e numero_dps.cpp:32 (NL-3.C, S3).
+const QString kIdDpsE2e = QStringLiteral("DPS430510821122233300018100001000000000000001");
+
+// ADR-0005 e: a saída capturada vai para a pasta que o portão de PII varre, em arquivo de nome próprio.
+bool gravarSaidaParaPii(const QByteArray& saida, const QString& nome)
+{
+    const QString pastaPii = qEnvironmentVariable("NL_LOGS_PII_CLI_DIR");
+    if (pastaPii.isEmpty() || !QDir().mkpath(pastaPii)) {
+        return false;
+    }
+    QFile logPii(pastaPii + QStringLiteral("/") + nome);
+    if (!logPii.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    return logPii.write(saida) == saida.size();
+}
+
+} // namespace
+
+// NL-3.C, S3: nada escuta na porta 1, então a conexão é recusada antes de qualquer envio. Saída 6 (C3) com o texto do catálogo.
+// O Id da DPS aparece no log só mascarado (InscricaoMascarada, ADR-0005); o CNPJ da fixture nunca aparece na saída.
+void TstCliEmitir::semConexaoSaiComSeisETextoDoCatalogo()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:1"), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"), kCertificados + QStringLiteral("/cnpj_ok.pfx"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const Execucao execucao = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(execucao.codigo != -3, "a escrita da senha no terminal falhou: o caso não pode passar em silêncio");
+    QVERIFY2(gravarSaidaParaPii(execucao.saida, QStringLiteral("emitir_e2e_sem_conexao.log")),
+             "a saída do e2e tem de ir para a pasta de logs da CLI (portão de PII)");
+    QVERIFY2(execucao.codigo == 6, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("(envio.rede_antes_do_envio)"), "a saída tem de trazer o código estável da classe");
+    QVERIFY2(!execucao.saida.contains("emissão recusada"), "falha sem código E não pode sair como recusada");
+    QVERIFY2(!execucao.saida.contains("127.0.0.1"), "o endereço do servidor não pode aparecer na saída");
+    QVERIFY2(!execucao.saida.contains("https"), "o esquema da URL não pode aparecer na saída");
+    QVERIFY2(!execucao.saida.contains(kIdDpsE2e.toUtf8()), "o Id inteiro da DPS não pode aparecer na saída");
+    QVERIFY2(!execucao.saida.contains("11222333000181"), "o CNPJ da fixture não pode aparecer na saída");
+}
+
+// NL-3.C, S3: o POST grava a DPS e responde com erro de protocolo depois do envio; a consulta falha 3 vezes (tentativas padrão).
+// Saída 7 com o código do estado incerto. A 2ª execução, com o mesmo arquivo, série e número, recupera a nota pelo 409.
+void TstCliEmitir::estadoIncertoSaiComSeteERepetirRecuperaANota()
+{
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    const QString caminhoDps = QStringLiteral("/dps/") + kIdDpsE2e;
+    ServidorFalso servidor(QStringLiteral("post_ce_gzip"), QStringLiteral("/SefinNacional"),
+                           {FalhaAgendada{QStringLiteral("GET"), caminhoDps, QStringLiteral("erro5xx")},
+                            FalhaAgendada{QStringLiteral("GET"), caminhoDps, QStringLiteral("erro5xx")},
+                            FalhaAgendada{QStringLiteral("GET"), caminhoDps, QStringLiteral("erro5xx")}});
+    QVERIFY2(servidor.porta() > 0, qPrintable(servidor.diagnostico()));
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:%1").arg(servidor.porta()), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"), kCertificados + QStringLiteral("/cnpj_ok.pfx"));
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+
+    const Execucao primeira = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(primeira.codigo != -3, "a escrita da senha no terminal falhou: o caso não pode passar em silêncio");
+    QVERIFY2(gravarSaidaParaPii(primeira.saida, QStringLiteral("emitir_e2e_estado_incerto_1.log")),
+             "a saída do e2e tem de ir para a pasta de logs da CLI (portão de PII)");
+    QVERIFY2(primeira.codigo == 7, qPrintable(QStringLiteral("1ª execução: rc=%1; saída: %2").arg(primeira.codigo).arg(QString::fromUtf8(primeira.saida))));
+    QVERIFY2(primeira.saida.contains("(envio.estado_incerto)"), "a 1ª execução tem de trazer o código do estado incerto");
+    QVERIFY2(!primeira.saida.contains("emissão recusada"), "estado incerto nunca sai como recusa");
+
+    const Execucao segunda = rodarCliNoTerminal(argumentosSemCertificado(), configDir.path(), senha);
+    QVERIFY2(gravarSaidaParaPii(segunda.saida, QStringLiteral("emitir_e2e_estado_incerto_2.log")),
+             "a saída do e2e tem de ir para a pasta de logs da CLI (portão de PII)");
+    QVERIFY2(segunda.codigo == 0, qPrintable(QStringLiteral("2ª execução: rc=%1; saída: %2").arg(segunda.codigo).arg(QString::fromUtf8(segunda.saida))));
+    QVERIFY2(segunda.saida.contains("emitida: chave "), "a 2ª execução, com o mesmo número, tem de recuperar a nota");
+    QVERIFY2(!segunda.saida.contains("sefin.dps_duplicada"), "a recuperação não pode sair como DPS duplicada");
+
+    const QStringList caminhos = servidor.caminhosAoFechar();
+    QVERIFY2(caminhos.size() == 2, qPrintable(QStringLiteral("eram 2 POST /nfse, veio %1").arg(caminhos.size())));
 }
 
 void TstCliEmitir::cliEmiteComSenhaPeloDescritor()

@@ -13,6 +13,7 @@
 
 #include <nl/foundation/transporte/transporte_https.h>
 
+#include <nl/foundation/transporte/classificacao_desfecho.h>
 #include <nl/foundation/transporte/classificacao_erro.h>
 
 #include <QByteArray>
@@ -35,36 +36,9 @@ namespace {
 // Teto do tempo limite: 10 minutos. Acima disso a configuração é inválida, e o valor cabe no int do QTimer.
 constexpr std::chrono::milliseconds kTempoLimiteMaximo{600000};
 
-ErroTransporte erro(TipoErro tipo, CausaErro causa, QString mensagem)
-{
-    ErroTransporte resultado;
-    resultado.tipo = tipo;
-    resultado.causa = causa;
-    resultado.mensagem = std::move(mensagem);
-    return resultado;
-}
-
 ErroTransporte configuracaoInvalida(QString motivo)
 {
     return erro(TipoErro::Definitivo, CausaErro::Configuracao, std::move(motivo));
-}
-
-// Descrição fixa por causa: nenhum texto vindo de fora entra na mensagem.
-QString descricaoDaCausa(CausaErro causa)
-{
-    switch (causa) {
-    case CausaErro::Timeout:
-        return QStringLiteral("tempo limite esgotado");
-    case CausaErro::Conexao:
-        return QStringLiteral("conexão indisponível ou interrompida");
-    case CausaErro::Tls:
-        return QStringLiteral("handshake TLS recusado");
-    case CausaErro::Protocolo:
-        return QStringLiteral("resposta de rede inválida");
-    case CausaErro::Configuracao:
-        return QStringLiteral("configuração incompleta");
-    }
-    return QStringLiteral("erro de transporte");
 }
 
 // NL-2.10e (E4 complemento): versão TLS e protocolo negociado, só como valores do conjunto fechado (DA-2.75).
@@ -91,25 +65,6 @@ std::string protocoloDoAlpn(const QByteArray& protocolo)
         return "h2";
     }
     return "outro";
-}
-
-QString mensagemDeRede(CausaErro causa, QNetworkReply::NetworkError codigo, bool handshake, int sslErros)
-{
-    return QStringLiteral("%1 (codigo Qt %2, handshake %3, erros SSL %4)")
-        .arg(descricaoDaCausa(causa))
-        .arg(static_cast<int>(codigo))
-        .arg(handshake ? QStringLiteral("sim") : QStringLiteral("não"))
-        .arg(sslErros);
-}
-
-// Erro de rede sem status: a classificação é do átomo; aqui só se monta a mensagem fixa.
-ErroTransporte erroDeRede(QNetworkReply::NetworkError codigo, bool handshake, int sslErros)
-{
-    const Classificacao classe = classificarErroDeRede(codigo);
-    ErroTransporte erroRede = erro(classe.tipo, classe.causa, mensagemDeRede(classe.causa, codigo, handshake, sslErros));
-    erroRede.codigoQt = static_cast<int>(codigo);  // NL-2.10e (E4): para o log de falha de transporte
-    erroRede.handshake = handshake;
-    return erroRede;
 }
 
 // mTLS: autoridade de servidor só a da configuração (sem as do sistema), TLS 1.2 ou superior, verificação do servidor
@@ -184,25 +139,6 @@ QNetworkRequest montarPedido(const UrlBase& base, const ConfiguracaoTls& tls, co
     }
     return pedido;
 }
-
-// O que a espera síncrona observou. Preenchido pelos sinais do Qt durante o loop.
-struct Desfecho {
-    bool expirou = false;
-    bool excedeuTeto = false;
-    bool handshake = false;
-    int sslErros = 0;
-    // NL-2.10e (E4 complemento): códigos do QSslError::SslError (no máximo 16) e o que o handshake negociou, todos de conjunto fechado.
-    std::vector<int> codigosSsl;
-    std::string versaoTls = "nenhuma";
-    std::string protocoloNegociado = "nenhum";
-    QNetworkReply::NetworkError codigo = QNetworkReply::NoError;
-    int status = 0;
-    QByteArray corpo;
-    QByteArray tipoConteudo;  // Content-Type da resposta, como veio no cabeçalho (NL-2.10c, emenda 1 item a)
-    bool contentEncodingIdentidade = true;
-    // Bytes do corpo que o Qt escreveu no socket (sinal uploadProgress). Zero: nada do POST saiu da máquina (DA-2.41).
-    qint64 bytesEscritos = 0;
-};
 
 // Content-Encoding diferente de identity na resposta é protocolo inesperado: o transporte não descomprime.
 bool contentEncodingEhIdentity(const QNetworkReply* resposta)
@@ -287,66 +223,6 @@ Desfecho executar(QNetworkAccessManager& gerenciador, const QNetworkRequest& ped
     return desfecho;
 }
 
-// Transforma o que o Qt observou no resultado do transporte. Ordem: teto do corpo, tempo limite, status recebido,
-// e por fim erro sem status.
-std::expected<RespostaHttp, ErroTransporte> classificarDesfechoSemDados(const Desfecho& d)
-{
-    if (d.excedeuTeto) {
-        return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
-                                    mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)));
-    }
-    if (d.expirou) {
-        return std::unexpected(erro(TipoErro::Transitorio, CausaErro::Timeout,
-                                    mensagemDeRede(CausaErro::Timeout, d.codigo, d.handshake, d.sslErros)));
-    }
-    if (d.status > 0) {
-        if (ehRedirecionamento(d.status) || !d.contentEncodingIdentidade) {
-            return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
-                                        mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)));
-        }
-        if (ehCodigoDeRespostaCompleta(d.codigo)) {
-            return RespostaHttp{d.status, d.corpo, d.tipoConteudo};
-        }
-        // Erro de rede (1 a 99) depois do status: corpo incompleto ou conexão cortada, nunca resposta.
-        const int codigo = static_cast<int>(d.codigo);
-        if (codigo >= 1 && codigo <= 99) {
-            return std::unexpected(erro(TipoErro::Transitorio, CausaErro::Conexao,
-                                        mensagemDeRede(CausaErro::Conexao, d.codigo, d.handshake, d.sslErros)));
-        }
-        return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Protocolo,
-                                    mensagemDeRede(CausaErro::Protocolo, d.codigo, d.handshake, d.sslErros)));
-    }
-    // Recusa do servidor depois do handshake: sinal encrypted, sem status, código UnknownNetworkError (DA-2.35).
-    if (d.handshake && d.codigo == QNetworkReply::UnknownNetworkError) {
-        return std::unexpected(erro(TipoErro::Definitivo, CausaErro::Tls,
-                                    QStringLiteral("servidor recusou depois do handshake, provável certificado do cliente")));
-    }
-    return std::unexpected(erroDeRede(d.codigo, d.handshake, d.sslErros));
-}
-
-// NL-2.10e (E4 complemento, DA-2.75): anexa ao erro os dados TLS do desfecho (códigos SSL, versão e protocolo). Só valores do conjunto
-// fechado; nunca texto do Qt, certificado ou erro anexado.
-std::expected<RespostaHttp, ErroTransporte> classificarDesfecho(const Desfecho& d)
-{
-    auto resultado = classificarDesfechoSemDados(d);
-    if (!resultado) {
-        resultado.error().codigosSsl = d.codigosSsl;
-        resultado.error().versaoTls = d.versaoTls;
-        resultado.error().protocoloNegociado = d.protocoloNegociado;
-    }
-    return resultado;
-}
-
-// Resultado do pedido, com os bytes escritos do corpo no erro: é o sinal que o cliente usa para decidir se consulta (DA-2.41).
-std::expected<RespostaHttp, ErroTransporte> interpretar(const Desfecho& d)
-{
-    auto resultado = classificarDesfecho(d);
-    if (!resultado) {
-        resultado.error().bytesEscritos = d.bytesEscritos;
-    }
-    return resultado;
-}
-
 } // namespace
 
 QSslConfiguration configuracaoSslDoTransporte(const ConfiguracaoTls& tls)
@@ -368,7 +244,7 @@ std::expected<RespostaHttp, ErroTransporte> TransporteHttps::enviar(const Requis
     QNetworkAccessManager gerenciador;
     const Desfecho desfecho =
         executar(gerenciador, montarPedido(urlBase_, tls_, requisicao), requisicao, urlBase_.tempoLimite);
-    return interpretar(desfecho);
+    return interpretarDesfecho(desfecho);
 }
 
 } // namespace nl::foundation::transporte

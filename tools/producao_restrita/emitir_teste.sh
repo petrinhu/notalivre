@@ -323,6 +323,8 @@ emitir_tentativa() {
 # Classifica o resultado: aceita, 404 (rota), e0714 (algoritmo), sefin (outra recusa da Sefin) ou local (antes da Sefin).
 classificar() {
     if [ "$1" -eq 0 ]; then RESULTADO=aceita; return; fi
+    # NL-3.C (S3, DA-3C.10): saída 7 é estado incerto ou comparação indisponível: o número fica gasto até confirmar na Sefin.
+    if [ "$1" -eq 7 ]; then RESULTADO=incerta; return; fi
     # MÉDIA-S1: só o POST de emissão com 404 diz que a rota de envio não existe; GET de consulta não conta.
     if awk '/"evento":"sefin.requisicao"/ && /"metodo":"POST"/ && /"status":"404"/ { achou = 1 } END { exit !achou }' "$2"; then
         RESULTADO=404
@@ -338,6 +340,10 @@ classificar() {
         # chegado). Local só com a etapa POST e zero bytes escritos.
         if awk '/"evento":"sefin.transporte_falhou"/ && !/"bytesEscritos":"0"/ { achou = 1 } END { exit !achou }' "$2"; then
             RESULTADO=incerta
+        elif awk '/"evento":"sefin.requisicao"/ && /"metodo":"POST"/ { achou = 1 } END { exit !achou }' "$2"; then
+            # NL-3.C S5 (A1 da revisão, R-10 b do CISO): zero bytes num reenvio, depois de um POST já respondido, não prova que nada
+            # chegou à Sefin: incerta, e o número fica gasto. Local só sem nenhum POST registrado na saída.
+            RESULTADO=incerta
         elif awk '/"evento":"sefin.transporte_falhou"/ && /"etapa":"POST"/ && /"bytesEscritos":"0"/ { achou = 1 } END { exit !achou }' "$2"; then
             RESULTADO=local
         else
@@ -345,7 +351,14 @@ classificar() {
         fi
         return
     fi
+    # NL-3.C (S4b, emenda da DA-3C.10, R-9 a do CISO): resposta sem código válido com POST registrado: a DPS saiu, então é incerta, nunca recusa.
+    if grep -q '(envio\.resposta_sem_codigo)' "$2" && awk '/"evento":"sefin.requisicao"/ && /"metodo":"POST"/ { achou = 1 } END { exit !achou }' "$2"; then
+        RESULTADO=incerta
+        return
+    fi
     if grep -q 'emissão recusada (sefin\.E[0-9]' "$2"; then RESULTADO=sefin; return; fi
+    # NL-3.C (S4b): no pacote antigo, sefin.falha nunca prova recusa (DA-2.80); com resposta registrada também é incerta.
+    if grep -q 'emissão recusada (sefin\.falha)' "$2"; then RESULTADO=incerta; return; fi
     if grep -q 'emissão recusada (sefin\.' "$2"; then
         if awk '/"evento":"sefin.requisicao"/ { achou = 1 } END { exit !achou }' "$2"; then
             RESULTADO=sefin
@@ -1151,6 +1164,75 @@ emitir_stub() {
             # NL-2.27 (R2-B2): POST registrado e saída comum (rc 1), sem texto sefin. Só a regra POST torna isso incerta.
             echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"200"},"descartados":0}'
             exit 1 ;;
+        envio_certificado)
+            # NL-3.C (S3): falha do envio sem código E, com zero bytes: antes da Sefin (C1, saída 8).
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"tls","codigoQt":"4","handshake":"sim","bytesEscritos":"0","etapa":"POST"},"descartados":0}'
+            echo "ensaio (envio.certificado_provavel)"
+            exit 8 ;;
+        envio_servidor)
+            # NL-3.C (S3): servidor sem confirmação, zero bytes (C2, saída 12).
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"tls","codigoQt":"4","handshake":"sim","bytesEscritos":"0","etapa":"POST"},"descartados":0}'
+            echo "ensaio (envio.servidor_nao_confirmado)"
+            exit 12 ;;
+        envio_rede)
+            # NL-3.C (S3): rede antes do envio, zero bytes (C3, saída 6).
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"0","etapa":"POST"},"descartados":0}'
+            echo "ensaio (envio.rede_antes_do_envio)"
+            exit 6 ;;
+        envio_config)
+            # NL-3.C (S3): configuração da conexão incompleta, zero bytes (C8, saída 10).
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"0","etapa":"POST"},"descartados":0}'
+            echo "ensaio (envio.configuracao_da_conexao)"
+            exit 10 ;;
+        envio_incerto)
+            # NL-3.C (S3): bytes escritos, estado incerto (C4, saída 7).
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"5","etapa":"POST"},"descartados":0}'
+            echo "ensaio (envio.estado_incerto)"
+            exit 7 ;;
+        envio_nao_concluido)
+            # NL-3.C (S3): bytes escritos, a Sefin não concluiu (C6, saída 6).
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"5","etapa":"POST"},"descartados":0}'
+            echo "ensaio (envio.nao_concluido)"
+            exit 6 ;;
+        post503_zero_no_reenvio)
+            # NL-3.C S5 (A1 da revisão, R-10 b do CISO): o POST recebeu 503, a consulta deu E2404 e o reenvio falhou com zero bytes
+            # (C6, saída 6). Houve POST respondido: nunca "antes da Sefin".
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"503"},"descartados":0}'
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"GET","status":"404"},"descartados":0}'
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"0","etapa":"POST"},"descartados":0}'
+            echo "ensaio (envio.nao_concluido)"
+            exit 6 ;;
+        post503_zero_no_reenvio_antigo)
+            # NL-3.C S5 (A1, gêmeo do pacote antigo): a mesma sequência, com a moldura antiga de erro.
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"503"},"descartados":0}'
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"GET","status":"404"},"descartados":0}'
+            echo '{"level":"aviso","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.transporte_falhou","campos":{"causa":"conexao","codigoQt":"2","handshake":"nao","bytesEscritos":"0","etapa":"POST"},"descartados":0}'
+            echo "emissão recusada (sefin.falha): "
+            exit 1 ;;
+        envio_falha_interna)
+            # NL-3.C (S3): falha do próprio programa antes do envio, sem nenhum evento (C7a, saída 70).
+            echo "ensaio (envio.falha_antes_do_envio)"
+            exit 70 ;;
+        envio_resposta_sem_codigo)
+            # NL-3.C (S3): a Sefin respondeu 400 sem código E válido (C7b, saída 70), com POST registrado.
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"400"},"descartados":0}'
+            echo "ensaio (envio.resposta_sem_codigo)"
+            exit 70 ;;
+        resposta_sem_codigo_antigo)
+            # NL-3.C S4b (D2c, CISO): 4xx sem código no pacote antigo; a DPS saiu, a classificação é incerta, nunca recusa.
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"400"},"descartados":0}'
+            echo "emissão recusada (sefin.falha): "
+            exit 1 ;;
+        comparacao_novo)
+            # NL-3.C (S3): comparação indisponível, linha nova (C9, saída 7).
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"409"},"descartados":0}'
+            echo "ensaio (sefin.comparacao_indisponivel)"
+            exit 7 ;;
+        comparacao_antigo)
+            # NL-3.C (S3): comparação indisponível, com a moldura antiga. O esperado é incerta (NL-3.C, regra da saída 7); em V3 o classificador ainda diz sefin, e esse vermelho é o esperado.
+            echo '{"level":"info","ts":"2026-11-01T00:00:00Z","service":"notalivre-cli","evento":"sefin.requisicao","campos":{"metodo":"POST","status":"409"},"descartados":0}'
+            echo "emissão recusada (sefin.comparacao_indisponivel): ensaio"
+            exit 7 ;;
         morto137)
             # Processo morto sem nenhum POST na saída: também incerta, porque o corte pode ter sido depois do envio.
             exit 137 ;;
@@ -1875,6 +1957,20 @@ ensaio() {
     ensaio_caso morto_sem_post_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=morto137 NL_ENSAIO_NDPS_ESPERADO=1
     # NL-2.27 (R2-B2, SB1b): POST 200 registrado e saída 1, sem texto sefin. Só a regra POST torna isso incerta; sem ela, cairia em local.
     ensaio_caso post_sem_texto_sefin_gera_incerta 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=post_sem_texto NL_ENSAIO_NDPS_ESPERADO=1
+    # NL-3.C (S3, plano 4.9): a falha do envio sem código E ganha a classe, a linha da CLI e o número (devolvido ou gasto).
+    ensaio_caso envio_certificado 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=envio_certificado NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso envio_servidor 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=envio_servidor NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso envio_rede 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=envio_rede NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso envio_config 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=envio_config NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso envio_incerto 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=envio_incerto NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso envio_nao_concluido 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=envio_nao_concluido NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso post503_zero_no_reenvio 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=post503_zero_no_reenvio NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso post503_zero_no_reenvio_antigo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=post503_zero_no_reenvio_antigo NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso envio_falha_interna 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_SEQ=envio_falha_interna NL_ENSAIO_NDPS_ESPERADO=ausente
+    ensaio_caso envio_resposta_sem_codigo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=envio_resposta_sem_codigo NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso resposta_sem_codigo_antigo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=resposta_sem_codigo_antigo NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso comparacao_novo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=comparacao_novo NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso comparacao_antigo 1 "Não foi possível confirmar" 1 1 "" NL_ENSAIO_SEQ=comparacao_antigo NL_ENSAIO_NDPS_ESPERADO=1
     # NL-2.27 (Emenda 1, item 5): kdialog cancelado = senha vazia na CLI (saída 2, local): o número não é consumido.
     ensaio_caso senha_cancelada_nao_consome_numero 1 "antes de chegar à Sefin" 1 1 "" NL_ENSAIO_KDIALOG_CANCELA=1 NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente
     ensaio_caso bundle_errado_nao_instala 1 "SHA-256" 0 0 "" NL_ENSAIO_BUNDLE=errado NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=ausente

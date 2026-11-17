@@ -9,6 +9,7 @@
 #include <nl/back/dps/chave_acesso.h>
 #include <nl/back/dps/dps_assinada.h>
 #include <nl/back/dps/id_dps.h>
+#include <nl/back/ports/causa_falha_sefin.h>
 
 #include <QByteArray>
 
@@ -18,11 +19,11 @@
 namespace nl::back {
 
 enum class MotivoFalhaSefin {
-    Transitoria,   ///< Falha de rede ou 5xx que não se resolveu depois da consulta. Vale tentar de novo, pelo caso de uso.
+    Transitoria,   ///< Falha de rede antes do envio, 5xx ou E2404 sem tentativa restante. Vale tentar de novo, pelo caso de uso.
     DpsNaoGerada,  ///< GET /dps/{id} respondeu 404 com E2404 (INFERÊNCIA até a NL-2.10): a nota não existe.
     DpsDuplicada,  ///< 409: a DPS já existe na Sefin. Consultar, nunca reenviar.
     Rejeitada,     ///< Código E de regra de negócio (ou de certificado). Nunca repete.
-    Definitiva,    ///< Resposta que o cliente não consegue ler, ou configuração inválida.
+    Definitiva,    ///< Resposta que o cliente não consegue ler, ou configuração inválida; recusa da conexão segura antes do envio e falha ao preparar o envio.
     Indeterminado, ///< Os bytes do POST podem ter chegado e a consulta GET /dps não disse o que aconteceu. Nunca vira
                    ///< Definitiva nem Rejeitada: o chamador não sabe se a nota existe e não pode reenviar (DA-2.41).
     ComparacaoIndisponivel, ///< E0014 com a nota buscada, mas o infDPS não se compara (DA-2.59): a DPS não se confirma nem se reenvia.
@@ -31,7 +32,8 @@ enum class MotivoFalhaSefin {
 struct FalhaSefin {
     MotivoFalhaSefin motivo;
     std::string codigoE;   ///< Código E da Sefin, quando houver (ex.: "E1207"). Vazio nas falhas de rede.
-    std::string mensagem;  ///< Texto do catálogo do Mid para o código E. Nunca o texto livre da API.
+    std::string mensagem;  ///< Texto do catálogo do Mid para o código E (vazio sem código E; o texto ao usuário vem do catálogo da fachada, NL-3.C). Nunca o texto livre da API.
+    CausaFalhaSefin causa = CausaFalhaSefin::Nenhuma; ///< O que se sabe da causa (NL-3.C). Só o Mid preenche; nenhum fluxo decide por texto.
 };
 
 struct NotaSefin {
