@@ -66,23 +66,39 @@ def rodar_ctest(build):
     return proc.stdout
 
 
+def ler_arquivo_json(json_path):
+    """Texto do JSON gravado; arquivo ilegível é Parada."""
+    try:
+        with open(json_path, encoding="utf-8") as arq:
+            return arq.read()
+    except (OSError, ValueError):
+        raise Parada(f"JSON ilegivel: {json_path}")
+
+
+def validar_teste(posicao, teste):
+    """Confere um item da lista tests: objeto com command em lista não vazia de textos sem byte nulo; senão Parada."""
+    if not isinstance(teste, dict):
+        raise Parada(f"teste nao e objeto na posicao {posicao}")
+    nome = str(teste.get("name", "?"))
+    cmd = teste.get("command")
+    if not isinstance(cmd, list) or not cmd or not all(isinstance(t, str) for t in cmd):
+        raise Parada(f"teste sem command legivel: {nome}")
+    if any("\x00" in t for t in cmd):
+        raise Parada(f"command com byte nulo: {nome}")
+
+
 def ler_registro(json_path, build):
     """Devolve a lista de testes do CTest, do JSON dado ou de um ctest rodado agora; entrada ilegível é Parada."""
-    if json_path:
-        try:
-            with open(json_path, encoding="utf-8") as arq:
-                texto = arq.read()
-        except (OSError, ValueError):
-            raise Parada(f"JSON ilegivel: {json_path}")
-    else:
-        texto = rodar_ctest(build)
+    texto = ler_arquivo_json(json_path) if json_path else rodar_ctest(build)
     try:
         dados = json.loads(texto)
-    except ValueError:
+    except (ValueError, RecursionError):
         raise Parada("JSON ilegivel")
     testes = dados.get("tests") if isinstance(dados, dict) else None
     if not isinstance(testes, list):
         raise Parada("JSON sem lista tests")
+    for posicao, teste in enumerate(testes, 1):
+        validar_teste(posicao, teste)
     return testes
 
 
@@ -90,8 +106,6 @@ def classificar_teste(teste):
     """Diz se o teste é registro Qt inteiro, Qt por função, Python por função, outro ou não reconhecido."""
     nome = str(teste.get("name", "?"))
     cmd = teste.get("command")
-    if not isinstance(cmd, list) or not cmd or not all(isinstance(t, str) for t in cmd):
-        raise Parada(f"teste sem command legivel: {nome}")
     if len(cmd) >= 5 and cmd[1:4] == ["-o", "-,txt", "-o"] and cmd[4].endswith(",junitxml"):
         sobra = cmd[5:]
         if not sobra:
