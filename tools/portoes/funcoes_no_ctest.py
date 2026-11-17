@@ -133,6 +133,11 @@ def excluida_py(nome):
     return nome.startswith("_") or nome in EXCLUIDAS_PY
 
 
+def fim_de_secao(linha):
+    """Verdadeiro quando a linha, sem recuo, fecha a seção private slots: fim da classe ou outro rótulo de acesso."""
+    return linha.startswith("};") or bool(SECAO_QT_FIM.match(linha))
+
+
 def slots_qt(linhas):
     """Funções declaradas na seção private slots de um fonte Qt, ou o motivo de não analisar."""
     funcoes, dentro, achou = [], False, False
@@ -142,14 +147,14 @@ def slots_qt(linhas):
             if SECAO_QT_INICIO.match(limpa):
                 dentro = achou = True
             continue
-        if limpa.startswith("};") or SECAO_QT_FIM.match(limpa):
-            dentro = False
-            continue
         if not limpa:
             continue
         recuo = len(linha) - len(linha.lstrip(" "))
         conteudo = linha.lstrip(" ")
         if recuo > 4:
+            continue
+        if fim_de_secao(linha):
+            dentro = bool(SECAO_QT_INICIO.match(linha))
             continue
         if recuo == 4:
             casou = FUNCAO_VOID.match(conteudo)
