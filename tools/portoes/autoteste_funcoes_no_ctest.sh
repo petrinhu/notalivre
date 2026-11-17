@@ -1,12 +1,14 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Autoteste do portão de funções declaradas e registradas no CTest (NL-2.20 S2 e S2c; L-35, L-36). Dezenove casos, cada um
-# com o veredito esperado e um trecho obrigatório da saída: positivo; falta em Qt e em Python; sobra; varredura vazia (2 casos);
-# exceção morta, sem motivo e válida; ctest morto por sinal; fonte sem seção; linha não reconhecida; fonte ausente; registro
-# duplicado; comando estranho; e o fim da seção (S2c): lambda e classe local no corpo de um slot, segunda seção private
-# slots e rótulo de acesso. Os JSON do CTest, os fontes e as listas são gerados aqui, numa pasta temporária, e não são
-# arquivos versionados. Sem prova de vermelho o portão não conta.
+# Autoteste do portão de funções declaradas e registradas no CTest (NL-2.20 S2, S2c e S2e; L-35, L-36).
+# Vinte e três casos, cada um com o veredito esperado e um trecho obrigatório da saída: positivo; falta em Qt e em
+# Python; sobra; varredura vazia (2 casos); exceção morta, sem motivo e válida; ctest morto por sinal; fonte sem seção;
+# linha não reconhecida; fonte ausente; registro duplicado; comando estranho; o fim da seção (S2c): lambda e classe local
+# no corpo de um slot, segunda seção private slots e rótulo de acesso; entrada do registro (S2e): item que não é objeto,
+# byte nulo no command, JSON aninhado demais, e exceção que vale só para o próprio programa. Os JSON do CTest, os fontes
+# e as listas são gerados aqui, numa pasta temporária, e não são arquivos versionados.
+# Sem prova de vermelho o portão não conta.
 #
 # Uso: autoteste_funcoes_no_ctest.sh     (usa o portão da árvore onde este arquivo está)
 set -u
@@ -255,8 +257,49 @@ json_base
 rodar_com_json
 avalia 19 "rotulo_fecha_secao" 0 "declaradas=4 registradas=4 excecoes=0 faltam=0 sobram=0"
 
+# Caso 20: item da lista tests que não é objeto; a entrada sai com rc 2 e o resumo na primeira linha (S2e).
+preparar 20
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+printf '%s\n' '{' '  "kind" : "ctestInfo",' '  "tests" : [ 1 ]' '}' > "$C/ctest.json"
+rodar_com_json
+avalia 20 "item_nao_objeto" 2 "teste nao e objeto na posicao 1"
+
+# Caso 21: command com byte nulo, escrito no JSON como \u0000; a entrada sai com rc 2 antes de qualquer contagem (S2e).
+preparar 21
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+item_nulo="[\"$C/build/tests/q/tst\\u0000q\", \"-o\", \"-,txt\", \"-o\", \"$C/build/junit/q.xml,junitxml\", \"umSlot\"]"
+json_base "$item_nulo"
+rodar_com_json
+avalia 21 "byte_nulo_no_command" 2 "command com byte nulo: t7"
+
+# Caso 22: JSON com 100000 colchetes aninhados; o json.loads levanta RecursionError, que vira JSON ilegivel (S2e).
+# Dois processos tr, número fixo (L-11, item 6).
+preparar 22
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+{
+    printf '%s\n' '{"kind": "ctestInfo", "tests": '
+    printf '%100000s' '' | tr ' ' '['
+    printf '%100000s' '' | tr ' ' ']'
+    printf '%s\n' '}'
+} > "$C/ctest.json"
+rodar_com_json
+avalia 22 "json_aninhado_demais" 2 "JSON ilegivel"
+
+# Caso 23: a exceção vale só para o próprio programa; o mesmo nome em outro programa continua faltando (S2e).
+preparar 23
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" "    void semRegistro() {}"
+mkdir -p "$C/raiz/tests/r2"
+escreve_qt "$C/raiz/tests/r2/tst_r2.cpp" "    void semRegistro() {}"
+printf '%s\n' 'tests/q/tst_q.cpp::semRegistro | motivo de teste' > "$C/excecoes.txt"
+R2="$C/build/tests/r2/tst_r2"
+item_r2_um="[\"$R2\", \"-o\", \"-,txt\", \"-o\", \"$C/build/junit/r2.u.xml,junitxml\", \"umSlot\"]"
+item_r2_outro="[\"$R2\", \"-o\", \"-,txt\", \"-o\", \"$C/build/junit/r2.o.xml,junitxml\", \"outroSlot\"]"
+json_base "$item_r2_um" "$item_r2_outro"
+rodar_com_json
+avalia 23 "excecao_so_do_programa" 1 "falta: tests/r2/tst_r2.cpp::semRegistro"
+
 echo "autoteste_funcoes_no_ctest: casos=$CASOS falhas=$FALHAS"
-if [ "$CASOS" -ne 19 ] || [ "$FALHAS" -ne 0 ]; then
+if [ "$CASOS" -ne 23 ] || [ "$FALHAS" -ne 0 ]; then
     exit 1
 fi
 exit 0
