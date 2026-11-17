@@ -567,6 +567,9 @@ jobs:
       - name: "Autoteste do portão fora do Flatpak (NL-2.15, DA-2.65)"
         run: bash tools/portoes/autoteste_fora_do_flatpak.sh
 
+      - name: "Autoteste do portão de funções no CTest (NL-2.20)"
+        run: bash tools/portoes/autoteste_funcoes_no_ctest.sh
+
       - name: "Autoteste do portão de pontos de parse (NL-2.21, DA-2.67)"
         run: bash tools/portoes/autoteste_pontos_de_parse.sh
 
