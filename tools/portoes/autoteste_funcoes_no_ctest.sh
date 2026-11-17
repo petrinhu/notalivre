@@ -1,10 +1,11 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Autoteste do portão de funções declaradas e registradas no CTest (NL-2.20 S2, D13 a D17; L-35, L-36). Quinze casos, cada um
+# Autoteste do portão de funções declaradas e registradas no CTest (NL-2.20 S2 e S2c; L-35, L-36). Dezenove casos, cada um
 # com o veredito esperado e um trecho obrigatório da saída: positivo; falta em Qt e em Python; sobra; varredura vazia (2 casos);
 # exceção morta, sem motivo e válida; ctest morto por sinal; fonte sem seção; linha não reconhecida; fonte ausente; registro
-# duplicado; comando estranho. Os JSON do CTest, os fontes e as listas são gerados aqui, numa pasta temporária, e não são
+# duplicado; comando estranho; e o fim da seção (S2c): lambda e classe local no corpo de um slot, segunda seção private
+# slots e rótulo de acesso. Os JSON do CTest, os fontes e as listas são gerados aqui, numa pasta temporária, e não são
 # arquivos versionados. Sem prova de vermelho o portão não conta.
 #
 # Uso: autoteste_funcoes_no_ctest.sh     (usa o portão da árvore onde este arquivo está)
@@ -210,8 +211,52 @@ json_base "[\"$C/build/tests/q/tst_q\", \"-o\", \"-,txt\", \"-o\", \"$C/build/ju
 rodar_com_json
 avalia 15 "comando_estranho" 1 "comando nao reconhecido"
 
+# Caso 16: lambda no corpo de um slot; o '};' de recuo 8 fecha a lambda, não a seção.
+preparar 16
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" "    void comLambda()
+    {
+        auto f = [] {
+        };
+    }
+    void depoisDaLambda() {}"
+json_base "[\"$C/build/tests/q/tst_q\", \"-o\", \"-,txt\", \"-o\", \"$C/build/junit/q.comLambda.xml,junitxml\", \"comLambda\"]" \
+    "[\"$C/build/tests/q/tst_q\", \"-o\", \"-,txt\", \"-o\", \"$C/build/junit/q.depoisDaLambda.xml,junitxml\", \"depoisDaLambda\"]"
+rodar_com_json
+avalia 16 "lambda_no_corpo" 0 "declaradas=6 registradas=6 excecoes=0 faltam=0 sobram=0"
+
+# Caso 17: classe local com rótulo public no corpo de um slot; o rótulo de recuo 8 não fecha a seção.
+preparar 17
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" "    void comClasseLocal()
+    {
+        struct Local {
+        public:
+            int x = 0;
+        };
+    }
+    void depoisDaClasse() {}"
+json_base "[\"$C/build/tests/q/tst_q\", \"-o\", \"-,txt\", \"-o\", \"$C/build/junit/q.comClasseLocal.xml,junitxml\", \"comClasseLocal\"]" \
+    "[\"$C/build/tests/q/tst_q\", \"-o\", \"-,txt\", \"-o\", \"$C/build/junit/q.depoisDaClasse.xml,junitxml\", \"depoisDaClasse\"]"
+rodar_com_json
+avalia 17 "rotulo_aninhado" 0 "declaradas=6 registradas=6 excecoes=0 faltam=0 sobram=0"
+
+# Caso 18: segunda linha private slots logo depois da primeira seção; a seção reabre.
+preparar 18
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" "private slots:
+    void naSegundaSecao() {}"
+json_base "[\"$C/build/tests/q/tst_q\", \"-o\", \"-,txt\", \"-o\", \"$C/build/junit/q.naSegundaSecao.xml,junitxml\", \"naSegundaSecao\"]"
+rodar_com_json
+avalia 18 "segunda_secao" 0 "declaradas=5 registradas=5 excecoes=0 faltam=0 sobram=0"
+
+# Caso 19: rótulo public de recuo 0 fecha a seção; a função depois dele não é caso de teste.
+preparar 19
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" "public:
+    void auxiliarPublico() {}"
+json_base
+rodar_com_json
+avalia 19 "rotulo_fecha_secao" 0 "declaradas=4 registradas=4 excecoes=0 faltam=0 sobram=0"
+
 echo "autoteste_funcoes_no_ctest: casos=$CASOS falhas=$FALHAS"
-if [ "$CASOS" -ne 15 ] || [ "$FALHAS" -ne 0 ]; then
+if [ "$CASOS" -ne 19 ] || [ "$FALHAS" -ne 0 ]; then
     exit 1
 fi
 exit 0
