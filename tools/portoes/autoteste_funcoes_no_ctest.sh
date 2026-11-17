@@ -1,13 +1,15 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Autoteste do portão de funções declaradas e registradas no CTest (NL-2.20 S2, S2c e S2e; L-35, L-36).
-# Vinte e três casos, cada um com o veredito esperado e um trecho obrigatório da saída: positivo; falta em Qt e em
+# Autoteste do portão de funções declaradas e registradas no CTest (NL-2.20 S2, S2c, S2e e S2f; L-35, L-36).
+# Vinte e cinco casos, cada um com o veredito esperado e um trecho obrigatório da saída: positivo; falta em Qt e em
 # Python; sobra; varredura vazia (2 casos); exceção morta, sem motivo e válida; ctest morto por sinal; fonte sem seção;
 # linha não reconhecida; fonte ausente; registro duplicado; comando estranho; o fim da seção (S2c): lambda e classe local
 # no corpo de um slot, segunda seção private slots e rótulo de acesso; entrada do registro (S2e): item que não é objeto,
 # byte nulo no command, JSON aninhado demais, e exceção que vale só para o próprio programa. Os JSON do CTest, os fontes
 # e as listas são gerados aqui, numa pasta temporária, e não são arquivos versionados.
+# S2f: o portão impõe um limite próprio de profundidade (64) antes do json.loads; o caso 22 não depende mais do
+# interpretador, e os casos 24 e 25 testam a borda e um passo além.
 # Sem prova de vermelho o portão não conta.
 #
 # Uso: autoteste_funcoes_no_ctest.sh     (usa o portão da árvore onde este arquivo está)
@@ -272,8 +274,8 @@ json_base "$item_nulo"
 rodar_com_json
 avalia 21 "byte_nulo_no_command" 2 "command com byte nulo: t7"
 
-# Caso 22: JSON com 100000 colchetes aninhados; o json.loads levanta RecursionError, que vira JSON ilegivel (S2e).
-# Dois processos tr, número fixo (L-11, item 6).
+# Caso 22: JSON com 100000 colchetes aninhados; o limite próprio de profundidade do portão recusa antes do json.loads
+# (S2f). Dois processos tr, número fixo (L-11, item 6).
 preparar 22
 escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
 {
@@ -283,7 +285,7 @@ escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
     printf '%s\n' '}'
 } > "$C/ctest.json"
 rodar_com_json
-avalia 22 "json_aninhado_demais" 2 "JSON ilegivel"
+avalia 22 "json_aninhado_demais" 2 "JSON ilegivel: profundidade acima de 64"
 
 # Caso 23: a exceção vale só para o próprio programa; o mesmo nome em outro programa continua faltando (S2e).
 preparar 23
@@ -298,8 +300,42 @@ json_base "$item_r2_um" "$item_r2_outro"
 rodar_com_json
 avalia 23 "excecao_so_do_programa" 1 "falta: tests/r2/tst_r2.cpp::semRegistro"
 
+# Casos 24 e 25 (S2f): a base com a profundidade do fundo em N listas, com os colchetes e um texto entre aspas dentro.
+# Profundidade = 1 (objeto do topo) + N. Com N = 63 dá 64, aceito; com N = 64 dá 65, recusado. Número fixo de processos.
+# Caso 24: a borda, aceita.
+preparar 24
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+json_base
+mv "$C/ctest.json" "$C/base.json"
+{
+    printf '%s' '{ "fundo" : '
+    printf '%63s' '' | tr ' ' '['
+    printf '%s' '"a[{\"b"'
+    printf '%63s' '' | tr ' ' ']'
+    printf ',\n'
+    tail -n +2 "$C/base.json"
+} > "$C/ctest.json"
+rodar_com_json
+avalia 24 "profundidade_no_limite" 0 "declaradas=4 registradas=4 excecoes=0 faltam=0 sobram=0"
+
+# Caso 25: um passo além da borda, recusado.
+preparar 25
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+json_base
+mv "$C/ctest.json" "$C/base.json"
+{
+    printf '%s' '{ "fundo" : '
+    printf '%64s' '' | tr ' ' '['
+    printf '%s' '"a[{\"b"'
+    printf '%64s' '' | tr ' ' ']'
+    printf ',\n'
+    tail -n +2 "$C/base.json"
+} > "$C/ctest.json"
+rodar_com_json
+avalia 25 "profundidade_um_acima" 2 "JSON ilegivel: profundidade acima de 64"
+
 echo "autoteste_funcoes_no_ctest: casos=$CASOS falhas=$FALHAS"
-if [ "$CASOS" -ne 23 ] || [ "$FALHAS" -ne 0 ]; then
+if [ "$CASOS" -ne 25 ] || [ "$FALHAS" -ne 0 ]; then
     exit 1
 fi
 exit 0
