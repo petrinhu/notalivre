@@ -10,4 +10,4 @@ tests/tools/servidor_falso/test_servidor_falso.py::conexao | auxiliar da classe 
 tests/tools/servidor_falso/test_servidor_falso.py::enviar | auxiliar da classe (test_servidor_falso.py:95), não é caso de teste
 tests/tools/servidor_falso/test_servidor_falso.py::postar_dps | auxiliar da classe (test_servidor_falso.py:107), não é caso de teste
 tests/tools/servidor_falso/test_servidor_falso.py::subir | auxiliar da classe (test_servidor_falso.py:83), não é caso de teste
-tests/unit/foundation/xmldsig/tst_assinador_xml.cpp::assinaSha1NoSdkKdeSemVariavel | registrado só no build Flatpak: controle 1 da ADR-0007 (docs/adr/0007-sha1-no-fedora44-desvio-de-risco.md:43)
+tests/unit/foundation/xmldsig/tst_assinador_xml.cpp::assinaSha1NoSdkKdeSemVariavel | registrado só no build Flatpak: controle 1 da ADR-0007 (docs/adr/0007-*.md:43)
