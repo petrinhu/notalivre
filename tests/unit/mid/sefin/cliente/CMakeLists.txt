@@ -74,7 +74,11 @@ else()
         comparadorRealIgualParaMesmaDps
         comparadorRealDiferenteParaDpsAlterada
         e0014ComComparadorRealRecuperaANota
-        observadorRecebeCadaRespostaDaEmissao)
+        observadorRecebeCadaRespostaDaEmissao
+        e0014NaPrimeiraTentativaReconcilia
+        e0014ComMesmoInfDpsRecuperaANota
+        e0014ComInfDpsDiferenteViraDpsDuplicada
+        e0014SemConseguirCompararViraComparacaoIndisponivel)
 endif()
 set(NL_AMBIENTE_CLIENTE
     "NL_CERTIFICADOS_DIR=${NL_CERT_DIR};NL_FIXTURES_DPS=${CMAKE_SOURCE_DIR}/tests/fixtures/dps;NL_LANCADOR=${CMAKE_SOURCE_DIR}/tools/servidor_falso/lancador.py;NL_PYTHON3=${Python3_EXECUTABLE};NL_XMLLINT=${NL_XMLLINT_CLIENTE};NL_XMLSEC1=${NL_XMLSEC1_CLIENTE};NL_XSD_PRODREST_DIR=${NL_XSD_PRODREST_DIR}")

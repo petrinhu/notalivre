@@ -466,8 +466,9 @@ private slots:
         QVERIFY2(sequencia(m->destino.str()) == esperado, "a colisão não reenvia nem renumera a DPS");
     }
 
-    // Adendo: sem conseguir comparar (comparador ausente), não há sucesso silencioso: é Indeterminado.
-    void e0014SemConseguirCompararViraIndeterminado()
+    // DA-2.58, sobre o adendo da DA-2.41: sem conseguir comparar (comparador ausente), não há sucesso silencioso nem
+    // reenvio. O motivo é ComparacaoIndisponivel, que a fachada mostra como sefin.comparacao_indisponivel (C9, saída 7).
+    void e0014SemConseguirCompararViraComparacaoIndisponivel()
     {
         auto cred = credencial();
         QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
@@ -478,8 +479,8 @@ private slots:
         auto m = montar(srv.porta(), *cred);  // sem comparador real: a comparação não tem como acontecer
         auto resultado = m->cliente->emitir(*dps);
         QVERIFY2(!resultado.has_value(), "sem comparação não há sucesso silencioso");
-        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Indeterminado,
-                 "sem conseguir comparar, o estado é Indeterminado");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::ComparacaoIndisponivel,
+                 "sem conseguir comparar, o motivo é ComparacaoIndisponivel (DA-2.58)");
         const std::vector<std::string> esperado{"POST:400", "GET:200", "GET:200"};
         QVERIFY2(sequencia(m->destino.str()) == esperado, "a reconciliação buscou a nota antes de desistir");
     }
