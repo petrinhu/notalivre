@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Resumo de revisão (NL-2.14, adendo 5 da DA-2.61, item 2): imprime o diff das quatro listas de teste e dos dois arquivos de
+# Resumo de revisão (NL-2.14, adendo 5 da DA-2.61, item 2): imprime o diff das cinco listas de teste e dos dois arquivos de
 # contagem contra o merge-base com a onda-2 (NL_BASE_REF, padrão onda-2), no commit NL_SHA (padrão HEAD). No CI, grava o
 # mesmo texto no resumo do job (GITHUB_STEP_SUMMARY). Sem repositório git, diz que o diff está indisponível e por quê.
 # O diretório git vem de NL_GIT_DIR (o build_local monta o diretório git comum só para leitura). A variável NÃO é exportada
@@ -10,7 +10,7 @@
 RAIZ="${1:-.}"
 REF="${NL_BASE_REF:-onda-2}"
 SHA="${NL_SHA:-HEAD}"
-ARQS="tests/pulos_esperados_por_distro.txt tests/testes_sem_saida_por_funcao.txt tests/interpretadores_permitidos.txt tests/testes_obrigatorios_por_distro.txt tests/funcoes_esperadas_por_distro.txt flatpak/piso_suite.txt"
+ARQS="tests/pulos_esperados_por_distro.txt tests/testes_sem_saida_por_funcao.txt tests/interpretadores_permitidos.txt tests/testes_obrigatorios_por_distro.txt tests/funcoes_esperadas_por_distro.txt flatpak/piso_suite.txt tests/funcoes_fora_do_ctest.txt"
 gitc() {
     if [ -n "${NL_GIT_DIR:-}" ]; then
         git --git-dir="$NL_GIT_DIR" "$@"
