@@ -829,6 +829,26 @@ Executor das telas: frontend-engineer. Revisão: qa-engineer (capturas em contê
 
 **Definição de fechamento da Onda 9:** bundle instalado e smoke da CLI e da GUI offscreen verdes onde D0.5 permitiu; permissões revisadas por Narciso; SBOM gerado e revisado; internal-auditor sem CRÍTICO; CI verde.
 
+### Onda 9A: atomização do código já pronto (lei do projeto, nova)
+
+**Origem (ordem do líder, 14/11/2026, verbatim):** "lei do projeto: atomizar por funcao. O que já está pronto, crie onda no final para atomizar". Respostas do líder, verbatim, por AskUserQuestion: "Uma função, um assunto (Recomendado)" (o corte), "Vai para a onda final (Recomendado)" (os três monólitos anteriores) e "Antes dos testes finais (Recomendado)" (o lugar da onda). Texto da lei: `CLAUDE.md`, Estilo e leis aplicáveis. **Redação do Chief of Staff (L-07):** a onda fica entre a Onda 9 e a Onda 10 porque as linhas TST-* e AUD-* do `TODO.md` moram na W10, e assim ela pega também o que a Onda 9 deixar pronto; o rótulo 9A evita renumerar as Ondas 10 a 13 e as fatias delas.
+
+**Escopo:** refatoração sem mudança de comportamento do código pronto antes de 14/11/2026, com a suíte verde antes e depois de cada corte; código escrito depois dessa data já nasce atômico. **Pesquisa de abertura (L-22):** como se faz refatoração por extração com testes de caracterização em C++ e Qt, em shell e em Python. Depois dela, Caetano refatia a onda (L-16); a lista abaixo é provisória, como a das outras ondas depois da Onda 2.
+
+**Fonte da lista:** inventário só de leitura do tech-lead de 14/11/2026, na base 2b348dc, com 704 de 704 arquivos classificados (`nl-3.d5-inventario.md`, nos logs da onda). Funções e faixas de linha são dessa base. Nos arquivos que a NL-3.C mudou, o inventário mede as linhas de cinco deles depois dela (seção 2 dele), e funções e faixas de linha depois dela são NÃO MEDIDO; os arquivos que ela criou ficam fora da classificação (revistos pela L-34 na própria fatia); o executor relê cada arquivo antes de cortar.
+
+**Itens (uma linha cada no `TODO.md`, onda W9A, na ordem de risco do inventário):**
+- NL-I.304: `emissao_cli.cpp`, `comando_emitir.cpp` e `tst_cli_emitir.cpp` (inventário R1, R4 e R14).
+- NL-I.297: `cliente_sefin.cpp` e os slots de `tst_cliente_sefin.cpp` que o espelham (R3 e a parte do cliente na R15).
+- NL-9A.1 a NL-9A.12: resposta crua (R5), assinador XMLDSIG (R6), transporte HTTPS com o teste dele (R7 e a parte do transporte na R15), terminal sem eco (R8), redação e log (R10), carga do PKCS#12 e das raízes (R11), texto do valor monetário (R12), testes grandes (R16), `pulos_testes.sh` (parte da R17), portão de camadas (R18), servidor falso (R19) e `lerFixture` repetido (X2).
+- Na INBOX, com decisão pendente: NL-I.306 (`emitir_teste.sh`, R2: o inventário o marca como caminho real de emissão do líder, e o corte é decisão dele), NL-I.293 (portões `codigo_de_saida.py` e `sanitizer_ativo.py`) e NL-I.279 (portões de cota).
+- Ficam nas linhas de origem, na W3: NL-2.23 (X1 e R9, o `codigoEValido` repetido, com a regra de 3 atingida) e NL-I.261 (parte da R17, `autoteste_build_ensaio.sh`). NL-I.305 (R13, `codigo_saida.cpp`) não é corte.
+- Não cortar (L-34, caso 4, e L-33, regra de 3; INFERÊNCIA do tech-lead): `codigos_leiaute.cpp`, `codigo_saida.cpp`, `gzip.cpp`, `cnpj.cpp` e `campos_json.cpp`; `falha(...)` em 12 arquivos (X3); `compararComInstante` (X4); os registros de contrato `tests/testes_sem_saida_por_funcao.txt` e `tests/funcoes_esperadas_por_distro.txt`.
+
+**Decisões do líder antes do corte:** R2 (NL-I.306) e R12 (NL-9A.7, a camada do texto pt-BR do valor). **Tag:** a tabela de tags desta seção não prevê onda intercalada; a tag da Onda 9A é ponto do líder, antes do fechamento dela.
+
+**Definição de fechamento da Onda 9A (proposta do Chief of Staff, a confirmar por Caetano na abertura):** cada linha W9A entregue, ou com adiamento decidido pelo líder por escrito; comportamento igual, provado pela suíte completa e pelo e2e verdes antes e depois de cada corte; toda fatia com revisão da L-34 e mutação do revisor, sem sobrevivente aberto; espelho verde antes de cada push (N-01), com o bundle Flatpak refeito sobre o código cortado; internal-auditor sem CRÍTICO. CI verde não é o critério (L-24): o critério é esta lista.
+
 ### Onda 10: segurança e conformidade (Fase 8)
 
 - **NL-10.1 AppSec:** revisão OWASP e CWE de cripto, custódia, rede e SQL; T2 (cppcheck e clang-tidy, zero erro de segurança), T4 (ASan e UBSan, zero), T8 (segredos, zero), T10 adaptado a MySQL (toda consulta com `bindValue`, verificado por portão), T12 (CVE sobre o SBOM, zero CRÍTICO sem correção). Executor security-engineer; revisão Narciso, main.
