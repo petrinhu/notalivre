@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Falhas de envio do ClienteSefin (NL-3.C, S2 a S4; S5b, DA-3C.22): os 16 slots da causa tipada, movidos byte a byte de
-// tst_cliente_sefin.cpp. Mesma montagem (apoio_cliente_sefin.h). Slot por CTest (mid.sefin.cliente.<nome>). Falha é QVERIFY.
+// tst_cliente_sefin.cpp. Montagem e apoio nos átomos de teste da S5c. Slot por CTest (mid.sefin.cliente.<nome>). Falha é QVERIFY.
 #include <nl/back/dps/dps_assinada.h>
 #include <nl/back/identificacao/cnpj.h>
 #include <nl/back/identificacao/codigo_municipio.h>
@@ -57,7 +57,14 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include "apoio_cliente_sefin.h"
+#include "credencial_teste.h"
+#include "dps_assinada_teste.h"
+#include "fixture_certificado_teste.h"
+#include "montagem_cliente_sefin.h"
+#include "posts_no_servidor.h"
+#include "sequencia_requisicoes.h"
+#include "servidor_de_teste.h"
+#include "tls_cliente_teste.h"
 #include "repassador_tcp.h"
 
 using nl::teste::RepassadorTcp;

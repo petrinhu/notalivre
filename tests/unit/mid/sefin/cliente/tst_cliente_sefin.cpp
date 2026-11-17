@@ -59,7 +59,15 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include "apoio_cliente_sefin.h"
+#include "comparador_falso.h"
+#include "credencial_teste.h"
+#include "dps_assinada_teste.h"
+#include "montagem_cliente_sefin.h"
+#include "posts_no_servidor.h"
+#include "registro_observador.h"
+#include "sequencia_requisicoes.h"
+#include "servidor_de_teste.h"
+#include "tls_cliente_teste.h"
 
 namespace {
 
