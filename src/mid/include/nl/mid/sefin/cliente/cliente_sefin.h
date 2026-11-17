@@ -25,7 +25,8 @@ namespace nl::mid::sefin::cliente {
 class ClienteSefin final : public nl::back::GatewaySefin {
 public:
     /// transporte, registro e comparador são emprestados: o chamador mantém os três vivos. Nenhum dado de titular vai
-    /// ao registro. Sem comparador real, o padrão faz a reconciliação de E0014 terminar em Indeterminado. O observador
+    /// ao registro. Sem comparador real, a reconciliação de E0014 termina em ComparacaoIndisponivel (DA-2.58).
+    /// O observador
     /// (opcional, nulo por padrão) recebe cada resposta HTTP da Sefin, e também é emprestado.
     ClienteSefin(nl::foundation::transporte::TransporteHttps& transporte, nl::foundation::log::Log& registro,
                  PoliticaRetry politica, std::shared_ptr<const ComparadorInfDps> comparador = nullptr,

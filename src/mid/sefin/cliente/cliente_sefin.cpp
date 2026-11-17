@@ -301,8 +301,9 @@ std::optional<Desfecho> resolverPosEnvio(ft::TransporteHttps& transporte, fl::Lo
 
 // E0014 (adendo da DA-2.41, 29/10/2026): a nota pode ter nascido numa execução anterior, e E0014 também pode ser outra
 // DPS com a mesma série e o mesmo número. Consulta a chave, busca a NFS-e e compara o infDPS. Igual: a nota recuperada.
-// Diferente: DpsDuplicada, que nunca renumera sozinho e vai ao usuário. Sem conseguir buscar ou comparar: Indeterminado.
-// Nunca Rejeitada e nunca sucesso silencioso.
+// Diferente: DpsDuplicada, que nunca renumera sozinho e vai ao usuário. Sem conseguir buscar a nota, ou com o XML
+// pendente: Indeterminado. Sem conseguir comparar: ComparacaoIndisponivel (DA-2.58). Nunca Rejeitada e nunca
+// sucesso silencioso.
 Desfecho reconciliarPorInfDps(ft::TransporteHttps& transporte, fl::Log& registro, const PoliticaRetry& politica,
                           const ComparadorInfDps& comparador, const bk::DpsAssinada& dps, ObservadorRespostas* observador)
 {
