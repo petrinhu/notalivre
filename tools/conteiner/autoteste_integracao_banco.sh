@@ -87,9 +87,14 @@ case "$1" in
                 esac
                 exit 0 ;;
             *--network*container:*)
+                # O executor real grava o junitxml na pasta de build que o -v do executor monta (a da distro do par).
+                jd="$STUB_JUNIT_DIR"
+                for a in "$@"; do
+                    case "$a" in *:/var/tmp/notalivre-build:z) jd="${a%%:*}/junit" ;; esac
+                done
                 if [ -z "${STUB_SEM_JUNIT:-}" ]; then
                     for slot in sessaoPadrao modoAberto modoFixadoImpressaoCerta modoFixadoImpressaoTrocada; do
-                        x="$STUB_JUNIT_DIR/integracao.banco.$slot.xml"
+                        x="$jd/integracao.banco.$slot.xml"
                         if [ "$slot" = sessaoPadrao ] && [ -n "${STUB_JUNIT_XML:-}" ]; then
                             printf '%s\n' "$STUB_JUNIT_XML" > "$x"
                         else

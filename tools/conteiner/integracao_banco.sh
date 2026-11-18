@@ -55,7 +55,7 @@ if ! printf '%s\n' "$linha_funcoes" | /usr/bin/grep -Eq ' faltam=0 sobram=0 .* f
     echo "PARADA: portão de funções"; echo "NL-RC=2"; exit 2
 fi
 
-# Guarda do volume do Qt (achado de 3.3): docker run -v nome: cria volume vazio se ele não existir.
+# Guarda do volume do Qt (achado de 3.3): um volume nomeado montado com -v que não existe nasce vazio.
 if ! docker volume inspect notalivre-qt-6120 >/dev/null 2>&1; then
     echo "PARADA: volume do Qt ausente"; echo "NL-RC=2"; exit 2
 fi
@@ -88,6 +88,7 @@ executar_par() {
     cred="/var/tmp/notalivre-nl31h-cred-$distro-$nome-$$"
     cont="nl31h-srv-$distro-$nome-$$"
     log_par="$LOGS/NL-3.1h-par-$distro-$nome-$NL_SHA.log"
+    : > "$log_par"
 
     nl_banco_credencial_nova "$cred" || { echo "PARADA: credencial de $nome"; return 1; }
     printf 'NL_BANCO_HOST=127.0.0.1\nNL_BANCO_PORTA=3306\nNL_BANCO_USUARIO=notalivre_teste\nNL_BANCO_BASE=notalivre_teste\nNL_BANCO_SENHA_ARQUIVO=/run/nl/senha_app\nNL_BANCO_SERVIDOR_TLS=%s\nNL_BANCO_CERTIFICADO=%s\n' \
