@@ -42,13 +42,16 @@ modules:
       - -DWITH_DOCS=OFF
       - -DCLIENT_PLUGIN_PARSEC=OFF
       - -DCLIENT_PLUGIN_AUTH_GSSAPI_CLIENT=OFF
-      - -DCLIENT_PLUGIN_REMOTE_IO=OFF
     license-files:
       - COPYING.LIB
     sources:
       - type: archive
         url: https://archive.mariadb.org/connector-c-3.4.11/mariadb-connector-c-3.4.11-src.tar.gz
         sha256: 521c0712e9291fa96558df9e2ff431376a3a79329f13751896b694cae12765b4
+    # NL-3.1h (v3.10): conferência do efeito das opções. O flatpak-builder não reprova por aviso do CMake; esta linha
+    # reprova se um plugin proibido foi instalado ou se o caching_sha2_password.so falta (controle positivo).
+    post-install:
+      - sh -c 'n=$(find /app -name parsec.so -o -name auth_gssapi_client.so -o -name remote_io.so | wc -l); c=$(find /app -name caching_sha2_password.so | wc -l); echo "NL-PLUGINS proibidos=$n caching_sha2=$c"; [ "$n" -eq 0 ] && [ "$c" -ge 1 ]'
   - name: notalivre
     buildsystem: simple
     build-commands:

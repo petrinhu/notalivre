@@ -3,8 +3,8 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Autoteste da lista única de opções do Connector/C (NL-3.1h, V-c; L-35, L-36, L-17). A lista mora em modulo_mariadb.sh e
 # no manifesto Flatpak, e este autoteste amarra os dois: o conjunto de opções -D tem de ser igual nos dois, e tem de trazer
-# as 9 opções fixadas no passo 6.2 da ordem. Vermelho antes do módulo: modulo_mariadb.sh e o manifesto ainda não têm a lista.
-#   F1 modulo_mariadb.sh traz as 9 opções fixadas.
+# as 8 opções fixadas no passo 6.2 da ordem (v3.10). Vermelho antes do módulo: modulo_mariadb.sh e o manifesto ainda não têm a lista.
+#   F1 modulo_mariadb.sh traz exatamente as 8 opções fixadas.
 #   F2 manifesto e modulo_mariadb.sh têm o mesmo conjunto de opções -D.
 #   F3 controle do comparador: uma opção trocada num manifesto de sandbox tem de ser vista como divergência.
 # Não sobe contêiner. Uso: autoteste_flags_mariadb.sh
