@@ -442,7 +442,7 @@ rodar_corpo() {
     shift 5
     : > "$log"
     (cd "$BASE/trab" && env PATH="$BASE/mock:$PATH" MOCK_LOG="$log" NL_ENSAIO="$lista" TMPDIR="$BASE/tmp" \
-        NL_ENSAIO_SHA="$SHA" NL_ENSAIO_ARQ_PIDS_MAX="$BASE/pids400" "$@" \
+        NL_ENSAIO_SHA="$SHA" NL_ENSAIO_ARQ_PIDS_MAX="$BASE/pids400" CMAKE_BUILD_PARALLEL_LEVEL=5 "$@" \
         python3 -I -c 'import os, resource, sys
 m = int(sys.argv[1])
 resource.setrlimit(resource.RLIMIT_CORE, (m, m))
