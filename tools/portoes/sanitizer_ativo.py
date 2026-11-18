@@ -36,6 +36,8 @@ REGEX_GATE = ("(Leak|Address)Sanitizer", "runtime error:")
 MARCA = "CANARIO-PASS"
 PROPRIEDADES_PROIBIDAS = ("WILL_FAIL", "SKIP_RETURN_CODE", "SKIP_REGULAR_EXPRESSION")
 SIMBOLO = b"__asan_init"
+# limite do projeto, não de norma (RFC 8259, seção 9); o json-v1 do CTest real tem profundidade 6 (medido em 17/11/2026)
+PROFUNDIDADE_MAXIMA = 64
 LISTA_PORTOES = "tools/conteiner/lista_portoes.txt"
 CI = ".github/workflows/ci.yml"
 COMANDO_LIGADO = "python3 -I /src/tools/portoes/sanitizer_ligado.py /src && python3 -I /src/tools/portoes/sanitizer_ligado.py --autoteste"
@@ -60,12 +62,42 @@ def ambiente_do_preset(caminho):
     raise ValueError(f"test preset {PRESET} sem environment")
 
 
+# Gêmeo de funcoes_ctest/registro_ctest.py (NL-2.20 S2g); na terceira ocorrência, extrair (L-33, regra de 3).
+def profundidade_json(texto):
+    """Maior profundidade de listas e objetos do texto JSON, sem contar o que está dentro de texto entre aspas."""
+    profundidade, maior = 0, 0
+    dentro_de_texto, escapado = False, False
+    for caractere in texto:
+        if dentro_de_texto:
+            if escapado:
+                escapado = False
+            elif caractere == "\\":
+                escapado = True
+            elif caractere == '"':
+                dentro_de_texto = False
+        elif caractere == '"':
+            dentro_de_texto = True
+        elif caractere in "[{":
+            profundidade += 1
+            maior = max(maior, profundidade)
+        elif caractere in "]}":
+            profundidade -= 1
+    return maior
+
+
+def testes_do_registro(texto):
+    """Lista tests do json-v1 do CTest; profundidade acima de PROFUNDIDADE_MAXIMA ou JSON ilegível levanta ValueError."""
+    if profundidade_json(texto) > PROFUNDIDADE_MAXIMA:
+        raise ValueError(f"registro do ctest ilegivel: profundidade acima de {PROFUNDIDADE_MAXIMA}")
+    return json.loads(texto).get("tests", [])
+
+
 def listar_testes(build, ambiente):
     saida = subprocess.run(["ctest", "--test-dir", build, "--show-only=json-v1"], capture_output=True, env=ambiente,
                            check=False)
     if saida.returncode != 0:
         raise ValueError("ctest --show-only falhou: " + saida.stderr.decode("utf-8", "replace").strip())
-    return json.loads(saida.stdout.decode("utf-8", "replace")).get("tests", [])
+    return testes_do_registro(saida.stdout.decode("utf-8", "replace"))
 
 
 def conferir_testes(testes):
@@ -263,6 +295,54 @@ CI_BOM = f"""jobs:
 """
 
 
+# Casos do registro (S2g): (nome, texto JSON, esperado). Esperado é "aceito", "json_invalido" ou o trecho do ValueError.
+CASOS_REGISTRO = (
+    ("registro_no_limite", '{"tests": [], "fundo": ' + "[" * 63 + "]" * 63 + "}", "aceito"),
+    ("registro_um_acima", '{"tests": [], "fundo": ' + "[" * 64 + "]" * 64 + "}", "profundidade acima de 64"),
+    ("registro_aninhado_demais", '{"tests": [], "fundo": ' + "[" * 100000 + "]" * 100000 + "}",
+     "profundidade acima de 64"),
+    ("registro_aspa_escapada", '{"tests": [], "x": "\\"' + "[" * 65 + '"}', "aceito"),
+    ("registro_barra_dupla", '{"tests": [], "x": ["\\\\", ' + "[" * 63 + "]" * 63 + "]}", "profundidade acima de 64"),
+    ("registro_colchete_em_texto", '{"tests": [], "x": "' + "[{" * 40 + '"}', "aceito"),
+    ("registro_texto_sem_fim", '{"tests": [], "x": "' + "[" * 65, "json_invalido"),
+    ("registro_aspa_escapada_sem_fim", '{"tests": [], "x": "a\\"' + "[" * 65, "json_invalido"),
+    ("registro_fecho_antes_do_fundo", '{"tests": [], "x": ' + "]" * 100000 + "[" * 100063, "json_invalido"),
+    ("registro_sem_volta", '{"tests": [], "x": ' + "[" * 100000, "profundidade acima de 64"),
+)
+
+
+def desfecho_do_registro(texto):
+    """Desfecho do átomo testes_do_registro: 'aceito', 'ValueError: <mensagem>' ou o nome do tipo de outra exceção."""
+    try:
+        testes_do_registro(texto)
+    except ValueError as erro:
+        return f"ValueError: {erro}"
+    except Exception as erro:
+        return type(erro).__name__
+    return "aceito"
+
+
+def certo_no_registro(desfecho, esperado):
+    """Confere o desfecho com o esperado; json_invalido é ValueError sem o trecho do limite de profundidade."""
+    if esperado == "aceito":
+        return desfecho == "aceito"
+    if esperado == "json_invalido":
+        return desfecho.startswith("ValueError: ") and "profundidade acima de" not in desfecho
+    return desfecho.startswith("ValueError: ") and esperado in desfecho
+
+
+def autoteste_registro():
+    """Casos do registro do CTest pelo átomo testes_do_registro; devolve (casos, falhas)."""
+    falhas = 0
+    for nome, texto, esperado in CASOS_REGISTRO:
+        desfecho = desfecho_do_registro(texto)
+        certo = certo_no_registro(desfecho, esperado)
+        print(f"--- caso {nome}: {desfecho[:120]} {'OK' if certo else 'FALHOU'}")
+        if not certo:
+            falhas += 1
+    return len(CASOS_REGISTRO), falhas
+
+
 def montar(pasta, falha=FALHA_BOA, extra_um="", com_gate=True, dois_com_gate=True, um_fora_do_build=False, com_simbolo=True,
            sem_testes=False, canario_txt=CANARIO_BOM, presets=None, com_canario=True, lista=LISTA_BOA, ci=CI_BOM):
     """Build de brincadeira: "um" roda o executável do build, "dois" roda /bin/sh, fora do build. O ctest só os lista."""
@@ -351,8 +431,9 @@ def autoteste():
             if not certo:
                 falhas += 1
                 print(texto)
-    print(f"casos={len(casos)} falharam={falhas}")
-    return 1 if falhas else 0
+    casos_registro, falhas_registro = autoteste_registro()
+    print(f"casos={len(casos) + casos_registro} falharam={falhas + falhas_registro}")
+    return 1 if falhas + falhas_registro else 0
 
 
 def main(argv):

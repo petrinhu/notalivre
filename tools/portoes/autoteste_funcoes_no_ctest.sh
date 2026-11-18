@@ -1,13 +1,17 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Autoteste do portão de funções declaradas e registradas no CTest (NL-2.20 S2, S2c e S2e; L-35, L-36).
-# Vinte e três casos, cada um com o veredito esperado e um trecho obrigatório da saída: positivo; falta em Qt e em
+# Autoteste do portão de funções declaradas e registradas no CTest (NL-2.20 S2, S2c, S2e e S2f; L-35, L-36).
+# Trinta e dois casos, cada um com o veredito esperado e um trecho obrigatório da saída: positivo; falta em Qt e em
 # Python; sobra; varredura vazia (2 casos); exceção morta, sem motivo e válida; ctest morto por sinal; fonte sem seção;
 # linha não reconhecida; fonte ausente; registro duplicado; comando estranho; o fim da seção (S2c): lambda e classe local
 # no corpo de um slot, segunda seção private slots e rótulo de acesso; entrada do registro (S2e): item que não é objeto,
 # byte nulo no command, JSON aninhado demais, e exceção que vale só para o próprio programa. Os JSON do CTest, os fontes
 # e as listas são gerados aqui, numa pasta temporária, e não são arquivos versionados.
+# S2f: o portão impõe um limite próprio de profundidade (64) antes do json.loads; o caso 22 não depende mais do
+# interpretador, e os casos 24 e 25 testam a borda e um passo além.
+# S2g: os casos 26 e 27 cobrem o escape dentro de texto entre aspas (aspa escapada e barra dupla).
+# S2g, G1b: os casos 28 a 32 cobrem entrada malformada (texto sem fim em 3 formas, fechos antes do fundo e profundidade sem volta).
 # Sem prova de vermelho o portão não conta.
 #
 # Uso: autoteste_funcoes_no_ctest.sh     (usa o portão da árvore onde este arquivo está)
@@ -95,6 +99,24 @@ avalia() {
     else
         FALHAS=$((FALHAS + 1))
         echo "autoteste_funcoes_no_ctest: caso $1 $2: FALHA (rc=$RC, esperado $3, trecho '$4')"
+        while IFS= read -r linha; do
+            printf '    | %s\n' "$linha"
+        done < "$C/saida.txt"
+    fi
+}
+
+# avalia_exata N NOME ESPERADO LINHA: como avalia, mas a saída do caso C tem de ter uma linha igual a LINHA, inteira.
+avalia_exata() {
+    CASOS=$((CASOS + 1))
+    achou=0
+    while IFS= read -r linha; do
+        if [ "$linha" = "$4" ]; then achou=1; fi
+    done < "$C/saida.txt"
+    if [ "$RC" -eq "$3" ] && [ "$achou" -eq 1 ]; then
+        echo "autoteste_funcoes_no_ctest: caso $1 $2: OK"
+    else
+        FALHAS=$((FALHAS + 1))
+        echo "autoteste_funcoes_no_ctest: caso $1 $2: FALHA (rc=$RC, esperado $3, linha '$4')"
         while IFS= read -r linha; do
             printf '    | %s\n' "$linha"
         done < "$C/saida.txt"
@@ -272,8 +294,8 @@ json_base "$item_nulo"
 rodar_com_json
 avalia 21 "byte_nulo_no_command" 2 "command com byte nulo: t7"
 
-# Caso 22: JSON com 100000 colchetes aninhados; o json.loads levanta RecursionError, que vira JSON ilegivel (S2e).
-# Dois processos tr, número fixo (L-11, item 6).
+# Caso 22: JSON com 100000 colchetes aninhados; o limite próprio de profundidade do portão recusa antes do json.loads
+# (S2f). Dois processos tr, número fixo (L-11, item 6).
 preparar 22
 escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
 {
@@ -283,7 +305,7 @@ escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
     printf '%s\n' '}'
 } > "$C/ctest.json"
 rodar_com_json
-avalia 22 "json_aninhado_demais" 2 "JSON ilegivel"
+avalia 22 "json_aninhado_demais" 2 "JSON ilegivel: profundidade acima de 64"
 
 # Caso 23: a exceção vale só para o próprio programa; o mesmo nome em outro programa continua faltando (S2e).
 preparar 23
@@ -298,8 +320,123 @@ json_base "$item_r2_um" "$item_r2_outro"
 rodar_com_json
 avalia 23 "excecao_so_do_programa" 1 "falta: tests/r2/tst_r2.cpp::semRegistro"
 
+# Casos 24 e 25 (S2f): a base com a profundidade do fundo em N listas, com os colchetes e um texto entre aspas dentro.
+# Profundidade = 1 (objeto do topo) + N. Com N = 63 dá 64, aceito; com N = 64 dá 65, recusado. Número fixo de processos.
+# Caso 24: a borda, aceita.
+preparar 24
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+json_base
+mv "$C/ctest.json" "$C/base.json"
+{
+    printf '%s' '{ "fundo" : '
+    printf '%63s' '' | tr ' ' '['
+    printf '%s' '"a[{\"b"'
+    printf '%63s' '' | tr ' ' ']'
+    printf ',\n'
+    tail -n +2 "$C/base.json"
+} > "$C/ctest.json"
+rodar_com_json
+avalia 24 "profundidade_no_limite" 0 "declaradas=4 registradas=4 excecoes=0 faltam=0 sobram=0"
+
+# Caso 25: um passo além da borda, recusado.
+preparar 25
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+json_base
+mv "$C/ctest.json" "$C/base.json"
+{
+    printf '%s' '{ "fundo" : '
+    printf '%64s' '' | tr ' ' '['
+    printf '%s' '"a[{\"b"'
+    printf '%64s' '' | tr ' ' ']'
+    printf ',\n'
+    tail -n +2 "$C/base.json"
+} > "$C/ctest.json"
+rodar_com_json
+avalia 25 "profundidade_um_acima" 2 "JSON ilegivel: profundidade acima de 64"
+
+# Caso 26 (S2g): a aspa escapada não fecha o texto; os 65 colchetes ficam dentro dele.
+preparar 26
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+json_base
+mv "$C/ctest.json" "$C/base.json"
+{
+    printf '%s' '{ "fundo" : '
+    printf '%s' '"\"'
+    printf '%65s' '' | tr ' ' '['
+    printf '%s' '"'
+    printf ',\n'
+    tail -n +2 "$C/base.json"
+} > "$C/ctest.json"
+rodar_com_json
+avalia 26 "aspa_escapada_no_texto" 0 "declaradas=4 registradas=4 excecoes=0 faltam=0 sobram=0"
+
+# Caso 27 (S2g): a barra dupla não escapa a aspa seguinte; o texto fecha e os colchetes depois dele contam.
+preparar 27
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+json_base
+mv "$C/ctest.json" "$C/base.json"
+{
+    printf '%s' '{ "fundo" : '
+    printf '%s' '[ "\\" , '
+    printf '%63s' '' | tr ' ' '['
+    printf '%63s' '' | tr ' ' ']'
+    printf '%s' ' ]'
+    printf ',\n'
+    tail -n +2 "$C/base.json"
+} > "$C/ctest.json"
+rodar_com_json
+avalia 27 "barra_dupla_no_texto" 2 "JSON ilegivel: profundidade acima de 64"
+
+# Caso 28 (S2g, G1b): o arquivo acaba numa barra dentro do texto; o JSON é ilegível e o portão sai com rc 2, sem traceback.
+preparar 28
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+printf '%s' '{ "fundo" : "a\' > "$C/ctest.json"
+rodar_com_json
+avalia_exata 28 "barra_no_fim_do_arquivo" 2 "JSON ilegivel"
+
+# Caso 29 (S2g, G1b): o texto abre e nunca fecha; os 65 colchetes ficam dentro dele.
+preparar 29
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+{
+    printf '%s' '{ "fundo" : "'
+    printf '%65s' '' | tr ' ' '['
+} > "$C/ctest.json"
+rodar_com_json
+avalia_exata 29 "texto_sem_fim" 2 "JSON ilegivel"
+
+# Caso 30 (S2g, G1b): a aspa escapada não fecha o texto, que nunca fecha; os 65 colchetes ficam dentro dele.
+preparar 30
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+{
+    printf '%s' '{ "fundo" : "a\"'
+    printf '%65s' '' | tr ' ' '['
+} > "$C/ctest.json"
+rodar_com_json
+avalia_exata 30 "aspa_escapada_sem_fim" 2 "JSON ilegivel"
+
+# Caso 31 (S2g, G1b): fechos a mais antes do fundo; a contagem fica em 64, e o json.loads recusa no primeiro fecho.
+preparar 31
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+{
+    printf '%s' '{ "fundo" : '
+    printf '%100000s' '' | tr ' ' ']'
+    printf '%100063s' '' | tr ' ' '['
+} > "$C/ctest.json"
+rodar_com_json
+avalia_exata 31 "fecho_antes_do_fundo" 2 "JSON ilegivel"
+
+# Caso 32 (S2g, G1b): 100000 colchetes abertos que nunca fecham; o limite recusa antes do json.loads.
+preparar 32
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+{
+    printf '%s' '{ "fundo" : '
+    printf '%100000s' '' | tr ' ' '['
+} > "$C/ctest.json"
+rodar_com_json
+avalia 32 "profundidade_sem_volta" 2 "JSON ilegivel: profundidade acima de 64"
+
 echo "autoteste_funcoes_no_ctest: casos=$CASOS falhas=$FALHAS"
-if [ "$CASOS" -ne 23 ] || [ "$FALHAS" -ne 0 ]; then
+if [ "$CASOS" -ne 32 ] || [ "$FALHAS" -ne 0 ]; then
     exit 1
 fi
 exit 0

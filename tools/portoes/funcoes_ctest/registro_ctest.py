@@ -10,6 +10,8 @@ import subprocess
 from parada import Parada
 
 IDENTIFICADOR = re.compile(r"^[A-Za-z_]\w*$")
+# limite do projeto, não de norma (RFC 8259, seção 9); o json-v1 do CTest real tem profundidade 6 (medido em 17/11/2026)
+PROFUNDIDADE_MAXIMA = 64
 
 
 def rodar_ctest(build):
@@ -36,6 +38,28 @@ def ler_arquivo_json(json_path):
         raise Parada(f"JSON ilegivel: {json_path}")
 
 
+def profundidade_json(texto):
+    """Maior profundidade de listas e objetos do texto JSON, sem contar o que está dentro de texto entre aspas."""
+    profundidade, maior = 0, 0
+    dentro_de_texto, escapado = False, False
+    for caractere in texto:
+        if dentro_de_texto:
+            if escapado:
+                escapado = False
+            elif caractere == "\\":
+                escapado = True
+            elif caractere == '"':
+                dentro_de_texto = False
+        elif caractere == '"':
+            dentro_de_texto = True
+        elif caractere in "[{":
+            profundidade += 1
+            maior = max(maior, profundidade)
+        elif caractere in "]}":
+            profundidade -= 1
+    return maior
+
+
 def validar_teste(posicao, teste):
     """Confere um item da lista tests: objeto com command em lista não vazia de textos sem byte nulo; senão Parada."""
     if not isinstance(teste, dict):
@@ -51,6 +75,8 @@ def validar_teste(posicao, teste):
 def ler_registro(json_path, build):
     """Devolve a lista de testes do CTest, do JSON dado ou de um ctest rodado agora; entrada ilegível é Parada."""
     texto = ler_arquivo_json(json_path) if json_path else rodar_ctest(build)
+    if profundidade_json(texto) > PROFUNDIDADE_MAXIMA:
+        raise Parada(f"JSON ilegivel: profundidade acima de {PROFUNDIDADE_MAXIMA}")
     try:
         dados = json.loads(texto)
     except (ValueError, RecursionError):
