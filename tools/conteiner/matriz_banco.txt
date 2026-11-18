@@ -1,0 +1,17 @@
+# distro nome (NL-3.1h, v3.1 seção 3: 16 pares; fonte única de script, CI e espelho)
+fedora45 mysql80
+fedora45 mysql84
+fedora45 mysql97
+fedora45 mariadb1011
+fedora45 mariadb118
+fedora45 mariadb123
+fedora45 mariadb130
+ubuntu26.04 mysql84
+ubuntu26.04 mariadb118
+mint22.3 mysql80
+mint22.3 mysql84
+mint22.3 mariadb1011
+mint22.3 mariadb118
+manjaro mysql84
+manjaro mariadb118
+manjaro mariadb130
