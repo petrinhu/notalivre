@@ -6,7 +6,8 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     exit 1
 fi
 
-# nl_banco_servidor_de NOME: imprime "nome familia imagem metodo" do servidor; rc 1 se o nome não existe.
+# nl_banco_servidor_de NOME: imprime "nome familia imagem metodo tls certificado" do servidor (6 colunas, servidores_banco.txt);
+# rc 1 se o nome não existe.
 nl_banco_servidor_de() {
     awk -v n="$1" '$0 !~ /^#/ && $1 == n { print; achou = 1 } END { exit !achou }' "$NL_BANCO_DIR/servidores_banco.txt"
 }

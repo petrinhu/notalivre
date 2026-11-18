@@ -31,7 +31,7 @@ nl_banco_criar_conta_teste() {
     else
         printf "CREATE USER IF NOT EXISTS 'notalivre_teste'@'%%' IDENTIFIED VIA %s USING PASSWORD('%s');\n" "$metodo" "$senha" >> "$sql"
     fi
-    printf '%s\n' "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX ON `notalivre\_%`.* TO 'notalivre_teste'@'%';" >> "$sql"
+    printf "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX ON \`notalivre\\_%%\`.* TO 'notalivre_teste'@'%%';\n" >> "$sql"
     printf 'FLUSH PRIVILEGES;\n' >> "$sql"
     nl_banco_cliente "$cont" "$fam" < "$sql"
 }
@@ -39,4 +39,10 @@ nl_banco_criar_conta_teste() {
 # nl_banco_ler_metodo CONTEINER FAMILIA: imprime o plugin da conta de teste, lido pelo root.
 nl_banco_ler_metodo() {
     printf "SELECT plugin FROM mysql.user WHERE user='notalivre_teste' AND host='%%';\n" | nl_banco_cliente "$1" "$2" -N
+}
+
+# nl_banco_ler_ssl_cert CONTEINER FAMILIA: imprime a linha de ssl_cert (nome TAB valor), lida pelo root. Valor vazio é
+# o esperado quando o certificado está em memória (classe memoria, NL-3.1h, seção 1.3).
+nl_banco_ler_ssl_cert() {
+    printf "SHOW GLOBAL VARIABLES LIKE 'ssl_cert';\n" | nl_banco_cliente "$1" "$2" -N
 }

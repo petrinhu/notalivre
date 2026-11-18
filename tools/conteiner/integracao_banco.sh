@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Harness de integração com servidor de banco (NL-3.1h, passo 8). Uso: integracao_banco.sh <distro> <nome|todos>.
-# Um par por vez: credencial 0700, servidor com rede none, conta de teste, executor na rede do servidor, resultado por junitxml.
+# Um par por vez: credencial 0700, servidor com rede none, conta de teste, classe do certificado conferida, executor na rede
+# do servidor, resultado por junitxml e quatro linhas NL-TLS (critério 4 de TLS, C4').
 # Só orquestra: cada assunto mora num átomo de banco/. Trava única para a execução inteira (flock do passo 8).
 set -u
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -28,6 +29,8 @@ mkdir -p "$LOGS"
 . "$NL_BANCO_DIR/banco/executor.sh"
 . "$NL_BANCO_DIR/banco/resultado.sh"
 . "$NL_BANCO_DIR/banco/linhas.sh"
+. "$NL_BANCO_DIR/banco/certificado.sh"
+. "$NL_BANCO_DIR/banco/sonda.sh"
 
 FONTE="$NL_TMP_BASE/notalivre-src-$NL_SHA-$NL_FATIA"
 BUILD="$NL_TMP_BASE/notalivre-build-$DISTRO-$NL_FATIA"
@@ -39,24 +42,46 @@ if [ "$opcao" != 1 ]; then
     echo "PARADA: build banco sem NL_TESTES_BANCO:BOOL=ON"; echo "NL-RC=2"; exit 2
 fi
 
-nl_banco_rodar_portao_funcoes "$DISTRO" "$FONTE" "$BUILD" > "$LOGS/NL-3.1h-funcoes-$DISTRO-$NL_SHA.log" 2>&1
-grep -h '^funcoes_no_ctest: ' "$LOGS/NL-3.1h-funcoes-$DISTRO-$NL_SHA.log" || echo "funcoes_no_ctest: ausente (PARADA)"
+# Portão de funções (C15', achado A1): a linha tem de existir e ter faltam, sobram e falharam iguais a 0. Ausente é PARADA.
+LOG_FUNCOES="$LOGS/NL-3.1h-funcoes-$DISTRO-$NL_SHA.log"
+nl_banco_rodar_portao_funcoes "$DISTRO" "$FONTE" "$BUILD" > "$LOG_FUNCOES" 2>&1
+linha_funcoes="$(/usr/bin/grep -h '^funcoes_no_ctest: ' "$LOG_FUNCOES" | tail -n 1 || true)"
+if [ -z "$linha_funcoes" ]; then
+    echo "funcoes_no_ctest: ausente (PARADA)"
+    echo "PARADA: portão de funções"; echo "NL-RC=2"; exit 2
+fi
+echo "$linha_funcoes"
+if ! printf '%s\n' "$linha_funcoes" | /usr/bin/grep -Eq ' faltam=0 sobram=0 .* falharam=0$'; then
+    echo "PARADA: portão de funções"; echo "NL-RC=2"; exit 2
+fi
+
+# Guarda do volume do Qt (achado de 3.3): docker run -v nome: cria volume vazio se ele não existir.
+if ! docker volume inspect notalivre-qt-6120 >/dev/null 2>&1; then
+    echo "PARADA: volume do Qt ausente"; echo "NL-RC=2"; exit 2
+fi
 
 if [ "$ALVO" = todos ]; then
     PARES="$(nl_banco_pares_de "$DISTRO")"
+    ESPERADOS="$(nl_banco_pares_de "$DISTRO" | /usr/bin/grep -c . || true)"
 else
     PARES="$(nl_banco_pares_de "$DISTRO" | /usr/bin/grep -x -- "$ALVO" || true)"
+    ESPERADOS=1
 fi
 if [ -z "$PARES" ]; then
     echo "PARADA: par $DISTRO/$ALVO fora de matriz_banco.txt"; echo "NL-RC=2"; exit 2
 fi
 
 # executar_par DISTRO NOME: um par completo. Devolve 0 só se o par ficou verde; a credencial é conferida antes de sair.
+# Com o executor, todas as quatro linhas NL-TLS têm de aparecer (C4'); a classe do servidor é conferida antes dele.
+N_TLS_LISTA=""
 executar_par() {
-    local distro="$1" nome="$2" linha fam img metodo cred cont log_par plugin versao enc analisados pulados falharam rc_exec ok=1
+    local distro="$1" nome="$2" linha fam img metodo tlsc certc cred cont log_par plugin versao rede usada
+    local enc analisados pulados falharam rc_exec n_tls linhas_tls ok=1
     local junit="$BUILD/banco/junit"
+    enc=0; analisados=0; pulados=0; falharam=0; rc_exec=2; n_tls=0; linhas_tls=""
+    versao=sem_servidor; plugin=sem_conta; rede=nao_medida
     linha="$(nl_banco_servidor_de "$nome")" || { echo "PARADA: $nome fora de servidores_banco.txt"; return 1; }
-    read -r _ fam img metodo <<<"$linha"
+    read -r _ fam img metodo tlsc certc <<<"$linha"
     if ! docker image inspect "$img" >/dev/null 2>&1; then
         echo "PARADA: servidor $nome ausente no host ($img)"; return 1
     fi
@@ -65,32 +90,49 @@ executar_par() {
     log_par="$LOGS/NL-3.1h-par-$distro-$nome-$NL_SHA.log"
 
     nl_banco_credencial_nova "$cred" || { echo "PARADA: credencial de $nome"; return 1; }
-    printf 'NL_BANCO_HOST=127.0.0.1\nNL_BANCO_PORTA=3306\nNL_BANCO_USUARIO=notalivre_teste\nNL_BANCO_BASE=notalivre_teste\nNL_BANCO_SENHA_ARQUIVO=/run/nl/senha_app\n' > "$cred/executor.env"
+    printf 'NL_BANCO_HOST=127.0.0.1\nNL_BANCO_PORTA=3306\nNL_BANCO_USUARIO=notalivre_teste\nNL_BANCO_BASE=notalivre_teste\nNL_BANCO_SENHA_ARQUIVO=/run/nl/senha_app\nNL_BANCO_SERVIDOR_TLS=%s\nNL_BANCO_CERTIFICADO=%s\n' \
+        "$tlsc" "$certc" > "$cred/executor.env"
 
     if nl_banco_subir_servidor "$nome" "$cred" "$cont" && nl_banco_esperar_pronto "$cont" "$fam" \
         && nl_banco_criar_conta_teste "$cont" "$fam" "$metodo" "$cred"; then
         plugin="$(nl_banco_ler_metodo "$cont" "$fam")"
         versao="$(nl_banco_cliente "$cont" "$fam" -N -e 'SELECT VERSION();' 2>/dev/null)"
-        nl_banco_limpar_resultado "$junit" || ok=0
-        nl_banco_rodar_executor "$distro" "$cont" "$cred" "$FONTE" "$BUILD" > "$log_par" 2>&1
-        rc_exec=$?
-        enc="$(awk '/tests failed out of/ { n = $NF } END { print n + 0 }' "$log_par")"
-        read -r analisados pulados falharam <<<"$(nl_banco_contar_resultado "$junit")"
-        if [ "$rc_exec" -ne 0 ] || [ "$pulados" -ne 0 ] || [ "$falharam" -ne 0 ] || [ "$analisados" -eq 0 ] \
-            || [ "$enc" != "$analisados" ] || [ "$plugin" != "$metodo" ]; then
+        rede="$(docker inspect -f '{{.HostConfig.NetworkMode}} {{.HostConfig.PortBindings}}' "$cont" 2>/dev/null)"
+        if usada="$(nl_banco_preparar_classe "$distro" "$cont" "$fam" "$cred" "$FONTE" "$certc" "$log_par")"; then
+            printf 'NL_BANCO_IMPRESSAO=%s\n' "$usada" >> "$cred/executor.env"
+            nl_banco_limpar_resultado "$junit" || ok=0
+            nl_banco_rodar_executor "$distro" "$cont" "$cred" "$FONTE" "$BUILD" >> "$log_par" 2>&1
+            rc_exec=$?
+            enc="$(awk '/tests failed out of/ { n = $NF } END { print n + 0 }' "$log_par")"
+            read -r analisados pulados falharam <<<"$(nl_banco_contar_resultado "$junit")"
+            read -r n_tls linhas_tls <<<"$(awk '/^NL-TLS /{ n++; s = s (n > 1 ? " | " : "") $0 } END { print n + 0, s }' "$log_par")"
+            if [ "$n_tls" != "$enc" ]; then
+                echo "PARADA: linhas NL-TLS (par $distro/$nome: $n_tls, esperadas $enc)"; ok=0
+            fi
+            if [ "$rc_exec" -ne 0 ] || [ "$pulados" -ne 0 ] || [ "$falharam" -ne 0 ] || [ "$analisados" -eq 0 ] \
+                || [ "$enc" != "$analisados" ] || [ "$plugin" != "$metodo" ]; then
+                ok=0
+            fi
+        else
             ok=0
         fi
     else
-        ok=0; rc_exec=2; enc=0; analisados=0; pulados=0; falharam=0; versao=sem_servidor; plugin=sem_conta
+        ok=0; rc_exec=2
         echo "PARADA: par $distro/$nome não ficou pronto ou não criou a conta de teste"
         docker logs --tail 50 "$cont" 2>&1 | tail -n 50
     fi
+    echo "NL-BANCO-TLS par=$distro/$nome $linhas_tls"
+    N_TLS_LISTA="$N_TLS_LISTA $n_tls"
+    echo "NL-BANCO-REDE par=$distro/$nome rede=$rede"
 
-    nl_banco_linha_par "$distro" "$nome" "$versao" "$plugin" verificado_pelo_teste verificado_pelo_teste \
+    nl_banco_linha_par "$distro" "$nome" "$versao" "$plugin" ver_NL-BANCO-TLS \
         "encontrados=$enc analisados=$analisados pulados=$pulados falharam=$falharam" "$rc_exec"
     nl_banco_parar "$cont"
     if ! nl_banco_conferir_senha_fora "$cred" "$log_par"; then
         echo "PARADA: senha encontrada em log do par $distro/$nome"; ok=0
+    fi
+    if ! nl_banco_conferir_senha_fora "$cred" "$cred/executor.env"; then
+        echo "PARADA: senha encontrada no executor.env de $distro/$nome"; ok=0
     fi
     nl_banco_apagar_credencial "$cred" || echo "AVISO: credencial de $nome não apagada"
     if [ "$ok" -ne 1 ]; then
@@ -100,15 +142,17 @@ executar_par() {
     return 0
 }
 
-esperados=0; executados=0; verdes=0; vermelhos=0
-while IFS= read -r nome; do
+executados=0; verdes=0; vermelhos=0
+mapfile -t LISTA_PARES <<<"$PARES"
+for nome in "${LISTA_PARES[@]}"; do
     [ -n "$nome" ] || continue
-    esperados=$((esperados + 1))
     executados=$((executados + 1))
-    if executar_par "$DISTRO" "$nome"; then verdes=$((verdes + 1)); else vermelhos=$((vermelhos + 1)); fi
-done <<<"$PARES"
+    if executar_par "$DISTRO" "$nome" </dev/null; then verdes=$((verdes + 1)); else vermelhos=$((vermelhos + 1)); fi
+done
 
-nl_banco_linha_resumo "$esperados" "$executados" "$verdes" "$vermelhos"
-if [ "$vermelhos" -eq 0 ] && [ "$executados" -eq "$esperados" ]; then rc=0; else rc=1; fi
+# Número de linhas NL-TLS por par: um valor só se todos os pares tiverem o mesmo; senão, divergente.
+N_POR_PAR="$(printf '%s\n' $N_TLS_LISTA | awk 'NF { if (!init) { v = $1; init = 1 } else if ($1 != v) { bad = 1 } } END { if (!init || bad) print "divergente"; else print v }')"
+nl_banco_linha_resumo "$ESPERADOS" "$executados" "$verdes" "$vermelhos" "$N_POR_PAR"
+if [ "$vermelhos" -eq 0 ] && [ "$executados" -eq "$ESPERADOS" ]; then rc=0; else rc=1; fi
 echo "NL-RC=$rc"
 exit "$rc"

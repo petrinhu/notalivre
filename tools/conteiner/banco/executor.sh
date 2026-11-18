@@ -13,7 +13,7 @@ nl_banco_rodar_executor() {
         --network "container:$2" --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
         --env-file "$3/executor.env" -v "$3:/run/nl:ro,z" -v "$4:/src:ro,z" -v "$5:/var/tmp/notalivre-build:z" \
         -v notalivre-qt-6120:/opt/qt:ro -w /src "notalivre/build-$1:nl-2.0" \
-        sh -c 'mkdir -p "$HOME" && ctest --preset banco --no-tests=error --output-on-failure'
+        sh -c 'mkdir -p "$HOME" && ctest --preset banco --no-tests=error --output-on-failure --verbose'
 }
 
 # nl_banco_rodar_portao_funcoes DISTRO FONTE BUILD: confere o registro do banco (C15') num contêiner sem rede.

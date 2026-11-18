@@ -35,3 +35,8 @@ nl_banco_esperar_pronto() {
 nl_banco_parar() {
     docker stop -t 10 "$1" >/dev/null 2>&1
 }
+
+# nl_banco_reiniciar CONTEINER: docker restart do servidor do par (medição de reinício, passo 4b do NL-3.1h).
+nl_banco_reiniciar() {
+    docker restart -t 10 "$1" >/dev/null 2>&1
+}

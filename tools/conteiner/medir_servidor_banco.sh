@@ -15,7 +15,7 @@ LOGS=/var/tmp/notalivre-logs
 . "$NL_BANCO_DIR/banco/sql_root.sh"
 
 linha="$(nl_banco_servidor_de "$NOME")" || { echo "PARADA: servidor $NOME fora de servidores_banco.txt"; exit 2; }
-read -r _ FAM IMG METODO <<<"$linha"
+read -r _ FAM IMG METODO _ _ <<<"$linha"
 CRED="/var/tmp/notalivre-nl31h-cred-$NOME-$$"
 CONT="nl31h-med-$NOME-$$"
 LOG="$LOGS/NL-3.1h-medicao-$NOME.log"
