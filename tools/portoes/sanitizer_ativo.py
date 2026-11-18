@@ -36,6 +36,8 @@ REGEX_GATE = ("(Leak|Address)Sanitizer", "runtime error:")
 MARCA = "CANARIO-PASS"
 PROPRIEDADES_PROIBIDAS = ("WILL_FAIL", "SKIP_RETURN_CODE", "SKIP_REGULAR_EXPRESSION")
 SIMBOLO = b"__asan_init"
+# limite do projeto, não de norma (RFC 8259, seção 9); o json-v1 do CTest real tem profundidade 6 (medido em 17/11/2026)
+PROFUNDIDADE_MAXIMA = 64
 LISTA_PORTOES = "tools/conteiner/lista_portoes.txt"
 CI = ".github/workflows/ci.yml"
 COMANDO_LIGADO = "python3 -I /src/tools/portoes/sanitizer_ligado.py /src && python3 -I /src/tools/portoes/sanitizer_ligado.py --autoteste"
@@ -60,8 +62,33 @@ def ambiente_do_preset(caminho):
     raise ValueError(f"test preset {PRESET} sem environment")
 
 
+# Gêmeo de funcoes_ctest/registro_ctest.py (NL-2.20 S2g); na terceira ocorrência, extrair (L-33, regra de 3).
+def profundidade_json(texto):
+    """Maior profundidade de listas e objetos do texto JSON, sem contar o que está dentro de texto entre aspas."""
+    profundidade, maior = 0, 0
+    dentro_de_texto, escapado = False, False
+    for caractere in texto:
+        if dentro_de_texto:
+            if escapado:
+                escapado = False
+            elif caractere == "\\":
+                escapado = True
+            elif caractere == '"':
+                dentro_de_texto = False
+        elif caractere == '"':
+            dentro_de_texto = True
+        elif caractere in "[{":
+            profundidade += 1
+            maior = max(maior, profundidade)
+        elif caractere in "]}":
+            profundidade -= 1
+    return maior
+
+
 def testes_do_registro(texto):
-    """Lista tests do json-v1 do CTest; JSON ilegível levanta ValueError."""
+    """Lista tests do json-v1 do CTest; profundidade acima de PROFUNDIDADE_MAXIMA ou JSON ilegível levanta ValueError."""
+    if profundidade_json(texto) > PROFUNDIDADE_MAXIMA:
+        raise ValueError(f"registro do ctest ilegivel: profundidade acima de {PROFUNDIDADE_MAXIMA}")
     return json.loads(texto).get("tests", [])
 
 
