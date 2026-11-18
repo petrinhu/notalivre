@@ -26,7 +26,11 @@ cat > "$BASE/bin/docker" <<'STUB'
 echo "docker $*" >> "${STUB_LOG:-/dev/null}"
 case "$1" in
     image) [ -n "${STUB_SERVIDOR_AUSENTE:-}" ] && exit 1; exit 0 ;;
-    run) exit "${STUB_RUN_RC:-0}" ;;
+    run)
+        if [ -n "${STUB_JUNIT_XML:-}" ] && [ -n "${STUB_JUNIT_DIR:-}" ]; then
+            printf '%s\n' "$STUB_JUNIT_XML" > "$STUB_JUNIT_DIR/integracao.banco.conexaoBasica.xml"
+        fi
+        exit "${STUB_RUN_RC:-0}" ;;
 esac
 exit 0
 STUB
@@ -37,12 +41,14 @@ novo_caso() {
     CASO="$BASE/casos/$1"
     mkdir -p "$CASO/tmp" || return 1
     NL_TMP_BASE="$CASO/tmp"
+    mkdir -p "$NL_TMP_BASE/notalivre-src-$SHA_FIXO-NL-3.1h" || return 1
     BUILD="$NL_TMP_BASE/notalivre-build-fedora45-NL-3.1h/banco"
     mkdir -p "$BUILD/junit" || return 1
+    STUB_JUNIT_DIR="$BUILD/junit"
     printf 'NL_TESTES_BANCO:BOOL=ON\n' > "$BUILD/CMakeCache.txt"
     STUB_LOG="$CASO/docker.log"
     export NL_TMP_BASE STUB_LOG TMPDIR="$CASO/tmp" NL_FATIA=NL-3.1h NL_SHA="$SHA_FIXO"
-    unset STUB_SERVIDOR_AUSENTE STUB_RUN_RC
+    unset STUB_SERVIDOR_AUSENTE STUB_RUN_RC STUB_JUNIT_XML
     export PATH="$BASE/bin:$PATH"
 }
 
@@ -81,8 +87,8 @@ executar_caso "junitxml do par anterior não conta" "PARADA" bash "$CONTEINER/in
 
 # Caso 5: junitxml com skipped reprova (veto da v3.1: nenhum teste do banco pulado).
 novo_caso junit_com_skipped || { echo "ABORTA: caso 5"; exit 1; }
-printf '<testsuite tests="1"><testcase classname="integracao.banco" name="conexaoBasica"><skipped/></testcase></testsuite>\n' \
-    > "$BUILD/junit/integracao.banco.mysql97.xml"
+export STUB_JUNIT_XML='<testsuite tests="1"><testcase classname="integracao.banco" name="conexaoBasica"><skipped/></testcase></testsuite>'
+
 executar_caso "junitxml com skipped reprova" "pulados=1" bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
 
 # Caso 6: a limpeza roda em falha. Com o executor vermelho (rc 1), o harness tem de chamar docker stop ou docker rm.
