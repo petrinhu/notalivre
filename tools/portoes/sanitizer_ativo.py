@@ -268,6 +268,54 @@ CI_BOM = f"""jobs:
 """
 
 
+# Casos do registro (S2g): (nome, texto JSON, esperado). Esperado é "aceito", "json_invalido" ou o trecho do ValueError.
+CASOS_REGISTRO = (
+    ("registro_no_limite", '{"tests": [], "fundo": ' + "[" * 63 + "]" * 63 + "}", "aceito"),
+    ("registro_um_acima", '{"tests": [], "fundo": ' + "[" * 64 + "]" * 64 + "}", "profundidade acima de 64"),
+    ("registro_aninhado_demais", '{"tests": [], "fundo": ' + "[" * 100000 + "]" * 100000 + "}",
+     "profundidade acima de 64"),
+    ("registro_aspa_escapada", '{"tests": [], "x": "\\"' + "[" * 65 + '"}', "aceito"),
+    ("registro_barra_dupla", '{"tests": [], "x": ["\\\\", ' + "[" * 63 + "]" * 63 + "]}", "profundidade acima de 64"),
+    ("registro_colchete_em_texto", '{"tests": [], "x": "' + "[{" * 40 + '"}', "aceito"),
+    ("registro_texto_sem_fim", '{"tests": [], "x": "' + "[" * 65, "json_invalido"),
+    ("registro_aspa_escapada_sem_fim", '{"tests": [], "x": "a\\"' + "[" * 65, "json_invalido"),
+    ("registro_fecho_antes_do_fundo", '{"tests": [], "x": ' + "]" * 100000 + "[" * 100063, "json_invalido"),
+    ("registro_sem_volta", '{"tests": [], "x": ' + "[" * 100000, "profundidade acima de 64"),
+)
+
+
+def desfecho_do_registro(texto):
+    """Desfecho do átomo testes_do_registro: 'aceito', 'ValueError: <mensagem>' ou o nome do tipo de outra exceção."""
+    try:
+        testes_do_registro(texto)
+    except ValueError as erro:
+        return f"ValueError: {erro}"
+    except Exception as erro:
+        return type(erro).__name__
+    return "aceito"
+
+
+def certo_no_registro(desfecho, esperado):
+    """Confere o desfecho com o esperado; json_invalido é ValueError sem o trecho do limite de profundidade."""
+    if esperado == "aceito":
+        return desfecho == "aceito"
+    if esperado == "json_invalido":
+        return desfecho.startswith("ValueError: ") and "profundidade acima de" not in desfecho
+    return desfecho.startswith("ValueError: ") and esperado in desfecho
+
+
+def autoteste_registro():
+    """Casos do registro do CTest pelo átomo testes_do_registro; devolve (casos, falhas)."""
+    falhas = 0
+    for nome, texto, esperado in CASOS_REGISTRO:
+        desfecho = desfecho_do_registro(texto)
+        certo = certo_no_registro(desfecho, esperado)
+        print(f"--- caso {nome}: {desfecho[:120]} {'OK' if certo else 'FALHOU'}")
+        if not certo:
+            falhas += 1
+    return len(CASOS_REGISTRO), falhas
+
+
 def montar(pasta, falha=FALHA_BOA, extra_um="", com_gate=True, dois_com_gate=True, um_fora_do_build=False, com_simbolo=True,
            sem_testes=False, canario_txt=CANARIO_BOM, presets=None, com_canario=True, lista=LISTA_BOA, ci=CI_BOM):
     """Build de brincadeira: "um" roda o executável do build, "dois" roda /bin/sh, fora do build. O ctest só os lista."""
@@ -356,8 +404,9 @@ def autoteste():
             if not certo:
                 falhas += 1
                 print(texto)
-    print(f"casos={len(casos)} falharam={falhas}")
-    return 1 if falhas else 0
+    casos_registro, falhas_registro = autoteste_registro()
+    print(f"casos={len(casos) + casos_registro} falharam={falhas + falhas_registro}")
+    return 1 if falhas + falhas_registro else 0
 
 
 def main(argv):
