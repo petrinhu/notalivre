@@ -6,7 +6,7 @@
 # e NL_ENSAIO_SHA=<40 hex>.
 # Ordem, sem laço dentro de slot:
 #   1. imprime o comando recebido (preset, SHA e lista), para o log provar o que rodou;
-#   2. confere RLIMIT_CORE 1 1 e pids.max 512 (o contêiner foi criado com --ulimit core=1 e --pids-limit 512); outro valor
+#   2. confere RLIMIT_CORE 1 1 e pids.max 400 (o contêiner foi criado com --ulimit core=1 e --pids-limit 400); outro valor
 #      aborta antes de tudo;
 #   3. configura e constrói o preset;
 #   4. roda a fixture certificados.gerar UMA vez, fora da repetição;
@@ -25,7 +25,7 @@
 #                  Não é reprovação nem aprovação do slot.
 # Veredito (CTO, 11/11/2026; NL-3.A, 13/11/2026): o veredito de cada repetição é o do CTest. Desde a NL-3.A nenhum teste
 # usa regex de passe, então o código de saída do processo conta; sinal, tempo esgotado e FAIL_REGULAR_EXPRESSION reprovam.
-# Códigos: 0 verde; 1 slot reprovado; 2 core fora de 1 1 ou pids.max fora de 512; 3 configure ou build; 4 fixture;
+# Códigos: 0 verde; 1 slot reprovado; 2 core fora de 1 1 ou pids.max fora de 400; 3 configure ou build; 4 fixture;
 # 5 lista, SHA ou uso inválidos; 6 temporário não criado; 7 indeterminado.
 # NL_ENSAIO_ARQ_PIDS_MAX é costura só do autoteste (arquivo lido no lugar de /sys/fs/cgroup/pids.max). O build_local.sh
 # nunca a passa ao contêiner, e o autoteste confere isso.
@@ -54,9 +54,9 @@ if [ "$limite_core" != "1 1" ]; then
 fi
 arq_pids="${NL_ENSAIO_ARQ_PIDS_MAX:-/sys/fs/cgroup/pids.max}"
 pids_max="$(cat "$arq_pids" 2>/dev/null || echo ausente)"
-echo "pids.max: $pids_max (esperado 512)"
-if [ "$pids_max" != "512" ]; then
-    echo "ENSAIO PARADA: pids.max '$pids_max', esperado '512' (exceção do líder à L-11, 10/11/2026)"
+echo "pids.max: $pids_max (esperado 400)"
+if [ "$pids_max" != "400" ]; then
+    echo "ENSAIO PARADA: pids.max '$pids_max', esperado '400' (teto de 400 do líder, 18/11/2026)"
     exit 2
 fi
 

@@ -10,7 +10,7 @@
 #   build_local.sh <distro> <preset>      configure + build + ctest do preset na distro (exige NL_FATIA)
 #   build_local.sh <preset>               atalho: fedora45 <preset> (forma antiga, mantida; exige NL_FATIA)
 #   build_local.sh ensaio <distro> <preset>   ensaio de repetição (NL-3.0j, CTO): etapa 2 = ensaio_no_conteiner.sh;
-#                                         exige NL_ENSAIO; core=1 e --pids-limit 512 em todo docker run
+#                                         exige NL_ENSAIO; core=1 e --pids-limit 400 em todo docker run
 #   build_local.sh mutante-mtls <distro>  mutante do E6 (tools/mutacao/mutante_mtls.sh) no SHA de NL_SHA; core=1
 #   Leitura do ensaio: ENSAIO: VERDE (NL-RC 0), VERMELHO (1, slot reprovado) ou INDETERMINADO (7, não é reprovação).
 #   distro: fedora45 | ubuntu26.04 | manjaro | mint22.3
@@ -306,16 +306,10 @@ executar()
     trap 'echo "NL-RC=$?"' EXIT
     # Reserva de CPUs (NL-3.0j): depois da linha "SHA:", antes de validar_arnes, da trava e de qualquer docker run.
     resolver_cpuset || return 2
-    # NL-3.1h (v3.11): o ensaio troca o --pids-limit do vetor por 512 (exceção do líder de 10/11/2026, pendente de decisão).
-    if [ "$MODO_ARNES" = ensaio ]; then
-        NL_COTAS_DOCKER=("${NL_COTAS_DOCKER_SEM_PIDS[@]}" --pids-limit 512)
-        NL_COTA_PIDS_EFETIVO=512
-    fi
     printf 'NL-COTAS=threads=%s memoria=%s cpuset=%s pids=%s\n' "$THREADS" "$NL_MEMORIA" "$CPUSET" "$NL_COTA_PIDS_EFETIVO"
     validar_arnes "$preset" || return 2
     validar_mutante "$sha" || return 2
-    # Cotas de contêiner do arnês (NL-3.0j): o ensaio força core=1 em todo docker run e troca o --pids-limit do vetor por 512
-    # (NL-3.1h, v3.11); mutante e
+    # Cotas de contêiner do arnês (NL-3.0j): o ensaio força core=1 em todo docker run; mutante e
     # rodada normal levam só core=1 (o mutante sempre, a rodada normal com NL_SEM_CORE=1).
     local -a extras_arnes=()
     if [ "$MODO_ARNES" = ensaio ]; then
