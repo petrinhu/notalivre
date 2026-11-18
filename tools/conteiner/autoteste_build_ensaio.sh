@@ -140,15 +140,15 @@ else
     falha "normal com NL_SEM_CORE=1: esperava --ulimit core=1 e um --pids-limit 400 em todo docker run"
 fi
 
-# Caso ensaio: core=1 e pids-limit 512 em todo docker run, mesmo sem NL_SEM_CORE; corpo copiado e com hash no log.
+# Caso ensaio: core=1 e pids-limit 400 em todo docker run, mesmo sem NL_SEM_CORE; corpo copiado e com hash no log.
 build "$BASE/ensaio.log" NL_ENSAIO='transporte.exemplo:3' -- ensaio fedora45 debug
 rc_ensaio=$?
-if [ "$rc_ensaio" = 0 ] && todos_levam "$BASE/ensaio.log" "--ulimit core=1 " && um_pids_por_run "$BASE/ensaio.log" 512 \
+if [ "$rc_ensaio" = 0 ] && todos_levam "$BASE/ensaio.log" "--ulimit core=1 " && um_pids_por_run "$BASE/ensaio.log" 400 \
     && grep -q -F '/ensaio/ensaio_no_conteiner.sh' "$BASE/ensaio.log.docker" \
     && grep -q -E '^NL-ENSAIO-CORPO-SHA256=[0-9a-f]{64}$' "$BASE/ensaio.log"; then
-    ok "ensaio sem NL_SEM_CORE: todo docker run leva --ulimit core=1 e --pids-limit 512, corpo com hash no log"
+    ok "ensaio sem NL_SEM_CORE: todo docker run leva --ulimit core=1 e --pids-limit 400, corpo com hash no log"
 else
-    falha "ensaio sem NL_SEM_CORE: esperava rc 0, core=1 e pids-limit 512 em todo docker run, corpo com hash (rc=$rc_ensaio)"
+    falha "ensaio sem NL_SEM_CORE: esperava rc 0, core=1 e pids-limit 400 em todo docker run, corpo com hash (rc=$rc_ensaio)"
 fi
 pacote_tem "ensaio" CMakePresets.json CMakeLists.txt tests
 
@@ -168,7 +168,7 @@ fi
 
 # Caso ensaio com NL_SEM_CORE=0 exportado: o modo ensaio força core=1 de qualquer jeito.
 build "$BASE/ensaio0.log" NL_SEM_CORE=0 NL_ENSAIO='transporte.exemplo:3' -- ensaio fedora45 debug
-if todos_levam "$BASE/ensaio0.log" "--ulimit core=1 " && um_pids_por_run "$BASE/ensaio0.log" 512; then
+if todos_levam "$BASE/ensaio0.log" "--ulimit core=1 " && um_pids_por_run "$BASE/ensaio0.log" 400; then
     ok "ensaio com NL_SEM_CORE=0: core=1 forçado"
 else
     falha "ensaio com NL_SEM_CORE=0: esperava core=1 forçado em todo docker run"
@@ -295,7 +295,7 @@ fi
 build "$BASE/cp2.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" NL_ENSAIO='transporte.exemplo:3' -- ensaio fedora45 debug
 rc=$?
 if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp2.log.docker")" -gt 0 ] && nenhum_leva "$BASE/cp2.log" '--cpuset-cpus' \
-    && cotas_no_log "$BASE/cp2.log" todas 512 && sha_na_linha_1 "$BASE/cp2.log" \
+    && cotas_no_log "$BASE/cp2.log" todas 400 && sha_na_linha_1 "$BASE/cp2.log" \
     && grep -q -F '/ensaio/ensaio_no_conteiner.sh' "$BASE/cp2.log.docker"; then
     ok "CP2 ensaio, online 0-15: nenhum docker run leva --cpuset-cpus, NL-COTAS cpuset=todas"
 else
@@ -433,7 +433,7 @@ chmod +x "$BASE/mock/cmake" "$BASE/mock/ctest"
 
 # Arquivo que o corpo lê no lugar de /sys/fs/cgroup/pids.max (costura só do autoteste): nenhum caso depende do pids.max do
 # contêiner ou do runner. Um caso que queira outro valor passa a variável de novo depois (a última vale).
-printf '512\n' > "$BASE/pids512"
+printf '400\n' > "$BASE/pids400"
 printf 'max\n' > "$BASE/pidsmax"
 
 # Roda o corpo com RLIMIT_CORE = CORE (soft e hard). Uso: rodar_corpo CORPO CORE LOG SAIDA LISTA [VAR=valor ...]
@@ -442,7 +442,7 @@ rodar_corpo() {
     shift 5
     : > "$log"
     (cd "$BASE/trab" && env PATH="$BASE/mock:$PATH" MOCK_LOG="$log" NL_ENSAIO="$lista" TMPDIR="$BASE/tmp" \
-        NL_ENSAIO_SHA="$SHA" NL_ENSAIO_ARQ_PIDS_MAX="$BASE/pids512" "$@" \
+        NL_ENSAIO_SHA="$SHA" NL_ENSAIO_ARQ_PIDS_MAX="$BASE/pids400" "$@" \
         python3 -I -c 'import os, resource, sys
 m = int(sys.argv[1])
 resource.setrlimit(resource.RLIMIT_CORE, (m, m))
@@ -511,7 +511,7 @@ if [ "$rc" = 0 ] && checar_chamadas "$BASE/b1.log" \
         'ensaio teste=transporte.exemplo pedidas=3 processos=3 aprovadas=3 medicao=3 rc=0 classe=aprovado motivo=nenhum' \
         'ensaio resumo slots_pedidos=1 slots=1 reprovados=0 indeterminados=0' 'ENSAIO: VERDE' \
         'NL-ENSAIO-PRESET=debug' "NL-ENSAIO-SHA=$SHA" 'NL-ENSAIO-LISTA=transporte.exemplo:3' 'Max core file size' \
-        'pids.max: 512 (esperado 512)'; then
+        'pids.max: 400 (esperado 400)'; then
     ok "B1 corpo verde: fixture uma vez, -FS, --no-tests=error, -j 1, -V, regex ancorada, 3 de 3, comando na abertura"
 else
     falha "B1 corpo verde: esperava rc 0, checagens e abertura com preset, SHA, lista, core cru e pids.max (rc=$rc)"
@@ -527,7 +527,7 @@ else
     falha "B2 core 0/0: esperava rc 2, PARADA e zero chamadas (rc=$rc)"
 fi
 
-# B2p-a e B2p-b: pids.max diferente de 512 (a exceção do líder à L-11 depende dele) aborta antes de qualquer build.
+# B2p-a e B2p-b: pids.max diferente de 400 (a exceção do líder à L-11 depende dele) aborta antes de qualquer build.
 rodar_corpo "$BODY" 1 "$BASE/b2pa.log" "$BASE/b2pa.saida" 'transporte.exemplo:3' NL_ENSAIO_ARQ_PIDS_MAX="$BASE/pidsmax"
 rc=$?
 if [ "$rc" = 2 ] && grep -q -F 'ENSAIO PARADA: pids.max' "$BASE/b2pa.saida" && zero_chamadas "$BASE/b2pa.log"; then

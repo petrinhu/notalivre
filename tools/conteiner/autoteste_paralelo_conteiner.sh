@@ -101,7 +101,7 @@ fi
 
 # T5: ensaio, mesma guarda antes do build. Costuras do autoteste: limites e pids.max em arquivo.
 printf 'Max core file size            1                    1                    bytes\n' > "$BASE/limites"
-printf '512\n' > "$BASE/pids.max"
+printf '400\n' > "$BASE/pids.max"
 ensaio() {
     : > "$BASE/cmake.argv"
     ENSAIO_RC="$(env -u CMAKE_BUILD_PARALLEL_LEVEL PATH="$BASE/bin:$PATH" CMAKE_LOG="$BASE/cmake.argv" FAKE_BUILD_RC=3 \
