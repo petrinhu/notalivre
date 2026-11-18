@@ -60,12 +60,17 @@ def ambiente_do_preset(caminho):
     raise ValueError(f"test preset {PRESET} sem environment")
 
 
+def testes_do_registro(texto):
+    """Lista tests do json-v1 do CTest; JSON ilegível levanta ValueError."""
+    return json.loads(texto).get("tests", [])
+
+
 def listar_testes(build, ambiente):
     saida = subprocess.run(["ctest", "--test-dir", build, "--show-only=json-v1"], capture_output=True, env=ambiente,
                            check=False)
     if saida.returncode != 0:
         raise ValueError("ctest --show-only falhou: " + saida.stderr.decode("utf-8", "replace").strip())
-    return json.loads(saida.stdout.decode("utf-8", "replace")).get("tests", [])
+    return testes_do_registro(saida.stdout.decode("utf-8", "replace"))
 
 
 def conferir_testes(testes):
