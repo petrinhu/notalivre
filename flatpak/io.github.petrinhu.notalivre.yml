@@ -28,6 +28,27 @@ modules:
       - type: archive
         url: https://download.libsodium.org/libsodium/releases/libsodium-1.0.22.tar.gz
         sha256: adbdd8f16149e81ac6078a03aca6fc03b592b89ef7b5ed83841c086191be3349
+  # NL-3.1h (passo 7), Connector/C 3.4.11 para o módulo do cliente MariaDB. Fonte canônica archive.mariadb.org, SHA-256 e
+  # assinatura PGP (F1656F24C74CD1D8) conferidos no passo 6.1 (NL-3.1h, ordem v3.4). Mesma lista de opções de
+  # tools/conteiner/modulo_mariadb.sh; autoteste_flags_mariadb.sh confere as duas. Nunca liga NL_TESTES_BANCO.
+  - name: mariadb-connector-c
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DWITH_SSL=OPENSSL
+      - -DWITH_EXTERNAL_ZLIB=ON
+      - -DWITH_UNIT_TESTS=OFF
+      - -DWITH_CURL=OFF
+      - -DWITH_DOCS=OFF
+      - -DCLIENT_PLUGIN_PARSEC=OFF
+      - -DCLIENT_PLUGIN_AUTH_GSSAPI_CLIENT=OFF
+      - -DCLIENT_PLUGIN_REMOTE_IO=OFF
+    license-files:
+      - COPYING.LIB
+    sources:
+      - type: archive
+        url: https://archive.mariadb.org/connector-c-3.4.11/mariadb-connector-c-3.4.11-src.tar.gz
+        sha256: 521c0712e9291fa96558df9e2ff431376a3a79329f13751896b694cae12765b4
   - name: notalivre
     buildsystem: simple
     build-commands:
