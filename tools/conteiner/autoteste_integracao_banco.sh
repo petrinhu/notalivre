@@ -90,7 +90,7 @@ case "$1" in
                 # O executor real grava o junitxml na pasta de build que o -v do executor monta (a da distro do par).
                 jd="$STUB_JUNIT_DIR"
                 for a in "$@"; do
-                    case "$a" in *:/var/tmp/notalivre-build:z) jd="${a%%:*}/junit" ;; esac
+                    case "$a" in *:/var/tmp/notalivre-build:z) jd="${a%%:*}/banco/junit" ;; esac
                 done
                 if [ -z "${STUB_SEM_JUNIT:-}" ]; then
                     for slot in sessaoPadrao modoAberto modoFixadoImpressaoCerta modoFixadoImpressaoTrocada; do
