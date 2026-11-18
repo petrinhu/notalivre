@@ -33,6 +33,7 @@ passo "autoteste-codigo-de-saida" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash
 passo "autoteste-cota-nucleos" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/espelho/autoteste_cota_nucleos.sh'
 passo "autoteste-cota-conteiner" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/conteiner/autoteste_cota_conteiner.sh'
 passo "teto-em-todo-conteiner" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_cota_em_todo_conteiner.sh /src'
+passo "pids-em-docker-run" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/portoes/autoteste_pids_em_docker_run.sh /src'
 passo "ensaio-emitir-teste" "${CONT[@]}" sh -c 'mkdir -p /tmp/home && bash tools/producao_restrita/emitir_teste.sh --ensaio'
 [ "$PASSOS_FALHOS" -eq 0 ] && { echo "JOB autotestes: VERDE"; exit 0; }
 echo "JOB autotestes: VERMELHO ($PASSOS_FALHOS passo(s) com rc diferente de 0)"; exit 1
