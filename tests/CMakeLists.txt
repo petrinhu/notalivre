@@ -18,3 +18,7 @@ add_subdirectory(fixtures/certificados)
 add_subdirectory(e2e)
 add_subdirectory(qml)
 add_subdirectory(tools)
+
+# Testes do banco (NL-3.1h, V-d). De propósito SEM o if(NL_TESTES_BANCO): é o V-e1, o vermelho que prova que a opção é
+# quem tira o banco da suíte normal. A opção NL_TESTES_BANCO e o if entram no commit seguinte (passo 6.5).
+add_subdirectory(integracao/banco)

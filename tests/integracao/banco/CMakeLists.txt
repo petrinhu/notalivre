@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Testes de integração com servidor de banco (NL-3.1h, D-1 opção A). Só entram com NL_TESTES_BANCO=ON (preset banco), e
+# nunca no build Flatpak (tests/CMakeLists.txt). Slots integracao.banco.<nome>, um por função, com o rótulo banco.
+# Sem o cabeçalho ou a biblioteca do Connector/C a configuração para com mensagem: é erro de ambiente, não pulo.
+find_path(NL_MARIADB_INCLUDE_DIR NAMES mariadb/mysql.h)
+find_library(NL_MARIADB_LIB NAMES mariadb)
+if(NOT NL_MARIADB_INCLUDE_DIR OR NOT NL_MARIADB_LIB)
+    message(FATAL_ERROR "tests/integracao/banco: mariadb/mysql.h ou libmariadb ausente (NL-3.1h, passo 6.4)")
+endif()
+
+add_executable(tst_conexao_banco tst_conexao_banco.cpp)
+target_include_directories(tst_conexao_banco PRIVATE ${NL_MARIADB_INCLUDE_DIR})
+target_link_libraries(tst_conexao_banco PRIVATE Qt6::Core Qt6::Test ${NL_MARIADB_LIB} nl_warnings)
+
+foreach(slot IN ITEMS conexaoBasica)
+  nl_registra_teste_qt(NAME integracao.banco.${slot} COMMAND tst_conexao_banco ${slot})
+  set_tests_properties(integracao.banco.${slot} PROPERTIES
+                       LABELS banco
+                       TIMEOUT 120)  # teto explícito: um servidor travado não segura o par por 1500 s
+endforeach()
