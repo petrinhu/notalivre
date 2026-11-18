@@ -170,9 +170,9 @@ novo_caso servidor_ausente || { echo "ABORTA: caso 1"; exit 1; }
 export STUB_SERVIDOR_AUSENTE=1
 executar_caso "servidor ausente reprova" "PARADA: servidor mysql97 ausente" bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
 
-# Caso 2: zero testes banco reprova (nenhum junitxml de integracao.banco.* e nenhum resumo do executor).
+# Caso 2: zero testes banco reprova (nenhum junitxml de integracao.banco.*, nenhum resumo do executor e nenhuma linha NL-TLS).
 novo_caso zero_testes || { echo "ABORTA: caso 2"; exit 1; }
-export STUB_SEM_JUNIT=1 STUB_SEM_RESUMO=1
+export STUB_SEM_JUNIT=1 STUB_SEM_RESUMO=1 STUB_LINHAS_TLS=0
 executar_caso "label banco com zero testes reprova" "encontrados=0 analisados=0" bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
 
 # Caso 3: build sem NL_TESTES_BANCO:BOOL=ON reprova (mutante 25).
