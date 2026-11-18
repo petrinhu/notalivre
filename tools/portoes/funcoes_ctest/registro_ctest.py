@@ -10,7 +10,7 @@ import subprocess
 from parada import Parada
 
 IDENTIFICADOR = re.compile(r"^[A-Za-z_]\w*$")
-# o json-v1 do CTest real tem profundidade 6 (medido em 17/11/2026)
+# limite do projeto, não de norma (RFC 8259, seção 9); o json-v1 do CTest real tem profundidade 6 (medido em 17/11/2026)
 PROFUNDIDADE_MAXIMA = 64
 
 
