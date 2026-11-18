@@ -71,7 +71,7 @@ if ! grep -qi 'openssl' "$TRABALHO/configure.log"; then
     exit 1
 fi
 
-cmake --build "$TRABALHO/build" > "$TRABALHO/build.log" 2>&1
+cmake --build "$TRABALHO/build" -j 2 > "$TRABALHO/build.log" 2>&1
 echo "rc_build=$?"
 cmake --install "$TRABALHO/build" > "$TRABALHO/install.log" 2>&1
 echo "rc_install=$?"
