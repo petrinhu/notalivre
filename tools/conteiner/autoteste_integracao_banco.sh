@@ -203,17 +203,20 @@ else
     falha "limpeza roda em falha: rc=$rc, sem docker stop ou docker rm no log"
 fi
 
-# Caso 7: docker run sem o vetor da cota reprova. Varredura: todo docker run do harness e de banco/ leva o vetor.
+# Caso 7: docker run sem o vetor da cota reprova. Varredura: todo docker run do harness e de banco/ leva o vetor sem
+# --pids-limit (NL_COTAS_DOCKER_SEM_PIDS, NL-3.1h v3.11) e o próprio --pids-limit literal, nunca 512 (teto duro de 400).
 # Piso (L-36): zero docker run encontrado é varredura quebrada, e reprova.
 TOTAL=$((TOTAL + 1))
 total_run=$(grep -hF 'docker run' "$CONTEINER/integracao_banco.sh" "$CONTEINER"/banco/*.sh 2>/dev/null | wc -l)
 sem_vetor=$(grep -hF 'docker run' "$CONTEINER/integracao_banco.sh" "$CONTEINER"/banco/*.sh 2>/dev/null \
-    | grep -vF 'NL_COTAS_DOCKER[@]' | wc -l)
-echo "docker_run_sem_vetor: docker_run=$total_run sem_vetor=$sem_vetor"
-if [ "$total_run" -gt 0 ] && [ "$sem_vetor" -eq 0 ]; then
-    ok "docker run do harness leva o vetor da cota ($total_run chamadas)"
+    | grep -vF 'NL_COTAS_DOCKER_SEM_PIDS[@]' | wc -l)
+com_512=$(grep -hF 'docker run' "$CONTEINER/integracao_banco.sh" "$CONTEINER"/banco/*.sh 2>/dev/null \
+    | grep -c -- '--pids-limit 512' || true)
+echo "docker_run_sem_vetor: docker_run=$total_run sem_vetor=$sem_vetor pids_512=$com_512"
+if [ "$total_run" -gt 0 ] && [ "$sem_vetor" -eq 0 ] && [ "$com_512" -eq 0 ]; then
+    ok "docker run do harness leva o vetor da cota sem --pids-limit, e nenhum --pids-limit 512 ($total_run chamadas)"
 else
-    falha "docker run do harness sem o vetor, ou varredura vazia (docker_run=$total_run sem_vetor=$sem_vetor)"
+    falha "docker run do harness sem o vetor, com 512, ou varredura vazia (docker_run=$total_run sem_vetor=$sem_vetor pids_512=$com_512)"
 fi
 
 # Caso 8: par fora da matriz reprova (ubuntu26.04 tem só mysql84 e mariadb118 em matriz_banco.txt).

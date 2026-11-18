@@ -92,6 +92,15 @@ nenhum_leva() {
     com=$(grep '^docker run ' "$log.docker" 2>/dev/null | grep -F 'notalivre/build-' | grep -c -F -- "$padrao" || true)
     [ "${com:-0}" = 0 ]
 }
+# NL-3.1h (v3.11, teto duro de processos): todo docker run da imagem de build leva EXATAMENTE um --pids-limit, com o valor
+# dado. Zero ou dois --pids-limit reprovam; o piso (pelo menos um docker run) também reprova, como em todos_levam (L-36).
+um_pids_por_run() {
+    local log="$1" valor="$2" total com duplas
+    total=$(grep '^docker run ' "$log.docker" 2>/dev/null | grep -c -F 'notalivre/build-' || true)
+    com=$(grep '^docker run ' "$log.docker" 2>/dev/null | grep -F 'notalivre/build-' | grep -c -F -- "--pids-limit $valor " || true)
+    duplas=$(grep '^docker run ' "$log.docker" 2>/dev/null | grep -F 'notalivre/build-' | grep -c -- '--pids-limit .*--pids-limit ' || true)
+    [ "${total:-0}" -gt 0 ] && [ "${com:-0}" = "$total" ] && [ "${duplas:-0}" = 0 ]
+}
 # Destinos das montagens (-v origem:destino[:opções]) do primeiro docker run que contém MARCA, ordenados, separados por espaço.
 # Lista fechada (L-17): uma montagem a mais (a árvore de quem chama, por exemplo) muda a lista e reprova o caso.
 montagens_de() {
@@ -116,25 +125,25 @@ pacote_tem() {
 # Caso normal, sem NL_SEM_CORE: nenhuma cota de arnês, e a etapa 2 de executar foi alcançada.
 build "$BASE/normal.log" -- fedora45 debug
 if [ "$(total_runs "$BASE/normal.log.docker")" -gt 0 ] && nenhum_leva "$BASE/normal.log" "--ulimit " \
-    && nenhum_leva "$BASE/normal.log" "--pids-limit " \
+    && um_pids_por_run "$BASE/normal.log" 400 \
     && grep -q -F 'executar_no_conteiner.sh debug' "$BASE/normal.log.docker"; then
-    ok "normal sem NL_SEM_CORE: zero --ulimit e zero --pids-limit, etapa 2 alcançada"
+    ok "normal sem NL_SEM_CORE: zero --ulimit, exatamente um --pids-limit 400 por docker run, etapa 2 alcançada"
 else
-    falha "normal sem NL_SEM_CORE: esperava zero cota de arnês e a etapa 2 (rc=$?)"
+    falha "normal sem NL_SEM_CORE: esperava zero --ulimit, um --pids-limit 400 por docker run e a etapa 2 (rc=$?)"
 fi
 
-# Caso normal com NL_SEM_CORE=1: todo docker run leva core=1 e nenhum leva pids-limit.
+# Caso normal com NL_SEM_CORE=1: todo docker run leva core=1 e exatamente um --pids-limit 400 (teto duro, v3.11).
 build "$BASE/semcore.log" NL_SEM_CORE=1 -- fedora45 debug
-if todos_levam "$BASE/semcore.log" "--ulimit core=1 " && nenhum_leva "$BASE/semcore.log" "--pids-limit "; then
-    ok "normal com NL_SEM_CORE=1: todo docker run leva --ulimit core=1"
+if todos_levam "$BASE/semcore.log" "--ulimit core=1 " && um_pids_por_run "$BASE/semcore.log" 400; then
+    ok "normal com NL_SEM_CORE=1: todo docker run leva --ulimit core=1 e um --pids-limit 400"
 else
-    falha "normal com NL_SEM_CORE=1: esperava --ulimit core=1 em todo docker run e nenhum --pids-limit"
+    falha "normal com NL_SEM_CORE=1: esperava --ulimit core=1 e um --pids-limit 400 em todo docker run"
 fi
 
 # Caso ensaio: core=1 e pids-limit 512 em todo docker run, mesmo sem NL_SEM_CORE; corpo copiado e com hash no log.
 build "$BASE/ensaio.log" NL_ENSAIO='transporte.exemplo:3' -- ensaio fedora45 debug
 rc_ensaio=$?
-if [ "$rc_ensaio" = 0 ] && todos_levam "$BASE/ensaio.log" "--ulimit core=1 " && todos_levam "$BASE/ensaio.log" "--pids-limit 512 " \
+if [ "$rc_ensaio" = 0 ] && todos_levam "$BASE/ensaio.log" "--ulimit core=1 " && um_pids_por_run "$BASE/ensaio.log" 512 \
     && grep -q -F '/ensaio/ensaio_no_conteiner.sh' "$BASE/ensaio.log.docker" \
     && grep -q -E '^NL-ENSAIO-CORPO-SHA256=[0-9a-f]{64}$' "$BASE/ensaio.log"; then
     ok "ensaio sem NL_SEM_CORE: todo docker run leva --ulimit core=1 e --pids-limit 512, corpo com hash no log"
@@ -159,7 +168,7 @@ fi
 
 # Caso ensaio com NL_SEM_CORE=0 exportado: o modo ensaio força core=1 de qualquer jeito.
 build "$BASE/ensaio0.log" NL_SEM_CORE=0 NL_ENSAIO='transporte.exemplo:3' -- ensaio fedora45 debug
-if todos_levam "$BASE/ensaio0.log" "--ulimit core=1 " && todos_levam "$BASE/ensaio0.log" "--pids-limit 512 "; then
+if todos_levam "$BASE/ensaio0.log" "--ulimit core=1 " && um_pids_por_run "$BASE/ensaio0.log" 512; then
     ok "ensaio com NL_SEM_CORE=0: core=1 forçado"
 else
     falha "ensaio com NL_SEM_CORE=0: esperava core=1 forçado em todo docker run"
@@ -167,12 +176,12 @@ fi
 
 # Caso mutante-mtls: core=1 em todo docker run, sem pids-limit, e o comando de mutante na etapa 2.
 build "$BASE/mutante.log" NL_SHA="$SHA" -- mutante-mtls fedora45
-if todos_levam "$BASE/mutante.log" "--ulimit core=1 " && nenhum_leva "$BASE/mutante.log" "--pids-limit " \
+if todos_levam "$BASE/mutante.log" "--ulimit core=1 " && um_pids_por_run "$BASE/mutante.log" 400 \
     && grep -q -F 'mutante_no_conteiner.sh /gitrepo' "$BASE/mutante.log.docker" \
     && grep -q -F ':/extrator:ro,z' "$BASE/mutante.log.docker"; then
-    ok "mutante-mtls: core=1 em todo docker run, sem pids-limit, corpo do mutante na etapa 2"
+    ok "mutante-mtls: core=1 e um --pids-limit 400 em todo docker run, corpo do mutante na etapa 2"
 else
-    falha "mutante-mtls: esperava core=1, nenhum pids-limit e mutante_no_conteiner.sh /gitrepo na etapa 2"
+    falha "mutante-mtls: esperava core=1, um --pids-limit 400 por docker run e mutante_no_conteiner.sh /gitrepo na etapa 2"
 fi
 # A-I1a (I1 da revisão): o hash do blob do SHA vai ao log e ao contêiner (igual ao do blob da fixture, que difere do da
 # árvore), o hash do corpo do mutante é o do arquivo da árvore, e as montagens da etapa 2 são exatamente a lista fechada.
@@ -268,7 +277,7 @@ caso_invalido "nome com colchete" 'transporte[a]:3' debug A-C5e
 printf '0-15\n' > "$BASE/online15"
 printf '0-3\n' > "$BASE/online3"
 cpuset_em_todos() { todos_levam "$1" "--cpuset-cpus $2 --cpus "; }
-cotas_no_log() { grep -q -x -F "NL-COTAS=threads=7 memoria=12g cpuset=$2" "$1"; }
+cotas_no_log() { grep -q -x -F "NL-COTAS=threads=7 memoria=12g cpuset=$2 pids=$3" "$1"; }
 sha_na_linha_1() { [ "$(head -n 1 "$1" | cut -c1-5)" = 'SHA: ' ]; }
 sem_online_arq_no_conteiner() { [ "$(grep -c -F 'NL_CPUS_ONLINE_ARQ' "$1.docker" || true)" = 0 ]; }
 
@@ -276,7 +285,7 @@ sem_online_arq_no_conteiner() { [ "$(grep -c -F 'NL_CPUS_ONLINE_ARQ' "$1.docker"
 build "$BASE/cp1.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" -- fedora45 debug
 rc=$?
 if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp1.log.docker")" -gt 0 ] && nenhum_leva "$BASE/cp1.log" '--cpuset-cpus' \
-    && cotas_no_log "$BASE/cp1.log" todas && sha_na_linha_1 "$BASE/cp1.log" \
+    && cotas_no_log "$BASE/cp1.log" todas 400 && sha_na_linha_1 "$BASE/cp1.log" \
     && grep -q -F 'executar_no_conteiner.sh debug' "$BASE/cp1.log.docker" && sem_online_arq_no_conteiner "$BASE/cp1.log"; then
     ok "CP1 normal, online 0-15: nenhum docker run leva --cpuset-cpus, NL-COTAS cpuset=todas, etapa 2 alcançada"
 else
@@ -286,7 +295,7 @@ fi
 build "$BASE/cp2.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" NL_ENSAIO='transporte.exemplo:3' -- ensaio fedora45 debug
 rc=$?
 if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp2.log.docker")" -gt 0 ] && nenhum_leva "$BASE/cp2.log" '--cpuset-cpus' \
-    && cotas_no_log "$BASE/cp2.log" todas && sha_na_linha_1 "$BASE/cp2.log" \
+    && cotas_no_log "$BASE/cp2.log" todas 512 && sha_na_linha_1 "$BASE/cp2.log" \
     && grep -q -F '/ensaio/ensaio_no_conteiner.sh' "$BASE/cp2.log.docker"; then
     ok "CP2 ensaio, online 0-15: nenhum docker run leva --cpuset-cpus, NL-COTAS cpuset=todas"
 else
@@ -295,7 +304,7 @@ fi
 build "$BASE/cp3.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" NL_SHA="$SHA" -- mutante-mtls fedora45
 rc=$?
 if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp3.log.docker")" -gt 0 ] && nenhum_leva "$BASE/cp3.log" '--cpuset-cpus' \
-    && cotas_no_log "$BASE/cp3.log" todas && sha_na_linha_1 "$BASE/cp3.log" \
+    && cotas_no_log "$BASE/cp3.log" todas 400 && sha_na_linha_1 "$BASE/cp3.log" \
     && grep -q -F 'mutante_no_conteiner.sh /gitrepo' "$BASE/cp3.log.docker"; then
     ok "CP3 mutante-mtls, online 0-15: nenhum docker run leva --cpuset-cpus, NL-COTAS cpuset=todas"
 else
@@ -305,7 +314,7 @@ fi
 build "$BASE/cp4.log" NL_CPUS_ONLINE_ARQ="$BASE/online3" -- fedora45 debug
 rc=$?
 if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp4.log.docker")" -gt 0 ] && nenhum_leva "$BASE/cp4.log" '--cpuset-cpus' \
-    && cotas_no_log "$BASE/cp4.log" todas && sha_na_linha_1 "$BASE/cp4.log"; then
+    && cotas_no_log "$BASE/cp4.log" todas 400 && sha_na_linha_1 "$BASE/cp4.log"; then
     ok "CP4 normal, online 0-3: zero --cpuset-cpus, cpuset=todas, linha 1 SHA:"
 else
     falha "CP4 normal, online 0-3: esperava rc 0, zero --cpuset-cpus, cpuset=todas e linha 1 SHA: (rc=$rc)"
@@ -314,7 +323,7 @@ fi
 build "$BASE/cp5.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" NL_CPUSET=todas -- fedora45 debug
 rc=$?
 if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp5.log.docker")" -gt 0 ] && nenhum_leva "$BASE/cp5.log" '--cpuset-cpus' \
-    && cotas_no_log "$BASE/cp5.log" todas && sha_na_linha_1 "$BASE/cp5.log"; then
+    && cotas_no_log "$BASE/cp5.log" todas 400 && sha_na_linha_1 "$BASE/cp5.log"; then
     ok "CP5 normal, NL_CPUSET=todas: zero --cpuset-cpus, cpuset=todas, linha 1 SHA:"
 else
     falha "CP5 normal, NL_CPUSET=todas: esperava rc 0, zero --cpuset-cpus, cpuset=todas e a linha 1 SHA: (rc=$rc)"
@@ -324,7 +333,7 @@ fi
 build "$BASE/cp10.log" NL_CPUS_ONLINE_ARQ="$BASE/nao-existe-online" -- fedora45 debug
 rc=$?
 if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp10.log.docker")" -gt 0 ] && nenhum_leva "$BASE/cp10.log" '--cpuset-cpus' \
-    && cotas_no_log "$BASE/cp10.log" todas && sha_na_linha_1 "$BASE/cp10.log" \
+    && cotas_no_log "$BASE/cp10.log" todas 400 && sha_na_linha_1 "$BASE/cp10.log" \
     && [ "$(grep -c -F 'nao-existe-online' "$BASE/cp10.log" || true)" = 0 ]; then
     ok "CP10 normal, arquivo de CPUs ausente: rc 0, zero --cpuset-cpus, cpuset=todas, sem erro de shell no log"
 else
@@ -333,7 +342,7 @@ fi
 # CP6: lista explícita válida, sem CPU reservada: vale a lista em todo docker run.
 build "$BASE/cp6.log" NL_CPUS_ONLINE_ARQ="$BASE/online15" NL_CPUSET=8-11 -- fedora45 debug
 rc=$?
-if [ "$rc" = 0 ] && cpuset_em_todos "$BASE/cp6.log" 8-11 && cotas_no_log "$BASE/cp6.log" 8-11 && sha_na_linha_1 "$BASE/cp6.log"; then
+if [ "$rc" = 0 ] && cpuset_em_todos "$BASE/cp6.log" 8-11 && cotas_no_log "$BASE/cp6.log" 8-11 400 && sha_na_linha_1 "$BASE/cp6.log"; then
     ok "CP6 normal, NL_CPUSET=8-11: todo docker run leva --cpuset-cpus 8-11 antes de --cpus"
 else
     falha "CP6 normal, NL_CPUSET=8-11: esperava --cpuset-cpus 8-11 em todo docker run e NL-COTAS cpuset=8-11 (rc=$rc)"
@@ -368,8 +377,9 @@ STUB
 chmod +x "$BASE/binqt/docker"
 build "$BASE/cp9.log" PATH="$BASE/binqt:$BASE/bin:$PATH" NL_CPUS_ONLINE_ARQ="$BASE/online15" -- qt
 rc=$?
-if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp9.log.docker")" = 3 ] && nenhum_leva "$BASE/cp9.log" '--cpuset-cpus' && sem_online_arq_no_conteiner "$BASE/cp9.log"; then
-    ok "CP9 subcomando qt, online 0-15: os 3 docker run sem --cpuset-cpus"
+if [ "$rc" = 0 ] && [ "$(total_runs "$BASE/cp9.log.docker")" = 3 ] && nenhum_leva "$BASE/cp9.log" '--cpuset-cpus' && sem_online_arq_no_conteiner "$BASE/cp9.log" \
+    && um_pids_por_run "$BASE/cp9.log" 400; then
+    ok "CP9 subcomando qt, online 0-15: os 3 docker run sem --cpuset-cpus e um --pids-limit 400 cada"
 else
     falha "CP9 subcomando qt, online 0-15: esperava 3 docker run, nenhum com --cpuset-cpus (rc=$rc, docker run=$(total_runs "$BASE/cp9.log.docker"))"
 fi
