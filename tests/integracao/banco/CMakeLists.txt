@@ -13,7 +13,9 @@ add_executable(tst_conexao_banco tst_conexao_banco.cpp)
 target_include_directories(tst_conexao_banco PRIVATE ${NL_MARIADB_INCLUDE_DIR})
 target_link_libraries(tst_conexao_banco PRIVATE Qt6::Core Qt6::Test ${NL_MARIADB_LIB} nl_warnings)
 
-foreach(slot IN ITEMS conexaoBasica)
+# Quatro conexões do critério 4 de TLS (C4', NL-3.1h): k = 4 slots, um por comportamento (sessão padrão, modo aberto,
+# modo fixado com a impressão certa e modo fixado com a impressão trocada).
+foreach(slot IN ITEMS sessaoPadrao modoAberto modoFixadoImpressaoCerta modoFixadoImpressaoTrocada)
   nl_registra_teste_qt(NAME integracao.banco.${slot} COMMAND tst_conexao_banco ${slot})
   set_tests_properties(integracao.banco.${slot} PROPERTIES
                        LABELS banco
