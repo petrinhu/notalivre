@@ -107,6 +107,7 @@
 - NL-I.329: [triage since=2026-11-18 reason=missing-info source=agent cycles=0] cAtvSN na DPS (Anexo VI v1.04.01, aba de leiaute, linha 232, e aba RN, linhas 452 a 456): N, 0-1, tamanho 2; obrigatório com opSimpNac 3 ou 4; regras bicondicionais cTribNac 16.01 <-> 10, 99.04.01 <-> 11 e 7.02/7.05 <-> 12/13. Fica para o CTO na NL-5.6: (a) zero à esquerda, que no Anexo VI é "07" e na NT 009 é "7", e decide o XSD; (b) MEI (opSimpNac 2), em que a nota do leiaute manda informar e a regra proíbe; (c) o Anexo I de Produção Restrita de 20/10/2026 sem cAtvSN, para decidir qual leiaute vale.
 - NL-I.330: [triage since=2026-11-18 reason=needs-leader-decision source=agent cycles=0] Arquivo que sobrou da pesquisa: `/var/tmp/notalivre-pesquisa/receita-nt/nfe-portal-reforma-6vT0.pdf` (NT 2025.002 v1.30, da NF-e). Apagar ou guardar é decisão do líder (ordem de 17/11/2026 23:09).
 - NL-I.331: [triage since=2026-11-18 reason=missing-info source=agent cycles=0] NL-3.1h (CTO, emenda v3.12): autotestes do Connector/C (classifica, flags, cabeçalhos) não estão em nenhum portão nem no CI. Achado da v3.12, a tratar em fatia própria (L-17, gêmeo).
+- NL-I.332: [triage since=2026-11-18 reason=missing-info source=agent cycles=0] Endurecer `tools/diagnostico/autoteste_sondar_sefin_tls.sh:34`: o `env -i` sem `bash --norc --noprofile` e sem `< /dev/null` pode levar o bash a ler o ~/.bashrc e entrar em recursão de fork (causa de um travamento da máquina em 18/11/2026, por relato da coordenação). Junto, levar o mesmo padrão a todo `env -i` futuro (L-17).
 
 ## Backlog
 
