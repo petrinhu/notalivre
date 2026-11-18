@@ -20,7 +20,8 @@ FALHAS=0
 ok() { echo "[VERDE] $1"; }
 falha() { echo "[VERMELHO] $1"; FALHAS=$((FALHAS + 1)); }
 
-# Opções fixadas no passo 6.2 da ordem v3.1 (lista única; mudança aqui exige mudança no passo 6.2 no mesmo commit).
+# Opções fixadas no passo 6.2 (v3.10: 8 opções; REMOTE_IO sai, o controle é -DWITH_CURL=OFF). Lista única: mudança aqui
+# exige mudança no módulo e no manifesto no mesmo commit.
 ESPERADAS="-DCMAKE_BUILD_TYPE=Release
 -DWITH_SSL=OPENSSL
 -DWITH_EXTERNAL_ZLIB=ON
@@ -28,8 +29,7 @@ ESPERADAS="-DCMAKE_BUILD_TYPE=Release
 -DWITH_CURL=OFF
 -DWITH_DOCS=OFF
 -DCLIENT_PLUGIN_PARSEC=OFF
--DCLIENT_PLUGIN_AUTH_GSSAPI_CLIENT=OFF
--DCLIENT_PLUGIN_REMOTE_IO=OFF"
+-DCLIENT_PLUGIN_AUTH_GSSAPI_CLIENT=OFF"
 
 # Conjunto ordenado das opções -D de um arquivo; arquivo ausente sai com rc 1 (nunca conjunto vazio silencioso).
 opcoes_de() {
@@ -37,25 +37,45 @@ opcoes_de() {
     grep -oE -- '-D[A-Z_]+=[A-Za-z0-9_]+' "$1" | sort -u
 }
 
-# F1: o script traz as 9 opções esperadas, todas, sem sobra de nome diferente.
+# Bloco do módulo mariadb-connector-c no manifesto: do "- name: mariadb-connector-c" até o próximo "- name:".
+bloco_mariadb() {
+    awk '/^  - name: mariadb-connector-c$/ { ativo = 1; next } /^  - name: / { ativo = 0 } ativo' "$1"
+}
+
+# F1: o script traz exatamente as opções esperadas, nos dois sentidos (falta e sobra).
 if conjunto_modulo="$(opcoes_de "$MODULO")"; then
-    faltam="$(printf '%s\n' "$ESPERADAS" | sort -u | comm -23 - <(printf '%s\n' "$conjunto_modulo"))"
-    if [ -z "$faltam" ]; then ok "F1 modulo_mariadb.sh traz as 9 opções fixadas"
-    else falha "F1 modulo_mariadb.sh sem opções fixadas: $(printf '%s' "$faltam" | tr '\n' ' ')"; fi
+    esperadas_ord="$(printf '%s\n' "$ESPERADAS" | sort -u)"
+    faltam="$(comm -23 <(printf '%s\n' "$esperadas_ord") <(printf '%s\n' "$conjunto_modulo"))"
+    sobram="$(comm -13 <(printf '%s\n' "$esperadas_ord") <(printf '%s\n' "$conjunto_modulo"))"
+    if [ -z "$faltam" ] && [ -z "$sobram" ]; then ok "F1 modulo_mariadb.sh traz exatamente as 8 opções fixadas"
+    else falha "F1 modulo_mariadb.sh: faltam [$(printf '%s' "$faltam" | tr '\n' ' ')] sobram [$(printf '%s' "$sobram" | tr '\n' ' ')]"; fi
 else
     falha "F1 modulo_mariadb.sh ausente: sem lista de opções do Connector/C"
     conjunto_modulo=""
 fi
 
-# F2: manifesto e script com o mesmo conjunto de opções.
-if conjunto_manifesto="$(opcoes_de "$MANIFESTO")"; then
+# F2: o bloco do módulo no manifesto tem o mesmo conjunto de opções do script (o resto do manifesto fica de fora).
+if [ -f "$MANIFESTO" ] && bloco_mariadb "$MANIFESTO" | grep -q . ; then
+    conjunto_manifesto="$(bloco_mariadb "$MANIFESTO" | grep -oE -- '-D[A-Z_]+=[A-Za-z0-9_]+' | sort -u)"
     if [ -n "$conjunto_modulo" ] && [ "$conjunto_manifesto" = "$conjunto_modulo" ]; then
-        ok "F2 manifesto e modulo_mariadb.sh têm o mesmo conjunto de opções"
+        ok "F2 bloco mariadb-connector-c do manifesto e modulo_mariadb.sh têm o mesmo conjunto de opções"
     else
         falha "F2 manifesto e modulo_mariadb.sh divergem, ou o script não tem lista"
     fi
 else
     falha "F2 manifesto Flatpak ausente ou sem o módulo mariadb-connector-c"
+fi
+
+# F4: o bloco do manifesto tem o post-install que confere os plugins proibidos e o caching_sha2_password.so.
+bloco="$(bloco_mariadb "$MANIFESTO" 2>/dev/null)"
+if printf '%s\n' "$bloco" | grep -q 'post-install:' \
+    && printf '%s\n' "$bloco" | grep -q 'parsec\.so' \
+    && printf '%s\n' "$bloco" | grep -q 'auth_gssapi_client\.so' \
+    && printf '%s\n' "$bloco" | grep -q 'remote_io\.so' \
+    && printf '%s\n' "$bloco" | grep -q 'caching_sha2_password\.so'; then
+    ok "F4 manifesto tem o post-install com os plugins proibidos e o caching_sha2_password.so"
+else
+    falha "F4 manifesto sem o post-install de conferência dos plugins"
 fi
 
 # F3: controle do comparador. Um manifesto de sandbox com WITH_SSL trocado por GNUTLS tem de dar divergência.
