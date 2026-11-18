@@ -216,12 +216,12 @@ else
     falha "A-C3a NL_MODO_ARNES=mutante no ambiente: esperava a etapa 2 normal, zero --ulimit e nenhum corpo de mutante"
 fi
 build "$BASE/c3b.log" NL_MODO_ARNES=ensaio NL_ENSAIO='transporte.exemplo:3' -- executar fedora45 debug
-if [ "$(total_runs "$BASE/c3b.log.docker")" -gt 0 ] && nenhum_leva "$BASE/c3b.log" "--ulimit " && nenhum_leva "$BASE/c3b.log" "--pids-limit " \
+if [ "$(total_runs "$BASE/c3b.log.docker")" -gt 0 ] && nenhum_leva "$BASE/c3b.log" "--ulimit " && um_pids_por_run "$BASE/c3b.log" 400 \
     && grep -q -F 'executar_no_conteiner.sh debug' "$BASE/c3b.log.docker" \
     && [ "$(grep -c -F '/ensaio/ensaio_no_conteiner.sh' "$BASE/c3b.log.docker" || true)" = 0 ]; then
-    ok "A-C3b NL_MODO_ARNES=ensaio no ambiente com executar: rodada normal, zero cota de arnês, nenhum corpo de ensaio"
+    ok "A-C3b NL_MODO_ARNES=ensaio no ambiente com executar: rodada normal, zero --ulimit, um --pids-limit 400, nenhum corpo de ensaio"
 else
-    falha "A-C3b NL_MODO_ARNES=ensaio no ambiente com executar: esperava a etapa 2 normal e nenhuma cota de arnês"
+    falha "A-C3b NL_MODO_ARNES=ensaio no ambiente com executar: esperava a etapa 2 normal, zero --ulimit e um --pids-limit 400"
 fi
 
 # O modo mutante-mtls tira o script do SHA dentro do contêiner, com o helper extrair_do_sha.sh sobre /gitrepo (o pacote
