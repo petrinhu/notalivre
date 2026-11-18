@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Autoteste do portão de funções declaradas e registradas no CTest (NL-2.20 S2, S2c, S2e e S2f; L-35, L-36).
-# Vinte e cinco casos, cada um com o veredito esperado e um trecho obrigatório da saída: positivo; falta em Qt e em
+# Vinte e sete casos, cada um com o veredito esperado e um trecho obrigatório da saída: positivo; falta em Qt e em
 # Python; sobra; varredura vazia (2 casos); exceção morta, sem motivo e válida; ctest morto por sinal; fonte sem seção;
 # linha não reconhecida; fonte ausente; registro duplicado; comando estranho; o fim da seção (S2c): lambda e classe local
 # no corpo de um slot, segunda seção private slots e rótulo de acesso; entrada do registro (S2e): item que não é objeto,
@@ -10,6 +10,7 @@
 # e as listas são gerados aqui, numa pasta temporária, e não são arquivos versionados.
 # S2f: o portão impõe um limite próprio de profundidade (64) antes do json.loads; o caso 22 não depende mais do
 # interpretador, e os casos 24 e 25 testam a borda e um passo além.
+# S2g: os casos 26 e 27 cobrem o escape dentro de texto entre aspas (aspa escapada e barra dupla).
 # Sem prova de vermelho o portão não conta.
 #
 # Uso: autoteste_funcoes_no_ctest.sh     (usa o portão da árvore onde este arquivo está)
@@ -334,8 +335,41 @@ mv "$C/ctest.json" "$C/base.json"
 rodar_com_json
 avalia 25 "profundidade_um_acima" 2 "JSON ilegivel: profundidade acima de 64"
 
+# Caso 26 (S2g): a aspa escapada não fecha o texto; os 65 colchetes ficam dentro dele.
+preparar 26
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+json_base
+mv "$C/ctest.json" "$C/base.json"
+{
+    printf '%s' '{ "fundo" : '
+    printf '%s' '"\"'
+    printf '%65s' '' | tr ' ' '['
+    printf '%s' '"'
+    printf ',\n'
+    tail -n +2 "$C/base.json"
+} > "$C/ctest.json"
+rodar_com_json
+avalia 26 "aspa_escapada_no_texto" 0 "declaradas=4 registradas=4 excecoes=0 faltam=0 sobram=0"
+
+# Caso 27 (S2g): a barra dupla não escapa a aspa seguinte; o texto fecha e os colchetes depois dele contam.
+preparar 27
+escreve_qt "$C/raiz/tests/q/tst_q.cpp" ""
+json_base
+mv "$C/ctest.json" "$C/base.json"
+{
+    printf '%s' '{ "fundo" : '
+    printf '%s' '[ "\\" , '
+    printf '%63s' '' | tr ' ' '['
+    printf '%63s' '' | tr ' ' ']'
+    printf '%s' ' ]'
+    printf ',\n'
+    tail -n +2 "$C/base.json"
+} > "$C/ctest.json"
+rodar_com_json
+avalia 27 "barra_dupla_no_texto" 2 "JSON ilegivel: profundidade acima de 64"
+
 echo "autoteste_funcoes_no_ctest: casos=$CASOS falhas=$FALHAS"
-if [ "$CASOS" -ne 25 ] || [ "$FALHAS" -ne 0 ]; then
+if [ "$CASOS" -ne 27 ] || [ "$FALHAS" -ne 0 ]; then
     exit 1
 fi
 exit 0
