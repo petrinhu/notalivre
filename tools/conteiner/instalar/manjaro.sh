@@ -10,8 +10,11 @@ pacman-key --populate archlinux manjaro
 pacman -Syu --noconfirm --needed \
     gcc cmake ninja pkgconf git python python-pip openssl \
     mesa libglvnd libxkbcommon libx11 fontconfig freetype2 dbus glib2 krb5 brotli libxml2 \
-    zlib libsodium xmlsec
+    zlib libsodium xmlsec mariadb-libs
 pacman -Scc --noconfirm
+
+# Cliente MariaDB (NL-3.1h, passo 6.3): o pacote mariadb-libs da distro (liga em OpenSSL 4, FATO). Sem o módulo do
+# Connector/C aqui; a divergência de OpenSSL vai ao CISO como achado da distro (v3.5 seção 1.2).
 
 # xmlsec (pacote do Arch/Manjaro) traz o binário xmlsec1, oráculo de linha de comando dos testes (NL-2.0, DA-2.1).
 # Não entra no app nem no Flatpak.

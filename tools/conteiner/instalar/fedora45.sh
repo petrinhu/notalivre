@@ -13,8 +13,16 @@ dnf -y install --setopt=install_weak_deps=False \
     freetype-devel libX11-devel dbus-libs krb5-libs \
     libxml2-devel libxml2 \
     zlib-ng-compat-devel libsodium-devel \
+    mariadb-connector-c-devel \
     xmlsec1 xmlsec1-openssl
 dnf clean all
+
+# Cliente MariaDB (NL-3.1h, passo 6.3): o pacote da distro traz os cabeçalhos; o módulo compila e instala o Connector/C
+# 3.4.11 da fonte canônica por cima, com a lista única de opções. Dentro da imagem o módulo fica ao lado de instalar.sh
+# (COPY do Dockerfile); no CI, em tools/conteiner/modulo_mariadb.sh.
+MODULO=/opt/nl/modulo_mariadb.sh
+[ -f "$MODULO" ] || MODULO="$(dirname "$0")/../modulo_mariadb.sh"
+bash "$MODULO"
 
 # xmlsec1 (NL-2.0, DA-2.1): oráculo de linha de comando dos testes (xmlsec1 --verify). Não entra no app nem no Flatpak.
 

@@ -6,6 +6,7 @@
 FROM fedora@sha256:a7d72ba2745b100a3351087472e5ee7b2450af7cf331e7673007e3817612839c
 
 COPY instalar/fedora45.sh /opt/nl/instalar.sh
+COPY modulo_mariadb.sh /opt/nl/modulo_mariadb.sh
 RUN bash /opt/nl/instalar.sh && rm -rf /opt/nl
 
 ENV PATH=/opt/aqt/bin:$PATH
