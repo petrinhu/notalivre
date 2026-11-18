@@ -306,14 +306,20 @@ executar()
     trap 'echo "NL-RC=$?"' EXIT
     # Reserva de CPUs (NL-3.0j): depois da linha "SHA:", antes de validar_arnes, da trava e de qualquer docker run.
     resolver_cpuset || return 2
-    printf 'NL-COTAS=threads=%s memoria=%s cpuset=%s\n' "$THREADS" "$NL_MEMORIA" "$CPUSET"
+    # NL-3.1h (v3.11): o ensaio troca o --pids-limit do vetor por 512 (exceção do líder de 10/11/2026, pendente de decisão).
+    if [ "$MODO_ARNES" = ensaio ]; then
+        NL_COTAS_DOCKER=("${NL_COTAS_DOCKER_SEM_PIDS[@]}" --pids-limit 512)
+        NL_COTA_PIDS_EFETIVO=512
+    fi
+    printf 'NL-COTAS=threads=%s memoria=%s cpuset=%s pids=%s\n' "$THREADS" "$NL_MEMORIA" "$CPUSET" "$NL_COTA_PIDS_EFETIVO"
     validar_arnes "$preset" || return 2
     validar_mutante "$sha" || return 2
-    # Cotas de contêiner do arnês (NL-3.0j): o ensaio força core=1 e --pids-limit 512 em todo docker run; mutante e
+    # Cotas de contêiner do arnês (NL-3.0j): o ensaio força core=1 em todo docker run e troca o --pids-limit do vetor por 512
+    # (NL-3.1h, v3.11); mutante e
     # rodada normal levam só core=1 (o mutante sempre, a rodada normal com NL_SEM_CORE=1).
     local -a extras_arnes=()
     if [ "$MODO_ARNES" = ensaio ]; then
-        extras_arnes=(--ulimit core=1 --pids-limit 512)
+        extras_arnes=(--ulimit core=1)
     elif [ -n "$MODO_ARNES" ] || [ "${NL_SEM_CORE:-}" = 1 ]; then
         extras_arnes=(--ulimit core=1)
     fi
@@ -345,7 +351,7 @@ executar()
     # ele chama o próprio build_local (recursão) e usa um docker de mentira no PATH, que não existe no contêiner. Roda
     # no job autotestes do ci.yml.
     local autoteste
-    for autoteste in tools/conteiner/autoteste_piso_portoes.sh flatpak/autoteste_suite_flatpak.sh tools/portoes/autoteste_pulos_testes.sh tools/portoes/autoteste_fora_do_flatpak.sh tools/portoes/autoteste_funcoes_no_ctest.sh; do
+    for autoteste in tools/conteiner/autoteste_piso_portoes.sh flatpak/autoteste_suite_flatpak.sh tools/portoes/autoteste_pulos_testes.sh tools/portoes/autoteste_fora_do_flatpak.sh tools/portoes/autoteste_funcoes_no_ctest.sh tools/conteiner/autoteste_paralelo_conteiner.sh; do
         if ! docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" --network none \
             --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -v "$fonte:/src:ro,z" -w /src "$imagem" \
             sh -c "mkdir -p \"\$HOME\" && bash $autoteste"; then

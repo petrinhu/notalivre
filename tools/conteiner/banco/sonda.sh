@@ -15,7 +15,7 @@ nl_banco_rodar_sonda() {
     if [ "$certificado" = disco ]; then
         pem=/run/nl/certificado_servidor.pem
     fi
-    docker run --pull=never --rm "${NL_COTAS_DOCKER[@]}" --pids-limit 128 --network "container:$servidor" \
+    docker run --pull=never --rm "${NL_COTAS_DOCKER_SEM_PIDS[@]}" --pids-limit 128 --network "container:$servidor" \
         --user 1000:1000 -v "$dir:/run/nl:ro,z" -v "$fonte:/src:ro,z" "notalivre/build-$distro:nl-2.0" \
         bash /src/tools/conteiner/impressao_servidor_banco.sh "$certificado" "$pem"
 }

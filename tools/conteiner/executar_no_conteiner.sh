@@ -23,7 +23,16 @@ if [ "$modo" = "diagnostico" ]; then
 fi
 
 : "${NL_TMP_BASE:?defina NL_TMP_BASE (no contêiner, /var/tmp)}"
-cmake --preset "$modo" && cmake --build --preset "$modo" || exit $?
+# NL-3.1h (v3.11): o build roda com --parallel explícito, vindo do build_local.sh (THREADS, de 1 a 7). Sem a variável, ou fora
+# dessa faixa, a execução para antes de qualquer cmake.
+if ! [[ "${CMAKE_BUILD_PARALLEL_LEVEL:-}" =~ ^[1-7]$ ]]; then
+    echo "PARADA: CMAKE_BUILD_PARALLEL_LEVEL '${CMAKE_BUILD_PARALLEL_LEVEL:-ausente}' fora de 1 a 7 (NL-3.1h)"
+    exit 2
+fi
+# NL-3.1h: a linha NL-PIDS sai sempre, também com build ou ctest vermelho. O trap EXIT não muda o rc do script.
+. tools/conteiner/medir_pids_conteiner.sh
+trap 'nl_pids_linha' EXIT
+cmake --preset "$modo" && cmake --build --preset "$modo" --parallel "$CMAKE_BUILD_PARALLEL_LEVEL" || exit $?
 # NL-3.0h (L-36): no preset de sanitizer, o portão prova pelo binário e pelo canário que o sanitizer e o gate estão ativos. O
 # ctest roda mesmo com o portão vermelho, para o log trazer as duas coisas.
 sanitizer_rc=0

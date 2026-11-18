@@ -32,6 +32,8 @@ import tempfile
 
 VETOR_RUN = '"${NL_COTAS_DOCKER[@]}"'
 VETOR_BUILD = '"${NL_COTAS_DOCKER_BUILD[@]}"'
+# NL-3.1h (v3.11): o vetor sem --pids-limit também é cota (CPU e memória); o --pids-limit literal vai no portão de pids.
+VETOR_RUN_SEM_PIDS = '"${NL_COTAS_DOCKER_SEM_PIDS[@]}"'
 MARCA_RUN = "@@COTA_RUN@@"
 MARCA_BUILD = "@@COTA_BUILD@@"
 PISO_RUN = 17
@@ -89,7 +91,7 @@ def conferir_texto(nome, texto):
     for numero, comando in comandos(texto):
         if comando.lstrip().startswith("#"):
             continue
-        marcado = comando.replace(VETOR_RUN, MARCA_RUN).replace(VETOR_BUILD, MARCA_BUILD)
+        marcado = comando.replace(VETOR_RUN, MARCA_RUN).replace(VETOR_RUN_SEM_PIDS, MARCA_RUN).replace(VETOR_BUILD, MARCA_BUILD)
         marcado = marcado.replace(EXCECAO_TEXTO, MARCA_EXCECAO)
         limpo = sem_aspas_e_comentario(marcado)
         for casou in RE_CHAMADA.finditer(limpo):

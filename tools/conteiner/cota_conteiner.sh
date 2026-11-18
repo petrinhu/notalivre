@@ -14,6 +14,10 @@
 NL_COTA_MEMORIA=12g
 NL_COTA_MEMORIA_MIB=12288
 
+# Teto de processos por contêiner (NL-3.1h, emenda v3.11, decisão do líder de 18/11/2026: "Aprovo 400, parar acima de 300").
+# Vale para todo docker run local, pelo vetor NL_COTAS_DOCKER. É o teto da coordenação, não um pico medido.
+NL_COTA_PIDS=400
+
 # nl_memoria_valida VALOR: imprime a memória efetiva e sai 0; sai 1 com REPROVA em stderr. VALOR vazio vale NL_COTA_MEMORIA.
 # Só passa inteiro positivo sem zero à esquerda, de até 5 dígitos, seguido de m ou g, até o teto.
 nl_memoria_valida() {
@@ -35,6 +39,18 @@ nl_memoria_valida() {
     echo "$valor"
 }
 
+# nl_pids_valido VALOR: imprime o --pids-limit efetivo e sai 0; sai 1 com REPROVA em stderr. VALOR vazio vale NL_COTA_PIDS.
+# Só passa inteiro de 1 a NL_COTA_PIDS, sem zero à esquerda e com até três dígitos.
+nl_pids_valido() {
+    local valor="${1:-}"
+    [ -n "$valor" ] || valor="$NL_COTA_PIDS"
+    if ! [[ "$valor" =~ ^[1-9][0-9]{0,2}$ ]] || [ "$valor" -gt "$NL_COTA_PIDS" ]; then
+        echo "REPROVA: NL_PIDS=$valor fora de 1 a $NL_COTA_PIDS, sem zero à esquerda" >&2
+        return 1
+    fi
+    echo "$valor"
+}
+
 # nl_cotas_docker: monta os vetores NL_COTAS_DOCKER (run) e NL_COTAS_DOCKER_BUILD (build) e os efetivos NL_COTA_CPUSET,
 # NL_COTA_THREADS e NL_COTA_MEM.
 # Lê NL_THREADS, NL_MEMORIA e NL_CPUSET. Sem NL_THREADS, o teto é NL_COTA_PADRAO, reduzido com AVISO em máquina com menos
@@ -44,8 +60,9 @@ nl_memoria_valida() {
 # Costuras só dos autotestes: NL_NPROC_TESTE (no lugar de nproc) e NL_CPUS_ONLINE_ARQ (no lugar de /sys/.../online).
 # Valor inválido: PARADA em stderr, rc 2, e o vetor fica vazio (quem chama sai antes de qualquer docker run).
 nl_cotas_docker() {
-    local online="" arq="${NL_CPUS_ONLINE_ARQ:-/sys/devices/system/cpu/online}" np threads memoria cpuset=todas
+    local online="" arq="${NL_CPUS_ONLINE_ARQ:-/sys/devices/system/cpu/online}" np threads memoria pids cpuset=todas
     NL_COTAS_DOCKER=()
+    NL_COTAS_DOCKER_SEM_PIDS=()
     NL_COTAS_DOCKER_BUILD=()
     np="${NL_NPROC_TESTE:-$(nproc --all)}"
     if [ -n "${NL_THREADS:-}" ]; then
@@ -61,6 +78,7 @@ nl_cotas_docker() {
         fi
     fi
     memoria="$(nl_memoria_valida "${NL_MEMORIA:-}")" || { echo "PARADA: NL_MEMORIA inválida" >&2; return 2; }
+    pids="$(nl_pids_valido "${NL_PIDS:-}")" || { echo "PARADA: NL_PIDS inválida" >&2; return 2; }
     if [ -n "${NL_CPUSET:-}" ]; then
         if [ -r "$arq" ]; then
             read -r online < "$arq" || true
@@ -72,6 +90,10 @@ nl_cotas_docker() {
         NL_COTAS_DOCKER_BUILD=(--cpuset-cpus "$cpuset")
     fi
     NL_COTAS_DOCKER+=(--cpus "$threads" --memory "$memoria" --memory-swap "$memoria")
+    # NL-3.1h: o vetor SEM_PIDS é o mesmo sem --pids-limit, para quem põe o próprio teto (banco). Um único --pids-limit por docker run.
+    NL_COTAS_DOCKER_SEM_PIDS=("${NL_COTAS_DOCKER[@]}")
+    NL_COTAS_DOCKER+=(--pids-limit "$pids")
+    NL_COTA_PIDS_EFETIVO="$pids"
     NL_COTAS_DOCKER_BUILD+=(--cpu-period 100000 --cpu-quota $((threads * 100000)) --memory "$memoria" --memory-swap "$memoria")
     NL_COTA_CPUSET="$cpuset"
     NL_COTA_THREADS="$threads"

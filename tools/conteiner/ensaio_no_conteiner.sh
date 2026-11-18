@@ -43,8 +43,10 @@ echo "NL-ENSAIO-SHA=${NL_ENSAIO_SHA:-ausente}"
 echo "NL-ENSAIO-LISTA=${NL_ENSAIO:-}"
 echo "ensaio veredito: o do CTest; sem regex de passe (NL-3.A), o código de saída do processo conta"
 
-grep '^Max core file size' /proc/self/limits || echo "Max core file size: linha ausente em /proc/self/limits"
-limite_core="$(awk '/^Max core file size/ {print $5 " " $6}' /proc/self/limits)"
+# NL_ENSAIO_ARQ_LIMITES é costura só do autoteste (NL-3.1h), no lugar de /proc/self/limits.
+arq_limites="${NL_ENSAIO_ARQ_LIMITES:-/proc/self/limits}"
+grep '^Max core file size' "$arq_limites" || echo "Max core file size: linha ausente em $arq_limites"
+limite_core="$(awk '/^Max core file size/ {print $5 " " $6}' "$arq_limites")"
 echo "limite de core: $limite_core (esperado 1 1)"
 if [ "$limite_core" != "1 1" ]; then
     echo "ENSAIO PARADA: RLIMIT_CORE '$limite_core', esperado '1 1' (L-36)"
@@ -81,7 +83,12 @@ for item in "${itens[@]}"; do
 done
 pedidos="${#itens[@]}"
 
-if ! cmake --preset "$preset" || ! cmake --build --preset "$preset"; then
+# NL-3.1h (v3.11): build com --parallel explícito, na mesma faixa de executar (1 a 7). Fora dela, PARADA com rc 2, antes do cmake.
+if ! [[ "${CMAKE_BUILD_PARALLEL_LEVEL:-}" =~ ^[1-7]$ ]]; then
+    echo "ENSAIO PARADA: CMAKE_BUILD_PARALLEL_LEVEL '${CMAKE_BUILD_PARALLEL_LEVEL:-ausente}' fora de 1 a 7 (NL-3.1h)"
+    exit 2
+fi
+if ! cmake --preset "$preset" || ! cmake --build --preset "$preset" --parallel "$CMAKE_BUILD_PARALLEL_LEVEL"; then
     echo "ENSAIO PARADA: configure ou build reprovou"
     exit 3
 fi

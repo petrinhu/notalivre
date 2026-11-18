@@ -17,7 +17,7 @@ nl_banco_subir_servidor() {
         *) return 1 ;;
     esac
     NL_THREADS=1 NL_MEMORIA=2g nl_cotas_docker || return 2
-    docker run --pull=never -d --rm "${NL_COTAS_DOCKER[@]}" --pids-limit 512 --network none --name "$3" \
+    docker run --pull=never -d --rm "${NL_COTAS_DOCKER_SEM_PIDS[@]}" --pids-limit 400 --network none --name "$3" \
         -e "$var=/run/nl/senha_root" -v "$2:/run/nl:ro,z" "$img" >/dev/null
 }
 

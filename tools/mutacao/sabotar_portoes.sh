@@ -155,7 +155,7 @@ if ativo flatpak611; then
     log="$TRABALHO/flatpak611.log"
     rm -rf "$d/.fb-build" "$d/.fb-state" "$d/.fb-repo"
     if [ "$MODO" = docker ]; then
-        docker run --rm --privileged -v "$d:/src:z" -w /src "$FLATHUB_KDE" \
+        docker run --rm --privileged --pids-limit 400 -v "$d:/src:z" -w /src "$FLATHUB_KDE" \
             flatpak-builder --disable-rofiles-fuse --force-clean --state-dir=/src/.fb-state --repo=/src/.fb-repo \
             /src/.fb-build /src/flatpak/io.github.petrinhu.notalivre.yml > "$log" 2>&1
     else
