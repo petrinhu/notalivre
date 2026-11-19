@@ -16,6 +16,7 @@
 #   C7  sem NL_FATIA o build para com rc 2, a mensagem "PARADA: NL_FATIA obrigatória" e sem chamar o docker.
 #   C8  build de imagem registra "SHA: <sha> fatia=imagem" na linha 1, NL-RC no fim, e o verificador reprova (sem manifesto).
 #   C9  concorrência: dois executar e dois imagem em paralelo nunca têm contêineres sobrepostos (marcas S/E do stub).
+#   C12 o docker run de build (etapa 2, executar_no_conteiner.sh) leva --network none, uma vez só (NL-3.1h, v3.14).
 # O docker é um STUB que só registra as chamadas (e, em C9, marca início e fim com sleep). Nenhum contêiner sobe aqui.
 # Usa NL_TMP_BASE próprio, nunca a trava real /var/tmp/notalivre-heavy.lock. A fixture não dispara hooks do git.
 # Uso: autoteste_build_sha.sh
@@ -190,6 +191,16 @@ if grep -q -- '-e NL_XSD_ZIP_CACHE=/xsd-cache' "$BASE/t0.docker" 2>/dev/null \
     ok "C5 cache do XSD montado e exportado ao contêiner"
 else
     falha "C5 NL_XSD_ZIP_CACHE não chegou ao contêiner (docker run sem -e nem -v do cache)"
+fi
+
+# --- C12: o docker run de build (etapa 2) roda sem rede (NL-3.1h, v3.14) ---
+# A linha do stub com "executar_no_conteiner.sh debug" é a do build: tem de haver uma só, com --network none uma vez.
+n_build=$(grep -c -- 'executar_no_conteiner.sh debug' "$BASE/t0.docker" 2>/dev/null || true)
+n_rede=$(grep -- 'executar_no_conteiner.sh debug' "$BASE/t0.docker" 2>/dev/null | grep -o -- '--network none' | wc -l)
+if [ "$n_build" = 1 ] && [ "$n_rede" -eq 1 ]; then
+    ok "C12 docker run de build com --network none (build=$n_build rede=$n_rede)"
+else
+    falha "C12 docker run de build sem --network none, ou fora de uma chamada (build=$n_build rede=$n_rede)"
 fi
 
 # --- C6: xmlsec1 nos quatro scripts de instalar/ (piso: 4 analisados) ---
