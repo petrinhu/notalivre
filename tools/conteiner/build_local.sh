@@ -426,7 +426,8 @@ executar()
             corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash /extrator/mutante_no_conteiner.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build")
             ;;
     esac
-    docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" \
+    # NL-3.1h (v3.14): o build roda sem rede. O Qt vem do volume, e o ZIP do XSD vem do cache montado em /xsd-cache.
+    docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" --network none \
         --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp -e NL_DISTRO="$distro" \
         -e CMAKE_PREFIX_PATH="$QT_PREFIXO" -e CMAKE_BUILD_PARALLEL_LEVEL="$THREADS" \
         -e NL_XSD_ZIP_CACHE=/xsd-cache \
