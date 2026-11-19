@@ -38,6 +38,7 @@
 #   NL_CPUS_ONLINE_ARQ  só dos autotestes: arquivo no lugar de /sys/devices/system/cpu/online (nunca vai ao contêiner).
 #   NL_XSD_ZIP_CACHE  diretório no host com o ZIP do XSD (padrão: $NL_TMP_BASE/notalivre-xsd-cache). É montado no
 #                     contêiner em /xsd-cache e exportado como NL_XSD_ZIP_CACHE; o CMake do third_party lê a variável.
+#                     NL-3.1h (v3.14): o docker run de build roda com --network none; o Qt vem do volume e o XSD deste cache.
 #
 # Evidência por SHA (NL-2.0): a linha 1 do log é "SHA: <40 hex> ...", e NL-MANIFESTO-SHA256 traz o hash da fonte
 # que o contêiner viu. tools/conteiner/evidencia_sha.sh verificar <log> confere o manifesto contra o commit.
@@ -426,7 +427,6 @@ executar()
             corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash /extrator/mutante_no_conteiner.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build")
             ;;
     esac
-    # NL-3.1h (v3.14): o build roda sem rede. O Qt vem do volume, e o ZIP do XSD vem do cache montado em /xsd-cache.
     docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" --network none \
         --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp -e NL_DISTRO="$distro" \
         -e CMAKE_PREFIX_PATH="$QT_PREFIXO" -e CMAKE_BUILD_PARALLEL_LEVEL="$THREADS" \

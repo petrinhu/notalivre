@@ -36,7 +36,7 @@ VETOR_BUILD = '"${NL_COTAS_DOCKER_BUILD[@]}"'
 VETOR_RUN_SEM_PIDS = '"${NL_COTAS_DOCKER_SEM_PIDS[@]}"'
 MARCA_RUN = "@@COTA_RUN@@"
 MARCA_BUILD = "@@COTA_BUILD@@"
-PISO_RUN = 17
+PISO_RUN = 21
 PISO_BUILD = 4
 RE_CHAMADA = re.compile(r"docker[ \t]+(run|build)\b")
 RE_FIM = re.compile(r"&&|\|\||;|\|")
@@ -187,7 +187,7 @@ CASOS = (
 # Valor do piso da varredura real, fixado no autoteste (NL-3.K, revisão do K2, A-4): o portão no caminho do CI (o wrapper
 # autoteste_cota_em_todo_conteiner.sh roda o --autoteste antes da varredura) reprova se PISO_RUN ou PISO_BUILD mudarem sem
 # este par mudar junto, no mesmo diff. Lançador tirado de propósito: baixar os dois juntos.
-PISO_ESPERADO = (17, 4)
+PISO_ESPERADO = (21, 4)
 # Casos do piso (NL-3.K, revisão, A-4): (nome, arquivos, (piso_run, piso_build), rc, trecho). Os de CASOS rodam com piso 0.
 CASOS_PISO = (
     ("no_piso", {"a.sh": BOM_RUN + BOM_BUILD, EXCECAO_ARQUIVO: EXC}, (2, 1), 0, "piso_run=2 piso_build=1"),

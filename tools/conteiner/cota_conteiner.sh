@@ -51,6 +51,20 @@ nl_pids_valido() {
     echo "$valor"
 }
 
+# nl_threads_padrao NPROC: teto de CPU sem NL_THREADS. NL_COTA_PADRAO, limitado a NPROC - 1 e no mínimo 1, com AVISO em
+# stderr quando reduz (NL-3.1h, v3.16: saiu de nl_cotas_docker, L-34). Imprime o teto em stdout.
+nl_threads_padrao() {
+    local np="$1" threads="$NL_COTA_PADRAO"
+    if [ "$threads" -gt $((np - 1)) ]; then
+        threads=$((np - 1))
+        if [ "$threads" -lt 1 ]; then
+            threads=1
+        fi
+        echo "AVISO: máquina com $np CPUs; teto de CPU do contêiner reduzido de $NL_COTA_PADRAO para $threads" >&2
+    fi
+    echo "$threads"
+}
+
 # nl_cotas_docker: monta os vetores NL_COTAS_DOCKER (run) e NL_COTAS_DOCKER_BUILD (build) e os efetivos NL_COTA_CPUSET,
 # NL_COTA_THREADS e NL_COTA_MEM.
 # Lê NL_THREADS, NL_MEMORIA e NL_CPUSET. Sem NL_THREADS, o teto é NL_COTA_PADRAO, reduzido com AVISO em máquina com menos
@@ -68,14 +82,7 @@ nl_cotas_docker() {
     if [ -n "${NL_THREADS:-}" ]; then
         threads="$(nl_threads_valido "$NL_THREADS" "$np")" || { echo "PARADA: NL_THREADS inválida" >&2; return 2; }
     else
-        threads="$NL_COTA_PADRAO"
-        if [ "$threads" -gt $((np - 1)) ]; then
-            threads=$((np - 1))
-            if [ "$threads" -lt 1 ]; then
-                threads=1
-            fi
-            echo "AVISO: máquina com $np CPUs; teto de CPU do contêiner reduzido de $NL_COTA_PADRAO para $threads" >&2
-        fi
+        threads="$(nl_threads_padrao "$np")"
     fi
     memoria="$(nl_memoria_valida "${NL_MEMORIA:-}")" || { echo "PARADA: NL_MEMORIA inválida" >&2; return 2; }
     pids="$(nl_pids_valido "${NL_PIDS:-}")" || { echo "PARADA: NL_PIDS inválida" >&2; return 2; }

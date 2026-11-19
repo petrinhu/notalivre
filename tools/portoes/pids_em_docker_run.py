@@ -39,7 +39,7 @@ LIMITE = 400
 PISO = 21
 # Valor do piso fixado no autoteste (NL-3.1h, v3.16; molde: cota_em_todo_conteiner.py, PISO_ESPERADO): mudar um sem o outro reprova.
 PISO_ESPERADO = 21
-RE_PIDS = re.compile(r"--pids-limit[ \t]+(\S+)")
+RE_PIDS = re.compile(r"--pids-limit(?:[ \t]+|=)(\S+)")
 
 
 def conferir_comando(trecho):
@@ -63,8 +63,9 @@ def conferir_comando(trecho):
 
 
 def conferir_texto(nome, texto):
-    """Devolve (encontrados, violações) de um arquivo. Só docker run de fora de comentário e de aspas."""
+    """Devolve (encontrados, analisados, violações) de um arquivo. Só docker run de fora de comentário e de aspas."""
     encontrados = 0
+    analisados = 0
     violacoes = []
     for numero, comando in comandos(texto):
         if comando.lstrip().startswith("#"):
@@ -80,7 +81,8 @@ def conferir_texto(nome, texto):
             trecho = resto[: fim.start()] if fim else resto
             for motivo in conferir_comando(trecho):
                 violacoes.append(f"{nome}:{numero}: {motivo}")
-    return encontrados, violacoes
+            analisados += 1
+    return encontrados, analisados, violacoes
 
 
 def arquivos_sh(raiz):
@@ -93,6 +95,7 @@ def arquivos_sh(raiz):
 def verificar(raiz, piso=PISO):
     nomes = []
     encontrados = 0
+    analisados = 0
     violacoes = []
     try:
         nomes = arquivos_sh(raiz)
@@ -105,14 +108,17 @@ def verificar(raiz, piso=PISO):
         except (OSError, UnicodeDecodeError) as erro:
             violacoes.append(f"{nome}: não lido ({erro})")
             continue
-        n, v = conferir_texto(nome, texto)
+        n, a, v = conferir_texto(nome, texto)
         encontrados += n
+        analisados += a
         violacoes += v
     if nomes and encontrados < piso:
         violacoes.append(f"abaixo do piso de varredura: encontrados={encontrados} (piso {piso})")
+    if analisados != encontrados:
+        violacoes.append(f"analisados={analisados} diferente de encontrados={encontrados}")
     for violacao in violacoes:
         print(f"VIOLACAO {violacao}")
-    print(f"encontrados={encontrados} analisados={encontrados} falharam={len(violacoes)} piso={piso} arquivos={len(nomes)}")
+    print(f"encontrados={encontrados} analisados={analisados} falharam={len(violacoes)} piso={piso} arquivos={len(nomes)}")
     if not nomes or encontrados == 0:
         print("REPROVA: varredura vazia")
         return 1
