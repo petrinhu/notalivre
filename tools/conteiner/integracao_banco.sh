@@ -110,6 +110,10 @@ executar_par() {
             if [ "$n_tls" != "$enc" ]; then
                 echo "PARADA: linhas NL-TLS (par $distro/$nome: $n_tls, esperadas $enc)"; ok=0
             fi
+            n_conector="$(awk '/^NL-CONECTOR /{ n++ } END { print n + 0 }' "$log_par")"
+            if [ "$n_conector" != "$enc" ]; then
+                echo "PARADA: linhas NL-CONECTOR (par $distro/$nome: $n_conector, esperadas $enc)"; ok=0
+            fi
             if [ "$rc_exec" -ne 0 ] || [ "$pulados" -ne 0 ] || [ "$falharam" -ne 0 ] || [ "$analisados" -eq 0 ] \
                 || [ "$enc" != "$analisados" ] || [ "$plugin" != "$metodo" ]; then
                 ok=0

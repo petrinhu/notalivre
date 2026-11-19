@@ -27,6 +27,8 @@ endforeach()
 
 add_executable(tst_conexao_banco tst_conexao_banco.cpp)
 target_include_directories(tst_conexao_banco PRIVATE ${NL_MARIADB_INCLUDE_DIR})
+# G-R do CISO (NL-3.1h, v3.18): o teste afirma, na execução, que o libmariadb carregado mora neste prefixo.
+target_compile_definitions(tst_conexao_banco PRIVATE "NL_MARIADB_PREFIXO_DO_BUILD=\"${NL_MARIADB_PREFIX}\"")
 target_link_libraries(tst_conexao_banco PRIVATE Qt6::Core Qt6::Test ${NL_MARIADB_LIB} nl_warnings)
 
 # Quatro conexões do critério 4 de TLS (C4', NL-3.1h): k = 4 slots, um por comportamento (sessão padrão, modo aberto,

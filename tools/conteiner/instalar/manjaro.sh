@@ -10,11 +10,14 @@ pacman-key --populate archlinux manjaro
 pacman -Syu --noconfirm --needed \
     gcc cmake ninja pkgconf git python python-pip openssl \
     mesa libglvnd libxkbcommon libx11 fontconfig freetype2 dbus glib2 krb5 brotli libxml2 \
-    zlib libsodium xmlsec mariadb-libs
+    zlib libsodium xmlsec mariadb-libs curl
 pacman -Scc --noconfirm
 
-# Cliente MariaDB (NL-3.1h, passo 6.3): o pacote mariadb-libs da distro (liga em OpenSSL 4, FATO). Sem o módulo do
-# Connector/C aqui; a divergência de OpenSSL vai ao CISO como achado da distro (v3.5 seção 1.2).
+# Cliente MariaDB (NL-3.1h, passo 6.3 e v3.18): o mariadb-libs da distro fica (como o libmariadb-dev no ubuntu e no mint), e o
+# módulo compila o Connector/C 3.4.11 por cima, em /usr/local (decisão do líder de 19/11/2026, "3.4.11 também no Manjaro (Recomendado)").
+MODULO=/opt/nl/modulo_mariadb.sh
+[ -f "$MODULO" ] || MODULO="$(dirname "$0")/../modulo_mariadb.sh"
+bash "$MODULO"
 
 # xmlsec (pacote do Arch/Manjaro) traz o binário xmlsec1, oráculo de linha de comando dos testes (NL-2.0, DA-2.1).
 # Não entra no app nem no Flatpak.

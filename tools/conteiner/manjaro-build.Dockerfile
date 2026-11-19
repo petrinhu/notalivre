@@ -7,6 +7,8 @@
 FROM manjarolinux/base@sha256:bbf1f1d746f28e138eea610e140d2f28cbb5b7c5da2fbff034b883527aa604e9
 
 COPY instalar/manjaro.sh /opt/nl/instalar.sh
+COPY modulo_mariadb.sh /opt/nl/modulo_mariadb.sh
+COPY classifica_configure_mariadb.sh /opt/nl/classifica_configure_mariadb.sh
 RUN bash /opt/nl/instalar.sh && rm -rf /opt/nl
 
 ENV PATH=/opt/aqt/bin:$PATH

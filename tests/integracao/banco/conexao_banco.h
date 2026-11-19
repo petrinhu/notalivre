@@ -7,6 +7,7 @@
 
 #include "ambiente_banco.h"
 #include "modo_tls.h"
+#include "tls_da_sessao.h"
 
 #include <mysql.h>
 
@@ -25,12 +26,13 @@ struct ResultadoConexao {
     ConexaoBanco conexao;
     unsigned erro = 0;
     QString mensagem;
+    QString status = QStringLiteral("nd"); // MARIADB_TLS_VERIFY_STATUS lido antes do fechamento (C1 do CISO)
 };
 
 // Abre a sessão do usuário do par no servidor, com o banco base do par, no modo de TLS pedido.
 ResultadoConexao conectar(const DadosBanco &dados, const QByteArray &senha, ModoTls modo, const QByteArray &impressao)
 {
-    ResultadoConexao resultado{ConexaoBanco(mysql_init(nullptr), &mysql_close), 0, QString()};
+    ResultadoConexao resultado{ConexaoBanco(mysql_init(nullptr), &mysql_close), 0, QString(), QStringLiteral("nd")};
     if (!resultado.conexao) {
         resultado.mensagem = QStringLiteral("mysql_init falhou");
         return resultado;
@@ -42,6 +44,7 @@ ResultadoConexao conectar(const DadosBanco &dados, const QByteArray &senha, Modo
     if (!aberta) {
         resultado.erro = mysql_errno(resultado.conexao.get());
         resultado.mensagem = QString::fromUtf8(mysql_error(resultado.conexao.get()));
+        resultado.status = statusDaVerificacao(resultado.conexao.get());
         resultado.conexao.reset();
     }
     return resultado;
