@@ -33,6 +33,14 @@ fi
 . tools/conteiner/medir_pids_conteiner.sh
 trap 'nl_pids_linha' EXIT
 cmake --preset "$modo" && cmake --build --preset "$modo" --parallel "$CMAKE_BUILD_PARALLEL_LEVEL" || exit $?
+# NL-3.1h (v3.3, seção 1.3, item 3): o preset banco só configura e compila aqui. O ctest do banco roda no harness
+# integracao_banco.sh, e pulos e contagem da suíte normal não se aplicam a ele. O portão de funções segue valendo.
+if [ "$modo" = "banco" ]; then
+    banco_rc=0
+    python3 -I tools/portoes/funcoes_no_ctest.py --raiz . --build "$NL_TMP_BASE/notalivre-build/$modo" --excecoes tests/funcoes_fora_do_ctest.txt || banco_rc=$?
+    echo "NL-BANCO-BUILD: configure e build; ctest só no harness"
+    exit "$banco_rc"
+fi
 # NL-3.0h (L-36): no preset de sanitizer, o portão prova pelo binário e pelo canário que o sanitizer e o gate estão ativos. O
 # ctest roda mesmo com o portão vermelho, para o log trazer as duas coisas.
 sanitizer_rc=0

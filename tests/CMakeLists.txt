@@ -19,6 +19,12 @@ add_subdirectory(e2e)
 add_subdirectory(qml)
 add_subdirectory(tools)
 
-# Testes do banco (NL-3.1h, V-d). De propósito SEM o if(NL_TESTES_BANCO): é o V-e1, o vermelho que prova que a opção é
-# quem tira o banco da suíte normal. A opção NL_TESTES_BANCO e o if entram no commit seguinte (passo 6.5).
-add_subdirectory(integracao/banco)
+# Testes do banco (NL-3.1h). Desligados por padrão: só o preset banco liga NL_TESTES_BANCO. O Flatpak nunca registra o teste
+# do banco (NL_FLATPAK_BUILD), e a combinação dos dois é erro de configuração, não pulo silencioso.
+option(NL_TESTES_BANCO "Testes de integração com servidor de banco (só no preset banco, NL-3.1h)" OFF)
+if(NL_TESTES_BANCO AND NL_FLATPAK_BUILD)
+    message(FATAL_ERROR "NL_TESTES_BANCO é incompatível com NL_FLATPAK_BUILD: o Flatpak não registra o teste do banco")
+endif()
+if(NL_TESTES_BANCO)
+    add_subdirectory(integracao/banco)
+endif()
