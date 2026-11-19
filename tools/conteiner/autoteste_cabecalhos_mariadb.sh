@@ -9,7 +9,8 @@
 #   M5 controle positivo, layout Arch e RPM: <prefixo>/include/mysql/mysql.h e <prefixo>/lib/libmariadb.so.
 #   M6 prefixo com mysql.h e sem libmariadb.so: REPROVA com libmariadb=AUSENTE (cabeçalho e biblioteca do mesmo prefixo).
 #   M7 sem NL_MARIADB_PREFIX e sem NL_DISTRO: REPROVA com prefixo=AUSENTE (falha fechada).
-#   M8 a tabela prefixo_mariadb.txt dá /usr/local em fedora45, ubuntu26.04 e mint22.3, /usr no manjaro, e rc 1 fora dela.
+#   M8 a tabela prefixo_mariadb.txt dá /usr/local nas 4 distros (o módulo 3.4.11 em todas; decisão do líder de 19/11), e rc 1 fora dela.
+#   M9 os 4 instalar/*.sh chamam modulo_mariadb.sh, e os 4 Dockerfiles de build copiam modulo_mariadb.sh e classifica_configure_mariadb.sh.
 # Os prefixos são pastas de sandbox: o autoteste não depende do Connector/C da imagem nem do runner. Não sobe contêiner.
 # Uso: autoteste_cabecalhos_mariadb.sh
 set -u
@@ -77,9 +78,21 @@ fi
 m8="$( . "$CONTEINER/prefixo_mariadb.sh" 2>/dev/null || exit 0
        for d in fedora45 ubuntu26.04 mint22.3 manjaro; do printf '%s=%s ' "$d" "$(nl_prefixo_mariadb "$d")"; done
        nl_prefixo_mariadb xyz > /dev/null 2>&1; echo "xyz_rc=$?" )"
-esperado='fedora45=/usr/local ubuntu26.04=/usr/local mint22.3=/usr/local manjaro=/usr xyz_rc=1'
+esperado='fedora45=/usr/local ubuntu26.04=/usr/local mint22.3=/usr/local manjaro=/usr/local xyz_rc=1'
 if [ "$m8" = "$esperado" ]; then ok "M8 tabela de prefixos ($m8)"
 else falha "M8 tabela de prefixos: obtido [$m8], esperado [$esperado]"; fi
+
+# M9: o módulo 3.4.11 nas 4 imagens (piso: 4 analisados em cada lista).
+n_inst=0; n_dock=0
+for d in fedora45 ubuntu26.04 mint22.3 manjaro; do
+    grep -q 'MODULO=/opt/nl/modulo_mariadb.sh' "$CONTEINER/instalar/$d.sh" 2>/dev/null && n_inst=$((n_inst + 1))
+    if grep -q '^COPY modulo_mariadb.sh ' "$CONTEINER/$d-build.Dockerfile" 2>/dev/null \
+       && grep -q '^COPY classifica_configure_mariadb.sh ' "$CONTEINER/$d-build.Dockerfile" 2>/dev/null; then
+        n_dock=$((n_dock + 1))
+    fi
+done
+if [ "$n_inst" -eq 4 ] && [ "$n_dock" -eq 4 ]; then ok "M9 módulo do Connector/C nos 4 instalar/ e nos 4 Dockerfiles"
+else falha "M9 módulo do Connector/C: instalar=$n_inst de 4, Dockerfile=$n_dock de 4"; fi
 
 echo "FALHAS=$FALHAS"
 if [ "$FALHAS" -eq 0 ]; then

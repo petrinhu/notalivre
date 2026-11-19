@@ -12,6 +12,10 @@
 #include "modo_tls.h"
 #include "registro_tls.h"
 #include "tls_da_sessao.h"
+#include <QFile>
+#include <QFileInfo>
+#include <QIODevice>
+#include <QSet>
 
 #include <optional>
 
@@ -84,14 +88,22 @@ ArranjoBanco arranjoDoBanco()
     return arranjo;
 }
 
-// Recusa por cadeia no modo padrão (critério 4 (a) do CISO, parecer de 18/11, seção 1.5): uma das mensagens de verificação
-// do Connector/C 3.4.11 (libmariadb/ma_tls.c:151-176), menos a da impressão (o padrão não fixa) e a de revogação (sem CRL na v1).
-bool recusaPorCadeia(const QString &mensagem)
+// Caminho real do libmariadb mapeado neste processo (/proc/self/maps, canônico), ou "nd" se não houver exatamente um.
+QString bibliotecaCarregada()
 {
-    return mensagem.contains(QStringLiteral("Peer certificate is not trusted"))
-        || mensagem.contains(QStringLiteral("Peer certificate verification failed"))
-        || mensagem.contains(QStringLiteral("Hostname verification failed"))
-        || mensagem.contains(QStringLiteral("Certificate not yet valid or expired"));
+    QFile mapas(QStringLiteral("/proc/self/maps"));
+    if (!mapas.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return QStringLiteral("nd");
+    }
+    QSet<QString> caminhos;
+    const QList<QByteArray> linhas = mapas.readAll().split('\n');
+    for (const QByteArray &linha : linhas) {
+        const qsizetype barra = linha.indexOf('/');
+        if (barra >= 0 && linha.contains("/libmariadb.so")) {
+            caminhos.insert(QFileInfo(QString::fromUtf8(linha.mid(barra))).canonicalFilePath());
+        }
+    }
+    return caminhos.size() == 1 ? *caminhos.cbegin() : QStringLiteral("nd");
 }
 
 } // namespace
@@ -100,14 +112,35 @@ class TesteConexaoBanco : public QObject {
     Q_OBJECT
 
 private slots:
+    void initTestCase();
     void sessaoPadrao();
     void modoAberto();
     void modoFixadoImpressaoCerta();
     void modoFixadoImpressaoTrocada();
 };
 
+// G-R do CISO (emenda 1, 3.2): o Connector/C carregado na execução é o do cabeçalho compilado, e o arquivo real dele mora
+// no prefixo do build. A linha NL-CONECTOR sai antes das asserções, uma por processo; o harness a conta como a NL-TLS.
+void TesteConexaoBanco::initTestCase()
+{
+    const QString cabecalho = QStringLiteral(MARIADB_PACKAGE_VERSION);
+    const QString execucao = QString::fromUtf8(mysql_get_client_info());
+    const QString biblioteca = bibliotecaCarregada();
+    const QString prefixo = QFileInfo(QStringLiteral(NL_MARIADB_PREFIXO_DO_BUILD)).canonicalFilePath();
+    const QByteArray cabecalhoBytes = cabecalho.toUtf8();
+    const QByteArray execucaoBytes = execucao.toUtf8();
+    const QByteArray bibliotecaBytes = biblioteca.toUtf8();
+    const QByteArray prefixoBytes = prefixo.isEmpty() ? QByteArrayLiteral("nd") : prefixo.toUtf8();
+    qInfo("NL-CONECTOR cabecalho=%s execucao=%s biblioteca=%s prefixo=%s", cabecalhoBytes.constData(),
+          execucaoBytes.constData(), bibliotecaBytes.constData(), prefixoBytes.constData());
+    QVERIFY2(execucao == cabecalho, "libmariadb carregado com versão diferente da do cabeçalho compilado: PARADA ao CISO");
+    QVERIFY2(!prefixo.isEmpty() && biblioteca.startsWith(prefixo + QLatin1Char('/')),
+             "libmariadb carregado fora do prefixo do build: PARADA ao CISO");
+}
+
 // (a) Sem opção de TLS (registro da biblioteca): sessão com a mesma cifra nos dois lados, ou recusa 2026. Sem TLS no
-// servidor, a recusa tem de dizer "SSL is required"; com TLS no servidor, só vale a recusa por cadeia (recusaPorCadeia).
+// servidor, a recusa tem de dizer "SSL is required". Com TLS no servidor, só passa a sessão aberta com status 1 (só o bit
+// TRUST), e qualquer recusa é PARADA ao CISO (C2 da emenda 1).
 void TesteConexaoBanco::sessaoPadrao()
 {
     const auto [dados, classe, senha, falta] = arranjoDoBanco();
@@ -116,19 +149,17 @@ void TesteConexaoBanco::sessaoPadrao()
     const auto resultado = conectar(*dados, *senha, ModoTls::Padrao, QByteArray());
     registrarTls("sessaoPadrao", resultado);
     if (!resultado.conexao) {
+        QVERIFY2(*classe == Classe::Nenhum, "(a) recusa no padrão com TLS no servidor: PARADA ao CISO (status e marca na NL-TLS)");
         QCOMPARE(resultado.erro, 2026u);
-        if (*classe == Classe::Nenhum) {
-            QVERIFY2(resultado.mensagem.contains(QStringLiteral("SSL is required")),
-                     "(a) sem TLS no servidor: a recusa tem de dizer SSL is required");
-        } else {
-            QVERIFY2(recusaPorCadeia(resultado.mensagem),
-                     "(a) com TLS no servidor, a recusa do padrão tem de ser por cadeia: PARADA ao CISO");
-        }
+        QVERIFY2(resultado.mensagem.contains(QStringLiteral("SSL is required")),
+                 "(a) sem TLS no servidor: a recusa tem de dizer SSL is required");
         return;
     }
     QVERIFY2(*classe != Classe::Nenhum, "(a) sessão aberta numa classe sem TLS no servidor: PARADA");
     QVERIFY2(mesmaCifraNosDoisLados(tlsDoCliente(resultado.conexao.get()), tlsDoServidor(resultado.conexao.get())),
              "(a) os dois lados não têm a mesma cifra de TLS");
+    QVERIFY2(statusDaVerificacao(resultado.conexao.get()) == QStringLiteral("1"),
+             "(a) padrão com TLS: o status tem de ser 1, só o bit TRUST (C2 do CISO): PARADA ao CISO");
     QVERIFY2(selectUmOk(resultado.conexao.get()), "SELECT 1 falhou na sessão do par");
 }
 

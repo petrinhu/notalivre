@@ -5,10 +5,10 @@
 # (ou da linha de resultado) que o harness precisa dar, e o rc. Um caso só passa com a saída e o rc que o harness deve dar.
 # Não sobe contêiner: o docker é um de mentira no PATH. O de mentira lê a entrada do exec -i (como o docker real) e
 # responde ao que o harness pede: portão de funções, servidor, prontidão, conta, plugin, versão, sonda e executor.
-# Casos (17): servidor ausente; zero testes banco; build sem NL_TESTES_BANCO; junitxml do par anterior; junitxml com
+# Casos (18): servidor ausente; zero testes banco; build sem NL_TESTES_BANCO; junitxml do par anterior; junitxml com
 # skipped; limpeza em falha; docker run sem o vetor da cota; par fora da matriz; arquivo de banco/ executado direto;
 # portão de funções sem linha; portão de funções com faltam; só três linhas NL-TLS; volume do Qt ausente; classe disco
-# sem PEM; controle verde; todos com dois pares; GRANT da conta de teste.
+# sem PEM; controle verde; todos com dois pares; GRANT da conta de teste; só três linhas NL-CONECTOR.
 # Uso: autoteste_integracao_banco.sh
 set -u
 
@@ -108,6 +108,11 @@ case "$1" in
                     echo "NL-TLS conexao=$slot resultado=tls cliente=X servidor=X versao=TLSv1.3 status=0 erro=0"
                     i=$((i + 1))
                 done
+                i=0
+                while [ "$i" -lt "${STUB_LINHAS_CONECTOR:-4}" ]; do
+                    echo "NL-CONECTOR cabecalho=3.4.11 execucao=3.4.11 biblioteca=/usr/local/lib/mariadb/libmariadb.so.3 prefixo=/usr/local"
+                    i=$((i + 1))
+                done
                 [ -n "${STUB_SEM_RESUMO:-}" ] || echo "100% tests passed, 0 tests failed out of 4"
                 exit "${STUB_EXEC_RC:-0}" ;;
             *--name*) exit "${STUB_SRV_RC:-0}" ;;
@@ -134,7 +139,7 @@ novo_caso() {
     STUB_JUNIT_DIR="$BUILD/junit"
     STUB_LOG="$CASO/docker.log"
     export NL_TMP_BASE STUB_LOG STUB_JUNIT_DIR TMPDIR="$CASO/tmp" NL_FATIA=NL-3.1h NL_SHA="$SHA_FIXO"
-    unset STUB_SERVIDOR_AUSENTE STUB_VOLUME_AUSENTE STUB_JUNIT_XML STUB_SEM_JUNIT STUB_SEM_RESUMO STUB_LINHAS_TLS \
+    unset STUB_SERVIDOR_AUSENTE STUB_VOLUME_AUSENTE STUB_JUNIT_XML STUB_SEM_JUNIT STUB_SEM_RESUMO STUB_LINHAS_TLS STUB_LINHAS_CONECTOR \
         STUB_EXEC_RC STUB_SRV_RC STUB_FUNCOES_AUSENTE STUB_FUNCOES_FALTA STUB_PLUGIN STUB_PEM STUB_PEM_VAZIO
     case ":$PATH:" in *":$BASE/bin:"*) ;; *) export PATH="$BASE/bin:$PATH" ;; esac
 }
@@ -172,7 +177,7 @@ executar_caso "servidor ausente reprova" "PARADA: servidor mysql97 ausente" bash
 
 # Caso 2: zero testes banco reprova (nenhum junitxml de integracao.banco.*, nenhum resumo do executor e nenhuma linha NL-TLS).
 novo_caso zero_testes || { echo "ABORTA: caso 2"; exit 1; }
-export STUB_SEM_JUNIT=1 STUB_SEM_RESUMO=1 STUB_LINHAS_TLS=0
+export STUB_SEM_JUNIT=1 STUB_SEM_RESUMO=1 STUB_LINHAS_TLS=0 STUB_LINHAS_CONECTOR=0
 executar_caso "label banco com zero testes reprova" "encontrados=0 analisados=0" bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
 
 # Caso 3: build sem NL_TESTES_BANCO:BOOL=ON reprova (mutante 25).
@@ -242,6 +247,11 @@ novo_caso tres_linhas_tls || { echo "ABORTA: caso 11"; exit 1; }
 export STUB_LINHAS_TLS=3
 executar_caso "só três linhas NL-TLS reprovam" "PARADA: linhas NL-TLS" bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
 
+# Caso 18: só três linhas NL-CONECTOR reprovam (a G-R do CISO: uma por processo do teste, NL-3.1h v3.18).
+novo_caso tres_linhas_conector || { echo "ABORTA: caso 18"; exit 1; }
+export STUB_LINHAS_CONECTOR=3
+executar_caso "só três linhas NL-CONECTOR reprovam" "PARADA: linhas NL-CONECTOR" bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+
 # Caso 12: volume do Qt ausente reprova antes de qualquer par (docker run -v nome: criaria volume vazio).
 novo_caso volume_qt_ausente || { echo "ABORTA: caso 12"; exit 1; }
 export STUB_VOLUME_AUSENTE=1
@@ -276,8 +286,8 @@ else
 fi
 
 echo "casos=$TOTAL falharam=$FALHAS"
-if [ "$TOTAL" -ne 17 ]; then
-    echo "AUTOTESTE INTEGRACAO BANCO: contagem de casos diferente de 17"
+if [ "$TOTAL" -ne 18 ]; then
+    echo "AUTOTESTE INTEGRACAO BANCO: contagem de casos diferente de 18"
     exit 1
 fi
 if [ "$FALHAS" -eq 0 ]; then
