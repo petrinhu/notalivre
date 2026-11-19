@@ -17,6 +17,7 @@
 #   C8  build de imagem registra "SHA: <sha> fatia=imagem" na linha 1, NL-RC no fim, e o verificador reprova (sem manifesto).
 #   C9  concorrência: dois executar e dois imagem em paralelo nunca têm contêineres sobrepostos (marcas S/E do stub).
 #   C12 o docker run de build (etapa 2, executar_no_conteiner.sh) leva --network none, uma vez só (NL-3.1h, v3.14).
+#   C13 os 6 docker run dos autotestes de estreia (laço de build_local.sh) levam --network none (NL-3.1h, v3.16).
 # O docker é um STUB que só registra as chamadas (e, em C9, marca início e fim com sleep). Nenhum contêiner sobe aqui.
 # Usa NL_TMP_BASE próprio, nunca a trava real /var/tmp/notalivre-heavy.lock. A fixture não dispara hooks do git.
 # Uso: autoteste_build_sha.sh
@@ -201,6 +202,17 @@ if [ "$n_build" = 1 ] && [ "$n_rede" -eq 1 ]; then
     ok "C12 docker run de build com --network none (build=$n_build rede=$n_rede)"
 else
     falha "C12 docker run de build sem --network none, ou fora de uma chamada (build=$n_build rede=$n_rede)"
+fi
+
+# --- C13: os docker run dos autotestes de estreia rodam sem rede (NL-3.1h, v3.16) ---
+# O 6 é o mesmo do piso do C9: autoteste novo no laço de build_local.sh sobe os dois no mesmo commit.
+n_auto=$(grep -cE -- 'bash (tools/conteiner|tools/portoes|flatpak)/autoteste_[a-z_]+\.sh' "$BASE/t0.docker" 2>/dev/null || true)
+n_auto_rede=$(grep -E -- 'bash (tools/conteiner|tools/portoes|flatpak)/autoteste_[a-z_]+\.sh' "$BASE/t0.docker" 2>/dev/null \
+    | grep -c -- '--network none' || true)
+if [ "$n_auto" = 6 ] && [ "$n_auto_rede" = 6 ]; then
+    ok "C13 autotestes de estreia com --network none (autotestes=$n_auto rede=$n_auto_rede)"
+else
+    falha "C13 autotestes de estreia sem --network none, ou fora de 6 (autotestes=$n_auto rede=$n_auto_rede)"
 fi
 
 # --- C6: xmlsec1 nos quatro scripts de instalar/ (piso: 4 analisados) ---

@@ -37,6 +37,8 @@ LIMITE = 400
 # Piso da varredura real (L-36): enumerado em 18/11/2026 pelo grep de `docker run` de todo .sh versionado, sem os trechos
 # entre aspas e os comentários. Se mudar, o autoteste reprova, e o piso sobe no mesmo diff com a enumeração na mensagem.
 PISO = 21
+# Valor do piso fixado no autoteste (NL-3.1h, v3.16; molde: cota_em_todo_conteiner.py, PISO_ESPERADO): mudar um sem o outro reprova.
+PISO_ESPERADO = 21
 RE_PIDS = re.compile(r"--pids-limit[ \t]+(\S+)")
 
 
@@ -139,6 +141,9 @@ CASOS = (
     ("literal_512_fora_da_lista", {"a.sh": "docker run --pids-limit 512 img\n"}, 1, "--pids-limit 512 fora de 1 a 400"),
     ("literal_zero", {"a.sh": "docker run --pids-limit 0 img\n"}, 1, "--pids-limit 0 fora"),
     ("dois_literais", {"a.sh": "docker run --pids-limit 100 --pids-limit 200 img\n"}, 1, "2 --pids-limit"),
+    ("vetor_com_igual", {"a.sh": 'docker run "${NL_COTAS_DOCKER[@]}" --pids-limit=512 img\n'}, 1, "duas fontes de teto"),
+    ("literal_igual_401", {"a.sh": "docker run --pids-limit=401 img\n"}, 1, "--pids-limit 401 fora de 1 a 400"),
+    ("literal_igual_valido", {"a.sh": "docker run --pids-limit=128 img\n"}, 0, "PASSA"),
     ("comentario_nao_conta", {"a.sh": "# docker run img\n" + BOM_VETOR}, 0, "PASSA"),
     ("aspas_nao_contam", {"a.sh": 'echo "docker run sem nada"\n' + BOM_VETOR}, 0, "encontrados=1"),
     ("continuacao_conta", {"a.sh": 'CONT=(docker run --pull=never \\\n  "${NL_COTAS_DOCKER[@]}" img)\n'}, 0, "encontrados=1"),
@@ -179,7 +184,12 @@ def autoteste():
             if not certo:
                 falhas += 1
                 print(texto)
-    print(f"casos={len(CASOS)} falharam={falhas}")
+    if PISO == PISO_ESPERADO:
+        print(f"--- caso piso_padrao_fixado: PISO={PISO} OK")
+    else:
+        falhas += 1
+        print(f"--- caso piso_padrao_fixado: PISO={PISO}, esperado {PISO_ESPERADO} FALHOU")
+    print(f"casos={len(CASOS) + 1} falharam={falhas}")
     return 1 if falhas or not CASOS else 0
 
 

@@ -55,6 +55,45 @@ bool selectUmOk(MYSQL *conexao)
     return true;
 }
 
+// Arranjo comum dos quatro slots (L-33, regra de 3): dados do ambiente, classe do servidor e senha do par. A primeira falta
+// vai em "falta", com a mesma mensagem que cada slot dava antes; vazia quando o arranjo está completo.
+struct ArranjoBanco {
+    std::optional<DadosBanco> dados;
+    std::optional<Classe> classe;
+    std::optional<QByteArray> senha;
+    QByteArray falta;
+};
+
+ArranjoBanco arranjoDoBanco()
+{
+    ArranjoBanco arranjo;
+    arranjo.dados = dadosDoAmbiente();
+    if (!arranjo.dados) {
+        arranjo.falta = QByteArrayLiteral("NL_BANCO_* ausente ou inválido: o teste do banco falha, nunca pula");
+        return arranjo;
+    }
+    arranjo.classe = classeDoServidor(*arranjo.dados);
+    if (!arranjo.classe) {
+        arranjo.falta = QByteArrayLiteral("classe do servidor fora da tabela (servidorTls e certificado): PARADA");
+        return arranjo;
+    }
+    arranjo.senha = senhaDoArquivo(arranjo.dados->arquivoSenha);
+    if (!arranjo.senha) {
+        arranjo.falta = QByteArrayLiteral("arquivo de senha do par ausente ou vazio");
+    }
+    return arranjo;
+}
+
+// Recusa por cadeia no modo padrão (critério 4 (a) do CISO, parecer de 18/11, seção 1.5): uma das mensagens de verificação
+// do Connector/C 3.4.11 (libmariadb/ma_tls.c:151-176), menos a da impressão (o padrão não fixa) e a de revogação (sem CRL na v1).
+bool recusaPorCadeia(const QString &mensagem)
+{
+    return mensagem.contains(QStringLiteral("Peer certificate is not trusted"))
+        || mensagem.contains(QStringLiteral("Peer certificate verification failed"))
+        || mensagem.contains(QStringLiteral("Hostname verification failed"))
+        || mensagem.contains(QStringLiteral("Certificate not yet valid or expired"));
+}
+
 } // namespace
 
 class TesteConexaoBanco : public QObject {
@@ -68,15 +107,11 @@ private slots:
 };
 
 // (a) Sem opção de TLS (registro da biblioteca): sessão com a mesma cifra nos dois lados, ou recusa 2026. Sem TLS no
-// servidor, a recusa tem de dizer "SSL is required".
+// servidor, a recusa tem de dizer "SSL is required"; com TLS no servidor, só vale a recusa por cadeia (recusaPorCadeia).
 void TesteConexaoBanco::sessaoPadrao()
 {
-    const auto dados = dadosDoAmbiente();
-    QVERIFY2(dados.has_value(), "NL_BANCO_* ausente ou inválido: o teste do banco falha, nunca pula");
-    const auto classe = classeDoServidor(*dados);
-    QVERIFY2(classe.has_value(), "classe do servidor fora da tabela (servidorTls e certificado): PARADA");
-    const auto senha = senhaDoArquivo(dados->arquivoSenha);
-    QVERIFY2(senha.has_value(), "arquivo de senha do par ausente ou vazio");
+    const auto [dados, classe, senha, falta] = arranjoDoBanco();
+    QVERIFY2(falta.isEmpty(), falta.constData());
 
     const auto resultado = conectar(*dados, *senha, ModoTls::Padrao, QByteArray());
     registrarTls("sessaoPadrao", resultado);
@@ -85,6 +120,9 @@ void TesteConexaoBanco::sessaoPadrao()
         if (*classe == Classe::Nenhum) {
             QVERIFY2(resultado.mensagem.contains(QStringLiteral("SSL is required")),
                      "(a) sem TLS no servidor: a recusa tem de dizer SSL is required");
+        } else {
+            QVERIFY2(recusaPorCadeia(resultado.mensagem),
+                     "(a) com TLS no servidor, a recusa do padrão tem de ser por cadeia: PARADA ao CISO");
         }
         return;
     }
@@ -97,12 +135,8 @@ void TesteConexaoBanco::sessaoPadrao()
 // (b) Modo aberto: sem verificação e sem obrigação. Tem de abrir sem TLS nas três classes. TLS aqui é PARADA.
 void TesteConexaoBanco::modoAberto()
 {
-    const auto dados = dadosDoAmbiente();
-    QVERIFY2(dados.has_value(), "NL_BANCO_* ausente ou inválido: o teste do banco falha, nunca pula");
-    const auto classe = classeDoServidor(*dados);
-    QVERIFY2(classe.has_value(), "classe do servidor fora da tabela (servidorTls e certificado): PARADA");
-    const auto senha = senhaDoArquivo(dados->arquivoSenha);
-    QVERIFY2(senha.has_value(), "arquivo de senha do par ausente ou vazio");
+    const auto [dados, classe, senha, falta] = arranjoDoBanco();
+    QVERIFY2(falta.isEmpty(), falta.constData());
 
     const auto resultado = conectar(*dados, *senha, ModoTls::Aberto, QByteArray());
     registrarTls("modoAberto", resultado);
@@ -118,12 +152,8 @@ void TesteConexaoBanco::modoAberto()
 // sem TLS, recusa 2026 com SSL is required.
 void TesteConexaoBanco::modoFixadoImpressaoCerta()
 {
-    const auto dados = dadosDoAmbiente();
-    QVERIFY2(dados.has_value(), "NL_BANCO_* ausente ou inválido: o teste do banco falha, nunca pula");
-    const auto classe = classeDoServidor(*dados);
-    QVERIFY2(classe.has_value(), "classe do servidor fora da tabela (servidorTls e certificado): PARADA");
-    const auto senha = senhaDoArquivo(dados->arquivoSenha);
-    QVERIFY2(senha.has_value(), "arquivo de senha do par ausente ou vazio");
+    const auto [dados, classe, senha, falta] = arranjoDoBanco();
+    QVERIFY2(falta.isEmpty(), falta.constData());
 
     const auto resultado = conectar(*dados, *senha, ModoTls::Fixado, impressaoParaFixar(*dados));
     registrarTls("modoFixadoImpressaoCerta", resultado);
@@ -144,12 +174,8 @@ void TesteConexaoBanco::modoFixadoImpressaoCerta()
 // "Fingerprint validation of peer certificate failed". Sem TLS no servidor, diz "SSL is required". Sessão aberta é PARADA.
 void TesteConexaoBanco::modoFixadoImpressaoTrocada()
 {
-    const auto dados = dadosDoAmbiente();
-    QVERIFY2(dados.has_value(), "NL_BANCO_* ausente ou inválido: o teste do banco falha, nunca pula");
-    const auto classe = classeDoServidor(*dados);
-    QVERIFY2(classe.has_value(), "classe do servidor fora da tabela (servidorTls e certificado): PARADA");
-    const auto senha = senhaDoArquivo(dados->arquivoSenha);
-    QVERIFY2(senha.has_value(), "arquivo de senha do par ausente ou vazio");
+    const auto [dados, classe, senha, falta] = arranjoDoBanco();
+    QVERIFY2(falta.isEmpty(), falta.constData());
 
     const QByteArray errada = impressaoTrocada(impressaoParaFixar(*dados));
     const auto resultado = conectar(*dados, *senha, ModoTls::Fixado, errada);

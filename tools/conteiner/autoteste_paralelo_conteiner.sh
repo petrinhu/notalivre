@@ -8,6 +8,7 @@
 #   T5  ensaio_no_conteiner.sh faz o mesmo, depois da checagem de RLIMIT_CORE e de pids.max.
 #   T6  nl_pids_linha (tools/conteiner/medir_pids_conteiner.sh) imprime NL-PIDS com os arquivos do cgroup, ou ausente;
 #       e o executar imprime a linha com o rc do build vermelho preservado.
+#   T7  no preset banco, o rc do portão de funções é o rc do script (NL-3.1h, v3.16).
 # Uso: bash tools/conteiner/autoteste_paralelo_conteiner.sh      (no contêiner; RAIZ = cwd)
 set -u
 RAIZ="$(pwd)"
@@ -57,12 +58,28 @@ if grep -q -x -F -- '--build --preset debug --parallel 5' "$BASE/cmake.argv"; th
 else
     falha "T4 executar: esperava '--build --preset debug --parallel 5' no argv do cmake (argv: $(tr '\n' '|' < "$BASE/cmake.argv"))"
 fi
-for ruim in AUSENTE "" 0 8 x; do
+for ruim in AUSENTE "" 0 8 x 10 17; do
     rodar_executar "$ruim"
     if [ "$RC" = 2 ] && ! grep -q -- '^--build' "$BASE/cmake.argv"; then
         ok "T4 executar: paralelo [$ruim] é PARADA, rc 2 e zero --build"
     else
         falha "T4 executar: paralelo [$ruim] esperava rc 2 e zero --build (rc=$RC, argv: $(tr '\n' '|' < "$BASE/cmake.argv"))"
+    fi
+done
+
+# T7: preset banco. O portão de funções (python3 de mentira, só aqui) decide o rc do script, e a linha NL-BANCO-BUILD sai.
+mkdir -p "$BASE/binpy"
+printf '#!/bin/sh\nexit "${FAKE_PY_RC:-0}"\n' > "$BASE/binpy/python3"
+chmod +x "$BASE/binpy/python3"
+for rc_py in 0 1; do
+    : > "$BASE/cmake.argv"
+    SAIDA="$(PATH="$BASE/binpy:$BASE/bin:$PATH" CMAKE_LOG="$BASE/cmake.argv" FAKE_PY_RC="$rc_py" CMAKE_BUILD_PARALLEL_LEVEL=2 \
+        NL_TMP_BASE="$BASE/tmp" TMPDIR="$BASE/tmp" bash "$RAIZ/tools/conteiner/executar_no_conteiner.sh" banco 2>&1)"
+    RC=$?
+    if [ "$RC" = "$rc_py" ] && [[ "$SAIDA" == *"NL-BANCO-BUILD: configure e build; ctest só no harness"* ]]; then
+        ok "T7 banco: portão de funções com rc $rc_py, script saiu com $RC"
+    else
+        falha "T7 banco: portão de funções com rc $rc_py, script saiu com $RC (esperado $rc_py)"
     fi
 done
 
