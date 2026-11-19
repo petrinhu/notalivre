@@ -5,10 +5,13 @@
 # (ou da linha de resultado) que o harness precisa dar, e o rc. Um caso só passa com a saída e o rc que o harness deve dar.
 # Não sobe contêiner: o docker é um de mentira no PATH. O de mentira lê a entrada do exec -i (como o docker real) e
 # responde ao que o harness pede: portão de funções, servidor, prontidão, conta, plugin, versão, sonda e executor.
-# Casos (18): servidor ausente; zero testes banco; build sem NL_TESTES_BANCO; junitxml do par anterior; junitxml com
+# Casos (24): servidor ausente; zero testes banco; build sem NL_TESTES_BANCO; junitxml do par anterior; junitxml com
 # skipped; limpeza em falha; docker run sem o vetor da cota; par fora da matriz; arquivo de banco/ executado direto;
 # portão de funções sem linha; portão de funções com faltam; só três linhas NL-TLS; volume do Qt ausente; classe disco
-# sem PEM; controle verde; todos com dois pares; GRANT da conta de teste; só três linhas NL-CONECTOR.
+# sem PEM; controle verde; todos com dois pares; GRANT da conta de teste; só três linhas NL-CONECTOR; ruído e reimpressão
+# sem número não contam; sem NL-PIDS; NL-PIDS sem número; NL-PIDS com eventos_max; corpo do executor; teto 256 do executor.
+# As linhas do executor no stub são as do log real do par (fedora45/mysql97 em 7f0986d, 19/11/2026), com o prefixo do
+# ctest --verbose e do QTest (NL-3.1h, v3.19).
 # Uso: autoteste_integracao_banco.sh
 set -u
 
@@ -102,18 +105,38 @@ case "$1" in
                         fi
                     done
                 fi
+                # Linhas reais do log do par (fedora45/mysql97, 7f0986d): o ctest --verbose prefixa "NNN: ", e o QTest
+                # prefixa "QINFO  : Classe::slot() " (dois espaços antes do dois-pontos).
                 i=0
-                for slot in sessaoPadrao modoAberto modoFixadoImpressaoCerta modoFixadoImpressaoTrocada; do
-                    [ "$i" -lt "${STUB_LINHAS_TLS:-4}" ] || break
-                    echo "NL-TLS conexao=$slot resultado=tls cliente=X servidor=X versao=TLSv1.3 status=0 erro=0"
+                while [ "$i" -lt 4 ]; do
+                    case "$i" in
+                        0) n=517; slot=sessaoPadrao; tls='resultado=tls cliente=TLS_AES_128_GCM_SHA256 servidor=TLS_AES_128_GCM_SHA256 versao=TLSv1.3 status=1 msg=nenhuma erro=0' ;;
+                        1) n=518; slot=modoAberto; tls='resultado=sem_tls cliente=nulo servidor=vazio versao=vazio status=0 msg=nenhuma erro=0' ;;
+                        2) n=519; slot=modoFixadoImpressaoCerta; tls='resultado=tls cliente=TLS_AES_128_GCM_SHA256 servidor=TLS_AES_128_GCM_SHA256 versao=TLSv1.3 status=1 msg=nenhuma erro=0' ;;
+                        *) n=520; slot=modoFixadoImpressaoTrocada; tls='resultado=recusa cliente=nulo servidor=vazio versao=vazio status=5 msg=impressao erro=2026' ;;
+                    esac
+                    echo "$n: Test command: /var/tmp/notalivre-build/banco/tests/integracao/banco/tst_conexao_banco \"-o\" \"-,txt\" \"-o\" \"/var/tmp/notalivre-build/banco/junit/integracao.banco.$slot.xml,junitxml\" \"$slot\""
+                    [ "$i" -ge "${STUB_LINHAS_CONECTOR:-4}" ] || echo "$n: QINFO  : TesteConexaoBanco::initTestCase() NL-CONECTOR cabecalho=3.4.11 execucao=3.4.11 biblioteca=/usr/local/lib/mariadb/libmariadb.so.3 prefixo=/usr/local"
+                    [ "$i" -ne 3 ] || echo "$n: QINFO  : TesteConexaoBanco::$slot() NL-TLS-MSG conexao=$slot mensagem=TLS/SSL error: Fingerprint validation of peer certificate failed"
+                    [ "$i" -ge "${STUB_LINHAS_TLS:-4}" ] || echo "$n: QINFO  : TesteConexaoBanco::$slot() NL-TLS conexao=$slot $tls"
+                    echo "$n: PASS   : TesteConexaoBanco::$slot()"
                     i=$((i + 1))
                 done
-                i=0
-                while [ "$i" -lt "${STUB_LINHAS_CONECTOR:-4}" ]; do
+                if [ -n "${STUB_RUIDO:-}" ]; then
+                    # Reimpressão sem número (a do --output-on-failure), linhas sem prefixo e ecos do harness: nada disso conta.
+                    echo "QINFO  : TesteConexaoBanco::initTestCase() NL-CONECTOR cabecalho=3.4.11 execucao=3.4.11 biblioteca=/usr/local/lib/mariadb/libmariadb.so.3 prefixo=/usr/local"
+                    echo "QINFO  : TesteConexaoBanco::sessaoPadrao() NL-TLS conexao=sessaoPadrao resultado=tls cliente=X servidor=X versao=TLSv1.3 status=1 msg=nenhuma erro=0"
+                    echo "NL-TLS conexao=sessaoPadrao resultado=tls cliente=X servidor=X versao=TLSv1.3 status=1 msg=nenhuma erro=0"
                     echo "NL-CONECTOR cabecalho=3.4.11 execucao=3.4.11 biblioteca=/usr/local/lib/mariadb/libmariadb.so.3 prefixo=/usr/local"
-                    i=$((i + 1))
-                done
+                    echo "PARADA: linhas NL-TLS (par fedora45/mysql97: 0, esperadas 4)"
+                    echo "NL-BANCO-TLS par=fedora45/mysql97 NL-TLS conexao=sessaoPadrao resultado=tls"
+                fi
                 [ -n "${STUB_SEM_RESUMO:-}" ] || echo "100% tests passed, 0 tests failed out of 4"
+                # A linha NL-PIDS só existe quando o executor roda o corpo ctest_banco_no_conteiner.sh (v3.19).
+                case "$*" in
+                    *ctest_banco_no_conteiner.sh*)
+                        [ -n "${STUB_SEM_PIDS:-}" ] || echo "${STUB_PIDS_LINHA:-NL-PIDS max=256 peak=12 eventos_max=0}" ;;
+                esac
                 exit "${STUB_EXEC_RC:-0}" ;;
             *--name*) exit "${STUB_SRV_RC:-0}" ;;
         esac
@@ -140,6 +163,7 @@ novo_caso() {
     STUB_LOG="$CASO/docker.log"
     export NL_TMP_BASE STUB_LOG STUB_JUNIT_DIR TMPDIR="$CASO/tmp" NL_FATIA=NL-3.1h NL_SHA="$SHA_FIXO"
     unset STUB_SERVIDOR_AUSENTE STUB_VOLUME_AUSENTE STUB_JUNIT_XML STUB_SEM_JUNIT STUB_SEM_RESUMO STUB_LINHAS_TLS STUB_LINHAS_CONECTOR \
+        STUB_RUIDO STUB_SEM_PIDS STUB_PIDS_LINHA \
         STUB_EXEC_RC STUB_SRV_RC STUB_FUNCOES_AUSENTE STUB_FUNCOES_FALTA STUB_PLUGIN STUB_PEM STUB_PEM_VAZIO
     case ":$PATH:" in *":$BASE/bin:"*) ;; *) export PATH="$BASE/bin:$PATH" ;; esac
 }
@@ -245,12 +269,65 @@ executar_caso "portão de funções com faltam reprova" "PARADA: portão de fun�
 # Caso 11: só três linhas NL-TLS reprovam (as quatro conexões do C4' são obrigatórias).
 novo_caso tres_linhas_tls || { echo "ABORTA: caso 11"; exit 1; }
 export STUB_LINHAS_TLS=3
-executar_caso "só três linhas NL-TLS reprovam" "PARADA: linhas NL-TLS" bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+executar_caso "só três linhas NL-TLS reprovam" "PARADA: linhas NL-TLS (par fedora45/mysql97: 3, esperadas 4)" bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
 
 # Caso 18: só três linhas NL-CONECTOR reprovam (a G-R do CISO: uma por processo do teste, NL-3.1h v3.18).
 novo_caso tres_linhas_conector || { echo "ABORTA: caso 18"; exit 1; }
 export STUB_LINHAS_CONECTOR=3
-executar_caso "só três linhas NL-CONECTOR reprovam" "PARADA: linhas NL-CONECTOR" bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+executar_caso "só três linhas NL-CONECTOR reprovam" "PARADA: linhas NL-CONECTOR (par fedora45/mysql97: 3, esperadas 4)" bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+
+# Caso 19: ruído e reimpressão sem número não contam (NL-3.1h v3.19): com 6 linhas a mais que citam NL-TLS ou NL-CONECTOR,
+# o par segue verde e com exatamente 4 linhas de cada.
+novo_caso ruido_nao_conta || { echo "ABORTA: caso 19"; exit 1; }
+export STUB_RUIDO=1
+executar_verde "ruído e reimpressão sem número não contam duas vezes" \
+    "NL-BANCO-RESUMO pares_esperados=1 executados=1 verdes=1 vermelhos=0 n_por_par=4" "NL-BANCO-PIDS par=fedora45/mysql97" \
+    bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+
+# Caso 20: sem a linha NL-PIDS do executor, o par reprova (o pico do uid 1000 é obrigatório; pedido da coordenação, v3.19).
+novo_caso sem_pids || { echo "ABORTA: caso 20"; exit 1; }
+export STUB_SEM_PIDS=1
+executar_caso "sem NL-PIDS reprova" "PARADA: linha NL-PIDS (par fedora45/mysql97: ausente ou repetida)" \
+    bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+
+# Caso 21: NL-PIDS com pico que não é número reprova (cgroup ilegível vira "ausente", nunca zero).
+novo_caso pids_sem_numero || { echo "ABORTA: caso 21"; exit 1; }
+export STUB_PIDS_LINHA='NL-PIDS max=256 peak=ausente eventos_max=0'
+executar_caso "NL-PIDS sem número reprova" "PARADA: linha NL-PIDS (par fedora45/mysql97: peak=ausente, sem número)" \
+    bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+
+# Caso 22: NL-PIDS com eventos_max acima de zero reprova (o executor bateu no teto).
+novo_caso pids_eventos || { echo "ABORTA: caso 22"; exit 1; }
+export STUB_PIDS_LINHA='NL-PIDS max=256 peak=256 eventos_max=3'
+executar_caso "NL-PIDS com eventos_max reprova" "PARADA: linha NL-PIDS (par fedora45/mysql97: eventos_max=3, o executor bateu no teto)" \
+    bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+
+# Caso 23: o corpo do executor imprime a NL-PIDS por último, também com o ctest vermelho, e devolve o rc do ctest.
+novo_caso corpo_executor || { echo "ABORTA: caso 23"; exit 1; }
+TOTAL=$((TOTAL + 1))
+mkdir -p "$CASO/ctest_bin" "$CASO/cg"
+printf '#!/bin/sh\necho "517: QINFO  : TesteConexaoBanco::sessaoPadrao() NL-TLS conexao=sessaoPadrao"\nexit 7\n' > "$CASO/ctest_bin/ctest"
+chmod +x "$CASO/ctest_bin/ctest"
+printf '256\n' > "$CASO/cg/pids.max"
+printf '31\n' > "$CASO/cg/pids.peak"
+printf 'max 0\n' > "$CASO/cg/pids.events"
+saida="$(cd "$RAIZ" && PATH="$CASO/ctest_bin:$PATH" HOME="$CASO/home" NL_ARQ_CGROUP="$CASO/cg" bash "$CONTEINER/ctest_banco_no_conteiner.sh" 2>&1)"; rc=$?
+ultima="$(printf '%s\n' "$saida" | tail -n 1)"
+if [ "$rc" -eq 7 ] && [ "$ultima" = 'NL-PIDS max=256 peak=31 eventos_max=0' ] && [ -d "$CASO/home" ]; then
+    ok "corpo do executor: NL-PIDS por último com o ctest vermelho, e o rc 7 preservado"
+else
+    falha "corpo do executor: rc=$rc (esperado 7), última linha '$ultima' (esperada 'NL-PIDS max=256 peak=31 eventos_max=0')"
+fi
+
+# Caso 24: o executor roda o corpo com bash e tem o teto de 256 do envelope da coordenação (v3.19).
+TOTAL=$((TOTAL + 1))
+n_teto="$(/usr/bin/grep -c -- '--pids-limit 256 --ulimit core=1' "$CONTEINER/banco/executor.sh" || true)"
+n_corpo="$(/usr/bin/grep -c 'bash /src/tools/conteiner/ctest_banco_no_conteiner.sh' "$CONTEINER/banco/executor.sh" || true)"
+if [ "$n_teto" = 1 ] && [ "$n_corpo" = 1 ]; then
+    ok "executor com --pids-limit 256 e o corpo ctest_banco_no_conteiner.sh (teto=$n_teto corpo=$n_corpo)"
+else
+    falha "executor: teto 256=$n_teto e corpo=$n_corpo, esperados 1 e 1"
+fi
 
 # Caso 12: volume do Qt ausente reprova antes de qualquer par (docker run -v nome: criaria volume vazio).
 novo_caso volume_qt_ausente || { echo "ABORTA: caso 12"; exit 1; }
@@ -265,13 +342,13 @@ executar_caso "classe disco sem PEM reprova" "PARADA: classe do servidor" bash "
 # Caso 14: controle verde: par certo dá rc 0, com o resumo de 1 par verde e a linha NL-BANCO-TLS.
 novo_caso controle_verde || { echo "ABORTA: caso 14"; exit 1; }
 executar_verde "controle verde: par certo fica verde" \
-    "NL-BANCO-RESUMO pares_esperados=1 executados=1 verdes=1 vermelhos=0" "NL-BANCO-TLS par=" \
+    "NL-BANCO-RESUMO pares_esperados=1 executados=1 verdes=1 vermelhos=0 n_por_par=4" "NL-BANCO-PIDS par=fedora45/mysql97 max=256 peak=12 eventos_max=0" \
     bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
 
 # Caso 15: todos na distro ubuntu26.04 (dois pares em matriz_banco.txt): os dois pares rodam e ficam verdes (achado A5).
 novo_caso todos_dois_pares || { echo "ABORTA: caso 15"; exit 1; }
 executar_verde "todos com dois pares, os dois rodam" \
-    "NL-BANCO-RESUMO pares_esperados=2 executados=2 verdes=2 vermelhos=0" "NL-BANCO-TLS par=" \
+    "NL-BANCO-RESUMO pares_esperados=2 executados=2 verdes=2 vermelhos=0 n_por_par=4" "NL-BANCO-TLS par=ubuntu26.04/mariadb118 NL-TLS conexao=sessaoPadrao resultado=tls" \
     bash "$CONTEINER/integracao_banco.sh" ubuntu26.04 todos
 
 # Caso 16: a conta de teste recebe exatamente o GRANT esperado, com a crase escapada, e o shell não executa nada.
@@ -286,8 +363,8 @@ else
 fi
 
 echo "casos=$TOTAL falharam=$FALHAS"
-if [ "$TOTAL" -ne 18 ]; then
-    echo "AUTOTESTE INTEGRACAO BANCO: contagem de casos diferente de 18"
+if [ "$TOTAL" -ne 24 ]; then
+    echo "AUTOTESTE INTEGRACAO BANCO: contagem de casos diferente de 24"
     exit 1
 fi
 if [ "$FALHAS" -eq 0 ]; then
