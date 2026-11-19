@@ -6,14 +6,14 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     exit 1
 fi
 
-# nl_banco_rodar_executor DISTRO SERVIDOR DIR FONTE BUILD: ctest --preset banco com rede do servidor, sem senha no ambiente.
+# nl_banco_rodar_executor DISTRO SERVIDOR DIR FONTE BUILD: o corpo ctest_banco_no_conteiner.sh (ctest --preset banco e a linha NL-PIDS), com rede do servidor, sem senha no ambiente, e o teto de 256 do envelope da coordenação (v3.19).
 nl_banco_rodar_executor() {
     NL_THREADS=3 NL_MEMORIA=4g nl_cotas_docker || return 2
-    docker run --pull=never --rm "${NL_COTAS_DOCKER_SEM_PIDS[@]}" --pids-limit 400 --ulimit core=1 \
+    docker run --pull=never --rm "${NL_COTAS_DOCKER_SEM_PIDS[@]}" --pids-limit 256 --ulimit core=1 \
         --network "container:$2" --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
         --env-file "$3/executor.env" -v "$3:/run/nl:ro,z" -v "$4:/src:ro,z" -v "$5:/var/tmp/notalivre-build:z" \
         -v notalivre-qt-6120:/opt/qt:ro -w /src "notalivre/build-$1:nl-2.0" \
-        sh -c 'mkdir -p "$HOME" && ctest --preset banco --no-tests=error --output-on-failure --verbose'
+        bash /src/tools/conteiner/ctest_banco_no_conteiner.sh
 }
 
 # nl_banco_rodar_portao_funcoes DISTRO FONTE BUILD: confere o registro do banco (C15') num contêiner sem rede.

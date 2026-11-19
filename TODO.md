@@ -119,6 +119,7 @@
 - NL-I.341: [triage since=2026-11-19 reason=missing-info source=agent cycles=0] NL-3.1h (CTO, v3.17): na primeira fatia de `src/` que usar o Connector/C (E2 e E3 do CISO), valem a mesma regra e o mesmo átomo: `#include <mysql.h>`, cabeçalho e biblioteca do prefixo declarado, e no Flatpak o prefixo `/app` (layout DEFAULT: `/app/include/mariadb` e `/app/lib/mariadb`, INFERÊNCIA, a medir no build Flatpak). Também: transformar a sonda v2 (`/var/tmp/notalivre-nl31h-sonda/sonda_compila_banco_v2.sh`) em portão, junto com a NL-I.333.
 - NL-I.342: [triage since=2026-11-19 reason=missing-info source=agent cycles=0] NL-3.1h (CISO, emenda 1, cosmético): o comentário de `tests/integracao/banco/ambiente_banco.h` diz que `servidorTls` é 'o servidor do par exige TLS (require_secure_transport)'; na matriz, quer dizer 'oferece TLS' (`require_secure_transport` = OFF nos 7 servidores).
 - NL-I.343: [triage since=2026-11-19 reason=missing-info source=agent cycles=0] NL-3.1h (CTO, v3.18): a sab3 (ENFORCE=1 com VERIFY=0 no padrão) não foi medida viva em 6eb7d8d (o CISO a dá como INFERÊNCIA pelo fonte); só a morte pela C2 foi exigida.
+- NL-I.344: [triage since=2026-11-19 reason=missing-info source=agent cycles=0] NL-3.1h (CTO, v3.19): a sonda (`tools/conteiner/banco/sonda.sh`, teto 128) e o portão de funções (`tools/conteiner/banco/executor.sh`, `nl_banco_rodar_portao_funcoes`, teto 256) também rodam com uid 1000 e não imprimem NL-PIDS; o pico deles não é medido. Decidir se ganham a linha, como o executor na v3.19.
 
 ## Backlog
 

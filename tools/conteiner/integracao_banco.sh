@@ -29,6 +29,7 @@ mkdir -p "$LOGS"
 . "$NL_BANCO_DIR/banco/executor.sh"
 . "$NL_BANCO_DIR/banco/resultado.sh"
 . "$NL_BANCO_DIR/banco/linhas.sh"
+. "$NL_BANCO_DIR/banco/pids.sh"
 . "$NL_BANCO_DIR/banco/certificado.sh"
 . "$NL_BANCO_DIR/banco/sonda.sh"
 
@@ -106,14 +107,18 @@ executar_par() {
             rc_exec=$?
             enc="$(awk '/tests failed out of/ { n = $NF } END { print n + 0 }' "$log_par")"
             read -r analisados pulados falharam <<<"$(nl_banco_contar_resultado "$junit")"
-            read -r n_tls linhas_tls <<<"$(awk '/^NL-TLS /{ n++; s = s (n > 1 ? " | " : "") $0 } END { print n + 0, s }' "$log_par")"
+            # NL-TLS e NL-CONECTOR chegam pelo ctest --verbose, com o prefixo "NNN: QINFO  : Classe::slot() " (log real do par,
+            # 19/11/2026). A âncora exige o prefixo inteiro: a reimpressão sem número do --output-on-failure, a NL-TLS-MSG e os
+            # ecos do harness não contam (NL-3.1h, v3.19). Colchetes em vez de barra invertida: ERE POSIX, gawk e mawk.
+            read -r n_tls linhas_tls <<<"$(awk '/^[0-9]+: QINFO  : [A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*[(][)] NL-TLS / { n++; s = s (n > 1 ? " | " : "") substr($0, index($0, "NL-TLS ")) } END { print n + 0, s }' "$log_par")"
             if [ "$n_tls" != "$enc" ]; then
                 echo "PARADA: linhas NL-TLS (par $distro/$nome: $n_tls, esperadas $enc)"; ok=0
             fi
-            n_conector="$(awk '/^NL-CONECTOR /{ n++ } END { print n + 0 }' "$log_par")"
+            n_conector="$(awk '/^[0-9]+: QINFO  : [A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*[(][)] NL-CONECTOR / { n++ } END { print n + 0 }' "$log_par")"
             if [ "$n_conector" != "$enc" ]; then
                 echo "PARADA: linhas NL-CONECTOR (par $distro/$nome: $n_conector, esperadas $enc)"; ok=0
             fi
+            nl_banco_conferir_pids "$log_par" "$distro/$nome" || ok=0
             if [ "$rc_exec" -ne 0 ] || [ "$pulados" -ne 0 ] || [ "$falharam" -ne 0 ] || [ "$analisados" -eq 0 ] \
                 || [ "$enc" != "$analisados" ] || [ "$plugin" != "$metodo" ]; then
                 ok=0
