@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# Autoteste do pré-cheque do módulo MariaDB nas imagens de build (NL-3.1h, V-b; L-35, L-36). Molde: autoteste_cabecalhos_sodium.sh.
+# Autoteste do pré-cheque do cliente MariaDB nas imagens de build (NL-3.1h, V-b e v3.17; L-35, L-36). Molde: autoteste_cabecalhos_sodium.sh.
 #   M1 cada instalar/ traz o pacote do cliente MariaDB (fedora45, ubuntu26.04, mint22.3, manjaro).
-#   M2 precheque_mariadb.sh REPROVA quando <mariadb/mysql.h> falta. O cc de sandbox usa -nostdinc e links de /usr/include
-#      sem o diretório mariadb/; a biblioteca de sandbox existe, para o caso isolar só o cabeçalho.
-#   M3 controle positivo: um cc de sandbox com um mariadb/mysql.h de uma linha e uma libmariadb.so de sandbox; o precheque aprova.
-#      Não depende do Connector/C do host nem do runner.
+#   M2 prefixo sem mysql.h: o precheque REPROVA com mariadb_h=AUSENTE.
+#   M3 controle positivo, layout DEFAULT e Debian: <prefixo>/include/mariadb/mysql.h e <prefixo>/lib/mariadb/libmariadb.so.
 #   M4 precheque_mariadb.sh é chamado pelo precheque_qt.sh (o CI e o build_local rodam precheque_qt.sh).
-# Não sobe contêiner. Uso: autoteste_cabecalhos_mariadb.sh
+#   M5 controle positivo, layout Arch e RPM: <prefixo>/include/mysql/mysql.h e <prefixo>/lib/libmariadb.so.
+#   M6 prefixo com mysql.h e sem libmariadb.so: REPROVA com libmariadb=AUSENTE (cabeçalho e biblioteca do mesmo prefixo).
+#   M7 sem NL_MARIADB_PREFIX e sem NL_DISTRO: REPROVA com prefixo=AUSENTE (falha fechada).
+#   M8 a tabela prefixo_mariadb.txt dá /usr/local em fedora45, ubuntu26.04 e mint22.3, /usr no manjaro, e rc 1 fora dela.
+# Os prefixos são pastas de sandbox: o autoteste não depende do Connector/C da imagem nem do runner. Não sobe contêiner.
+# Uso: autoteste_cabecalhos_mariadb.sh
 set -u
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -32,46 +35,36 @@ echo "M1 cliente mariadb em instalar/: analisados=$analisados falharam=$faltou"
 if [ "$analisados" -eq 4 ] && [ "$faltou" -eq 0 ]; then ok "M1 pacote do cliente MariaDB nos quatro instalar/"
 else falha "M1 pacote do cliente MariaDB ausente em $faltou de $analisados scripts"; fi
 
-# Sandbox sem o cabeçalho: links de /usr/include exceto mariadb/ e mysql.h; a biblioteca de sandbox existe.
-mkdir -p "$BASE/inc" "$BASE/lib"
-entradas=()
-while IFS= read -r e; do
-    case "$e" in mariadb|mysql.h) continue ;; esac
-    entradas+=("/usr/include/$e")
-done < <(ls -A /usr/include)
-ln -s "${entradas[@]}" "$BASE/inc/"
-: > "$BASE/lib/libmariadb.so"
-printf '#!/bin/sh\ncase "$1" in -print-file-name=*) echo "%s/${1#-print-file-name=}"; exit 0;; esac\nexec cc -nostdinc -isystem "%s" -isystem "%s" "$@"\n' \
-    "$BASE/lib" "$(cc -print-file-name=include)" "$BASE/inc" > "$BASE/cc-sem-cabecalho"
-chmod +x "$BASE/cc-sem-cabecalho"
+# Prefixos de sandbox: um mysql.h de uma linha e uma libmariadb.so vazia, nos dois layouts e nos dois casos de falta.
+mkdir -p "$BASE/deb/include/mariadb" "$BASE/deb/lib/mariadb" "$BASE/arch/include/mysql" "$BASE/arch/lib" \
+    "$BASE/sem_h/lib/mariadb" "$BASE/sem_lib/include/mariadb"
+for h in "$BASE/deb/include/mariadb" "$BASE/arch/include/mysql" "$BASE/sem_lib/include/mariadb"; do
+    printf '#define NOTALIVRE_MARIADB_SANDBOX_AUTOTESTE 1\n' > "$h/mysql.h"
+done
+: > "$BASE/deb/lib/mariadb/libmariadb.so"
+: > "$BASE/arch/lib/libmariadb.so"
+: > "$BASE/sem_h/lib/mariadb/libmariadb.so"
 
-# Sandbox com um mariadb/mysql.h de uma linha e a biblioteca de sandbox: controle positivo (M3).
-mkdir -p "$BASE/mariadb-ok/mariadb"
-printf '#define NOTALIVRE_MARIADB_SANDBOX_AUTOTESTE 1\n' > "$BASE/mariadb-ok/mariadb/mysql.h"
-printf '#!/bin/sh\ncase "$1" in -print-file-name=*) echo "%s/${1#-print-file-name=}"; exit 0;; esac\nexec cc -isystem "%s" "$@"\n' \
-    "$BASE/lib" "$BASE/mariadb-ok" > "$BASE/cc-com-cabecalho"
-chmod +x "$BASE/cc-com-cabecalho"
-
-# M2: sem o cabeçalho, o precheque reprova e cita mariadb/mysql.h.
-if [ ! -f "$CHECA" ]; then
-    falha "M2 precheque_mariadb.sh ausente"
-else
-    saida="$(CC="$BASE/cc-sem-cabecalho" bash "$CHECA" 2>&1)"; rc2=$?
-    if [ "$rc2" -ne 0 ] && [[ "$saida" == *"mariadb_h=AUSENTE"* ]] && [[ "$saida" == *"mariadb/mysql.h"* ]]; then
-        ok "M2 sem cabeçalho: precheque reprova (rc=$rc2) citando mariadb/mysql.h"
-    else
-        falha "M2 sem cabeçalho o precheque NÃO reprovou (rc=$rc2)"
+# caso NOME PREFIXO DISTRO RC TRECHO: roda o precheque sem NL_MARIADB_PREFIX e sem NL_DISTRO do ambiente, e com os dados
+# ("-" deixa a variável de fora). RC 0 exige rc 0; RC 1 exige rc diferente de 0. O trecho tem de estar na saída.
+caso() {
+    local nome="$1" prefixo="$2" distro="$3" rc_esp="$4" trecho="$5" saida rc
+    local -a amb=(env -u NL_MARIADB_PREFIX -u NL_DISTRO)
+    [ "$prefixo" = - ] || amb+=("NL_MARIADB_PREFIX=$prefixo")
+    [ "$distro" = - ] || amb+=("NL_DISTRO=$distro")
+    if [ ! -f "$CHECA" ]; then falha "$nome: precheque_mariadb.sh ausente"; return; fi
+    saida="$("${amb[@]}" bash "$CHECA" 2>&1)"; rc=$?
+    if { [ "$rc_esp" = 0 ] && [ "$rc" -eq 0 ]; } || { [ "$rc_esp" != 0 ] && [ "$rc" -ne 0 ]; }; then
+        if [[ "$saida" == *"$trecho"* ]]; then ok "$nome (rc=$rc)"; return; fi
     fi
-fi
+    falha "$nome: rc=$rc, esperado $rc_esp com '$trecho'; saída: $saida"
+}
 
-# M3: controle positivo com o cc de sandbox que tem o cabeçalho e a biblioteca.
-if [ ! -f "$CHECA" ]; then
-    falha "M3 precheque_mariadb.sh ausente"
-else
-    saida="$(CC="$BASE/cc-com-cabecalho" bash "$CHECA" 2>&1)"; rc3=$?
-    if [ "$rc3" -eq 0 ] && [[ "$saida" == *"mariadb_h=ok"* ]]; then ok "M3 cc com cabeçalho de sandbox: precheque aprova"
-    else falha "M3 cc com cabeçalho reprovado (rc=$rc3): $saida"; fi
-fi
+caso "M2 prefixo sem mysql.h reprova" "$BASE/sem_h" - 1 "mariadb_h=AUSENTE"
+caso "M3 layout include/mariadb e lib/mariadb aprova" "$BASE/deb" - 0 "mariadb_h=ok libmariadb=ok"
+caso "M5 layout include/mysql e lib aprova" "$BASE/arch" - 0 "mariadb_h=ok libmariadb=ok"
+caso "M6 prefixo sem libmariadb.so reprova" "$BASE/sem_lib" - 1 "libmariadb=AUSENTE"
+caso "M7 sem prefixo e sem distro reprova" - - 1 "prefixo=AUSENTE"
 
 # M4: a etapa que o CI e o build_local já rodam chama a checagem.
 if grep -q -- 'precheque_mariadb.sh' "$CONTEINER/precheque_qt.sh" 2>/dev/null; then
@@ -79,6 +72,14 @@ if grep -q -- 'precheque_mariadb.sh' "$CONTEINER/precheque_qt.sh" 2>/dev/null; t
 else
     falha "M4 precheque_qt.sh não chama precheque_mariadb.sh"
 fi
+
+# M8: a tabela de prefixos, pelo átomo que a lê.
+m8="$( . "$CONTEINER/prefixo_mariadb.sh" 2>/dev/null || exit 0
+       for d in fedora45 ubuntu26.04 mint22.3 manjaro; do printf '%s=%s ' "$d" "$(nl_prefixo_mariadb "$d")"; done
+       nl_prefixo_mariadb xyz > /dev/null 2>&1; echo "xyz_rc=$?" )"
+esperado='fedora45=/usr/local ubuntu26.04=/usr/local mint22.3=/usr/local manjaro=/usr xyz_rc=1'
+if [ "$m8" = "$esperado" ]; then ok "M8 tabela de prefixos ($m8)"
+else falha "M8 tabela de prefixos: obtido [$m8], esperado [$esperado]"; fi
 
 echo "FALHAS=$FALHAS"
 if [ "$FALHAS" -eq 0 ]; then

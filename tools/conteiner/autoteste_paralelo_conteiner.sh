@@ -9,6 +9,7 @@
 #   T6  nl_pids_linha (tools/conteiner/medir_pids_conteiner.sh) imprime NL-PIDS com os arquivos do cgroup, ou ausente;
 #       e o executar imprime a linha com o rc do build vermelho preservado.
 #   T7  no preset banco, o rc do portão de funções é o rc do script (NL-3.1h, v3.16).
+#   T8  no preset banco, NL_DISTRO fora de prefixo_mariadb.txt é PARADA, rc 2, sem cmake (NL-3.1h, v3.17).
 # Uso: bash tools/conteiner/autoteste_paralelo_conteiner.sh      (no contêiner; RAIZ = cwd)
 set -u
 RAIZ="$(pwd)"
@@ -73,7 +74,7 @@ printf '#!/bin/sh\nexit "${FAKE_PY_RC:-0}"\n' > "$BASE/binpy/python3"
 chmod +x "$BASE/binpy/python3"
 for rc_py in 0 1; do
     : > "$BASE/cmake.argv"
-    SAIDA="$(PATH="$BASE/binpy:$BASE/bin:$PATH" CMAKE_LOG="$BASE/cmake.argv" FAKE_PY_RC="$rc_py" CMAKE_BUILD_PARALLEL_LEVEL=2 \
+    SAIDA="$(NL_DISTRO=fedora45 PATH="$BASE/binpy:$BASE/bin:$PATH" CMAKE_LOG="$BASE/cmake.argv" FAKE_PY_RC="$rc_py" CMAKE_BUILD_PARALLEL_LEVEL=2 \
         NL_TMP_BASE="$BASE/tmp" TMPDIR="$BASE/tmp" bash "$RAIZ/tools/conteiner/executar_no_conteiner.sh" banco 2>&1)"
     RC=$?
     if [ "$RC" = "$rc_py" ] && [[ "$SAIDA" == *"NL-BANCO-BUILD: configure e build; ctest só no harness"* ]]; then
@@ -82,6 +83,17 @@ for rc_py in 0 1; do
         falha "T7 banco: portão de funções com rc $rc_py, script saiu com $RC (esperado $rc_py)"
     fi
 done
+
+# T8: preset banco sem NL_DISTRO é PARADA, rc 2, antes de qualquer cmake (o prefixo do Connector/C vem da distro).
+: > "$BASE/cmake.argv"
+SAIDA="$(env -u NL_DISTRO PATH="$BASE/binpy:$BASE/bin:$PATH" CMAKE_LOG="$BASE/cmake.argv" CMAKE_BUILD_PARALLEL_LEVEL=2 \
+    NL_TMP_BASE="$BASE/tmp" TMPDIR="$BASE/tmp" bash "$RAIZ/tools/conteiner/executar_no_conteiner.sh" banco 2>&1)"
+RC=$?
+if [ "$RC" = 2 ] && [ ! -s "$BASE/cmake.argv" ] && [[ "$SAIDA" == *"PARADA: distro"* ]]; then
+    ok "T8 banco sem NL_DISTRO: PARADA, rc 2 e zero cmake"
+else
+    falha "T8 banco sem NL_DISTRO: esperava rc 2, zero cmake e 'PARADA: distro' (rc=$RC, argv: $(tr '\n' '|' < "$BASE/cmake.argv"))"
+fi
 
 # T6a: nl_pids_linha lê max, peak e eventos_max de NL_ARQ_CGROUP; arquivo ausente vira ausente.
 . "$RAIZ/tools/conteiner/medir_pids_conteiner.sh" 2>/dev/null || true
