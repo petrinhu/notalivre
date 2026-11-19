@@ -594,6 +594,9 @@ jobs:
       - name: "Autoteste de build e evidência por SHA (NL-2.0, C10 e C11, NL-3.0g)"
         run: bash tools/conteiner/autoteste_build_sha.sh
 
+      - name: "Autoteste do V-a do banco, harness contra servidor de banco (NL-3.1h, passo 11)"
+        run: bash tools/conteiner/autoteste_integracao_banco.sh
+
       - name: "Autoteste da cópia do espelho, área privada (NL-3.E e NL-3.0g)"
         run: bash tools/espelho/autoteste_copiar_arvore.sh
 
