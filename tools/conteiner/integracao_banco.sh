@@ -105,7 +105,8 @@ executar_par() {
             nl_banco_limpar_resultado "$junit" || ok=0
             nl_banco_rodar_executor "$distro" "$cont" "$cred" "$FONTE" "$BUILD" >> "$log_par" 2>&1
             rc_exec=$?
-            enc="$(awk '/tests failed out of/ { n = $NF } END { print n + 0 }' "$log_par")"
+            # O resumo do ctest sai com ou sem ", N tests failed" (manjaro: "100% tests passed out of 4"; NL-3.1h, v3.21).
+            enc="$(awk '/ tests passed(, [0-9]+ tests failed)? out of [0-9]+$/ { n = $NF } END { print n + 0 }' "$log_par")"
             read -r analisados pulados falharam <<<"$(nl_banco_contar_resultado "$junit")"
             # NL-TLS e NL-CONECTOR chegam pelo ctest --verbose, com o prefixo "NNN: QINFO  : Classe::slot() " (log real do par,
             # 19/11/2026). A âncora exige o prefixo inteiro: a reimpressão sem número do --output-on-failure, a NL-TLS-MSG e os
