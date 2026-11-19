@@ -52,11 +52,12 @@ QString versaoTlsDoServidor(MYSQL *conexao)
     return statusDeSessao(conexao, "SHOW SESSION STATUS LIKE 'Ssl_version'");
 }
 
-// Estado da verificação do certificado pela biblioteca (MARIADB_TLS_VERIFY_STATUS). Só registro, sem valor esperado.
+// Estado da verificação do certificado pela biblioteca (MARIADB_TLS_VERIFY_STATUS), lido por mariadb_get_infov:
+// é um valor da conexão, não uma opção de mysql_get_optionv. Só registro, sem valor esperado.
 QString statusDaVerificacao(MYSQL *conexao)
 {
     unsigned int estado = 0;
-    if (mysql_get_optionv(conexao, MARIADB_TLS_VERIFY_STATUS, &estado) != 0) {
+    if (mariadb_get_infov(conexao, MARIADB_TLS_VERIFY_STATUS, &estado) != 0) {
         return QStringLiteral("nd");
     }
     return QString::number(estado);
