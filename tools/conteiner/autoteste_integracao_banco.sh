@@ -5,11 +5,12 @@
 # (ou da linha de resultado) que o harness precisa dar, e o rc. Um caso só passa com a saída e o rc que o harness deve dar.
 # Não sobe contêiner: o docker é um de mentira no PATH. O de mentira lê a entrada do exec -i (como o docker real) e
 # responde ao que o harness pede: portão de funções, servidor, prontidão, conta, plugin, versão, sonda e executor.
-# Casos (24): servidor ausente; zero testes banco; build sem NL_TESTES_BANCO; junitxml do par anterior; junitxml com
+# Casos (25): servidor ausente; zero testes banco; build sem NL_TESTES_BANCO; junitxml do par anterior; junitxml com
 # skipped; limpeza em falha; docker run sem o vetor da cota; par fora da matriz; arquivo de banco/ executado direto;
 # portão de funções sem linha; portão de funções com faltam; só três linhas NL-TLS; volume do Qt ausente; classe disco
 # sem PEM; controle verde; todos com dois pares; GRANT da conta de teste; só três linhas NL-CONECTOR; ruído e reimpressão
-# sem número não contam; sem NL-PIDS; NL-PIDS sem número; NL-PIDS com eventos_max; corpo do executor; teto 256 do executor.
+# sem número não contam; sem NL-PIDS; NL-PIDS sem número; NL-PIDS com eventos_max; corpo do executor; teto 256 do executor;
+# resumo curto do ctest (manjaro: "100% tests passed out of 4", sem ", 0 tests failed"; NL-3.1h, v3.21).
 # As linhas do executor no stub são as do log real do par (fedora45/mysql97 em 7f0986d, 19/11/2026), com o prefixo do
 # ctest --verbose e do QTest (NL-3.1h, v3.19).
 # Uso: autoteste_integracao_banco.sh
@@ -131,7 +132,12 @@ case "$1" in
                     echo "PARADA: linhas NL-TLS (par fedora45/mysql97: 0, esperadas 4)"
                     echo "NL-BANCO-TLS par=fedora45/mysql97 NL-TLS conexao=sessaoPadrao resultado=tls"
                 fi
-                [ -n "${STUB_SEM_RESUMO:-}" ] || echo "100% tests passed, 0 tests failed out of 4"
+                # O ctest do manjaro omite ", 0 tests failed" (log real do par manjaro/mysql84 em 8d7dc5c, linha 92).
+                if [ -z "${STUB_SEM_RESUMO:-}" ] && [ -n "${STUB_RESUMO_CURTO:-}" ]; then
+                    echo "100% tests passed out of 4"
+                elif [ -z "${STUB_SEM_RESUMO:-}" ]; then
+                    echo "100% tests passed, 0 tests failed out of 4"
+                fi
                 # A linha NL-PIDS só existe quando o executor roda o corpo ctest_banco_no_conteiner.sh (v3.19).
                 case "$*" in
                     *ctest_banco_no_conteiner.sh*)
@@ -163,7 +169,7 @@ novo_caso() {
     STUB_LOG="$CASO/docker.log"
     export NL_TMP_BASE STUB_LOG STUB_JUNIT_DIR TMPDIR="$CASO/tmp" NL_FATIA=NL-3.1h NL_SHA="$SHA_FIXO"
     unset STUB_SERVIDOR_AUSENTE STUB_VOLUME_AUSENTE STUB_JUNIT_XML STUB_SEM_JUNIT STUB_SEM_RESUMO STUB_LINHAS_TLS STUB_LINHAS_CONECTOR \
-        STUB_RUIDO STUB_SEM_PIDS STUB_PIDS_LINHA \
+        STUB_RUIDO STUB_SEM_PIDS STUB_PIDS_LINHA STUB_RESUMO_CURTO \
         STUB_EXEC_RC STUB_SRV_RC STUB_FUNCOES_AUSENTE STUB_FUNCOES_FALTA STUB_PLUGIN STUB_PEM STUB_PEM_VAZIO
     case ":$PATH:" in *":$BASE/bin:"*) ;; *) export PATH="$BASE/bin:$PATH" ;; esac
 }
@@ -329,6 +335,13 @@ else
     falha "executor: teto 256=$n_teto e corpo=$n_corpo, esperados 1 e 1"
 fi
 
+# Caso 25: o resumo curto do ctest do manjaro conta os 4 testes (NL-3.1h v3.21: sem ", 0 tests failed", o harness lia 0).
+novo_caso resumo_curto || { echo "ABORTA: caso 25"; exit 1; }
+export STUB_RESUMO_CURTO=1
+executar_verde "resumo curto do ctest do manjaro conta 4" \
+    "NL-BANCO-RESUMO pares_esperados=1 executados=1 verdes=1 vermelhos=0 n_por_par=4" "encontrados=4 analisados=4 pulados=0 falharam=0 rc=0" \
+    bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+
 # Caso 12: volume do Qt ausente reprova antes de qualquer par (docker run -v nome: criaria volume vazio).
 novo_caso volume_qt_ausente || { echo "ABORTA: caso 12"; exit 1; }
 export STUB_VOLUME_AUSENTE=1
@@ -363,8 +376,8 @@ else
 fi
 
 echo "casos=$TOTAL falharam=$FALHAS"
-if [ "$TOTAL" -ne 24 ]; then
-    echo "AUTOTESTE INTEGRACAO BANCO: contagem de casos diferente de 24"
+if [ "$TOTAL" -ne 25 ]; then
+    echo "AUTOTESTE INTEGRACAO BANCO: contagem de casos diferente de 25"
     exit 1
 fi
 if [ "$FALHAS" -eq 0 ]; then
