@@ -9,10 +9,12 @@ set(NL_MARIADB_PREFIX "$ENV{NL_MARIADB_PREFIX}" CACHE PATH "Prefixo do Connector
 if(NOT NL_MARIADB_PREFIX)
     message(FATAL_ERROR "tests/integracao/banco: NL_MARIADB_PREFIX vazio; o prefixo vem de tools/conteiner/prefixo_mariadb.txt (NL-3.1h, v3.17)")
 endif()
-find_path(NL_MARIADB_INCLUDE_DIR NAMES mariadb/mysql.h)
-find_library(NL_MARIADB_LIB NAMES mariadb)
+find_path(NL_MARIADB_INCLUDE_DIR NAMES mysql.h
+          PATHS "${NL_MARIADB_PREFIX}/include/mariadb" "${NL_MARIADB_PREFIX}/include/mysql" NO_DEFAULT_PATH)
+find_library(NL_MARIADB_LIB NAMES mariadb
+             PATHS "${NL_MARIADB_PREFIX}/lib/mariadb" "${NL_MARIADB_PREFIX}/lib64" "${NL_MARIADB_PREFIX}/lib" NO_DEFAULT_PATH)
 if(NOT NL_MARIADB_INCLUDE_DIR OR NOT NL_MARIADB_LIB)
-    message(FATAL_ERROR "tests/integracao/banco: mariadb/mysql.h ou libmariadb ausente (NL-3.1h, passo 6.4)")
+    message(FATAL_ERROR "tests/integracao/banco: mysql.h ou libmariadb ausente em ${NL_MARIADB_PREFIX} (NL-3.1h, passo 6.4 e v3.17)")
 endif()
 # Guarda (NL-3.1h, v3.17): cabeçalho e biblioteca do mesmo prefixo. Em 742c100 o cabeçalho era o do módulo (/usr/local) e a
 # biblioteca a da distro (/usr/lib64), achados cada um pela própria ordem de busca.

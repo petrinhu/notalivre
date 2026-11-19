@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Prefixo do Connector/C que o NotaLivre usa em cada distro de build (NL-3.1h, v3.17). Uma linha "distro prefixo".
+# fedora45, ubuntu26.04 e mint22.3: o módulo 3.4.11 (instalar/<distro>.sh, modulo_mariadb.sh, layout DEFAULT em /usr/local).
+# manjaro: o mariadb-libs da distro (instalar/manjaro.sh), em /usr (cabeçalho em /usr/include/mysql).
+fedora45 /usr/local
+ubuntu26.04 /usr/local
+mint22.3 /usr/local
+manjaro /usr

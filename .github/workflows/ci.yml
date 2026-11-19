@@ -126,6 +126,8 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Tabela de versões e pré-cheque do Qt
+        env:
+          NL_DISTRO: ${{ matrix.distro }}
         run: |
           bash tools/conteiner/medir_versoes.sh --markdown >> "$GITHUB_STEP_SUMMARY"
           bash tools/conteiner/precheque_qt.sh
@@ -307,6 +309,8 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Tabela de versões e pré-cheque do Qt
+        env:
+          NL_DISTRO: ${{ matrix.distro }}
         run: |
           bash tools/conteiner/medir_versoes.sh --markdown >> "$GITHUB_STEP_SUMMARY"
           bash tools/conteiner/precheque_qt.sh

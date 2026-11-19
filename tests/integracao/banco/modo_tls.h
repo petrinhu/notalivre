@@ -6,7 +6,7 @@
 #ifndef NL_TESTE_MODO_TLS_H
 #define NL_TESTE_MODO_TLS_H
 
-#include <mariadb/mysql.h>
+#include <mysql.h>
 
 #include <QByteArray>
 

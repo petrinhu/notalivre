@@ -32,6 +32,13 @@ fi
 # NL-3.1h: a linha NL-PIDS sai sempre, também com build ou ctest vermelho. O trap EXIT não muda o rc do script.
 . tools/conteiner/medir_pids_conteiner.sh
 trap 'nl_pids_linha' EXIT
+# NL-3.1h (v3.17): no preset banco, o Connector/C vem do prefixo declarado da distro (prefixo_mariadb.txt), que o CMake lê de
+# NL_MARIADB_PREFIX. Distro fora da tabela é PARADA, antes de qualquer cmake.
+if [ "$modo" = "banco" ]; then
+    . tools/conteiner/prefixo_mariadb.sh
+    NL_MARIADB_PREFIX="$(nl_prefixo_mariadb "${NL_DISTRO:-}")" || { echo "PARADA: distro '${NL_DISTRO:-}' sem prefixo do Connector/C em prefixo_mariadb.txt (NL-3.1h, v3.17)"; exit 2; }
+    export NL_MARIADB_PREFIX
+fi
 cmake --preset "$modo" && cmake --build --preset "$modo" --parallel "$CMAKE_BUILD_PARALLEL_LEVEL" || exit $?
 # NL-3.1h (v3.3, seção 1.3, item 3): o preset banco só configura e compila aqui. O ctest do banco roda no harness
 # integracao_banco.sh, e pulos e contagem da suíte normal não se aplicam a ele. O portão de funções segue valendo.

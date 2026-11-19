@@ -8,7 +8,7 @@
 #include "ambiente_banco.h"
 #include "modo_tls.h"
 
-#include <mariadb/mysql.h>
+#include <mysql.h>
 
 #include <QByteArray>
 #include <QString>

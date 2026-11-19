@@ -6,7 +6,7 @@
 #ifndef NL_TESTE_TLS_DA_SESSAO_H
 #define NL_TESTE_TLS_DA_SESSAO_H
 
-#include <mariadb/mysql.h>
+#include <mysql.h>
 
 #include <QString>
 

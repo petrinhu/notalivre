@@ -375,7 +375,7 @@ executar()
     fi
 
     # Etapa 1, como root e só de leitura do Qt: tabela de versões e pré-cheque (o índice do gerenciador exige root).
-    if ! docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" \
+    if ! docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" -e NL_DISTRO="$distro" \
         -v "$fonte:/src:ro,z" -v "$VOLUME_QT:/opt/qt:ro" \
         -w /src "$imagem" bash tools/conteiner/executar_no_conteiner.sh diagnostico; then
         echo "PARADA: diagnóstico do contêiner reprovou (pré-cheque do Qt ou ambiente); build não iniciado"
