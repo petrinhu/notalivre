@@ -941,7 +941,7 @@ Executor das telas: frontend-engineer. Revisão: qa-engineer (capturas em contê
 
 | Tipo | Onde | Quando |
 |---|---|---|
-| Integração com banco | Matriz de 14 pares (MySQL 8.4 e 8.0, MariaDB 11.8, 10.11 e 13.0), em contêiner local e no CI, sem `services` (matriz: decisão do líder de 04/11/2026, Servidores: testar todas; sem `services`: ordem do CTO de 04/11/2026, seção 4.2) | Onda 3 em diante |
+| Integração com banco | Matriz de 16 pares (servidores em `tools/conteiner/servidores_banco.txt`: MySQL 8.0, 8.4 e 9.7; MariaDB 10.11, 11.8, 12.3 e 13.0), em contêiner local e no CI, sem `services` (matriz: decisão do líder de 04/11/2026, Servidores: testar todas; sem `services`: ordem do CTO de 04/11/2026, seção 4.2); 16 pares: decisão do líder de 19/11/2026, "Atualizar o plano para 16 (Recomendado)" | Onda 3 em diante |
 | Contrato com a Sefin | servidor falso em contêiner local e no CI (Ondas 1 a 10) e Sefin real de Produção Restrita pela mão do líder (Onda 11) | toda fatia de rede |
 | Ponta a ponta pela CLI | contêiner local e CI, servidor falso | Onda 1 em diante |
 | Interface | Qt Quick Test offscreen em contêiner local e no CI; captura conferida pelo qa-engineer com md5 (L-13) | Onda 1 em diante |
