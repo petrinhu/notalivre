@@ -54,7 +54,11 @@ bash "$(dirname "${BASH_SOURCE[0]}")/precheque_openssl.sh" || ossl_rc=$?
 sodium_rc=0
 bash "$(dirname "${BASH_SOURCE[0]}")/precheque_sodium.sh" || sodium_rc=$?
 
-if [ "$analisados" -ne "${#ALVOS[@]}" ] || [ "$faltando" -ne 0 ] || [ "$glibc" -ne 0 ] || [ "$ossl_rc" -ne 0 ] || [ "$sodium_rc" -ne 0 ]; then
+# Cliente MariaDB (NL-3.1h, M4): cabeçalho e biblioteca do Connector/C, pela mesma etapa.
+mariadb_rc=0
+bash "$(dirname "${BASH_SOURCE[0]}")/precheque_mariadb.sh" || mariadb_rc=$?
+
+if [ "$analisados" -ne "${#ALVOS[@]}" ] || [ "$faltando" -ne 0 ] || [ "$glibc" -ne 0 ] || [ "$ossl_rc" -ne 0 ] || [ "$sodium_rc" -ne 0 ] || [ "$mariadb_rc" -ne 0 ]; then
     exit 1
 fi
 exit 0

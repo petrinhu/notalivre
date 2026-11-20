@@ -16,6 +16,8 @@
 #   C7  sem NL_FATIA o build para com rc 2, a mensagem "PARADA: NL_FATIA obrigatória" e sem chamar o docker.
 #   C8  build de imagem registra "SHA: <sha> fatia=imagem" na linha 1, NL-RC no fim, e o verificador reprova (sem manifesto).
 #   C9  concorrência: dois executar e dois imagem em paralelo nunca têm contêineres sobrepostos (marcas S/E do stub).
+#   C12 o docker run de build (etapa 2, executar_no_conteiner.sh) leva --network none, uma vez só (NL-3.1h, v3.14).
+#   C13 os 6 docker run dos autotestes de estreia (laço de build_local.sh) levam --network none (NL-3.1h, v3.16).
 # O docker é um STUB que só registra as chamadas (e, em C9, marca início e fim com sleep). Nenhum contêiner sobe aqui.
 # Usa NL_TMP_BASE próprio, nunca a trava real /var/tmp/notalivre-heavy.lock. A fixture não dispara hooks do git.
 # Uso: autoteste_build_sha.sh
@@ -192,6 +194,27 @@ else
     falha "C5 NL_XSD_ZIP_CACHE não chegou ao contêiner (docker run sem -e nem -v do cache)"
 fi
 
+# --- C12: o docker run de build (etapa 2) roda sem rede (NL-3.1h, v3.14) ---
+# A linha do stub com "executar_no_conteiner.sh debug" é a do build: tem de haver uma só, com --network none uma vez.
+n_build=$(grep -c -- 'executar_no_conteiner.sh debug' "$BASE/t0.docker" 2>/dev/null || true)
+n_rede=$(grep -- 'executar_no_conteiner.sh debug' "$BASE/t0.docker" 2>/dev/null | grep -o -- '--network none' | wc -l)
+if [ "$n_build" = 1 ] && [ "$n_rede" -eq 1 ]; then
+    ok "C12 docker run de build com --network none (build=$n_build rede=$n_rede)"
+else
+    falha "C12 docker run de build sem --network none, ou fora de uma chamada (build=$n_build rede=$n_rede)"
+fi
+
+# --- C13: os docker run dos autotestes de estreia rodam sem rede (NL-3.1h, v3.16) ---
+# O 6 é o mesmo do piso do C9: autoteste novo no laço de build_local.sh sobe os dois no mesmo commit.
+n_auto=$(grep -cE -- 'bash (tools/conteiner|tools/portoes|flatpak)/autoteste_[a-z_]+\.sh' "$BASE/t0.docker" 2>/dev/null || true)
+n_auto_rede=$(grep -E -- 'bash (tools/conteiner|tools/portoes|flatpak)/autoteste_[a-z_]+\.sh' "$BASE/t0.docker" 2>/dev/null \
+    | grep -c -- '--network none' || true)
+if [ "$n_auto" = 6 ] && [ "$n_auto_rede" = 6 ]; then
+    ok "C13 autotestes de estreia com --network none (autotestes=$n_auto rede=$n_auto_rede)"
+else
+    falha "C13 autotestes de estreia sem --network none, ou fora de 6 (autotestes=$n_auto rede=$n_auto_rede)"
+fi
+
 # --- C6: xmlsec1 nos quatro scripts de instalar/ (piso: 4 analisados) ---
 analisados=0; encontrados=0; faltou=0
 for d in fedora45 ubuntu26.04 manjaro mint22.3; do
@@ -241,9 +264,10 @@ pe2=$!
 wait "$pe1"; re1=$?
 wait "$pe2"; re2=$?
 resumo_e="$(conc_resumo "$BASE/c9e.conc" 2>/dev/null)"
-# Piso medido em 06/11/2026, ajustado na NL-3.A e na NL-2.20: 2 processos x 22 chamadas de docker (diagnóstico, build,
-# 5 autotestes e 15 portões) = 44 pares S/E.
-if [ "$re1" -eq 0 ] && [ "$re2" -eq 0 ] && [ "$resumo_e" = "pares=44 sobreposicoes=0" ]; then
+# Piso medido em 06/11/2026, ajustado na NL-3.A, na NL-2.20 e na NL-3.1h (v3.15): 2 processos x 23 chamadas de docker
+# (diagnóstico, build, 6 autotestes do laço de build_local.sh e 15 portões) = 46 pares S/E. O sexto autoteste
+# (autoteste_paralelo_conteiner.sh) entrou em a13728e sem o piso subir.
+if [ "$re1" -eq 0 ] && [ "$re2" -eq 0 ] && [ "$resumo_e" = "pares=46 sobreposicoes=0" ]; then
     ok "C9 executar em paralelo sem sobreposição de contêiner ($resumo_e)"
 else
     falha "C9 executar em paralelo com contêineres sobrepostos ou sem piso (rc=$re1/$re2, $resumo_e)"

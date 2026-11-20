@@ -126,6 +126,8 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Tabela de versões e pré-cheque do Qt
+        env:
+          NL_DISTRO: ${{ matrix.distro }}
         run: |
           bash tools/conteiner/medir_versoes.sh --markdown >> "$GITHUB_STEP_SUMMARY"
           bash tools/conteiner/precheque_qt.sh
@@ -307,6 +309,8 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Tabela de versões e pré-cheque do Qt
+        env:
+          NL_DISTRO: ${{ matrix.distro }}
         run: |
           bash tools/conteiner/medir_versoes.sh --markdown >> "$GITHUB_STEP_SUMMARY"
           bash tools/conteiner/precheque_qt.sh
@@ -594,6 +598,9 @@ jobs:
       - name: "Autoteste de build e evidência por SHA (NL-2.0, C10 e C11, NL-3.0g)"
         run: bash tools/conteiner/autoteste_build_sha.sh
 
+      - name: "Autoteste do V-a do banco, harness contra servidor de banco (NL-3.1h, passo 11)"
+        run: bash tools/conteiner/autoteste_integracao_banco.sh
+
       - name: "Autoteste da cópia do espelho, área privada (NL-3.E e NL-3.0g)"
         run: bash tools/espelho/autoteste_copiar_arvore.sh
 
@@ -617,6 +624,9 @@ jobs:
 
       - name: "Teto em todo contêiner, casos e varredura (NL-3.K)"
         run: bash tools/portoes/autoteste_cota_em_todo_conteiner.sh "$GITHUB_WORKSPACE"
+
+      - name: "Teto de processos em todo docker run, casos e varredura (NL-3.1h, v3.11)"
+        run: bash tools/portoes/autoteste_pids_em_docker_run.sh "$GITHUB_WORKSPACE"
 
       # NL-3.0i (revisão de edc4cde): o --ensaio do emitir_teste.sh roda no CI, com HOME descartável. Depende de bash,
       # python3 (já usado por este job em outros passos), sha256sum, stat e coreutils, todos no runner ubuntu-latest.

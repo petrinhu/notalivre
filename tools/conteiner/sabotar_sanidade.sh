@@ -31,7 +31,7 @@ fi
 
 cmake -S "$TRAB/src" -B "$TRAB/build" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH="$PREFIXO" \
     > "$TRAB/configure.log" 2>&1
-cmake --build "$TRAB/build" --target tst_sanidade > "$TRAB/build.log" 2>&1
+cmake --build "$TRAB/build" --target tst_sanidade --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-2}" > "$TRAB/build.log" 2>&1
 build_rc=$?
 ctest --test-dir "$TRAB/build" -R tst_sanidade --output-on-failure > "$TRAB/ctest.log" 2>&1
 ctest_rc=$?

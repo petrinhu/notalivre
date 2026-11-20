@@ -10,7 +10,7 @@
 #   build_local.sh <distro> <preset>      configure + build + ctest do preset na distro (exige NL_FATIA)
 #   build_local.sh <preset>               atalho: fedora45 <preset> (forma antiga, mantida; exige NL_FATIA)
 #   build_local.sh ensaio <distro> <preset>   ensaio de repetição (NL-3.0j, CTO): etapa 2 = ensaio_no_conteiner.sh;
-#                                         exige NL_ENSAIO; core=1 e --pids-limit 512 em todo docker run
+#                                         exige NL_ENSAIO; core=1 e --pids-limit 400 em todo docker run
 #   build_local.sh mutante-mtls <distro>  mutante do E6 (tools/mutacao/mutante_mtls.sh) no SHA de NL_SHA; core=1
 #   Leitura do ensaio: ENSAIO: VERDE (NL-RC 0), VERMELHO (1, slot reprovado) ou INDETERMINADO (7, não é reprovação).
 #   distro: fedora45 | ubuntu26.04 | manjaro | mint22.3
@@ -38,6 +38,7 @@
 #   NL_CPUS_ONLINE_ARQ  só dos autotestes: arquivo no lugar de /sys/devices/system/cpu/online (nunca vai ao contêiner).
 #   NL_XSD_ZIP_CACHE  diretório no host com o ZIP do XSD (padrão: $NL_TMP_BASE/notalivre-xsd-cache). É montado no
 #                     contêiner em /xsd-cache e exportado como NL_XSD_ZIP_CACHE; o CMake do third_party lê a variável.
+#                     NL-3.1h (v3.14): o docker run de build roda com --network none; o Qt vem do volume e o XSD deste cache.
 #
 # Evidência por SHA (NL-2.0): a linha 1 do log é "SHA: <40 hex> ...", e NL-MANIFESTO-SHA256 traz o hash da fonte
 # que o contêiner viu. tools/conteiner/evidencia_sha.sh verificar <log> confere o manifesto contra o commit.
@@ -306,14 +307,14 @@ executar()
     trap 'echo "NL-RC=$?"' EXIT
     # Reserva de CPUs (NL-3.0j): depois da linha "SHA:", antes de validar_arnes, da trava e de qualquer docker run.
     resolver_cpuset || return 2
-    printf 'NL-COTAS=threads=%s memoria=%s cpuset=%s\n' "$THREADS" "$NL_MEMORIA" "$CPUSET"
+    printf 'NL-COTAS=threads=%s memoria=%s cpuset=%s pids=%s\n' "$THREADS" "$NL_MEMORIA" "$CPUSET" "$NL_COTA_PIDS_EFETIVO"
     validar_arnes "$preset" || return 2
     validar_mutante "$sha" || return 2
-    # Cotas de contêiner do arnês (NL-3.0j): o ensaio força core=1 e --pids-limit 512 em todo docker run; mutante e
+    # Cotas de contêiner do arnês (NL-3.0j): o ensaio força core=1 em todo docker run; mutante e
     # rodada normal levam só core=1 (o mutante sempre, a rodada normal com NL_SEM_CORE=1).
     local -a extras_arnes=()
     if [ "$MODO_ARNES" = ensaio ]; then
-        extras_arnes=(--ulimit core=1 --pids-limit 512)
+        extras_arnes=(--ulimit core=1)
     elif [ -n "$MODO_ARNES" ] || [ "${NL_SEM_CORE:-}" = 1 ]; then
         extras_arnes=(--ulimit core=1)
     fi
@@ -345,7 +346,7 @@ executar()
     # ele chama o próprio build_local (recursão) e usa um docker de mentira no PATH, que não existe no contêiner. Roda
     # no job autotestes do ci.yml.
     local autoteste
-    for autoteste in tools/conteiner/autoteste_piso_portoes.sh flatpak/autoteste_suite_flatpak.sh tools/portoes/autoteste_pulos_testes.sh tools/portoes/autoteste_fora_do_flatpak.sh tools/portoes/autoteste_funcoes_no_ctest.sh; do
+    for autoteste in tools/conteiner/autoteste_piso_portoes.sh flatpak/autoteste_suite_flatpak.sh tools/portoes/autoteste_pulos_testes.sh tools/portoes/autoteste_fora_do_flatpak.sh tools/portoes/autoteste_funcoes_no_ctest.sh tools/conteiner/autoteste_paralelo_conteiner.sh; do
         if ! docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" --network none \
             --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -v "$fonte:/src:ro,z" -w /src "$imagem" \
             sh -c "mkdir -p \"\$HOME\" && bash $autoteste"; then
@@ -374,7 +375,7 @@ executar()
     fi
 
     # Etapa 1, como root e só de leitura do Qt: tabela de versões e pré-cheque (o índice do gerenciador exige root).
-    if ! docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" \
+    if ! docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" --user 0:0 -e QT_PREFIXO="$QT_PREFIXO" -e NL_DISTRO="$distro" \
         -v "$fonte:/src:ro,z" -v "$VOLUME_QT:/opt/qt:ro" \
         -w /src "$imagem" bash tools/conteiner/executar_no_conteiner.sh diagnostico; then
         echo "PARADA: diagnóstico do contêiner reprovou (pré-cheque do Qt ou ambiente); build não iniciado"
@@ -426,7 +427,7 @@ executar()
             corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash /extrator/mutante_no_conteiner.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build")
             ;;
     esac
-    docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" \
+    docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" --network none \
         --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp -e NL_DISTRO="$distro" \
         -e CMAKE_PREFIX_PATH="$QT_PREFIXO" -e CMAKE_BUILD_PARALLEL_LEVEL="$THREADS" \
         -e NL_XSD_ZIP_CACHE=/xsd-cache \

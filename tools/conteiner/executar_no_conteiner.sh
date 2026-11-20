@@ -23,7 +23,31 @@ if [ "$modo" = "diagnostico" ]; then
 fi
 
 : "${NL_TMP_BASE:?defina NL_TMP_BASE (no contêiner, /var/tmp)}"
-cmake --preset "$modo" && cmake --build --preset "$modo" || exit $?
+# NL-3.1h (v3.11): o build roda com --parallel explícito, vindo do build_local.sh (THREADS, de 1 a 7). Sem a variável, ou fora
+# dessa faixa, a execução para antes de qualquer cmake.
+if ! [[ "${CMAKE_BUILD_PARALLEL_LEVEL:-}" =~ ^[1-7]$ ]]; then
+    echo "PARADA: CMAKE_BUILD_PARALLEL_LEVEL '${CMAKE_BUILD_PARALLEL_LEVEL:-ausente}' fora de 1 a 7 (NL-3.1h)"
+    exit 2
+fi
+# NL-3.1h: a linha NL-PIDS sai sempre, também com build ou ctest vermelho. O trap EXIT não muda o rc do script.
+. tools/conteiner/medir_pids_conteiner.sh
+trap 'nl_pids_linha' EXIT
+# NL-3.1h (v3.17): no preset banco, o Connector/C vem do prefixo declarado da distro (prefixo_mariadb.txt), que o CMake lê de
+# NL_MARIADB_PREFIX. Distro fora da tabela é PARADA, antes de qualquer cmake.
+if [ "$modo" = "banco" ]; then
+    . tools/conteiner/prefixo_mariadb.sh
+    NL_MARIADB_PREFIX="$(nl_prefixo_mariadb "${NL_DISTRO:-}")" || { echo "PARADA: distro '${NL_DISTRO:-}' sem prefixo do Connector/C em prefixo_mariadb.txt (NL-3.1h, v3.17)"; exit 2; }
+    export NL_MARIADB_PREFIX
+fi
+cmake --preset "$modo" && cmake --build --preset "$modo" --parallel "$CMAKE_BUILD_PARALLEL_LEVEL" || exit $?
+# NL-3.1h (v3.3, seção 1.3, item 3): o preset banco só configura e compila aqui. O ctest do banco roda no harness
+# integracao_banco.sh, e pulos e contagem da suíte normal não se aplicam a ele. O portão de funções segue valendo.
+if [ "$modo" = "banco" ]; then
+    banco_rc=0
+    python3 -I tools/portoes/funcoes_no_ctest.py --raiz . --build "$NL_TMP_BASE/notalivre-build/$modo" --excecoes tests/funcoes_fora_do_ctest.txt || banco_rc=$?
+    echo "NL-BANCO-BUILD: configure e build; ctest só no harness"
+    exit "$banco_rc"
+fi
 # NL-3.0h (L-36): no preset de sanitizer, o portão prova pelo binário e pelo canário que o sanitizer e o gate estão ativos. O
 # ctest roda mesmo com o portão vermelho, para o log trazer as duas coisas.
 sanitizer_rc=0

@@ -11,6 +11,8 @@
 FROM linuxmintd/mint22.3-amd64@sha256:304bbf7ec2a61252962c5210467d231a141661490e8962f52fd4df7688370369
 
 COPY instalar/mint22.3.sh /opt/nl/instalar.sh
+COPY modulo_mariadb.sh /opt/nl/modulo_mariadb.sh
+COPY classifica_configure_mariadb.sh /opt/nl/classifica_configure_mariadb.sh
 RUN bash /opt/nl/instalar.sh && rm -rf /opt/nl
 
 ENV PATH=/opt/aqt/bin:$PATH

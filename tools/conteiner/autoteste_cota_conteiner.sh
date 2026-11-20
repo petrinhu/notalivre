@@ -46,6 +46,23 @@ vetor() {
     fi
 }
 
+# pids VALOR RC VETOR SEM: nl_cotas_docker com NL_PIDS=VALOR (NL-3.1h, teto duro de processos). VETOR é o de run, com
+# --pids-limit; SEM é o vetor sem --pids-limit, que o banco e o ensaio usam com o próprio literal. RC 2 deixa os dois vazios.
+pids() {
+    local obtido
+    obtido="$( (NL_NPROC_TESTE=16; NL_PIDS="$1"; NL_CPUS_ONLINE_ARQ="$BASE/online15"
+                nl_cotas_docker 2>/dev/null; echo "rc=$? vetor=${NL_COTAS_DOCKER[*]} sem=${NL_COTAS_DOCKER_SEM_PIDS[*]}") )"
+    CASOS=$((CASOS + 1))
+    if [ "$obtido" = "rc=$2 vetor=$3 sem=$4" ]; then
+        echo "ok: pids [$1]: $obtido"
+    else
+        echo "REPROVA: pids [$1]: esperado [rc=$2 vetor=$3 sem=$4], obtido [$obtido]"
+        FALHAS=$((FALHAS + 1))
+    fi
+}
+
+# Costura NL_PIDS fora do ambiente do autoteste: o valor de cada caso é o que a linha do caso diz.
+unset NL_PIDS
 mem "" ok
 mem 12g ok
 mem 4096m ok
@@ -57,17 +74,28 @@ mem 08g reprova
 mem 12G reprova
 mem "12g;x" reprova
 mem 99999999g reprova
-vetor 16 "" "" "" 0 "--cpus 7 --memory 12g --memory-swap 12g"
-vetor 16 2 4g "" 0 "--cpus 2 --memory 4g --memory-swap 4g"
-vetor 16 "" "" 8-11 0 "--cpuset-cpus 8-11 --cpus 7 --memory 12g --memory-swap 12g"
-vetor 16 "" "" todas 0 "--cpus 7 --memory 12g --memory-swap 12g"
-vetor 4 "" "" "" 0 "--cpus 3 --memory 12g --memory-swap 12g"
-vetor 1 "" "" "" 0 "--cpus 1 --memory 12g --memory-swap 12g"
+vetor 16 "" "" "" 0 "--cpus 7 --memory 12g --memory-swap 12g --pids-limit 400"
+vetor 16 2 4g "" 0 "--cpus 2 --memory 4g --memory-swap 4g --pids-limit 400"
+vetor 16 "" "" 8-11 0 "--cpuset-cpus 8-11 --cpus 7 --memory 12g --memory-swap 12g --pids-limit 400"
+vetor 16 "" "" todas 0 "--cpus 7 --memory 12g --memory-swap 12g --pids-limit 400"
+vetor 4 "" "" "" 0 "--cpus 3 --memory 12g --memory-swap 12g --pids-limit 400"
+vetor 1 "" "" "" 0 "--cpus 1 --memory 12g --memory-swap 12g --pids-limit 400"
 vetor 16 8 "" "" 2 ""
 vetor 4 4 "" "" 2 ""
 vetor 16 "" 13g "" 2 ""
 vetor 16 "" "" 4-99 2 ""
 vetor 16 "" "" "4-15;x" 2 ""
+# NL-3.1h (T3): NL_PIDS vazia ou ausente vale 400; 1 a 400 sem zero à esquerda passam; o resto reprova com rc 2 e vetores vazios.
+pids "" 0 "--cpus 7 --memory 12g --memory-swap 12g --pids-limit 400" "--cpus 7 --memory 12g --memory-swap 12g"
+pids 128 0 "--cpus 7 --memory 12g --memory-swap 12g --pids-limit 128" "--cpus 7 --memory 12g --memory-swap 12g"
+pids 400 0 "--cpus 7 --memory 12g --memory-swap 12g --pids-limit 400" "--cpus 7 --memory 12g --memory-swap 12g"
+pids 1 0 "--cpus 7 --memory 12g --memory-swap 12g --pids-limit 1" "--cpus 7 --memory 12g --memory-swap 12g"
+pids 401 2 "" ""
+pids 0 2 "" ""
+pids 0400 2 "" ""
+pids abc 2 "" ""
+pids 4e2 2 "" ""
+pids "400;x" 2 "" ""
 # vetor_build NPROC THREADS MEMORIA CPUSET RC VETOR: o mesmo, para o vetor do docker build (NL-3.K, revisão, A-1).
 vetor_build() {
     local obtido

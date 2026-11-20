@@ -6,7 +6,7 @@
 # e NL_ENSAIO_SHA=<40 hex>.
 # Ordem, sem laço dentro de slot:
 #   1. imprime o comando recebido (preset, SHA e lista), para o log provar o que rodou;
-#   2. confere RLIMIT_CORE 1 1 e pids.max 512 (o contêiner foi criado com --ulimit core=1 e --pids-limit 512); outro valor
+#   2. confere RLIMIT_CORE 1 1 e pids.max 400 (o contêiner foi criado com --ulimit core=1 e --pids-limit 400); outro valor
 #      aborta antes de tudo;
 #   3. configura e constrói o preset;
 #   4. roda a fixture certificados.gerar UMA vez, fora da repetição;
@@ -25,7 +25,7 @@
 #                  Não é reprovação nem aprovação do slot.
 # Veredito (CTO, 11/11/2026; NL-3.A, 13/11/2026): o veredito de cada repetição é o do CTest. Desde a NL-3.A nenhum teste
 # usa regex de passe, então o código de saída do processo conta; sinal, tempo esgotado e FAIL_REGULAR_EXPRESSION reprovam.
-# Códigos: 0 verde; 1 slot reprovado; 2 core fora de 1 1 ou pids.max fora de 512; 3 configure ou build; 4 fixture;
+# Códigos: 0 verde; 1 slot reprovado; 2 core fora de 1 1 ou pids.max fora de 400; 3 configure ou build; 4 fixture;
 # 5 lista, SHA ou uso inválidos; 6 temporário não criado; 7 indeterminado.
 # NL_ENSAIO_ARQ_PIDS_MAX é costura só do autoteste (arquivo lido no lugar de /sys/fs/cgroup/pids.max). O build_local.sh
 # nunca a passa ao contêiner, e o autoteste confere isso.
@@ -43,8 +43,10 @@ echo "NL-ENSAIO-SHA=${NL_ENSAIO_SHA:-ausente}"
 echo "NL-ENSAIO-LISTA=${NL_ENSAIO:-}"
 echo "ensaio veredito: o do CTest; sem regex de passe (NL-3.A), o código de saída do processo conta"
 
-grep '^Max core file size' /proc/self/limits || echo "Max core file size: linha ausente em /proc/self/limits"
-limite_core="$(awk '/^Max core file size/ {print $5 " " $6}' /proc/self/limits)"
+# NL_ENSAIO_ARQ_LIMITES é costura só do autoteste (NL-3.1h), no lugar de /proc/self/limits.
+arq_limites="${NL_ENSAIO_ARQ_LIMITES:-/proc/self/limits}"
+grep '^Max core file size' "$arq_limites" || echo "Max core file size: linha ausente em $arq_limites"
+limite_core="$(awk '/^Max core file size/ {print $5 " " $6}' "$arq_limites")"
 echo "limite de core: $limite_core (esperado 1 1)"
 if [ "$limite_core" != "1 1" ]; then
     echo "ENSAIO PARADA: RLIMIT_CORE '$limite_core', esperado '1 1' (L-36)"
@@ -52,9 +54,9 @@ if [ "$limite_core" != "1 1" ]; then
 fi
 arq_pids="${NL_ENSAIO_ARQ_PIDS_MAX:-/sys/fs/cgroup/pids.max}"
 pids_max="$(cat "$arq_pids" 2>/dev/null || echo ausente)"
-echo "pids.max: $pids_max (esperado 512)"
-if [ "$pids_max" != "512" ]; then
-    echo "ENSAIO PARADA: pids.max '$pids_max', esperado '512' (exceção do líder à L-11, 10/11/2026)"
+echo "pids.max: $pids_max (esperado 400)"
+if [ "$pids_max" != "400" ]; then
+    echo "ENSAIO PARADA: pids.max '$pids_max', esperado '400' (teto de 400 do líder, 18/11/2026)"
     exit 2
 fi
 
@@ -81,7 +83,12 @@ for item in "${itens[@]}"; do
 done
 pedidos="${#itens[@]}"
 
-if ! cmake --preset "$preset" || ! cmake --build --preset "$preset"; then
+# NL-3.1h (v3.11): build com --parallel explícito, na mesma faixa de executar (1 a 7). Fora dela, PARADA com rc 2, antes do cmake.
+if ! [[ "${CMAKE_BUILD_PARALLEL_LEVEL:-}" =~ ^[1-7]$ ]]; then
+    echo "ENSAIO PARADA: CMAKE_BUILD_PARALLEL_LEVEL '${CMAKE_BUILD_PARALLEL_LEVEL:-ausente}' fora de 1 a 7 (NL-3.1h)"
+    exit 2
+fi
+if ! cmake --preset "$preset" || ! cmake --build --preset "$preset" --parallel "$CMAKE_BUILD_PARALLEL_LEVEL"; then
     echo "ENSAIO PARADA: configure ou build reprovou"
     exit 3
 fi
