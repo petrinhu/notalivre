@@ -263,6 +263,14 @@ controle_inclusao E09 apps/gui/main.cpp 1 'execveat(0, "ls", nullptr, nullptr, 0
 controle_inclusao E10 src/mid/camada.cpp 1 'FILE *f = popen("ls", "r");' "${viol_proc_src}popen proibida"
 controle_inclusao E11 src/mid/camada.cpp 1 'execve("ls", nullptr, nullptr);' "${viol_proc_src}execve proibida"
 
+# --- NL-3.1a (NL-I.093, ordem v1 seção 1.5): motor da Foundation só inclui foundation:base ---
+# FM1: o motor gzip incluindo o motor cripto é VERMELHO (rc 1) e tem de ser reprovado pelo portão.
+# Antes da regra nova (P-G) este controle falha de propósito: o portão ainda aceita motor irmão.
+# FM2: o motor gzip incluindo foundation:base é VERDE (rc 0).
+controle_inclusao FM1 src/foundation/gzip/fixture_motor_irmao.cpp 1 '#include <nl/foundation/cripto/aead.h>' \
+    '^VIOLACAO src/foundation/gzip/fixture_motor_irmao\.cpp:[0-9]+: '
+controle_inclusao FM2 src/foundation/gzip/fixture_base.cpp 0 '#include <nl/base/erro.h>' 'violacoes=0$'
+
 echo "autoteste_camadas: $APROVADOS/$TOTAL controles verdes"
 [ "$APROVADOS" = "$TOTAL" ] || exit 1
 exit 0
