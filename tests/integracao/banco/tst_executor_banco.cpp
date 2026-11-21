@@ -174,6 +174,16 @@ QByteArray codigoDo(const nl::base::Erro &erro)
 
 } // namespace
 
+// Falha antes do executor (ambiente ou preparo do cenário): o slot imprime a sua NL-TLS antes da asserção que falha,
+// como faz quando o Executor recusa. O nome do slot vem do QTest, e o motivo não tem espaço.
+namespace {
+void recusaDePreparo(const char *motivo)
+{
+    qInfo("NL-TLS conexao=%s resultado=recusa cliente=nulo servidor=vazio versao=vazio status=nd msg=%s erro=0",
+          QTest::currentTestFunction(), motivo);
+}
+} // namespace
+
 class TesteExecutorBanco : public QObject
 {
     Q_OBJECT
@@ -224,6 +234,9 @@ void TesteExecutorBanco::initTestCase()
 void TesteExecutorBanco::conexaoNoModoDaFamilia()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
 
     auto sessao = sessaoDeTeste(a);
@@ -250,6 +263,9 @@ void TesteExecutorBanco::conexaoNoModoDaFamilia()
 void TesteExecutorBanco::conexaoLocalSemTls()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("conexaoLocalSemTls", a, QByteArrayLiteral("mysql_native_password"),
                           sql::ModoTls(sql::ModoAberto{}));
@@ -265,6 +281,9 @@ void TesteExecutorBanco::conexaoLocalSemTls()
 void TesteExecutorBanco::modoFixadoImpressaoCertaAbre()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("modoFixadoImpressaoCertaAbre", a, pluginsDaFamilia(a),
                           sql::ModoTls(sql::ModoFixado(impressaoParaFixar(*a.dados))));
@@ -279,6 +298,9 @@ void TesteExecutorBanco::modoFixadoImpressaoCertaAbre()
 void TesteExecutorBanco::modoFixadoImpressaoTrocadaRecusa()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("modoFixadoImpressaoTrocadaRecusa", a, pluginsDaFamilia(a),
                           sql::ModoTls(sql::ModoFixado(impressaoTrocada(impressaoParaFixar(*a.dados)))));
@@ -289,6 +311,9 @@ void TesteExecutorBanco::modoFixadoImpressaoTrocadaRecusa()
 void TesteExecutorBanco::impressaoTrocadaComVariavelDeAmbienteRecusa()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     qputenv("MARIADB_TLS_DISABLE_PEER_VERIFICATION", "1");
     auto ab = abrir("impressaoTrocadaComVariavelDeAmbienteRecusa", a, pluginsDaFamilia(a),
@@ -301,6 +326,9 @@ void TesteExecutorBanco::impressaoTrocadaComVariavelDeAmbienteRecusa()
 void TesteExecutorBanco::metodoForaDaListaRecusado()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     // Classe A: fixado com a lista native (fora do caching_sha2). Classes B e C: aberto com client_ed25519.
     auto ab = *a.classe == Classe::A
@@ -317,15 +345,26 @@ void TesteExecutorBanco::metodoForaDaListaRecusado()
 void TesteExecutorBanco::modoFixadoAutenticaComCacheVazio()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto sessao = sessaoDeTeste(a);
+    if (!sessao) {
+        recusaDePreparo("sessao_de_teste");
+    }
     QVERIFY2(sessao != nullptr, "sessão de teste não abriu para trocar a senha da conta");
     QByteArray escapada(2 * a.senha.size() + 1, '\0');
     const unsigned long tamanho = mysql_real_escape_string(sessao.get(), escapada.data(), a.senha.constData(),
                                                            static_cast<unsigned long>(a.senha.size()));
     escapada.resize(static_cast<qsizetype>(tamanho));
     const QByteArray troca = QByteArrayLiteral("ALTER USER CURRENT_USER() IDENTIFIED BY '") + escapada + "'";
-    QVERIFY2(mysql_query(sessao.get(), troca.constData()) == 0, "a conta de teste não pôde trocar a própria senha: PARADA ao CTO");
+    const bool trocou = mysql_query(sessao.get(), troca.constData()) == 0;
+    if (!trocou) {
+        qInfo("NL-TROCA erro=%u", mysql_errno(sessao.get()));
+        recusaDePreparo("troca_senha");
+    }
+    QVERIFY2(trocou, "a conta de teste não pôde trocar a própria senha: PARADA ao CTO (NL-TROCA, erro do servidor)");
     sessao.reset();
     auto ab = abrir("modoFixadoAutenticaComCacheVazio", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -335,6 +374,9 @@ void TesteExecutorBanco::modoFixadoAutenticaComCacheVazio()
 void TesteExecutorBanco::parametroComAspasNaoInjeta()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("parametroComAspasNaoInjeta", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -353,6 +395,9 @@ void TesteExecutorBanco::parametroComAspasNaoInjeta()
 void TesteExecutorBanco::blobTodosOsBytesIdaEVolta()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("blobTodosOsBytesIdaEVolta", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -376,6 +421,9 @@ void TesteExecutorBanco::blobTodosOsBytesIdaEVolta()
 void TesteExecutorBanco::textoComNulNoMeioIdaEVolta()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("textoComNulNoMeioIdaEVolta", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -389,6 +437,9 @@ void TesteExecutorBanco::textoComNulNoMeioIdaEVolta()
 void TesteExecutorBanco::textoComTamanhoExatoDoBuffer()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("textoComTamanhoExatoDoBuffer", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -404,6 +455,9 @@ void TesteExecutorBanco::textoComTamanhoExatoDoBuffer()
 void TesteExecutorBanco::textoMaiorQueOBufferVoltaInteiro()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("textoMaiorQueOBufferVoltaInteiro", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -420,6 +474,9 @@ void TesteExecutorBanco::textoMaiorQueOBufferVoltaInteiro()
 void TesteExecutorBanco::utf8mb4QuatroBytesIdaEVolta()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("utf8mb4QuatroBytesIdaEVolta", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -433,6 +490,9 @@ void TesteExecutorBanco::utf8mb4QuatroBytesIdaEVolta()
 void TesteExecutorBanco::valorLongoRecusadoNoModoEstrito()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("valorLongoRecusadoNoModoEstrito", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -449,6 +509,9 @@ void TesteExecutorBanco::valorLongoRecusadoNoModoEstrito()
 void TesteExecutorBanco::quantidadeDeParametrosDiferenteRecusada()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("quantidadeDeParametrosDiferenteRecusada", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -467,6 +530,9 @@ void TesteExecutorBanco::quantidadeDeParametrosDiferenteRecusada()
 void TesteExecutorBanco::rePrepareSemNovoVinculoRecusado()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("rePrepareSemNovoVinculoRecusado", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -478,6 +544,9 @@ void TesteExecutorBanco::rePrepareSemNovoVinculoRecusado()
 void TesteExecutorBanco::multiStatementsDesligado()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("multiStatementsDesligado", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -487,6 +556,9 @@ void TesteExecutorBanco::multiStatementsDesligado()
 void TesteExecutorBanco::localInfileDesligado()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("localInfileDesligado", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -498,11 +570,20 @@ void TesteExecutorBanco::localInfileDesligado()
 void TesteExecutorBanco::arquivoDeOpcoesIgnorado()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     QTemporaryDir casa;
+    if (!casa.isValid()) {
+        recusaDePreparo("casa_temporaria");
+    }
     QVERIFY(casa.isValid());
     QFile cnf(QDir(casa.path()).filePath(QStringLiteral(".my.cnf")));
-    QVERIFY(cnf.open(QIODevice::WriteOnly | QIODevice::Text));
+    if (!cnf.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        recusaDePreparo("arquivo_cnf");
+    }
+    QVERIFY(cnf.isOpen());
     cnf.write("[client]\ninit-command=SET @nl_arquivo_de_opcoes=1\n");
     cnf.close();
     qputenv("HOME", casa.path().toUtf8());
@@ -517,6 +598,9 @@ void TesteExecutorBanco::arquivoDeOpcoesIgnorado()
 void TesteExecutorBanco::quedaDeConexaoViraErro()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("quedaDeConexaoViraErro", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -534,6 +618,9 @@ void TesteExecutorBanco::quedaDeConexaoViraErro()
 void TesteExecutorBanco::transacaoComFalhaDesfaz()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("transacaoComFalhaDesfaz", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -554,6 +641,9 @@ void TesteExecutorBanco::transacaoComFalhaDesfaz()
 void TesteExecutorBanco::transacaoComSucessoGrava()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("transacaoComSucessoGrava", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -574,6 +664,9 @@ void TesteExecutorBanco::transacaoComSucessoGrava()
 void TesteExecutorBanco::ddlEmTransacaoRecusado()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("ddlEmTransacaoRecusado", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -588,6 +681,9 @@ void TesteExecutorBanco::ddlEmTransacaoRecusado()
 void TesteExecutorBanco::transacaoAninhadaRecusada()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("transacaoAninhadaRecusada", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -603,6 +699,9 @@ void TesteExecutorBanco::transacaoAninhadaRecusada()
 void TesteExecutorBanco::senhaNaoApareceEmErroNemLog()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     const QString marca = QString::fromUtf8(a.senha);
     auto ab = abrir("senhaNaoApareceEmErroNemLog", a, pluginsDaFamilia(a), modoDaFamilia(a));
@@ -616,6 +715,9 @@ void TesteExecutorBanco::senhaNaoApareceEmErroNemLog()
 void TesteExecutorBanco::dataNaoMudaComFusoDaSessao()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("dataNaoMudaComFusoDaSessao", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
@@ -634,6 +736,9 @@ void TesteExecutorBanco::dataNaoMudaComFusoDaSessao()
 void TesteExecutorBanco::senhaDoConectorZeradaDepoisDeConectar()
 {
     const auto a = arranjoDoSlot();
+    if (!a.falta.isEmpty()) {
+        recusaDePreparo("arranjo");
+    }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("senhaDoConectorZeradaDepoisDeConectar", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
