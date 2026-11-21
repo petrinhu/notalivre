@@ -391,22 +391,25 @@ export NL_PRESET_BANCO=banco-asan
 executar_caso "banco-asan lê o próprio cache: sem NL_TESTES_BANCO reprova" "PARADA: build banco sem NL_TESTES_BANCO" \
     bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
 
-# Caso 28 (H-R, NL-3.1a): com banco-asan, o ASAN_OPTIONS do test preset chega ao docker run do executor (o stub grava a linha).
-novo_caso asan_no_executor || { echo "ABORTA: caso 28"; exit 1; }
+# Caso 28 (H-R, NL-3.1a; v1g): com banco-asan, a chamada do executor leva só o nome do preset, e nenhum ajuste de ambiente
+# de sanitizer. O ambiente do sanitizer vem do test preset, pelo ctest --preset (o caso não cita as variáveis).
+novo_caso preset_no_executor || { echo "ABORTA: caso 28"; exit 1; }
 mkdir -p "$(dirname "$BUILD")/banco-asan/junit" || { echo "ABORTA: caso 28 (pasta)"; exit 1; }
 printf 'NL_TESTES_BANCO:BOOL=ON\n' > "$(dirname "$BUILD")/banco-asan/CMakeCache.txt"
 export NL_PRESET_BANCO=banco-asan
 TOTAL=$((TOTAL + 1))
 saida="$(bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97 2>&1)"; rc=$?
-if [ "$rc" -eq 0 ] && /usr/bin/grep -qF -- "ASAN_OPTIONS=halt_on_error=1:detect_leaks=1:exitcode=86" "$CASO/docker.log" 2>/dev/null; then
-    ok "ASAN_OPTIONS do test preset chega ao executor com banco-asan (rc=$rc)"
+linha_executor="$(/usr/bin/grep -F 'ctest_banco_no_conteiner.sh' "$CASO/docker.log" 2>/dev/null | head -n 1)"
+n_ajustes="$(printf '%s\n' "$linha_executor" | /usr/bin/grep -c '_OPTIONS=' || true)"
+if [ "$rc" -eq 0 ] && [[ "$linha_executor" == *"-e NL_PRESET_BANCO=banco-asan"* ]] && [ "$n_ajustes" = 0 ]; then
+    ok "chamada do executor com banco-asan leva só o preset, sem ajuste de ambiente (rc=$rc)"
 else
-    falha "ASAN_OPTIONS do test preset não chega ao executor: rc=$rc, linha ausente em docker.log"
+    falha "chamada do executor com banco-asan: rc=$rc, sem '-e NL_PRESET_BANCO=banco-asan' ou com ajuste de ambiente ($n_ajustes)"
 fi
 
 echo "casos=$TOTAL falharam=$FALHAS"
 if [ "$TOTAL" -ne 28 ]; then
-    echo "AUTOTESTE INTEGRACAO BANCO: contagem de casos diferente de 25"
+    echo "AUTOTESTE INTEGRACAO BANCO: contagem de casos diferente de 28"
     exit 1
 fi
 if [ "$FALHAS" -eq 0 ]; then
