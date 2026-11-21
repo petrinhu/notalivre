@@ -172,6 +172,20 @@ QByteArray codigoDo(const nl::base::Erro &erro)
     return QByteArray::fromStdString(erro.codigo());
 }
 
+// Texto do Erro para a asserção: código e mensagem. Usuário, base, host e senha da conexão saem da mensagem, trocados
+// por marcas, para que o log do teste não leve dado da conta (v1k).
+QByteArray textoDoErro(const nl::base::Erro &erro, const Arranjo &a)
+{
+    QString texto = QString::fromStdString(erro.codigo()) + QStringLiteral(" ") + QString::fromStdString(erro.mensagem());
+    if (a.dados) {
+        if (!a.dados->usuario.isEmpty()) texto.replace(a.dados->usuario, QStringLiteral("<usuario>"));
+        if (!a.dados->base.isEmpty()) texto.replace(a.dados->base, QStringLiteral("<base>"));
+        if (!a.dados->host.isEmpty()) texto.replace(a.dados->host, QStringLiteral("<host>"));
+    }
+    if (!a.senha.isEmpty()) texto.replace(QString::fromUtf8(a.senha), QStringLiteral("<senha>"));
+    return texto.toUtf8();
+}
+
 } // namespace
 
 // Falha antes do executor (ambiente ou preparo do cenário): o slot imprime a sua NL-TLS antes da asserção que falha,
@@ -416,7 +430,10 @@ void TesteExecutorBanco::parametroComAspasNaoInjeta()
     auto ab = abrir("parametroComAspasNaoInjeta", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     auto &executor = *ab.executor;
-    QVERIFY(executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_aspas (x VARCHAR(64))")).has_value());
+    {
+        const auto ddl = executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_aspas (x VARCHAR(64))"));
+        QVERIFY2(ddl.has_value(), ddl.has_value() ? "" : textoDoErro(ddl.error(), a).constData());
+    }
     for (const char *payload : {"x'); DROP TABLE t; --", "' OR '1'='1"}) {
         QVERIFY(executor.executar(sql::Consulta::de("INSERT INTO nl_aspas (x) VALUES (?)"),
                                   std::array{sql::Parametro::texto(QByteArray(payload))}).has_value());
@@ -441,7 +458,10 @@ void TesteExecutorBanco::blobTodosOsBytesIdaEVolta()
         todos.append(static_cast<char>(i));
     }
     auto &executor = *ab.executor;
-    QVERIFY(executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_blob (b BLOB)")).has_value());
+    {
+        const auto ddl = executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_blob (b BLOB)"));
+        QVERIFY2(ddl.has_value(), ddl.has_value() ? "" : textoDoErro(ddl.error(), a).constData());
+    }
     for (int rodada = 0; rodada < 4; ++rodada) {
         QVERIFY(executor.executar(sql::Consulta::de("INSERT INTO nl_blob (b) VALUES (?)"),
                                   std::array{sql::Parametro::bytes(todos)}).has_value());
@@ -498,7 +518,10 @@ void TesteExecutorBanco::textoMaiorQueOBufferVoltaInteiro()
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     const QByteArray grande(1 << 20, 'y');
     auto &executor = *ab.executor;
-    QVERIFY(executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_grande (t MEDIUMTEXT, b MEDIUMBLOB)")).has_value());
+    {
+        const auto ddl = executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_grande (t MEDIUMTEXT, b MEDIUMBLOB)"));
+        QVERIFY2(ddl.has_value(), ddl.has_value() ? "" : textoDoErro(ddl.error(), a).constData());
+    }
     QVERIFY(executor.executar(sql::Consulta::de("INSERT INTO nl_grande (t, b) VALUES (?, ?)"),
                               std::array{sql::Parametro::texto(grande), sql::Parametro::bytes(grande)}).has_value());
     const auto linhas = executor.consultar(sql::Consulta::de("SELECT t FROM nl_grande"), {});
@@ -532,7 +555,10 @@ void TesteExecutorBanco::valorLongoRecusadoNoModoEstrito()
     auto ab = abrir("valorLongoRecusadoNoModoEstrito", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     auto &executor = *ab.executor;
-    QVERIFY(executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_curto (v VARCHAR(4))")).has_value());
+    {
+        const auto ddl = executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_curto (v VARCHAR(4))"));
+        QVERIFY2(ddl.has_value(), ddl.has_value() ? "" : textoDoErro(ddl.error(), a).constData());
+    }
     const auto insercao = executor.executar(sql::Consulta::de("INSERT INTO nl_curto (v) VALUES (?)"),
                                             std::array{sql::Parametro::texto(QByteArray("12345"))});
     QVERIFY(!insercao.has_value());
@@ -660,7 +686,10 @@ void TesteExecutorBanco::transacaoComFalhaDesfaz()
     auto ab = abrir("transacaoComFalhaDesfaz", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     auto &executor = *ab.executor;
-    QVERIFY(executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_tx (x INT)")).has_value());
+    {
+        const auto ddl = executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_tx (x INT)"));
+        QVERIFY2(ddl.has_value(), ddl.has_value() ? "" : textoDoErro(ddl.error(), a).constData());
+    }
     const auto resultado = executor.transacao([](sql::Executor &e) -> std::expected<void, nl::base::Erro> {
         if (!e.executar(sql::Consulta::de("INSERT INTO nl_tx (x) VALUES (1)"), {}).has_value()) {
             return std::unexpected(nl::base::Erro("sql.execucao", std::nullopt, "falha de teste"));
@@ -683,7 +712,10 @@ void TesteExecutorBanco::transacaoComSucessoGrava()
     auto ab = abrir("transacaoComSucessoGrava", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     auto &executor = *ab.executor;
-    QVERIFY(executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_tx2 (x INT)")).has_value());
+    {
+        const auto ddl = executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_tx2 (x INT)"));
+        QVERIFY2(ddl.has_value(), ddl.has_value() ? "" : textoDoErro(ddl.error(), a).constData());
+    }
     const auto resultado = executor.transacao([](sql::Executor &e) -> std::expected<void, nl::base::Erro> {
         if (!e.executar(sql::Consulta::de("INSERT INTO nl_tx2 (x) VALUES (1)"), {}).has_value()) {
             return std::unexpected(nl::base::Erro("sql.execucao", std::nullopt, "falha de teste"));
@@ -757,7 +789,10 @@ void TesteExecutorBanco::dataNaoMudaComFusoDaSessao()
     auto ab = abrir("dataNaoMudaComFusoDaSessao", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     auto &executor = *ab.executor;
-    QVERIFY(executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_data (d DATE, n BIGINT)")).has_value());
+    {
+        const auto ddl = executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_data (d DATE, n BIGINT)"));
+        QVERIFY2(ddl.has_value(), ddl.has_value() ? "" : textoDoErro(ddl.error(), a).constData());
+    }
     QVERIFY(executor.executar(sql::Consulta::de("INSERT INTO nl_data (d, n) VALUES (?, ?)"),
                               std::array{sql::Parametro::data(QDate(2026, 11, 21)), sql::Parametro::inteiro(7)})
                 .has_value());
