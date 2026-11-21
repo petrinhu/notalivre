@@ -21,3 +21,24 @@ foreach(slot IN ITEMS sessaoPadrao modoAberto modoFixadoImpressaoCerta modoFixad
                        LABELS banco
                        TIMEOUT 120)  # teto explícito: um servidor travado não segura o par por 1500 s
 endforeach()
+
+# Executor SQL da Foundation sql (NL-3.1a, bloco I-R): 27 slots, um por comportamento, no mesmo label banco. Os quatro slots
+# acima são os do critério 4 de TLS; estes 27 são os do executor. Cada slot é um processo, com uma linha NL-CONECTOR e uma NL-TLS.
+add_executable(tst_executor_banco tst_executor_banco.cpp)
+target_include_directories(tst_executor_banco PRIVATE ${NL_MARIADB_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/src/foundation/sql/privado)
+target_compile_definitions(tst_executor_banco PRIVATE "NL_MARIADB_PREFIXO_DO_BUILD=\"${NL_MARIADB_PREFIX}\"")
+target_link_libraries(tst_executor_banco PRIVATE Qt6::Core Qt6::Test nl_foundation_sql ${NL_MARIADB_LIB} nl_warnings)
+foreach(slot IN ITEMS
+        conexaoNoModoDaFamilia conexaoLocalSemTls modoFixadoImpressaoCertaAbre modoFixadoImpressaoTrocadaRecusa
+        impressaoTrocadaComVariavelDeAmbienteRecusa metodoForaDaListaRecusado modoFixadoAutenticaComCacheVazio
+        parametroComAspasNaoInjeta blobTodosOsBytesIdaEVolta textoComNulNoMeioIdaEVolta textoComTamanhoExatoDoBuffer
+        textoMaiorQueOBufferVoltaInteiro utf8mb4QuatroBytesIdaEVolta valorLongoRecusadoNoModoEstrito
+        quantidadeDeParametrosDiferenteRecusada rePrepareSemNovoVinculoRecusado multiStatementsDesligado
+        localInfileDesligado arquivoDeOpcoesIgnorado quedaDeConexaoViraErro transacaoComFalhaDesfaz
+        transacaoComSucessoGrava ddlEmTransacaoRecusado transacaoAninhadaRecusada senhaNaoApareceEmErroNemLog
+        dataNaoMudaComFusoDaSessao senhaDoConectorZeradaDepoisDeConectar)
+  nl_registra_teste_qt(NAME integracao.banco.executor.${slot} COMMAND tst_executor_banco ${slot})
+  set_tests_properties(integracao.banco.executor.${slot} PROPERTIES
+                       LABELS banco
+                       TIMEOUT 120)  # teto explícito, como nos quatro slots de TLS
+endforeach()
