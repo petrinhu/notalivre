@@ -19,14 +19,14 @@ namespace nl::foundation::sql {
 namespace {
 
 // Contagem de tentativas de conexão do processo: sobe só depois da validação, e a costura de teste a lê.
-std::atomic<int> tentativasDeConexao{0};
+std::atomic<int> contadorDeTentativas{0};
 
 } // namespace
 
 namespace detalhe {
 
-int tentativasDeConexao() noexcept { return tentativasDeConexao.load(); }
-void zerarTentativasDeConexao() noexcept { tentativasDeConexao.store(0); }
+int tentativasDeConexao() noexcept { return contadorDeTentativas.load(); }
+void zerarTentativasDeConexao() noexcept { contadorDeTentativas.store(0); }
 
 std::expected<MYSQL*, nl::base::Erro> abrirSessao(const DadosConexao& dados)
 {
@@ -45,7 +45,7 @@ std::expected<MYSQL*, nl::base::Erro> abrirSessao(const DadosConexao& dados)
         mysql_close(conexao);
         return std::unexpected(modo.error());
     }
-    tentativasDeConexao.fetch_add(1);
+    contadorDeTentativas.fetch_add(1);
     MYSQL* sessao = mysql_real_connect(conexao, dados.host.constData(), dados.usuario.constData(),
                                        dados.senhaNulTerminada, dados.banco.constData(),
                                        static_cast<unsigned int>(dados.porta), nullptr, 0);
