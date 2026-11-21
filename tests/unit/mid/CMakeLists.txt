@@ -5,3 +5,4 @@
 add_subdirectory(sefin)
 add_subdirectory(cofre)
 add_subdirectory(composicao)
+add_subdirectory(persistencia)
