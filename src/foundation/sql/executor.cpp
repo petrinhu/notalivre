@@ -31,6 +31,8 @@ std::expected<Executor, nl::base::Erro> Executor::conectar(const DadosConexao& d
     return Executor(std::make_unique<Estado>(*sessao));
 }
 
+Executor::Executor(std::unique_ptr<Estado> estado) : estado_(std::move(estado)) {}
+
 Executor::Executor(Executor&&) noexcept = default;
 Executor& Executor::operator=(Executor&&) noexcept = default;
 Executor::~Executor() = default;
