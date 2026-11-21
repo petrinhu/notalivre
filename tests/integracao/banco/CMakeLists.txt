@@ -4,8 +4,8 @@
 # nunca no build Flatpak (tests/CMakeLists.txt). Slots integracao.banco.<nome>, um por função, com o rótulo banco.
 # Sem o cabeçalho ou a biblioteca do Connector/C a configuração para com mensagem: é erro de ambiente, não pulo.
 # NL-3.1h (v3.17): o Connector/C do teste é o do prefixo declarado da distro (tools/conteiner/prefixo_mariadb.txt). A guarda
-# está em cmake/NlConectorMariadb.cmake, a mesma do motor sql (NL-3.1a, v1e): o host passa NL_MARIADB_PREFIX ao contêiner.
-include("${CMAKE_SOURCE_DIR}/cmake/NlConectorMariadb.cmake")
+# está em src/foundation/sql/nl_conector_mariadb.cmake (NL-3.1a, v1f), a mesma do motor sql: o host passa NL_MARIADB_PREFIX ao contêiner.
+include("${CMAKE_SOURCE_DIR}/src/foundation/sql/nl_conector_mariadb.cmake")
 
 add_executable(tst_conexao_banco tst_conexao_banco.cpp)
 target_include_directories(tst_conexao_banco PRIVATE ${NL_MARIADB_INCLUDE_DIR})
