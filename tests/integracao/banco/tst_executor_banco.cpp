@@ -358,10 +358,15 @@ void TesteExecutorBanco::modoFixadoAutenticaComCacheVazio()
     const unsigned long tamanho = mysql_real_escape_string(sessao.get(), escapada.data(), a.senha.constData(),
                                                            static_cast<unsigned long>(a.senha.size()));
     escapada.resize(static_cast<qsizetype>(tamanho));
-    const QByteArray troca = QByteArrayLiteral("ALTER USER CURRENT_USER() IDENTIFIED BY '") + escapada + "'";
+    // Classe A (MySQL, caching_sha2): ALTER USER. Classes B e C (MariaDB, native): SET PASSWORD, que a conta pode usar
+    // sem privilégio novo (v1i, CTO). A forma sai na linha NL-TROCA, sempre.
+    const bool classeA = *a.classe == Classe::A;
+    const QByteArray troca = classeA
+        ? QByteArrayLiteral("ALTER USER CURRENT_USER() IDENTIFIED BY '") + escapada + "'"
+        : QByteArrayLiteral("SET PASSWORD = PASSWORD('") + escapada + "')";
     const bool trocou = mysql_query(sessao.get(), troca.constData()) == 0;
+    qInfo("NL-TROCA forma=%s erro=%u", classeA ? "alter_user" : "set_password", mysql_errno(sessao.get()));
     if (!trocou) {
-        qInfo("NL-TROCA erro=%u", mysql_errno(sessao.get()));
         recusaDePreparo("troca_senha");
     }
     QVERIFY2(trocou, "a conta de teste não pôde trocar a própria senha: PARADA ao CTO (NL-TROCA, erro do servidor)");
