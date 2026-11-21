@@ -671,6 +671,44 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Reserva do ZIP do XSD (decisão do líder, "Cópia no CI + reserva (Recomendado)"): o gov.br caiu três vezes no download
+      # feito pelo próprio flatpak-builder. Mesmo cache e mesma chave dos jobs nativos; o ZIP vai para o caminho de checksum
+      # do flatpak-builder (.flatpak-builder/downloads/<SHA-256>/<nome>), e o builder não baixa de novo.
+      - name: Cache do ZIP do XSD (mesmo cache dos jobs nativos)
+        id: xsd-cache-flatpak
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/xsd-cache
+          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
+
+      - name: ZIP do XSD para o flatpak-builder (cache ou download com nova tentativa; SHA-256 conferido)
+        id: xsd-flatpak
+        run: |
+          set -eu
+          zip_nome=esquemas_prod_restrita_20261020.zip
+          pasta="$RUNNER_TEMP/xsd-cache"
+          zip="$pasta/$zip_nome"
+          mkdir -p "$pasta"
+          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261020/SHA256SUMS
+          if [ -f "$zip" ]; then
+              echo "ZIP do XSD (flatpak): cache hit ($zip)"
+          else
+              echo "ZIP do XSD (flatpak): cache miss, baixando de $NL_XSD_ZIP_URL"
+              if ! cmake -DNL_URL="$NL_XSD_ZIP_URL" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+                  echo "::error::ZIP do XSD não baixado do gov.br (flatpak): 5 tentativas, ou hash divergente"
+                  exit 1
+              fi
+          fi
+          # Conferência ANTES de copiar (L-36). Divergência derruba o passo; o cache não é apagado aqui (sem rm com variável).
+          if ! (cd "$pasta" && echo "$NL_XSD_ZIP_SHA256  $zip_nome" | sha256sum -c -); then
+              echo "::error::SHA-256 do ZIP do XSD divergente no flatpak ($NL_XSD_ZIP_SHA256): trocar a chave do cache"
+              exit 1
+          fi
+          destino="$GITHUB_WORKSPACE/.flatpak-builder/downloads/$NL_XSD_ZIP_SHA256"
+          mkdir -p "$destino"
+          cp "$zip" "$destino/$zip_nome"
+          echo "ZIP do XSD copiado para o caminho de checksum do flatpak-builder: $destino/$zip_nome"
+
       - name: Build do manifesto e bundle (flatpak-builder)
         id: builder
         # Action fixada pelo commit do tag v6 (flatpak-github-actions). Sem restore-keys na action:
