@@ -241,7 +241,7 @@ void TesteExecutorBanco::conexaoNoModoDaFamilia()
     }
     qInfo("NL-SHOW aceito=%d", aceitoShow ? 1 : 0);
 
-    const auto ab = abrir("conexaoNoModoDaFamilia", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("conexaoNoModoDaFamilia", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     QVERIFY2(!ab.executor->cifraTlsDaSessao().isEmpty() == (*a.classe == Classe::A),
              "a cifra de TLS do cliente só existe na classe A (MySQL, fixado): PARADA ao CISO");
@@ -251,7 +251,7 @@ void TesteExecutorBanco::conexaoLocalSemTls()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("conexaoLocalSemTls", a, QByteArrayLiteral("mysql_native_password"),
+    auto ab = abrir("conexaoLocalSemTls", a, QByteArrayLiteral("mysql_native_password"),
                           sql::ModoTls(sql::ModoAberto{}));
     if (*a.classe == Classe::A) {
         QVERIFY2(!ab.executor.has_value(), "classe A abriu sem TLS no aberto com a lista native: PARADA ao CISO");
@@ -266,7 +266,7 @@ void TesteExecutorBanco::modoFixadoImpressaoCertaAbre()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("modoFixadoImpressaoCertaAbre", a, pluginsDaFamilia(a),
+    auto ab = abrir("modoFixadoImpressaoCertaAbre", a, pluginsDaFamilia(a),
                           sql::ModoTls(sql::ModoFixado(impressaoParaFixar(*a.dados))));
     if (*a.classe == Classe::B) {
         QVERIFY2(!ab.executor.has_value(), "classe B abriu no fixado sem TLS no servidor: PARADA ao CISO");
@@ -280,7 +280,7 @@ void TesteExecutorBanco::modoFixadoImpressaoTrocadaRecusa()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("modoFixadoImpressaoTrocadaRecusa", a, pluginsDaFamilia(a),
+    auto ab = abrir("modoFixadoImpressaoTrocadaRecusa", a, pluginsDaFamilia(a),
                           sql::ModoTls(sql::ModoFixado(impressaoTrocada(impressaoParaFixar(*a.dados)))));
     QVERIFY2(!ab.executor.has_value(), "impressão trocada abriu sessão: PARADA ao CISO");
     QCOMPARE(ab.codigo, QByteArrayLiteral("sql.tls_recusado"));
@@ -291,7 +291,7 @@ void TesteExecutorBanco::impressaoTrocadaComVariavelDeAmbienteRecusa()
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     qputenv("MARIADB_TLS_DISABLE_PEER_VERIFICATION", "1");
-    const auto ab = abrir("impressaoTrocadaComVariavelDeAmbienteRecusa", a, pluginsDaFamilia(a),
+    auto ab = abrir("impressaoTrocadaComVariavelDeAmbienteRecusa", a, pluginsDaFamilia(a),
                           sql::ModoTls(sql::ModoFixado(impressaoTrocada(impressaoParaFixar(*a.dados)))));
     qunsetenv("MARIADB_TLS_DISABLE_PEER_VERIFICATION");
     QVERIFY2(!ab.executor.has_value(), "impressão trocada abriu com a variável no ambiente: PARADA ao CISO");
@@ -303,7 +303,7 @@ void TesteExecutorBanco::metodoForaDaListaRecusado()
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     // Classe A: fixado com a lista native (fora do caching_sha2). Classes B e C: aberto com client_ed25519.
-    const auto ab = *a.classe == Classe::A
+    auto ab = *a.classe == Classe::A
         ? abrir("metodoForaDaListaRecusado", a, QByteArrayLiteral("mysql_native_password"),
                 sql::ModoTls(sql::ModoFixado(impressaoParaFixar(*a.dados))))
         : abrir("metodoForaDaListaRecusado", a, QByteArrayLiteral("client_ed25519"),
@@ -327,7 +327,7 @@ void TesteExecutorBanco::modoFixadoAutenticaComCacheVazio()
     const QByteArray troca = QByteArrayLiteral("ALTER USER CURRENT_USER() IDENTIFIED BY '") + escapada + "'";
     QVERIFY2(mysql_query(sessao.get(), troca.constData()) == 0, "a conta de teste não pôde trocar a própria senha: PARADA ao CTO");
     sessao.reset();
-    const auto ab = abrir("modoFixadoAutenticaComCacheVazio", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("modoFixadoAutenticaComCacheVazio", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
 }
 
@@ -336,7 +336,7 @@ void TesteExecutorBanco::parametroComAspasNaoInjeta()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("parametroComAspasNaoInjeta", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("parametroComAspasNaoInjeta", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     auto &executor = *ab.executor;
     QVERIFY(executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_aspas (x VARCHAR(64))")).has_value());
@@ -354,7 +354,7 @@ void TesteExecutorBanco::blobTodosOsBytesIdaEVolta()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("blobTodosOsBytesIdaEVolta", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("blobTodosOsBytesIdaEVolta", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     QByteArray todos;
     for (int i = 0; i < 256; ++i) {
@@ -377,7 +377,7 @@ void TesteExecutorBanco::textoComNulNoMeioIdaEVolta()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("textoComNulNoMeioIdaEVolta", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("textoComNulNoMeioIdaEVolta", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     const QByteArray comNul("a\0b", 3);
     const auto linhas = ab.executor->consultar(sql::Consulta::de("SELECT ?"),
@@ -390,7 +390,7 @@ void TesteExecutorBanco::textoComTamanhoExatoDoBuffer()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("textoComTamanhoExatoDoBuffer", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("textoComTamanhoExatoDoBuffer", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     for (const int tamanho : {255, 256, 257}) {
         const QByteArray texto(tamanho, 'x');
@@ -405,7 +405,7 @@ void TesteExecutorBanco::textoMaiorQueOBufferVoltaInteiro()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("textoMaiorQueOBufferVoltaInteiro", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("textoMaiorQueOBufferVoltaInteiro", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     const QByteArray grande(1 << 20, 'y');
     auto &executor = *ab.executor;
@@ -421,7 +421,7 @@ void TesteExecutorBanco::utf8mb4QuatroBytesIdaEVolta()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("utf8mb4QuatroBytesIdaEVolta", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("utf8mb4QuatroBytesIdaEVolta", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     const QByteArray quatroBytes("\xF0\x9F\x98\x80", 4);
     const auto linhas = ab.executor->consultar(sql::Consulta::de("SELECT ?"),
@@ -434,7 +434,7 @@ void TesteExecutorBanco::valorLongoRecusadoNoModoEstrito()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("valorLongoRecusadoNoModoEstrito", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("valorLongoRecusadoNoModoEstrito", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     auto &executor = *ab.executor;
     QVERIFY(executor.executarDdl(sql::Ddl::de("CREATE TEMPORARY TABLE nl_curto (v VARCHAR(4))")).has_value());
@@ -450,7 +450,7 @@ void TesteExecutorBanco::quantidadeDeParametrosDiferenteRecusada()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("quantidadeDeParametrosDiferenteRecusada", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("quantidadeDeParametrosDiferenteRecusada", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     const auto dois = ab.executor->consultar(sql::Consulta::de("SELECT ?, ?"),
                                              std::array{sql::Parametro::inteiro(1)});
@@ -479,7 +479,7 @@ void TesteExecutorBanco::multiStatementsDesligado()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("multiStatementsDesligado", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("multiStatementsDesligado", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     QCOMPARE(nl::foundation::sql::costura::capacidadesDoCliente(*ab.executor) & (1UL << 16), 0UL);
 }
@@ -488,7 +488,7 @@ void TesteExecutorBanco::localInfileDesligado()
 {
     const auto a = arranjoDoSlot();
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
-    const auto ab = abrir("localInfileDesligado", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("localInfileDesligado", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     QCOMPARE(nl::foundation::sql::costura::capacidadesDoCliente(*ab.executor) & (1UL << 7), 0UL);
     QCOMPARE(nl::foundation::sql::costura::opcaoLocalInfile(*ab.executor), 0);
@@ -506,7 +506,7 @@ void TesteExecutorBanco::arquivoDeOpcoesIgnorado()
     cnf.write("[client]\ninit-command=SET @nl_arquivo_de_opcoes=1\n");
     cnf.close();
     qputenv("HOME", casa.path().toUtf8());
-    const auto ab = abrir("arquivoDeOpcoesIgnorado", a, pluginsDaFamilia(a), modoDaFamilia(a));
+    auto ab = abrir("arquivoDeOpcoesIgnorado", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     const auto linhas = ab.executor->consultar(sql::Consulta::de("SELECT @nl_arquivo_de_opcoes"), {});
     QVERIFY(linhas.has_value());
