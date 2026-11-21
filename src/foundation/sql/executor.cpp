@@ -82,7 +82,7 @@ std::expected<void, nl::base::Erro> Executor::executarDdl(const Ddl& ddl)
 
 std::expected<void, nl::base::Erro> Executor::transacao(const std::function<std::expected<void, nl::base::Erro>(Executor&)>& corpo)
 {
-    return detalhe::executarTransacao(*estado_, *this, corpo);
+    return detalhe::executarTransacao(estado_->mysql, estado_->emTransacao, *this, corpo);
 }
 
 QByteArray Executor::cifraTlsDaSessao() const

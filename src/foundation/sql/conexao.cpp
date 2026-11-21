@@ -16,13 +16,6 @@
 
 namespace nl::foundation::sql {
 
-Executor::Estado::~Estado()
-{
-    if (mysql != nullptr) {
-        mysql_close(mysql);
-    }
-}
-
 namespace {
 
 // Contagem de tentativas de conexão do processo: sobe só depois da validação, e a costura de teste a lê.

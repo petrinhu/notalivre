@@ -19,7 +19,12 @@ namespace nl::foundation::sql {
 
 struct Executor::Estado {
     explicit Estado(MYSQL* conexao) : mysql(conexao) {}
-    ~Estado();
+    ~Estado()
+    {
+        if (mysql != nullptr) {
+            mysql_close(mysql);
+        }
+    }
     Estado(const Estado&) = delete;
     Estado& operator=(const Estado&) = delete;
 
@@ -42,7 +47,7 @@ void zerarTentativasDeConexao() noexcept;                     // conexao.cpp
 [[nodiscard]] std::expected<void, nl::base::Erro> aplicarModoAberto(MYSQL* conexao);     // modo_aberto.cpp
 [[nodiscard]] std::expected<void, nl::base::Erro> aplicarModoFixado(MYSQL* conexao, const QByteArray& impressao); // modo_fixado.cpp
 [[nodiscard]] std::expected<void, nl::base::Erro> reexecutarSemVinculo(MYSQL* conexao);  // preparado.cpp
-[[nodiscard]] std::expected<void, nl::base::Erro> executarTransacao(Executor::Estado& estado, Executor& executor, const std::function<std::expected<void, nl::base::Erro>(Executor&)>& corpo); // transacao.cpp
+[[nodiscard]] std::expected<void, nl::base::Erro> executarTransacao(MYSQL* conexao, bool& emTransacao, Executor& executor, const std::function<std::expected<void, nl::base::Erro>(Executor&)>& corpo); // transacao.cpp
 
 [[nodiscard]] nl::base::Erro erroDeConexao(unsigned erro, const char* mensagem);   // erros.cpp
 [[nodiscard]] nl::base::Erro erroDePreparo(unsigned erro, const char* mensagem);   // erros.cpp
