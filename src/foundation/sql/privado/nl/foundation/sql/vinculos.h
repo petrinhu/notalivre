@@ -11,6 +11,7 @@
 #include <mysql.h>
 
 #include <QByteArray>
+#include <QtGlobal>
 
 #include <expected>
 #include <span>
@@ -18,10 +19,22 @@
 
 namespace nl::foundation::sql::detalhe {
 
+// Os ponteiros de cada MYSQL_BIND apontam para os vetores abaixo. Os vetores são dimensionados uma vez, antes de
+// qualquer ponteiro, e o objeto só se move (mover um std::vector mantém o bloco de memória, então os ponteiros valem).
 struct VinculosMontados {
+    VinculosMontados() = default;
+    VinculosMontados(VinculosMontados&&) noexcept = default;
+    VinculosMontados& operator=(VinculosMontados&&) noexcept = default;
+    VinculosMontados(const VinculosMontados&) = delete;
+    VinculosMontados& operator=(const VinculosMontados&) = delete;
+    ~VinculosMontados() = default;
+
     std::vector<MYSQL_BIND> vinculos;     // um por parâmetro, na ordem do span
     std::vector<unsigned long> tamanhos;  // *length de cada vínculo; nunca nulo
-    std::vector<QByteArray> dados;        // dono dos bytes que os buffers apontam
+    std::vector<my_bool> nulos;           // *is_null de cada vínculo; nunca nulo
+    std::vector<qint64> inteiros;         // buffer dos inteiros
+    std::vector<MYSQL_TIME> tempos;       // buffer das datas, sem fuso
+    std::vector<QByteArray> dados;        // dono dos bytes de texto e de blob
 };
 
 [[nodiscard]] std::expected<VinculosMontados, nl::base::Erro> montarVinculos(std::span<const Parametro> parametros);
