@@ -8,18 +8,14 @@ fi
 
 # nl_banco_rodar_executor DISTRO SERVIDOR DIR FONTE BUILD: o corpo ctest_banco_no_conteiner.sh (ctest do preset NL_PRESET_BANCO e a
 # linha NL-PIDS), com rede do servidor, sem senha no ambiente, e o teto de 256 do envelope da coordenação (v3.19).
-# NL-3.1a (H-G): o preset vem de NL_PRESET_BANCO (banco, padrão, ou banco-asan). O banco-asan leva o ASAN_OPTIONS, o LSAN_OPTIONS
-# e o UBSAN_OPTIONS do test preset de CMakePresets.json (valores iguais, por literal).
+# NL-3.1a (H-G): o preset vem de NL_PRESET_BANCO (banco, padrão, ou banco-asan). O ambiente do sanitizer vem do test preset,
+# pelo ctest --preset dentro do contêiner; este executor não repassa nenhum ajuste de ambiente.
 nl_banco_rodar_executor() {
     NL_THREADS=3 NL_MEMORIA=4g nl_cotas_docker || return 2
-    local preset="${NL_PRESET_BANCO:-banco}" asan=()
-    if [ "$preset" = banco-asan ]; then
-        asan=(-e "ASAN_OPTIONS=halt_on_error=1:detect_leaks=1:exitcode=86" -e "LSAN_OPTIONS=detect_leaks=1:exitcode=86" \
-              -e "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1:exitcode=86")
-    fi
+    local preset="${NL_PRESET_BANCO:-banco}"
     docker run --pull=never --rm "${NL_COTAS_DOCKER_SEM_PIDS[@]}" --pids-limit 256 --ulimit core=1 \
         --network "container:$2" --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
-        -e "NL_PRESET_BANCO=$preset" "${asan[@]}" \
+        -e "NL_PRESET_BANCO=$preset" \
         --env-file "$3/executor.env" -v "$3:/run/nl:ro,z" -v "$4:/src:ro,z" -v "$5:/var/tmp/notalivre-build:z" \
         -v notalivre-qt-6120:/opt/qt:ro -w /src "notalivre/build-$1:nl-2.0" \
         bash /src/tools/conteiner/ctest_banco_no_conteiner.sh
