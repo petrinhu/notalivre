@@ -14,6 +14,13 @@ ALVO="${2:-}"
 [ -n "$DISTRO" ] && [ -n "$ALVO" ] || { echo "uso: integracao_banco.sh <distro> <nome|todos>"; exit 2; }
 [ -n "${NL_SHA:-}" ] || { echo "PARADA: NL_SHA é obrigatório"; exit 2; }
 [ -n "${NL_FATIA:-}" ] || { echo "PARADA: NL_FATIA é obrigatório"; exit 2; }
+# NL-3.1a (H-G): o preset do build de banco. Só dois valores: banco (padrão) e banco-asan (sanitizer). Outro é PARADA.
+NL_PRESET_BANCO="${NL_PRESET_BANCO:-banco}"
+case "$NL_PRESET_BANCO" in
+    banco|banco-asan) ;;
+    *) echo "PARADA: NL_PRESET_BANCO '$NL_PRESET_BANCO' fora de banco e banco-asan"; echo "NL-RC=2"; exit 2 ;;
+esac
+export NL_PRESET_BANCO
 if [ "${NL_TRAVA_DETIDA:-}" != 1 ]; then
     exec flock /var/tmp/notalivre-heavy.lock env NL_TRAVA_DETIDA=1 nice -n 5 "$0" "$@"
 fi
@@ -38,7 +45,7 @@ BUILD="$NL_TMP_BASE/notalivre-build-$DISTRO-$NL_FATIA"
 if [ ! -d "$FONTE" ] || [ ! -d "$BUILD" ]; then
     echo "PARADA: fonte ou build ausente ($FONTE, $BUILD)"; echo "NL-RC=2"; exit 2
 fi
-opcao="$(/usr/bin/grep -c 'NL_TESTES_BANCO:BOOL=ON' "$BUILD/banco/CMakeCache.txt" 2>/dev/null || true)"
+opcao="$(/usr/bin/grep -c 'NL_TESTES_BANCO:BOOL=ON' "$BUILD/$NL_PRESET_BANCO/CMakeCache.txt" 2>/dev/null || true)"
 if [ "$opcao" != 1 ]; then
     echo "PARADA: build banco sem NL_TESTES_BANCO:BOOL=ON"; echo "NL-RC=2"; exit 2
 fi
@@ -78,7 +85,7 @@ N_TLS_LISTA=""
 executar_par() {
     local distro="$1" nome="$2" linha fam img metodo tlsc certc cred cont log_par plugin versao rede usada
     local enc analisados pulados falharam rc_exec n_tls linhas_tls ok=1
-    local junit="$BUILD/banco/junit"
+    local junit="$BUILD/$NL_PRESET_BANCO/junit"
     enc=0; analisados=0; pulados=0; falharam=0; rc_exec=2; n_tls=0; linhas_tls=""
     versao=sem_servidor; plugin=sem_conta; rede=nao_medida
     linha="$(nl_banco_servidor_de "$nome")" || { echo "PARADA: $nome fora de servidores_banco.txt"; return 1; }

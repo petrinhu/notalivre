@@ -94,7 +94,7 @@ case "$1" in
                 # O executor real grava o junitxml na pasta de build que o -v do executor monta (a da distro do par).
                 jd="$STUB_JUNIT_DIR"
                 for a in "$@"; do
-                    case "$a" in *:/var/tmp/notalivre-build:z) jd="${a%%:*}/banco/junit" ;; esac
+                    case "$a" in *:/var/tmp/notalivre-build:z) jd="${a%%:*}/${NL_PRESET_BANCO:-banco}/junit" ;; esac
                 done
                 if [ -z "${STUB_SEM_JUNIT:-}" ]; then
                     for slot in sessaoPadrao modoAberto modoFixadoImpressaoCerta modoFixadoImpressaoTrocada; do
@@ -393,7 +393,7 @@ executar_caso "banco-asan lê o próprio cache: sem NL_TESTES_BANCO reprova" "PA
 
 # Caso 28 (H-R, NL-3.1a): com banco-asan, o ASAN_OPTIONS do test preset chega ao docker run do executor (o stub grava a linha).
 novo_caso asan_no_executor || { echo "ABORTA: caso 28"; exit 1; }
-mkdir -p "$(dirname "$BUILD")/banco-asan" || { echo "ABORTA: caso 28 (pasta)"; exit 1; }
+mkdir -p "$(dirname "$BUILD")/banco-asan/junit" || { echo "ABORTA: caso 28 (pasta)"; exit 1; }
 printf 'NL_TESTES_BANCO:BOOL=ON\n' > "$(dirname "$BUILD")/banco-asan/CMakeCache.txt"
 export NL_PRESET_BANCO=banco-asan
 TOTAL=$((TOTAL + 1))
