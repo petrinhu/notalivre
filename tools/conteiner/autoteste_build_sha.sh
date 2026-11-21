@@ -265,9 +265,9 @@ wait "$pe1"; re1=$?
 wait "$pe2"; re2=$?
 resumo_e="$(conc_resumo "$BASE/c9e.conc" 2>/dev/null)"
 # Piso medido em 06/11/2026, ajustado na NL-3.A, na NL-2.20 e na NL-3.1h (v3.15): 2 processos x 23 chamadas de docker
-# (diagnóstico, build, 6 autotestes do laço de build_local.sh e 15 portões) = 46 pares S/E. O sexto autoteste
+# (diagnóstico, build, 6 autotestes do laço de build_local.sh e 16 portões) = 48 pares S/E (cada portão é um docker run). O sexto autoteste
 # (autoteste_paralelo_conteiner.sh) entrou em a13728e sem o piso subir.
-if [ "$re1" -eq 0 ] && [ "$re2" -eq 0 ] && [ "$resumo_e" = "pares=46 sobreposicoes=0" ]; then
+if [ "$re1" -eq 0 ] && [ "$re2" -eq 0 ] && [ "$resumo_e" = "pares=48 sobreposicoes=0" ]; then
     ok "C9 executar em paralelo sem sobreposição de contêiner ($resumo_e)"
 else
     falha "C9 executar em paralelo com contêineres sobrepostos ou sem piso (rc=$re1/$re2, $resumo_e)"

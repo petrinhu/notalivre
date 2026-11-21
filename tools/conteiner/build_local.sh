@@ -427,8 +427,14 @@ executar()
             corpo_etapa2=(sh -c "mkdir -p \"\$HOME\" && bash /extrator/mutante_no_conteiner.sh /gitrepo \"\$NL_SHA\" /var/tmp/notalivre-build")
             ;;
     esac
+    # NL-3.1a (emenda v1e, opção b): o prefixo do Connector/C é calculado aqui, no host, pela fonte única
+    # (prefixo_mariadb.txt), e entra no contêiner por -e. Distro fora da tabela é PARADA, antes do docker run.
+    . "$RAIZ/tools/conteiner/prefixo_mariadb.sh"
+    local prefixo_mariadb
+    prefixo_mariadb="$(nl_prefixo_mariadb "$distro")" || { echo "PARADA: distro '$distro' sem prefixo do Connector/C em prefixo_mariadb.txt (NL-3.1a, v1e)"; return 2; }
     docker run --pull=never "${extras_arnes[@]}" --rm "${NL_COTAS_DOCKER[@]}" --network none \
         --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp -e NL_DISTRO="$distro" \
+        -e NL_MARIADB_PREFIX="$prefixo_mariadb" \
         -e CMAKE_PREFIX_PATH="$QT_PREFIXO" -e CMAKE_BUILD_PARALLEL_LEVEL="$THREADS" \
         -e NL_XSD_ZIP_CACHE=/xsd-cache \
         "${gitopts[@]}" "${env_arnes[@]}" \

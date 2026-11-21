@@ -112,6 +112,9 @@ jobs:
           bash tools/conteiner/instalar/${{ matrix.distro }}.sh
           echo "/opt/aqt/bin" >> "$GITHUB_PATH"
 
+      - name: "Prefixo do Connector/C (fonte única: prefixo_mariadb.txt)"
+        run: . tools/conteiner/prefixo_mariadb.sh && p="$(nl_prefixo_mariadb "${{ matrix.distro }}")" && echo "NL_MARIADB_PREFIX=$p" >> "$GITHUB_ENV"
+
       - name: Caminho do Qt 6.12 (fixo por RUNNER_TEMP, o mesmo que o cache usa)
         run: |
           echo "QT_PREFIXO=$RUNNER_TEMP/qt/6.12.0/gcc_64" >> "$GITHUB_ENV"
@@ -294,6 +297,9 @@ jobs:
         run: |
           bash tools/conteiner/instalar/${{ matrix.distro }}.sh
           echo "/opt/aqt/bin" >> "$GITHUB_PATH"
+
+      - name: "Prefixo do Connector/C (fonte única: prefixo_mariadb.txt)"
+        run: . tools/conteiner/prefixo_mariadb.sh && p="$(nl_prefixo_mariadb "${{ matrix.distro }}")" && echo "NL_MARIADB_PREFIX=$p" >> "$GITHUB_ENV"
 
       - name: Caminho do Qt 6.12 (fixo por RUNNER_TEMP, o mesmo que o cache usa)
         run: |
@@ -489,6 +495,20 @@ jobs:
         run: |
           docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
             python3 -I /src/tools/portoes/pontos_de_parse.py /src
+
+      # NL-3.1a (CISO, parecer R1; decisão do líder de 21/11/2026, "Pôr no CI antes"): o portão sql_seguro e o seu
+      # autoteste rodam no CI com a mesma forma da lista de portões (lista_portoes.txt, linha sql_seguro).
+      - name: Portão sql_seguro (regras S1 a S8 do executor SQL, NL-3.1a)
+        id: sql_seguro
+        run: |
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'git config --global --add safe.directory /src && python3 -I /src/tools/portoes/sql_seguro.py /src'
+
+      - name: Autoteste do portão sql_seguro (casos de sabotagem, NL-3.1a)
+        id: autoteste_sql_seguro
+        run: |
+          docker run --pull=never --rm --network none -v "$GITHUB_WORKSPACE:/src:ro" notalivre-higiene:ci \
+            sh -c 'git config --global --add safe.directory /src && bash /src/tools/portoes/autoteste_sql_seguro.sh /src'
 
       - name: Fixação do CI (digest, SHA e privilégio; ADR 0001, A0-07)
         id: fixacao

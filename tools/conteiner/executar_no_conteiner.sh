@@ -12,6 +12,11 @@ set -u
 
 modo="${1:?uso: executar_no_conteiner.sh diagnostico | <preset>}"
 cd /src || exit 90
+# v1l (CTO): banco e banco-asan são o mesmo caminho do contêiner (prefixo do Connector/C; configure e build sem ctest).
+case "$modo" in
+    banco|banco-asan) modo_banco=1 ;;
+    *) modo_banco=0 ;;
+esac
 
 if [ "$modo" = "sabotagem-sanidade" ]; then
     exec bash tools/conteiner/sabotar_sanidade.sh /src
@@ -34,7 +39,7 @@ fi
 trap 'nl_pids_linha' EXIT
 # NL-3.1h (v3.17): no preset banco, o Connector/C vem do prefixo declarado da distro (prefixo_mariadb.txt), que o CMake lê de
 # NL_MARIADB_PREFIX. Distro fora da tabela é PARADA, antes de qualquer cmake.
-if [ "$modo" = "banco" ]; then
+if [ "$modo_banco" = 1 ]; then
     . tools/conteiner/prefixo_mariadb.sh
     NL_MARIADB_PREFIX="$(nl_prefixo_mariadb "${NL_DISTRO:-}")" || { echo "PARADA: distro '${NL_DISTRO:-}' sem prefixo do Connector/C em prefixo_mariadb.txt (NL-3.1h, v3.17)"; exit 2; }
     export NL_MARIADB_PREFIX
@@ -42,7 +47,7 @@ fi
 cmake --preset "$modo" && cmake --build --preset "$modo" --parallel "$CMAKE_BUILD_PARALLEL_LEVEL" || exit $?
 # NL-3.1h (v3.3, seção 1.3, item 3): o preset banco só configura e compila aqui. O ctest do banco roda no harness
 # integracao_banco.sh, e pulos e contagem da suíte normal não se aplicam a ele. O portão de funções segue valendo.
-if [ "$modo" = "banco" ]; then
+if [ "$modo_banco" = 1 ]; then
     banco_rc=0
     python3 -I tools/portoes/funcoes_no_ctest.py --raiz . --build "$NL_TMP_BASE/notalivre-build/$modo" --excecoes tests/funcoes_fora_do_ctest.txt || banco_rc=$?
     echo "NL-BANCO-BUILD: configure e build; ctest só no harness"

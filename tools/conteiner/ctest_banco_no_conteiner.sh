@@ -10,4 +10,5 @@ set -u
 . "$(dirname "${BASH_SOURCE[0]}")/medir_pids_conteiner.sh"
 trap 'nl_pids_linha' EXIT
 mkdir -p "$HOME" || exit 2
-ctest --preset banco --no-tests=error --output-on-failure --verbose
+# NL-3.1a (H-G): o preset vem de NL_PRESET_BANCO (banco, padrão, ou banco-asan), passado pelo executor.
+ctest --preset "${NL_PRESET_BANCO:-banco}" --no-tests=error --output-on-failure --verbose

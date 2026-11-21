@@ -39,13 +39,20 @@
       "inherits": "debug",
       "displayName": "Debug com os testes de banco (harness NL-3.1h)",
       "cacheVariables": { "NL_TESTES_BANCO": "ON" }
+    },
+    {
+      "name": "banco-asan",
+      "inherits": "asan-ubsan",
+      "displayName": "Debug + ASan/UBSan com os testes de banco (harness NL-3.1a, sanitizer)",
+      "cacheVariables": { "NL_TESTES_BANCO": "ON" }
     }
   ],
   "buildPresets": [
     { "name": "debug", "configurePreset": "debug" },
     { "name": "release", "configurePreset": "release" },
     { "name": "asan-ubsan", "configurePreset": "asan-ubsan" },
-    { "name": "banco", "configurePreset": "banco" }
+    { "name": "banco", "configurePreset": "banco" },
+    { "name": "banco-asan", "configurePreset": "banco-asan" }
   ],
   "testPresets": [
     { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
@@ -60,6 +67,17 @@
       "name": "asan-ubsan",
       "configurePreset": "asan-ubsan",
       "output": { "outputOnFailure": true },
+      "environment": {
+        "ASAN_OPTIONS": "halt_on_error=1:detect_leaks=1:exitcode=86",
+        "LSAN_OPTIONS": "detect_leaks=1:exitcode=86",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1:exitcode=86"
+      }
+    },
+    {
+      "name": "banco-asan",
+      "configurePreset": "banco-asan",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "label": "^banco$" } },
       "environment": {
         "ASAN_OPTIONS": "halt_on_error=1:detect_leaks=1:exitcode=86",
         "LSAN_OPTIONS": "detect_leaks=1:exitcode=86",

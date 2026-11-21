@@ -25,6 +25,8 @@ Verificações sobre cada literal:
      (<QtSql/...>) e de classe (<QSqlDatabase>);
   3. include relativo: resolvido pelo arquivo ou pelo -I da camada; se não resolve e sobe com `..`,
      é DESCONHECIDO e reprova.
+  4. motor irmão (NL-I.093, NL-3.1a): um motor de src/foundation/<motor>/ só inclui ele mesmo e foundation:base.
+     Cabeçalho genérico de src/foundation/include não é motor e não entra nesta regra.
 A poda é só o que está FORA de src/ e apps/: a varredura nunca entra em worktrees/, build-*/ ou out/
 da raiz (L-55). Nenhum diretório é podado por nome dentro de src/ ou apps/.
 """
@@ -153,6 +155,56 @@ def unidade_do_caminho(rel):
         if partes[1] == "mid":
             return "mid:composicao" if partes[2] == "composicao" else "mid"
     return None
+
+
+def motor_do_caminho(rel):
+    """Motor de um arquivo de src/foundation/<motor>/...: o nome do motor, ou None (fora de motor).
+
+    `base` é o motor de base (nl/base). `include` (src/foundation/include, cabeçalhos genéricos) não é motor.
+    """
+    partes = rel.split("/")
+    if partes[0] == "src" and len(partes) >= 4 and partes[1] == "foundation" and partes[2] != "include":
+        return partes[2]
+    return None
+
+
+def motor_do_include(alvo):
+    """Motor destino de um include nl/foundation/<motor>/...; None quando o prefixo não nomeia motor."""
+    partes = alvo.split("/")
+    if alvo.startswith("nl/foundation/") and len(partes) >= 4:
+        return partes[2]
+    return None
+
+
+def motor_relativo(raiz, caminho, origem, alvo):
+    """Motor do arquivo que um include relativo resolve (mesma ordem de resolver_relativo). None se não resolve."""
+    bases = [os.path.dirname(caminho)]
+    bases += [os.path.join(raiz, d) for d in DIRS_INCLUDE.get(unidade_origem(origem), ())]
+    for base in bases:
+        candidato = os.path.normpath(os.path.join(base, alvo))
+        if os.path.isfile(candidato):
+            return motor_do_caminho(relativo(raiz, candidato))
+    return None
+
+
+def motor_irmao(rel, caminho, raiz, alvo, destino):
+    """Motor irmão (NL-I.093): um motor da Foundation só inclui ele mesmo e foundation:base. Mensagem ou None.
+
+    Só vale para destino `foundation` (motor). Origem fora de motor (cabeçalho genérico) não entra.
+    Destino sem motor identificável (cabeçalho genérico de src/foundation/include) não reprova aqui.
+    """
+    if destino != "foundation":
+        return None
+    origem_motor = motor_do_caminho(rel)
+    if origem_motor is None or origem_motor == "base":
+        return None
+    if alvo.startswith("nl/"):
+        destino_motor = motor_do_include(alvo)
+    else:
+        destino_motor = motor_relativo(raiz, caminho, "foundation", alvo)
+    if destino_motor is None or destino_motor in ("base", origem_motor):
+        return None
+    return destino_motor
 
 
 def unidade_origem(unidade):
@@ -380,6 +432,10 @@ def verificar_literal(raiz, caminho, origem, rel, linha, alvo):
     if not permitido(origem, destino):
         return "VIOLACAO {}:{}: {} inclui {} ({}) proibido pela matriz 1.1".format(
             rel, linha, origem, alvo, destino)
+    irmao = motor_irmao(rel, caminho, raiz, alvo, destino)
+    if irmao is not None:
+        return "VIOLACAO {}:{}: foundation:{} inclui {} (foundation:{}) motor irmão, proibido (NL-I.093)".format(
+            rel, linha, motor_do_caminho(rel), alvo, irmao)
     return None
 
 

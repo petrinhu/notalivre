@@ -486,3 +486,35 @@ manjaro servidor_falso.prefixoRetiradoAntesDaRota servidor falso python (arnês 
 manjaro servidor_falso.semOPrefixoContinua404 servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.postsGuardamOCaminho servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.postRegistraIdENumeroDeCadaEnvio servidor falso python (arnês de rede), sem junitxml por função
+fedora45 sql.naoCompila.consultaDeArrayLocal teste de compilação, script cmake, sem junitxml por função
+fedora45 sql.naoCompila.consultaConcatenada teste de compilação, script cmake, sem junitxml por função
+fedora45 sql.naoCompila.consultaComPontoEVirgula teste de compilação, script cmake, sem junitxml por função
+fedora45 sql.naoCompila.consultaComAspas teste de compilação, script cmake, sem junitxml por função
+fedora45 sql.naoCompila.consultaComComentario teste de compilação, script cmake, sem junitxml por função
+fedora45 sql.naoCompila.ddlNoLugarDeConsulta teste de compilação, script cmake, sem junitxml por função
+fedora45 sql.naoCompila.parametroQString teste de compilação, script cmake, sem junitxml por função
+fedora45 sql.naoCompila.dadosSemModo teste de compilação, script cmake, sem junitxml por função
+ubuntu26.04 sql.naoCompila.consultaDeArrayLocal teste de compilação, script cmake, sem junitxml por função
+ubuntu26.04 sql.naoCompila.consultaConcatenada teste de compilação, script cmake, sem junitxml por função
+ubuntu26.04 sql.naoCompila.consultaComPontoEVirgula teste de compilação, script cmake, sem junitxml por função
+ubuntu26.04 sql.naoCompila.consultaComAspas teste de compilação, script cmake, sem junitxml por função
+ubuntu26.04 sql.naoCompila.consultaComComentario teste de compilação, script cmake, sem junitxml por função
+ubuntu26.04 sql.naoCompila.ddlNoLugarDeConsulta teste de compilação, script cmake, sem junitxml por função
+ubuntu26.04 sql.naoCompila.parametroQString teste de compilação, script cmake, sem junitxml por função
+ubuntu26.04 sql.naoCompila.dadosSemModo teste de compilação, script cmake, sem junitxml por função
+manjaro sql.naoCompila.consultaDeArrayLocal teste de compilação, script cmake, sem junitxml por função
+manjaro sql.naoCompila.consultaConcatenada teste de compilação, script cmake, sem junitxml por função
+manjaro sql.naoCompila.consultaComPontoEVirgula teste de compilação, script cmake, sem junitxml por função
+manjaro sql.naoCompila.consultaComAspas teste de compilação, script cmake, sem junitxml por função
+manjaro sql.naoCompila.consultaComComentario teste de compilação, script cmake, sem junitxml por função
+manjaro sql.naoCompila.ddlNoLugarDeConsulta teste de compilação, script cmake, sem junitxml por função
+manjaro sql.naoCompila.parametroQString teste de compilação, script cmake, sem junitxml por função
+manjaro sql.naoCompila.dadosSemModo teste de compilação, script cmake, sem junitxml por função
+mint22.3 sql.naoCompila.consultaDeArrayLocal teste de compilação, script cmake, sem junitxml por função
+mint22.3 sql.naoCompila.consultaConcatenada teste de compilação, script cmake, sem junitxml por função
+mint22.3 sql.naoCompila.consultaComPontoEVirgula teste de compilação, script cmake, sem junitxml por função
+mint22.3 sql.naoCompila.consultaComAspas teste de compilação, script cmake, sem junitxml por função
+mint22.3 sql.naoCompila.consultaComComentario teste de compilação, script cmake, sem junitxml por função
+mint22.3 sql.naoCompila.ddlNoLugarDeConsulta teste de compilação, script cmake, sem junitxml por função
+mint22.3 sql.naoCompila.parametroQString teste de compilação, script cmake, sem junitxml por função
+mint22.3 sql.naoCompila.dadosSemModo teste de compilação, script cmake, sem junitxml por função

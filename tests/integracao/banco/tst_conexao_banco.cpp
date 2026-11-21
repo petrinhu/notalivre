@@ -10,6 +10,7 @@
 #include "conexao_banco.h"
 #include "impressao_banco.h"
 #include "modo_tls.h"
+#include "registro_conector.h"
 #include "registro_tls.h"
 #include "tls_da_sessao.h"
 #include <QFile>
@@ -127,12 +128,7 @@ void TesteConexaoBanco::initTestCase()
     const QString execucao = QString::fromUtf8(mysql_get_client_info());
     const QString biblioteca = bibliotecaCarregada();
     const QString prefixo = QFileInfo(QStringLiteral(NL_MARIADB_PREFIXO_DO_BUILD)).canonicalFilePath();
-    const QByteArray cabecalhoBytes = cabecalho.toUtf8();
-    const QByteArray execucaoBytes = execucao.toUtf8();
-    const QByteArray bibliotecaBytes = biblioteca.toUtf8();
-    const QByteArray prefixoBytes = prefixo.isEmpty() ? QByteArrayLiteral("nd") : prefixo.toUtf8();
-    qInfo("NL-CONECTOR cabecalho=%s execucao=%s biblioteca=%s prefixo=%s", cabecalhoBytes.constData(),
-          execucaoBytes.constData(), bibliotecaBytes.constData(), prefixoBytes.constData());
+    registrarNlConector(cabecalho, execucao, biblioteca, prefixo);
     QVERIFY2(execucao == cabecalho, "libmariadb carregado com versão diferente da do cabeçalho compilado: PARADA ao CISO");
     QVERIFY2(!prefixo.isEmpty() && biblioteca.startsWith(prefixo + QLatin1Char('/')),
              "libmariadb carregado fora do prefixo do build: PARADA ao CISO");

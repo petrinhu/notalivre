@@ -13,7 +13,7 @@
 namespace {
 
 // Lado do cliente: a cifra da sessão, ou "nulo" quando a API não tem cifra (sem TLS).
-QString tlsDoCliente(MYSQL *conexao)
+[[maybe_unused]] QString tlsDoCliente(MYSQL *conexao)
 {
     const char *cifra = mysql_get_ssl_cipher(conexao);
     return cifra != nullptr ? QString::fromUtf8(cifra) : QStringLiteral("nulo");
@@ -41,13 +41,13 @@ QString statusDeSessao(MYSQL *conexao, const char *consulta)
 }
 
 // Lado do servidor: o valor de Ssl_cipher da sessão.
-QString tlsDoServidor(MYSQL *conexao)
+[[maybe_unused]] QString tlsDoServidor(MYSQL *conexao)
 {
     return statusDeSessao(conexao, "SHOW SESSION STATUS LIKE 'Ssl_cipher'");
 }
 
 // Versão do TLS negociada na sessão (Ssl_version), ou "vazio" sem TLS.
-QString versaoTlsDoServidor(MYSQL *conexao)
+[[maybe_unused]] QString versaoTlsDoServidor(MYSQL *conexao)
 {
     return statusDeSessao(conexao, "SHOW SESSION STATUS LIKE 'Ssl_version'");
 }

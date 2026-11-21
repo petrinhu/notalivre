@@ -5,7 +5,7 @@
 # (ou da linha de resultado) que o harness precisa dar, e o rc. Um caso só passa com a saída e o rc que o harness deve dar.
 # Não sobe contêiner: o docker é um de mentira no PATH. O de mentira lê a entrada do exec -i (como o docker real) e
 # responde ao que o harness pede: portão de funções, servidor, prontidão, conta, plugin, versão, sonda e executor.
-# Casos (25): servidor ausente; zero testes banco; build sem NL_TESTES_BANCO; junitxml do par anterior; junitxml com
+# Casos (28; os 26, 27 e 28 são do H-R do NL-3.1a, vermelhos até o H-G): servidor ausente; zero testes banco; build sem NL_TESTES_BANCO; junitxml do par anterior; junitxml com
 # skipped; limpeza em falha; docker run sem o vetor da cota; par fora da matriz; arquivo de banco/ executado direto;
 # portão de funções sem linha; portão de funções com faltam; só três linhas NL-TLS; volume do Qt ausente; classe disco
 # sem PEM; controle verde; todos com dois pares; GRANT da conta de teste; só três linhas NL-CONECTOR; ruído e reimpressão
@@ -23,7 +23,7 @@ trap 'rm -rf -- "$BASE"' EXIT
 FALHAS=0
 TOTAL=0
 SHA_FIXO=0000000000000000000000000000000000000000
-GRANT_ESPERADO="GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX ON \`notalivre\\_%\`.* TO 'notalivre_teste'@'%';"
+GRANT_ESPERADO="GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, CREATE TEMPORARY TABLES, DROP, ALTER, INDEX ON \`notalivre\\_%\`.* TO 'notalivre_teste'@'%';"
 
 ok() { echo "[VERDE] $1"; }
 falha() { echo "[VERMELHO] $1"; FALHAS=$((FALHAS + 1)); }
@@ -94,7 +94,7 @@ case "$1" in
                 # O executor real grava o junitxml na pasta de build que o -v do executor monta (a da distro do par).
                 jd="$STUB_JUNIT_DIR"
                 for a in "$@"; do
-                    case "$a" in *:/var/tmp/notalivre-build:z) jd="${a%%:*}/banco/junit" ;; esac
+                    case "$a" in *:/var/tmp/notalivre-build:z) jd="${a%%:*}/${NL_PRESET_BANCO:-banco}/junit" ;; esac
                 done
                 if [ -z "${STUB_SEM_JUNIT:-}" ]; then
                     for slot in sessaoPadrao modoAberto modoFixadoImpressaoCerta modoFixadoImpressaoTrocada; do
@@ -171,6 +171,7 @@ novo_caso() {
     unset STUB_SERVIDOR_AUSENTE STUB_VOLUME_AUSENTE STUB_JUNIT_XML STUB_SEM_JUNIT STUB_SEM_RESUMO STUB_LINHAS_TLS STUB_LINHAS_CONECTOR \
         STUB_RUIDO STUB_SEM_PIDS STUB_PIDS_LINHA STUB_RESUMO_CURTO \
         STUB_EXEC_RC STUB_SRV_RC STUB_FUNCOES_AUSENTE STUB_FUNCOES_FALTA STUB_PLUGIN STUB_PEM STUB_PEM_VAZIO
+    unset NL_PRESET_BANCO
     case ":$PATH:" in *":$BASE/bin:"*) ;; *) export PATH="$BASE/bin:$PATH" ;; esac
 }
 
@@ -375,9 +376,40 @@ else
     falha "GRANT da conta de teste: rc=$rc, grant_esperado_em_grant_log=$n_grant, 'command not found' na saída"
 fi
 
+# Caso 26 (H-R, NL-3.1a): NL_PRESET_BANCO fora de banco e banco-asan é PARADA, antes de qualquer par.
+novo_caso preset_fora_da_lista || { echo "ABORTA: caso 26"; exit 1; }
+export NL_PRESET_BANCO=outro
+executar_caso "NL_PRESET_BANCO fora de banco e banco-asan reprova" "PARADA: NL_PRESET_BANCO" \
+    bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+
+# Caso 27 (H-R, NL-3.1a): com banco-asan, o harness lê o CMakeCache do próprio preset, e não o do banco (que está ON aqui).
+# O build do banco-asan fica ao lado de banco/, na raiz da distro: $(dirname "$BUILD")/banco-asan.
+novo_caso cache_banco_asan || { echo "ABORTA: caso 27"; exit 1; }
+mkdir -p "$(dirname "$BUILD")/banco-asan" || { echo "ABORTA: caso 27 (pasta)"; exit 1; }
+printf 'NL_TESTES_BANCO:BOOL=OFF\n' > "$(dirname "$BUILD")/banco-asan/CMakeCache.txt"
+export NL_PRESET_BANCO=banco-asan
+executar_caso "banco-asan lê o próprio cache: sem NL_TESTES_BANCO reprova" "PARADA: build banco sem NL_TESTES_BANCO" \
+    bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+
+# Caso 28 (H-R, NL-3.1a; v1g): com banco-asan, a chamada do executor leva só o nome do preset, e nenhum ajuste de ambiente
+# de sanitizer. O ambiente do sanitizer vem do test preset, pelo ctest --preset (o caso não cita as variáveis).
+novo_caso preset_no_executor || { echo "ABORTA: caso 28"; exit 1; }
+mkdir -p "$(dirname "$BUILD")/banco-asan/junit" || { echo "ABORTA: caso 28 (pasta)"; exit 1; }
+printf 'NL_TESTES_BANCO:BOOL=ON\n' > "$(dirname "$BUILD")/banco-asan/CMakeCache.txt"
+export NL_PRESET_BANCO=banco-asan
+TOTAL=$((TOTAL + 1))
+saida="$(bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97 2>&1)"; rc=$?
+linha_executor="$(/usr/bin/grep -F 'ctest_banco_no_conteiner.sh' "$CASO/docker.log" 2>/dev/null | head -n 1)"
+n_ajustes="$(printf '%s\n' "$linha_executor" | /usr/bin/grep -c '_OPTIONS=' || true)"
+if [ "$rc" -eq 0 ] && [[ "$linha_executor" == *"-e NL_PRESET_BANCO=banco-asan"* ]] && [ "$n_ajustes" = 0 ]; then
+    ok "chamada do executor com banco-asan leva só o preset, sem ajuste de ambiente (rc=$rc)"
+else
+    falha "chamada do executor com banco-asan: rc=$rc, sem '-e NL_PRESET_BANCO=banco-asan' ou com ajuste de ambiente ($n_ajustes)"
+fi
+
 echo "casos=$TOTAL falharam=$FALHAS"
-if [ "$TOTAL" -ne 25 ]; then
-    echo "AUTOTESTE INTEGRACAO BANCO: contagem de casos diferente de 25"
+if [ "$TOTAL" -ne 28 ]; then
+    echo "AUTOTESTE INTEGRACAO BANCO: contagem de casos diferente de 28"
     exit 1
 fi
 if [ "$FALHAS" -eq 0 ]; then

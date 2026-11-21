@@ -6,21 +6,26 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     exit 1
 fi
 
-# nl_banco_rodar_executor DISTRO SERVIDOR DIR FONTE BUILD: o corpo ctest_banco_no_conteiner.sh (ctest --preset banco e a linha NL-PIDS), com rede do servidor, sem senha no ambiente, e o teto de 256 do envelope da coordenação (v3.19).
+# nl_banco_rodar_executor DISTRO SERVIDOR DIR FONTE BUILD: o corpo ctest_banco_no_conteiner.sh (ctest do preset NL_PRESET_BANCO e a
+# linha NL-PIDS), com rede do servidor, sem senha no ambiente, e o teto de 256 do envelope da coordenação (v3.19).
+# NL-3.1a (H-G): o preset vem de NL_PRESET_BANCO (banco, padrão, ou banco-asan). O ambiente do sanitizer vem do test preset,
+# pelo ctest --preset dentro do contêiner; este executor não repassa nenhum ajuste de ambiente.
 nl_banco_rodar_executor() {
     NL_THREADS=3 NL_MEMORIA=4g nl_cotas_docker || return 2
+    local preset="${NL_PRESET_BANCO:-banco}"
     docker run --pull=never --rm "${NL_COTAS_DOCKER_SEM_PIDS[@]}" --pids-limit 256 --ulimit core=1 \
         --network "container:$2" --user 1000:1000 -e HOME=/tmp/home -e TMPDIR=/var/tmp -e NL_TMP_BASE=/var/tmp \
+        -e "NL_PRESET_BANCO=$preset" \
         --env-file "$3/executor.env" -v "$3:/run/nl:ro,z" -v "$4:/src:ro,z" -v "$5:/var/tmp/notalivre-build:z" \
         -v notalivre-qt-6120:/opt/qt:ro -w /src "notalivre/build-$1:nl-2.0" \
         bash /src/tools/conteiner/ctest_banco_no_conteiner.sh
 }
 
-# nl_banco_rodar_portao_funcoes DISTRO FONTE BUILD: confere o registro do banco (C15') num contêiner sem rede.
+# nl_banco_rodar_portao_funcoes DISTRO FONTE BUILD: confere o registro do banco (C15') num contêiner sem rede, no build do preset.
 nl_banco_rodar_portao_funcoes() {
     NL_THREADS=1 NL_MEMORIA=2g nl_cotas_docker || return 2
     docker run --pull=never --rm "${NL_COTAS_DOCKER_SEM_PIDS[@]}" --pids-limit 256 --network none --user 1000:1000 \
-        -e HOME=/tmp/home -e TMPDIR=/var/tmp -v "$2:/src:ro,z" -v "$3:/var/tmp/notalivre-build:z" -w /src \
+        -e HOME=/tmp/home -e TMPDIR=/var/tmp -e "NL_PRESET_BANCO=${NL_PRESET_BANCO:-banco}" -v "$2:/src:ro,z" -v "$3:/var/tmp/notalivre-build:z" -w /src \
         "notalivre/build-$1:nl-2.0" \
-        sh -c 'mkdir -p "$HOME" && python3 -I tools/portoes/funcoes_no_ctest.py --raiz . --build /var/tmp/notalivre-build/banco --excecoes tests/funcoes_fora_do_ctest.txt'
+        sh -c 'mkdir -p "$HOME" && python3 -I tools/portoes/funcoes_no_ctest.py --raiz . --build "/var/tmp/notalivre-build/$NL_PRESET_BANCO" --excecoes tests/funcoes_fora_do_ctest.txt'
 }

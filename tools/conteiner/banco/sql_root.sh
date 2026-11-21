@@ -31,7 +31,7 @@ nl_banco_criar_conta_teste() {
     else
         printf "CREATE USER IF NOT EXISTS 'notalivre_teste'@'%%' IDENTIFIED VIA %s USING PASSWORD('%s');\n" "$metodo" "$senha" >> "$sql"
     fi
-    printf "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX ON \`notalivre\\_%%\`.* TO 'notalivre_teste'@'%%';\n" >> "$sql"
+    printf "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, CREATE TEMPORARY TABLES, DROP, ALTER, INDEX ON \`notalivre\\_%%\`.* TO 'notalivre_teste'@'%%';\n" >> "$sql"
     printf 'FLUSH PRIVILEGES;\n' >> "$sql"
     nl_banco_cliente "$cont" "$fam" < "$sql"
 }
