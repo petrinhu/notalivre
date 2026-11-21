@@ -21,3 +21,8 @@ target_include_directories(nl_foundation_sql PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/
 target_include_directories(nl_foundation_sql PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/privado ${NL_MARIADB_INCLUDE_DIR})
 target_link_libraries(nl_foundation_sql PUBLIC nl_foundation_base Qt6::Core)
 target_link_libraries(nl_foundation_sql PRIVATE ${NL_MARIADB_LIB} nl_warnings)
+# Costura de teste (v1j, decisao 2): só os testes linkam este alvo; o produto não o linka.
+add_library(nl_foundation_sql_costura STATIC costura.cpp)
+target_include_directories(nl_foundation_sql_costura PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/privado ${NL_MARIADB_INCLUDE_DIR})
+target_link_libraries(nl_foundation_sql_costura PUBLIC nl_foundation_sql)
+target_link_libraries(nl_foundation_sql_costura PRIVATE nl_warnings)

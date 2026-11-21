@@ -17,6 +17,7 @@
 #include <span>
 
 namespace nl::foundation::sql {
+namespace detalhe { struct AcessoAoEstado; }
 class Executor {
 public:
     [[nodiscard]] static std::expected<Executor, nl::base::Erro> conectar(const DadosConexao& dados);
@@ -33,6 +34,7 @@ public:
     [[nodiscard]] QByteArray cifraTlsDaSessao() const;   // vazio: sessão sem TLS (mysql_get_ssl_cipher)
 private:
     struct Estado;
+    friend struct detalhe::AcessoAoEstado;
     explicit Executor(std::unique_ptr<Estado> estado);
     std::unique_ptr<Estado> estado_;   // MYSQL* mora só no .cpp
 };

@@ -27,7 +27,7 @@ endforeach()
 add_executable(tst_executor_banco tst_executor_banco.cpp)
 target_include_directories(tst_executor_banco PRIVATE ${NL_MARIADB_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/src/foundation/sql/privado)
 target_compile_definitions(tst_executor_banco PRIVATE "NL_MARIADB_PREFIXO_DO_BUILD=\"${NL_MARIADB_PREFIX}\"")
-target_link_libraries(tst_executor_banco PRIVATE Qt6::Core Qt6::Test nl_foundation_sql ${NL_MARIADB_LIB} nl_warnings)
+target_link_libraries(tst_executor_banco PRIVATE Qt6::Core Qt6::Test nl_foundation_sql nl_foundation_sql_costura ${NL_MARIADB_LIB} nl_warnings)
 foreach(slot IN ITEMS
         conexaoNoModoDaFamilia conexaoLocalSemTls modoFixadoImpressaoCertaAbre modoFixadoImpressaoTrocadaRecusa
         impressaoTrocadaComVariavelDeAmbienteRecusa metodoForaDaListaRecusado modoFixadoAutenticaComCacheVazio

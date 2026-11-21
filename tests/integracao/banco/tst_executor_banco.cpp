@@ -184,6 +184,36 @@ void recusaDePreparo(const char *motivo)
 }
 } // namespace
 
+// Helpers da costura de teste (v1j): leem a sessão do conector pela API C. O produto não tem nenhuma delas.
+namespace {
+unsigned long capacidadesDoCliente(const sql::Executor &executor)
+{
+    unsigned long capacidades = 0;
+    mariadb_get_infov(nl::foundation::sql::costura::sessaoDoConector(executor), MARIADB_CONNECTION_CLIENT_CAPABILITIES,
+                      &capacidades);
+    return capacidades;
+}
+
+int opcaoLocalInfile(const sql::Executor &executor)
+{
+    unsigned int valor = 1;
+    mysql_get_optionv(nl::foundation::sql::costura::sessaoDoConector(executor), MYSQL_OPT_LOCAL_INFILE, &valor);
+    return static_cast<int>(valor);
+}
+
+char primeiroByteDaSenhaDoConector(const sql::Executor &executor)
+{
+    const st_mysql *sessao = nl::foundation::sql::costura::sessaoDoConector(executor);
+    return sessao != nullptr && sessao->passwd != nullptr ? sessao->passwd[0] : '\0';
+}
+
+bool ponteiroDaSenhaNulo(const sql::Executor &executor)
+{
+    const st_mysql *sessao = nl::foundation::sql::costura::sessaoDoConector(executor);
+    return sessao == nullptr || sessao->passwd == nullptr;
+}
+} // namespace
+
 class TesteExecutorBanco : public QObject
 {
     Q_OBJECT
@@ -555,7 +585,7 @@ void TesteExecutorBanco::multiStatementsDesligado()
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("multiStatementsDesligado", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
-    QCOMPARE(nl::foundation::sql::costura::capacidadesDoCliente(*ab.executor) & (1UL << 16), 0UL);
+    QCOMPARE(capacidadesDoCliente(*ab.executor) & (1UL << 16), 0UL);
 }
 
 void TesteExecutorBanco::localInfileDesligado()
@@ -567,8 +597,8 @@ void TesteExecutorBanco::localInfileDesligado()
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("localInfileDesligado", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
-    QCOMPARE(nl::foundation::sql::costura::capacidadesDoCliente(*ab.executor) & (1UL << 7), 0UL);
-    QCOMPARE(nl::foundation::sql::costura::opcaoLocalInfile(*ab.executor), 0);
+    QCOMPARE(opcaoLocalInfile(*ab.executor), 0);                          // opção de sessão (mysql_get_optionv)
+    QCOMPARE(capacidadesDoCliente(*ab.executor) & (1UL << 7), 0UL);       // capacidade anunciada (mariadb_get_infov)
 }
 
 // HOME temporário com um .my.cnf que tenta um init-command: a variável de sessão tem de voltar NULL.
@@ -747,9 +777,9 @@ void TesteExecutorBanco::senhaDoConectorZeradaDepoisDeConectar()
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     auto ab = abrir("senhaDoConectorZeradaDepoisDeConectar", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
-    qInfo("NL-SENHA-PTR nulo=%d", nl::foundation::sql::costura::ponteiroDaSenhaNulo(*ab.executor) ? 1 : 0);
-    QVERIFY(!nl::foundation::sql::costura::ponteiroDaSenhaNulo(*ab.executor));
-    QCOMPARE(nl::foundation::sql::costura::primeiroByteDaSenhaDoConector(*ab.executor), '\0');
+    qInfo("NL-SENHA-PTR nulo=%d", ponteiroDaSenhaNulo(*ab.executor) ? 1 : 0);
+    QVERIFY(!ponteiroDaSenhaNulo(*ab.executor));
+    QCOMPARE(primeiroByteDaSenhaDoConector(*ab.executor), '\0');
     const auto linhas = ab.executor->consultar(sql::Consulta::de("SELECT ?"),
                                                std::array{sql::Parametro::inteiro(7)});
     QVERIFY(linhas.has_value());

@@ -7,7 +7,7 @@ include("${CMAKE_SOURCE_DIR}/src/foundation/sql/nl_conector_mariadb.cmake")
 
 add_executable(tst_sql_validacao tst_sql_validacao.cpp)
 target_include_directories(tst_sql_validacao PRIVATE ${CMAKE_SOURCE_DIR}/src/foundation/sql/privado)
-target_link_libraries(tst_sql_validacao PRIVATE Qt6::Test nl_foundation_sql nl_warnings)
+target_link_libraries(tst_sql_validacao PRIVATE Qt6::Test nl_foundation_sql nl_foundation_sql_costura nl_warnings)
 nl_registra_teste_qt(NAME tst_sql_validacao COMMAND tst_sql_validacao)
 
 add_executable(tst_sql_vinculos tst_sql_vinculos.cpp)
