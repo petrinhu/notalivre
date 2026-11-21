@@ -5,7 +5,7 @@
 # (ou da linha de resultado) que o harness precisa dar, e o rc. Um caso só passa com a saída e o rc que o harness deve dar.
 # Não sobe contêiner: o docker é um de mentira no PATH. O de mentira lê a entrada do exec -i (como o docker real) e
 # responde ao que o harness pede: portão de funções, servidor, prontidão, conta, plugin, versão, sonda e executor.
-# Casos (25): servidor ausente; zero testes banco; build sem NL_TESTES_BANCO; junitxml do par anterior; junitxml com
+# Casos (28; os 26, 27 e 28 são do H-R do NL-3.1a, vermelhos até o H-G): servidor ausente; zero testes banco; build sem NL_TESTES_BANCO; junitxml do par anterior; junitxml com
 # skipped; limpeza em falha; docker run sem o vetor da cota; par fora da matriz; arquivo de banco/ executado direto;
 # portão de funções sem linha; portão de funções com faltam; só três linhas NL-TLS; volume do Qt ausente; classe disco
 # sem PEM; controle verde; todos com dois pares; GRANT da conta de teste; só três linhas NL-CONECTOR; ruído e reimpressão
@@ -171,6 +171,7 @@ novo_caso() {
     unset STUB_SERVIDOR_AUSENTE STUB_VOLUME_AUSENTE STUB_JUNIT_XML STUB_SEM_JUNIT STUB_SEM_RESUMO STUB_LINHAS_TLS STUB_LINHAS_CONECTOR \
         STUB_RUIDO STUB_SEM_PIDS STUB_PIDS_LINHA STUB_RESUMO_CURTO \
         STUB_EXEC_RC STUB_SRV_RC STUB_FUNCOES_AUSENTE STUB_FUNCOES_FALTA STUB_PLUGIN STUB_PEM STUB_PEM_VAZIO
+    unset NL_PRESET_BANCO
     case ":$PATH:" in *":$BASE/bin:"*) ;; *) export PATH="$BASE/bin:$PATH" ;; esac
 }
 
@@ -375,8 +376,36 @@ else
     falha "GRANT da conta de teste: rc=$rc, grant_esperado_em_grant_log=$n_grant, 'command not found' na saída"
 fi
 
+# Caso 26 (H-R, NL-3.1a): NL_PRESET_BANCO fora de banco e banco-asan é PARADA, antes de qualquer par.
+novo_caso preset_fora_da_lista || { echo "ABORTA: caso 26"; exit 1; }
+export NL_PRESET_BANCO=outro
+executar_caso "NL_PRESET_BANCO fora de banco e banco-asan reprova" "PARADA: NL_PRESET_BANCO" \
+    bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+
+# Caso 27 (H-R, NL-3.1a): com banco-asan, o harness lê o CMakeCache do próprio preset, e não o do banco (que está ON aqui).
+# O build do banco-asan fica ao lado de banco/, na raiz da distro: $(dirname "$BUILD")/banco-asan.
+novo_caso cache_banco_asan || { echo "ABORTA: caso 27"; exit 1; }
+mkdir -p "$(dirname "$BUILD")/banco-asan" || { echo "ABORTA: caso 27 (pasta)"; exit 1; }
+printf 'NL_TESTES_BANCO:BOOL=OFF\n' > "$(dirname "$BUILD")/banco-asan/CMakeCache.txt"
+export NL_PRESET_BANCO=banco-asan
+executar_caso "banco-asan lê o próprio cache: sem NL_TESTES_BANCO reprova" "PARADA: build banco sem NL_TESTES_BANCO" \
+    bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97
+
+# Caso 28 (H-R, NL-3.1a): com banco-asan, o ASAN_OPTIONS do test preset chega ao docker run do executor (o stub grava a linha).
+novo_caso asan_no_executor || { echo "ABORTA: caso 28"; exit 1; }
+mkdir -p "$(dirname "$BUILD")/banco-asan" || { echo "ABORTA: caso 28 (pasta)"; exit 1; }
+printf 'NL_TESTES_BANCO:BOOL=ON\n' > "$(dirname "$BUILD")/banco-asan/CMakeCache.txt"
+export NL_PRESET_BANCO=banco-asan
+TOTAL=$((TOTAL + 1))
+saida="$(bash "$CONTEINER/integracao_banco.sh" fedora45 mysql97 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && /usr/bin/grep -qF -- "ASAN_OPTIONS=halt_on_error=1:detect_leaks=1:exitcode=86" "$CASO/docker.log" 2>/dev/null; then
+    ok "ASAN_OPTIONS do test preset chega ao executor com banco-asan (rc=$rc)"
+else
+    falha "ASAN_OPTIONS do test preset não chega ao executor: rc=$rc, linha ausente em docker.log"
+fi
+
 echo "casos=$TOTAL falharam=$FALHAS"
-if [ "$TOTAL" -ne 25 ]; then
+if [ "$TOTAL" -ne 28 ]; then
     echo "AUTOTESTE INTEGRACAO BANCO: contagem de casos diferente de 25"
     exit 1
 fi
