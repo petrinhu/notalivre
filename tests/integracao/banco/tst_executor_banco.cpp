@@ -33,6 +33,7 @@
 #include <QtTest>
 
 #include <array>
+#include <cstdio>
 #include <cstdlib>
 #include <expected>
 #include <optional>
@@ -243,6 +244,9 @@ void capturarMensagem(QtMsgType tipo, const QMessageLogContext &contexto, const 
     mensagensCapturadas << mensagem;
     if (manipuladorAnterior != nullptr) {
         manipuladorAnterior(tipo, contexto, mensagem);
+    } else {
+        // Sem handler anterior, a mensagem sai no stderr no mesmo formato do Qt: nenhuma linha NL-TLS some.
+        std::fprintf(stderr, "%s\n", qPrintable(qFormatLogMessage(tipo, contexto, mensagem)));
     }
 }
 
