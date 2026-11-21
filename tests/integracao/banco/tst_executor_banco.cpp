@@ -26,13 +26,17 @@
 #include <QIODevice>
 #include <QSet>
 #include <QString>
+#include <QRandomGenerator>
+#include <QStringList>
 #include <QTemporaryDir>
+#include <QtLogging>
 #include <QtTest>
 
 #include <array>
 #include <cstdlib>
 #include <expected>
 #include <optional>
+#include <utility>
 #include <utility>
 #include <variant>
 
@@ -226,6 +230,27 @@ bool ponteiroDaSenhaNulo(const sql::Executor &executor)
     const st_mysql *sessao = nl::foundation::sql::costura::sessaoDoConector(executor);
     return sessao == nullptr || sessao->passwd == nullptr;
 }
+} // namespace
+
+// Captura das mensagens do Qt durante o slot (v1n, m25). Cada mensagem segue para o manipulador anterior, para que o log
+// do harness (NL-TLS, NL-CONECTOR e o prefixo do QTest) continue igual.
+namespace {
+QStringList mensagensCapturadas;
+QtMessageHandler manipuladorAnterior = nullptr;
+
+void capturarMensagem(QtMsgType tipo, const QMessageLogContext &contexto, const QString &mensagem)
+{
+    mensagensCapturadas << mensagem;
+    if (manipuladorAnterior != nullptr) {
+        manipuladorAnterior(tipo, contexto, mensagem);
+    }
+}
+
+// Instala a captura no começo do slot e devolve o manipulador anterior ao fim, mesmo se o slot sair cedo.
+struct CapturaDeMensagens {
+    CapturaDeMensagens() { manipuladorAnterior = qInstallMessageHandler(capturarMensagem); }
+    ~CapturaDeMensagens() { qInstallMessageHandler(manipuladorAnterior); }
+};
 } // namespace
 
 class TesteExecutorBanco : public QObject
@@ -765,17 +790,36 @@ void TesteExecutorBanco::transacaoAninhadaRecusada()
 // Marca única na senha: nenhuma mensagem de erro do executor a contém (a mensagem é apresentação; o log também).
 void TesteExecutorBanco::senhaNaoApareceEmErroNemLog()
 {
+    CapturaDeMensagens captura; // v1n: todas as mensagens do slot, do início ao fim
     const auto a = arranjoDoSlot();
     if (!a.falta.isEmpty()) {
         recusaDePreparo("arranjo");
     }
     QVERIFY2(a.falta.isEmpty(), a.falta.constData());
     const QString marca = QString::fromUtf8(a.senha);
+
+    // Falha de conexão com uma senha-marca (nl-marca- mais 16 hex aleatórios): a mensagem do erro não contém a marca.
+    const QString hex = QStringLiteral("%1").arg(QRandomGenerator::global()->generate64(), 16, 16, QLatin1Char('0'));
+    const QString senhaMarca = QStringLiteral("nl-marca-") + hex;
+    sql::DadosConexao dadosRuins = dadosConexaoDo(a, pluginsDaFamilia(a), modoDaFamilia(a));
+    const QByteArray senhaMarcaBytes = senhaMarca.toUtf8();
+    dadosRuins.senhaNulTerminada = senhaMarcaBytes.constData();
+    const auto falhou = sql::Executor::conectar(dadosRuins);
+    QVERIFY(!falhou.has_value());
+    QVERIFY(!QString::fromStdString(falhou.error().mensagem()).contains(senhaMarca));
+
+    // Trecho de hoje: conexão certa e consulta que falha, sem a senha na mensagem.
     auto ab = abrir("senhaNaoApareceEmErroNemLog", a, pluginsDaFamilia(a), modoDaFamilia(a));
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     const auto erro = ab.executor->consultar(sql::Consulta::de("SELECT * FROM tabela_que_nao_existe_nl"), {});
     QVERIFY(!erro.has_value());
     QVERIFY(!QString::fromStdString(erro.error().mensagem()).contains(marca));
+
+    // Log capturado: nenhuma mensagem do slot contém a senha-marca nem a senha certa.
+    for (const QString &mensagem : std::as_const(mensagensCapturadas)) {
+        QVERIFY2(!mensagem.contains(senhaMarca), "a senha-marca apareceu no log");
+        QVERIFY2(!mensagem.contains(marca), "a senha certa apareceu no log");
+    }
 }
 
 // DATE e BIGINT gravados pelo executor, lidos por uma sessão de teste com fusos diferentes: iguais nos dois.
