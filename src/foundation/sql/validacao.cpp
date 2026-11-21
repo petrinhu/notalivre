@@ -5,6 +5,9 @@
 
 #include "nl/foundation/sql/validacao.h"
 
+#include <QByteArray>
+#include <QList>
+
 #include <optional>
 #include <string>
 #include <utility>

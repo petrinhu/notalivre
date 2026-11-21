@@ -5,6 +5,8 @@
 
 #include "nl/foundation/sql/vinculos.h"
 
+#include <cstddef>
+
 #include <utility>
 #include <variant>
 
