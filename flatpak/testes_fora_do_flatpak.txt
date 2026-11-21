@@ -125,3 +125,11 @@ e2e.cliEmitir.cliRecusaPercentualMalFormadoSaiCom4 | servidor falso em Python co
 tst_cripto_argon2id_oraculo | oráculo usa o binário openssl, que o SDK KDE 6.11 não traz (NL-3.2b, ciso item 6) | coberto no build nativo
 e2e.cliEmitir.semConexaoSaiComSeisETextoDoCatalogo | NL-3.C, S3: conexão recusada na porta 1, sem servidor falso; fora do Flatpak pela lista do CMake (NL-2.15) | coberto no build nativo
 e2e.cliEmitir.estadoIncertoSaiComSeteERepetirRecuperaANota | servidor falso em Python com oráculo ausente no SDK (NL-2.10j, J1) | coberto no build nativo
+sql.naoCompila.consultaDeArrayLocal | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
+sql.naoCompila.consultaConcatenada | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
+sql.naoCompila.consultaComPontoEVirgula | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
+sql.naoCompila.consultaComAspas | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
+sql.naoCompila.consultaComComentario | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
+sql.naoCompila.ddlNoLugarDeConsulta | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
+sql.naoCompila.parametroQString | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
+sql.naoCompila.dadosSemModo | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo

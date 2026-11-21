@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+// Caso de não-compilação da Foundation sql (NL-3.1a, bloco U-R, CONTRACT 12.1): consultaConcatenada.
+
+#include <nl/foundation/sql/executor.h>
+#include <string>
+
+namespace sql = nl::foundation::sql;
+
+
+
+void caso(sql::Executor& e)
+
+{
+
+    auto consulta = sql::Consulta::de("SELECT ?"); // NL-CASO
+
+    (void)e;
+
+}
