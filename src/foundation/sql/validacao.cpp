@@ -13,6 +13,10 @@
 #include <utility>
 #include <variant>
 
+// v1b, item 2 (CISO) e v1n: exatamente dois modos de TLS, aberto e fixado. Um terceiro modo quebra a compilação aqui.
+static_assert(std::variant_size_v<nl::foundation::sql::ModoTls> == 2,
+              "os modos de TLS são exatamente dois: aberto e fixado (v1b, item 2)");
+
 namespace nl::foundation::sql::detalhe {
 namespace {
 
