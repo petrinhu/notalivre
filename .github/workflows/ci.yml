@@ -112,6 +112,9 @@ jobs:
           bash tools/conteiner/instalar/${{ matrix.distro }}.sh
           echo "/opt/aqt/bin" >> "$GITHUB_PATH"
 
+      - name: Prefixo do Connector/C (fonte única: prefixo_mariadb.txt)
+        run: . tools/conteiner/prefixo_mariadb.sh && p="$(nl_prefixo_mariadb "${{ matrix.distro }}")" && echo "NL_MARIADB_PREFIX=$p" >> "$GITHUB_ENV"
+
       - name: Caminho do Qt 6.12 (fixo por RUNNER_TEMP, o mesmo que o cache usa)
         run: |
           echo "QT_PREFIXO=$RUNNER_TEMP/qt/6.12.0/gcc_64" >> "$GITHUB_ENV"
@@ -294,6 +297,9 @@ jobs:
         run: |
           bash tools/conteiner/instalar/${{ matrix.distro }}.sh
           echo "/opt/aqt/bin" >> "$GITHUB_PATH"
+
+      - name: Prefixo do Connector/C (fonte única: prefixo_mariadb.txt)
+        run: . tools/conteiner/prefixo_mariadb.sh && p="$(nl_prefixo_mariadb "${{ matrix.distro }}")" && echo "NL_MARIADB_PREFIX=$p" >> "$GITHUB_ENV"
 
       - name: Caminho do Qt 6.12 (fixo por RUNNER_TEMP, o mesmo que o cache usa)
         run: |

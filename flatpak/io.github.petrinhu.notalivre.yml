@@ -57,7 +57,7 @@ modules:
     build-commands:
       # NL-1.6a: o build não tem rede. O ZIP do XSD entra como fonte com SHA-256 (flatpak-builder confere) e o
       # CMake o lê por NL_XSD_ZIP_CACHE (diretório do próprio build, $PWD); o SHA do ZIP é conferido de novo pelo CMake.
-      - cmake -S . -B _build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNL_XSD_ZIP_CACHE="$PWD" -DNL_FLATPAK_BUILD=ON
+      - cmake -S . -B _build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNL_XSD_ZIP_CACHE="$PWD" -DNL_FLATPAK_BUILD=ON -DNL_MARIADB_PREFIX=/app
       # NL-3.0k (ordem do CTO): o --jobs do flatpak-builder chega aqui por FLATPAK_BUILDER_N_JOBS; sem a variável, usa nproc.
       # A linha jobs-do-build prova no log qual valor chegou (o espelho reprova "ausente"). Sem cota fixa: a cota é da máquina.
       - echo "jobs-do-build=${FLATPAK_BUILDER_N_JOBS:-ausente}"

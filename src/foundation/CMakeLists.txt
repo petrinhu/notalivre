@@ -14,3 +14,5 @@ add_subdirectory(cripto)
 add_subdirectory(gzip)
 add_subdirectory(xmldsig)
 add_subdirectory(transporte)
+# NL-3.1a (bloco B): encanamento do Connector/C; o motor sql entra no bloco U.
+add_subdirectory(sql)
