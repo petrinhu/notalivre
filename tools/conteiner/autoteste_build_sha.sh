@@ -19,7 +19,7 @@
 #   C12 o docker run de build (etapa 2, executar_no_conteiner.sh) leva --network none, uma vez só (NL-3.1h, v3.14).
 #   C13 os 6 docker run dos autotestes de estreia (laço de build_local.sh) levam --network none (NL-3.1h, v3.16).
 # O docker é um STUB que só registra as chamadas (e, em C9, marca início e fim com sleep). Nenhum contêiner sobe aqui.
-# Usa NL_TMP_BASE próprio, nunca a trava real /var/tmp/notalivre-heavy.lock. A fixture não dispara hooks do git.
+# Usa NL_TMP_BASE próprio, e um pesado de mentira, nunca a trava real da máquina. A fixture não dispara hooks do git.
 # Uso: autoteste_build_sha.sh
 set -u
 
@@ -30,6 +30,10 @@ mkdir -p "$BASE/bin" "$BASE/tmp"
 # Stub: registra cada chamada; com STUB_CONC, marca S (início) e E (fim) com sleep 1 entre as duas marcas.
 printf '#!/bin/sh\necho "docker $*" >> "${STUB_LOG:-/dev/null}"\nif [ -n "${STUB_CONC:-}" ]; then echo "S $$" >> "$STUB_CONC"; sleep 1; echo "E $$" >> "$STUB_CONC"; fi\nexit 0\n' > "$BASE/bin/docker"
 chmod +x "$BASE/bin/docker"
+# pesado de mentira: um por vez, por flock num arquivo do teste, como a trava única da máquina (L-11).
+printf '#!/bin/sh\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec flock "%s/pesado.trava" "$@"\n' "$BASE" > "$BASE/bin/pesado"
+chmod +x "$BASE/bin/pesado"
+export NL_PESADO="$BASE/bin/pesado"
 export PATH="$BASE/bin:$PATH" NL_TMP_BASE="$BASE/tmp"
 EVID="$RAIZ/tools/conteiner/evidencia_sha.sh"
 FALHAS=0

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Roda o comparador do espelho (comparar_jobs.py) dentro do contêiner de higiene (L-50), com rede para a API.
-# Uso: comparar_jobs.sh --sem-run    (ci.yml contra espelho_local.txt, sem rede: antes do push)
+# Uso: comparar_jobs.sh --sem-run    (ci.yml contra espelho_local.txt, sem rede: opcional antes do push, NF-04)
 #      comparar_jobs.sh RUN_ID       (também contra os jobs do run RUN_ID, pela API do GitHub)
 # Sem um dos dois, o comparador recusa o uso (NL-3.0g: sem run padrão de branch fixa).
 set -u
