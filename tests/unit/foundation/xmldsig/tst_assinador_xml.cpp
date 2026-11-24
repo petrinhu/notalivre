@@ -10,6 +10,7 @@
 #include <nl/foundation/pkcs12/credencial_x509.h>
 #include <nl/foundation/pkcs12/senha_segura.h>
 #include <nl/foundation/xmldsig/assinador_xml.h>
+#include <nl/teste/asn1_teste.h>
 #include <nl/teste/tabela_por_distro.h>
 #include <nl/teste/tabela_sha1_distro.h>
 
@@ -989,7 +990,7 @@ private slots:
         // Mês 13 em notBefore ou em notAfter, na hora de assinar: o 0 de compararComInstante é ilegível, nunca vigente (A5, CISO).
         std::unique_ptr<ASN1_GENERALIZEDTIME, decltype(&ASN1_GENERALIZEDTIME_free)> data(ASN1_GENERALIZEDTIME_new(), &ASN1_GENERALIZEDTIME_free);
         QVERIFY(data != nullptr);
-        QVERIFY(ASN1_STRING_set(data.get(), "20301301000000Z", 15) == 1);
+        QVERIFY(nl::teste::ajustarAsn1(data.get(), "20301301000000Z", 15) == 1);
         for (const bool noInicio : {true, false}) {
             MaterialPem pem;
             QVERIFY2(lerMaterialPem("cnpj_ok.pem", "cnpj_ok.key.pem", pem), "a folha cnpj_ok tem de ler por PEM");

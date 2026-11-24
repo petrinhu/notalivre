@@ -12,6 +12,8 @@
 #include <nl/foundation/pkcs12/erro_raiz_icp.h>
 #include <nl/foundation/pkcs12/senha_segura.h>
 
+#include <nl/teste/asn1_teste.h>
+
 #include "fabrica_raiz_teste.h"
 
 #include <QByteArray>
@@ -474,7 +476,7 @@ void TesteCargaRaizesIcp::raizComDataInvalidaEhIlegivel()
         QVERIFY(tmp.isValid());
         ASN1_GENERALIZEDTIME* data = ASN1_GENERALIZEDTIME_new();
         QVERIFY(data != nullptr);
-        QVERIFY(ASN1_STRING_set(data, caso.texto, caso.tamanho) == 1);
+        QVERIFY(nl::teste::ajustarAsn1(data, caso.texto, caso.tamanho) == 1);
         const QByteArray ruim = teste::raizSinteticaComFimBruto("Raiz data ruim de teste", epoca(2020, 1, 1), data);
         ASN1_GENERALIZEDTIME_free(data);
         QVERIFY(!ruim.isEmpty());

@@ -7,7 +7,7 @@ find_package(OpenSSL 3.0 REQUIRED)
 
 add_executable(tst_carregador_pkcs12 tst_carregador_pkcs12.cpp)
 target_link_libraries(tst_carregador_pkcs12 PRIVATE Qt6::Core Qt6::Test nl_foundation_pkcs12
-                      OpenSSL::Crypto nl_warnings)
+                      OpenSSL::Crypto nl_warnings nl_teste_apoio)
 
 set(NL_CERT_DIR "${CMAKE_BINARY_DIR}/certificados_teste")
 # Pasta vazia de módulos do OpenSSL: com OPENSSL_MODULES apontando para ela, o provider legacy não carrega.
@@ -75,7 +75,7 @@ endforeach()
 # Usa o repositório conferido em third_party (NL_ICP_RAIZES_DIR) e a AC de teste da fixture (certificados_teste).
 add_executable(tst_carga_raizes_icp tst_carga_raizes_icp.cpp)
 target_link_libraries(tst_carga_raizes_icp PRIVATE Qt6::Core Qt6::Test nl_foundation_pkcs12
-                      OpenSSL::Crypto nl_warnings)
+                      OpenSSL::Crypto nl_warnings nl_teste_apoio)
 
 foreach(nome IN ITEMS
     raizesIcpCarregadasDoArquivoConferido

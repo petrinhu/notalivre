@@ -27,6 +27,8 @@
 #include <nl/foundation/pkcs12/classificacao_erros.h>
 #include <nl/foundation/pkcs12/conferencia_chave.h>
 
+#include <nl/teste/asn1_teste.h>
+
 #include "acesso_teste_senha.h"
 
 #include <QByteArray>
@@ -533,7 +535,7 @@ QByteArray pfxComDataIlegivel(const QByteArray& senha, bool noInicio) {
     std::unique_ptr<X509, decltype(&X509_free)> cert(PEM_read_bio_X509(bioCert.get(), nullptr, nullptr, nullptr), &X509_free);
     std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> chave(PEM_read_bio_PrivateKey(bioChave.get(), nullptr, nullptr, nullptr), &EVP_PKEY_free);
     std::unique_ptr<ASN1_GENERALIZEDTIME, decltype(&ASN1_GENERALIZEDTIME_free)> data(ASN1_GENERALIZEDTIME_new(), &ASN1_GENERALIZEDTIME_free);
-    if (!cert || !chave || !data || ASN1_STRING_set(data.get(), "20301301000000Z", 15) != 1) {
+    if (!cert || !chave || !data || nl::teste::ajustarAsn1(data.get(), "20301301000000Z", 15) != 1) {
         return {};
     }
     const int ok = noInicio ? X509_set1_notBefore(cert.get(), data.get()) : X509_set1_notAfter(cert.get(), data.get());
