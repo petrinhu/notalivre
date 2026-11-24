@@ -71,10 +71,19 @@ if ! grep -qi 'openssl' "$TRABALHO/configure.log"; then
     exit 1
 fi
 
-cmake --build "$TRABALHO/build" -j 2 > "$TRABALHO/build.log" 2>&1
-echo "rc_build=$?"
-cmake --install "$TRABALHO/build" > "$TRABALHO/install.log" 2>&1
-echo "rc_install=$?"
+# O trap apaga $TRABALHO na saída: o fim do log vai para a saída do job antes, senão a falha sai muda.
+if ! cmake --build "$TRABALHO/build" -j 2 > "$TRABALHO/build.log" 2>&1; then
+    echo "rc_build=falhou"
+    tail -n 60 "$TRABALHO/build.log"
+    exit 1
+fi
+echo "rc_build=0"
+if ! cmake --install "$TRABALHO/build" > "$TRABALHO/install.log" 2>&1; then
+    echo "rc_install=falhou"
+    tail -n 40 "$TRABALHO/install.log"
+    exit 1
+fi
+echo "rc_install=0"
 ldconfig
 
 # O efeito das opções aparece no que foi instalado: nenhum plugin proibido, e o caching_sha2_password presente.
