@@ -44,6 +44,14 @@ const char* impressaoGuardada(MYSQL* sessao)
     return guardada;
 }
 
+// Pré-ajusta a verificação para 0 antes do modo fixado. Sem isso, um build com a verificação ligada por padrão
+// (mariadb_lib.c:1467 e :750-753) passaria o teste mesmo se o átomo deixasse de gravar a opção.
+bool preAjustaVerificacaoDesligada(MYSQL* sessao)
+{
+    my_bool desligado = 0;
+    return mysql_optionsv(sessao, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &desligado) == 0;
+}
+
 } // namespace
 
 class TstSqlOpcoesTls : public QObject
@@ -62,6 +70,7 @@ void TstSqlOpcoesTls::modoFixadoLigaVerificacaoEFixaImpressao()
 {
     Sessao sessao{mysql_init(nullptr)};
     QVERIFY(sessao != nullptr);
+    QVERIFY(preAjustaVerificacaoDesligada(sessao.get()));
     QVERIFY2(detalhe::aplicarModoFixado(sessao.get(), kImpressao).has_value(), "o modo fixado não aplicou as opções");
     QCOMPARE(lerOpcaoLogica(sessao.get(), MYSQL_OPT_SSL_VERIFY_SERVER_CERT), 1);
     // A impressão liga o TLS no próprio conector (mariadb_lib.c:3996-3999): o fixado nunca abre sem TLS.
@@ -77,6 +86,7 @@ void TstSqlOpcoesTls::modoFixadoGuardaCopiaPropriaDaImpressao()
     QVERIFY(sessao != nullptr);
     // Cópia profunda: o buffer é de quem chama, e o teste o suja depois de aplicar o modo.
     QByteArray impressaoDoChamador(kImpressao.constData(), kImpressao.size());
+    QVERIFY(preAjustaVerificacaoDesligada(sessao.get()));
     QVERIFY(detalhe::aplicarModoFixado(sessao.get(), impressaoDoChamador).has_value());
     const char* guardada = impressaoGuardada(sessao.get());
     QVERIFY(guardada != nullptr);
