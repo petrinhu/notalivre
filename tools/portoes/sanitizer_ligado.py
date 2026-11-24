@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 """Portão estático: o sanitizer ativo está ligado e ninguém o desliga (NL-3.0h; L-36). Lê a árvore rastreada, antes do build.
-  1. o test preset asan-ubsan tem exatamente o ambiente fixado;
-  2. o job asan do ci.yml cobre fedora45 e mint22.3, roda sanitizer_ativo.py e chama o ctest pelo preset;
+  1. os test presets asan-ubsan e banco-asan têm exatamente o ambiente fixado, com a memória liberada preenchida (NL-3.1t);
+  2. o job asan do ci.yml cobre fedora45, manjaro e mint22.3, roda sanitizer_ativo.py e chama o ctest pelo preset;
   3. executar_no_conteiner.sh roda sanitizer_ativo.py;
   4. o autoteste de sanitizer_ativo.py está no job autotestes do ci.yml e em job_autotestes.sh;
   5. nenhum arquivo rastreado fora da lista usa um desligamento ou ajuste de sanitizer (.md é texto e fica fora);
@@ -27,8 +27,12 @@ import sys
 import tempfile
 
 PRESET = "asan-ubsan"
+# NL-3.1t: o banco-asan leva o mesmo ambiente. max_free_fill_size e free_fill_byte são opções do alocador do ASan e só
+# valem no ASAN_OPTIONS. Sem elas, o bloco liberado fica intacto na quarentena, e o uso depois de liberar dentro de uma
+# biblioteca não instrumentada passa verde (run do ddb980f, manjaro, OpenSSL 4.1.0).
+PRESETS_FIXADOS = (PRESET, "banco-asan")
 AMBIENTE = {
-    "ASAN_OPTIONS": "halt_on_error=1:detect_leaks=1:exitcode=86",
+    "ASAN_OPTIONS": "halt_on_error=1:detect_leaks=1:exitcode=86:max_free_fill_size=4096:free_fill_byte=165",
     "LSAN_OPTIONS": "detect_leaks=1:exitcode=86",
     "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1:exitcode=86",
 }
@@ -77,12 +81,13 @@ def conferir_ligacao(raiz):
         presets = json.loads(ler(raiz, PRESETS) or "{}")
     except json.JSONDecodeError:
         presets = {}
-    ambiente = next((p.get("environment") for p in presets.get("testPresets", []) if p.get("name") == PRESET), None)
-    if ambiente != AMBIENTE:
-        violacoes.append(f"{PRESETS}: ambiente do test preset {PRESET} diferente do fixado: {ambiente}")
+    for nome in PRESETS_FIXADOS:
+        ambiente = next((p.get("environment") for p in presets.get("testPresets", []) if p.get("name") == nome), None)
+        if ambiente != AMBIENTE:
+            violacoes.append(f"{PRESETS}: ambiente do test preset {nome} diferente do fixado: {ambiente}")
     ci = ler(raiz, CI)
     asan = bloco_do_job(ci, "asan")
-    for trecho in (GATE, "distro: fedora45", "distro: mint22.3", f"ctest --preset {PRESET}"):
+    for trecho in (GATE, "distro: fedora45", "distro: manjaro", "distro: mint22.3", f"ctest --preset {PRESET}"):
         if trecho not in asan:
             violacoes.append(f"{CI}: job asan sem [{trecho}]")
     if GATE not in ler(raiz, EXECUTOR):
@@ -153,6 +158,7 @@ CI_BOM = f"""jobs:
       matrix:
         include:
           - distro: fedora45
+          - distro: manjaro
           - distro: mint22.3
     steps:
       - run: python3 -I {GATE} x y
@@ -165,7 +171,7 @@ CI_BOM = f"""jobs:
       - run: sh -c '{COMANDO_PROPRIO}'
 """
 ARVORE_BOA = {
-    PRESETS: json.dumps({"testPresets": [{"name": PRESET, "environment": AMBIENTE}]}),
+    PRESETS: json.dumps({"testPresets": [{"name": nome, "environment": AMBIENTE} for nome in PRESETS_FIXADOS]}),
     CI: CI_BOM,
     EXECUTOR: f"python3 -I {GATE} a b\n",
     JOB_AUTOTESTES: f"bash {AUTOTESTE_GATE}\n",
@@ -174,6 +180,20 @@ ARVORE_BOA = {
     "docs/x.md": "LSAN_OPTIONS em texto\n",
     "tests/e2e/a.cpp": "QVERIFY(execucao.codigo == 4);\n",
 }
+
+
+# Textos literais do autoteste (NL-3.1t), nunca derivados de AMBIENTE: reverter o pino tem de derrubar algum caso.
+ASAN_ANTIGO = "halt_on_error=1:detect_leaks=1:exitcode=86"
+ASAN_PREENCHIDO = "halt_on_error=1:detect_leaks=1:exitcode=86:max_free_fill_size=4096:free_fill_byte=165"
+LSAN_FIXADO = "detect_leaks=1:exitcode=86"
+UBSAN_FIXADO = "halt_on_error=1:print_stacktrace=1:exitcode=86"
+
+
+def presets_literais(asan_ubsan, banco_asan, lsan=LSAN_FIXADO):
+    """Troca de CMakePresets.json com o ASAN_OPTIONS dado a cada preset; None deixa o preset de fora."""
+    presets = [{"name": nome, "environment": {"ASAN_OPTIONS": asan, "LSAN_OPTIONS": lsan, "UBSAN_OPTIONS": UBSAN_FIXADO}}
+               for nome, asan in ((PRESET, asan_ubsan), ("banco-asan", banco_asan)) if asan is not None]
+    return {PRESETS: json.dumps({"testPresets": presets})}
 
 
 def autoteste():
@@ -185,7 +205,20 @@ def autoteste():
         ("preset_sem_pino", {PRESETS: json.dumps({"testPresets": [{"name": PRESET, "environment": {"ASAN_OPTIONS": "x"}}]})}, 1,
          "diferente do fixado"),
         ("ci_sem_gate", sem(CI, f"python3 -I {GATE} x y", "true"), 1, "job asan sem"),
+        ("positivo_literal", presets_literais(ASAN_PREENCHIDO, ASAN_PREENCHIDO), 0, "PASSA"),
+        ("preset_sem_preenchimento", presets_literais(ASAN_ANTIGO, ASAN_PREENCHIDO), 1,
+         "test preset asan-ubsan diferente do fixado"),
+        ("preset_sem_tamanho", presets_literais(ASAN_ANTIGO + ":free_fill_byte=165", ASAN_PREENCHIDO), 1,
+         "test preset asan-ubsan diferente do fixado"),
+        ("preset_sem_byte", presets_literais(ASAN_ANTIGO + ":max_free_fill_size=4096", ASAN_PREENCHIDO), 1,
+         "test preset asan-ubsan diferente do fixado"),
+        ("preenchimento_no_lsan", presets_literais(ASAN_ANTIGO, ASAN_PREENCHIDO, LSAN_FIXADO + ":max_free_fill_size=4096:free_fill_byte=165"), 1,
+         "test preset asan-ubsan diferente do fixado"),
+        ("banco_asan_sem_preenchimento", presets_literais(ASAN_PREENCHIDO, ASAN_ANTIGO), 1,
+         "test preset banco-asan diferente do fixado"),
+        ("banco_asan_ausente", presets_literais(ASAN_PREENCHIDO, None), 1, "test preset banco-asan diferente do fixado: None"),
         ("ci_sem_mint", sem(CI, "          - distro: mint22.3\n", ""), 1, "job asan sem"),
+        ("ci_sem_manjaro", sem(CI, "          - distro: manjaro\n", ""), 1, "job asan sem [distro: manjaro]"),
         ("ci_ctest_sem_preset", sem(CI, f"ctest --preset {PRESET}", "ctest"), 1, "job asan sem"),
         ("executor_sem_gate", {EXECUTOR: "true\n"}, 1, "não roda"),
         ("ci_sem_autoteste", sem(CI, f"bash {AUTOTESTE_GATE}", "true"), 1, "job autotestes sem"),
