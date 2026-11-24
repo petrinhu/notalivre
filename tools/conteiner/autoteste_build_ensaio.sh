@@ -30,6 +30,11 @@ echo "docker $*" >> "${STUB_LOG:-/dev/null}"
 exit 0
 STUB
 chmod +x "$BASE/bin/docker"
+# pesado de mentira: um por vez, por flock num arquivo do teste, como a trava única da máquina (L-11). O export atravessa o
+# env -u de build(), que não tira NL_PESADO (NL-3.1m, mesma forma do autoteste_build_limites.sh, 16686d7).
+printf '#!/bin/sh\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec flock "%s/pesado.trava" "$@"\n' "$BASE" > "$BASE/bin/pesado"
+chmod +x "$BASE/bin/pesado"
+export NL_PESADO="$BASE/bin/pesado"
 
 # Fixture com os caminhos de LISTA_FONTE e os três arquivos que os portões leem do SHA (como em autoteste_build_sha.sh).
 F="$BASE/fixture"
