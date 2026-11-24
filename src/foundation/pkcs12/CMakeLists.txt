@@ -28,5 +28,7 @@ add_library(nl_foundation_pkcs12 STATIC
     senha_segura.cpp
     verificador_cadeia.cpp)
 target_include_directories(nl_foundation_pkcs12 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+# Cabeçalho genérico da Foundation (comprimento_asn1.h, NL-3.1m): privado, sem linkar nl_foundation.
+target_include_directories(nl_foundation_pkcs12 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 target_link_libraries(nl_foundation_pkcs12 PUBLIC nl_foundation_base Qt6::Core)
 target_link_libraries(nl_foundation_pkcs12 PRIVATE OpenSSL::Crypto PkgConfig::NL_LIBSODIUM nl_warnings)

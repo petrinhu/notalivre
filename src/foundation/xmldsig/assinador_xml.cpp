@@ -4,6 +4,7 @@
 // assinado; achado único do Id, comparado por inteiro, no infDPS filho da raiz; validade do certificado na hora de assinar;
 // Signature inserida já na posição final, com digest e SignatureValue vazios; digest e SignedInfo canonicalizados com os
 // xmlns herdados do documento (DA-2.40, itens 4 a 6). Nada aqui lê ou define a variável de SHA-1 (portão sha1_env).
+#include <nl/foundation/comprimento_asn1.h>
 #include <nl/foundation/xmldsig/assinador_xml.h>
 
 #include "parse_xml_privado.h"
@@ -224,12 +225,13 @@ std::expected<std::string, ErroAssinatura> certificadoEmDer(const x509_st* certi
 }
 
 // Regra do X509_cmp_time, depreciado no OpenSSL 4.0 (com -Werror não compila): -1 se o instante do certificado é anterior
-// ou igual; 1 se posterior; 0 em erro ou fora do formato. Uma só fonte de 3.0 a 4.0: sem macro de versão.
+// ou igual; 1 se posterior; 0 em erro ou fora do formato. O comprimento vem de nl::foundation::comprimentoAsn1, que
+// guarda a versão do OpenSSL.
 // RFC 5280 trata notAfter como inclusivo; a igualdade continua vencida aqui (mantida pelo CISO, 05/11/2026).
 // Cópia local de src/foundation/pkcs12/tempo_x509.h: xmldsig não depende de pkcs12 (DA-2.30), regra de 3 (L-33).
 int compararComInstante(const ASN1_TIME* tempo, std::time_t instante) {
     const int tipo = ASN1_STRING_type(tempo);
-    const int tamanho = ASN1_STRING_length(tempo);
+    const int tamanho = nl::foundation::comprimentoAsn1(tempo);
     if ((tipo != V_ASN1_UTCTIME || tamanho != 13) && (tipo != V_ASN1_GENERALIZEDTIME || tamanho != 15)) {
         return 0;
     }

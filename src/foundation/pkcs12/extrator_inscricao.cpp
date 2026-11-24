@@ -4,6 +4,8 @@
 // cujo conteúdo é data (8) seguida de CPF (11): o CPF ocupa as posições 9 a 19 (índices 8 a 18).
 #include "extrator_inscricao.h"
 
+#include <nl/foundation/comprimento_asn1.h>
+
 #include <openssl/err.h>
 #include <openssl/asn1.h>
 #include <openssl/objects.h>
@@ -53,7 +55,7 @@ std::optional<std::string> conteudoDoOtherName(GENERAL_NAMES* nomes, const char*
         }
         const ASN1_OCTET_STRING* octetos = outro->value->value.octet_string;
         const unsigned char* dados = ASN1_STRING_get0_data(octetos);
-        const int tamanho = ASN1_STRING_length(octetos);
+        const int tamanho = nl::foundation::comprimentoAsn1(octetos);
         if (dados == nullptr || tamanho < 0) {
             continue;
         }
