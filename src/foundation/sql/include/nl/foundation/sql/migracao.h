@@ -41,8 +41,12 @@ struct MigracaoAplicada {
 [[nodiscard]] std::expected<std::vector<Migracao>, nl::base::Erro> catalogoDe(const std::vector<ArquivoMigracao>& arquivos);
 
 /// Migrações que faltam aplicar, em ordem, para um catálogo vindo de catalogoDe. Nada é escrito aqui.
-/// Erros: "migracao.schema_mais_novo" (o banco tem versão que o catálogo não conhece), "migracao.aplicadas_com_buraco"
-/// (versão faltando ou repetida no banco), "migracao.checksum_divergente" (o arquivo de uma migração aplicada mudou).
+/// Antes de comparar com o banco, confere o próprio catálogo: sequência 1..N sem buraco e SHA-256 de cada SQL igual ao
+/// checksum guardado.
+/// Erros: "migracao.versao_com_buraco" (catálogo fora da sequência 1..N), "migracao.catalogo_checksum_divergente" (o SQL
+/// de uma entrada do catálogo não confere com o checksum dela), "migracao.schema_mais_novo" (o banco tem versão que o
+/// catálogo não conhece), "migracao.aplicadas_com_buraco" (versão faltando ou repetida no banco),
+/// "migracao.checksum_divergente" (o arquivo de uma migração aplicada mudou).
 [[nodiscard]] std::expected<std::vector<Migracao>, nl::base::Erro> planoDe(const std::vector<Migracao>& catalogo,
                                                                           const std::vector<MigracaoAplicada>& aplicadas);
 

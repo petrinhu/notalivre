@@ -17,7 +17,8 @@ namespace {
 // V0001__descricao.sql: 4 dígitos, versão a partir de 1, descrição só com minúsculas, dígitos e sublinhado.
 std::optional<Migracao> migracaoDoArquivo(const ArquivoMigracao& arquivo)
 {
-    static const QRegularExpression padrao(QStringLiteral("^V(\\d{4})__([a-z0-9_]+)\\.sql$"));
+    // \z e não $: o $ aceita uma quebra de linha no fim do nome.
+    static const QRegularExpression padrao(QStringLiteral("^V(\\d{4})__([a-z0-9_]+)\\.sql\\z"));
     const QRegularExpressionMatch casamento = padrao.match(arquivo.nome);
     if (!casamento.hasMatch()) {
         return std::nullopt;
