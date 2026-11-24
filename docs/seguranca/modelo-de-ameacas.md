@@ -93,6 +93,7 @@ Convenção das colunas: **STRIDE** (S, T, R, I, D, E); **ADR** que decide; **Ri
 | C3.5 | R | Nota emitida é alterada depois | XML assinado e retorno guardados; auditoria de alterações | ADR-S4 | Sem assinatura do próprio registro (proposta a avaliar) |
 | C3.6 | D | Perda do banco | Recomendar ao usuário backup cifrado e fora do computador (documentação); restaurar sem o banco atual leva cada emissor a escolher outra série (decisão do líder, 04/11/2026) | ADR-S2 | Cópia guarda as chaves da época; contador e município, a confirmar sobre segunda série |
 | C3.7 | E | Injeção de SQL pelo código de aplicação | Executor parametrizado; consulta com concatenação não compila (NL-3.1) | ADR-S2 (executor) | Erro de implementação, coberto por teste |
+| C3.8 | T | Alguém com acesso ao banco troca o checksum ou marca como aplicada, em `nl_migracao`, uma versão que não rodou | O migrador só executa o DDL embutido no binário, conferido na compilação, e o banco nunca fornece SQL; o SQL executado é o mesmo que gerou o checksum (NL-3.1b b2, NL-I.373); marca com sucesso 0 trava as execuções seguintes | ADR-S2 (executor) | O checksum é SHA-256 sem chave: detecta migração mudada entre versões do app, não adulteração por quem escreve no banco, que pode deixar o schema divergente (T e D), mas não executar SQL escolhido por ele |
 
 ### C4. mTLS com o ADN e a SEFIN. Fronteira TB4
 
