@@ -54,7 +54,8 @@ for opt in "${OPCOES[@]}"; do
     esac
 done
 
-if ! cmake -S "$TRABALHO/fonte" -B "$TRABALHO/build" -G Ninja "${OPCOES[@]}" > "$TRABALHO/configure.log" 2>&1; then
+# OpenSSL 4.1 depreciou X509_check_host/X509_check_ip_asc e o -Werror do próprio conector as torna erro; decisão do líder 24/11, CISO ratificou; fora de OPCOES para não mexer no manifesto.
+if ! CFLAGS="${CFLAGS:-} -Wno-error=deprecated-declarations" cmake -S "$TRABALHO/fonte" -B "$TRABALHO/build" -G Ninja "${OPCOES[@]}" > "$TRABALHO/configure.log" 2>&1; then
     echo "rc_configure=falhou"
     tail -n 40 "$TRABALHO/configure.log"
     exit 1

@@ -23,6 +23,10 @@ esac
 exit 0
 STUB
 chmod +x "$BASE/bin/docker"
+# pesado de mentira: um por vez, por flock num arquivo do teste, como a trava única da máquina (L-11).
+printf '#!/bin/sh\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec flock "%s/pesado.trava" "$@"\n' "$BASE" > "$BASE/bin/pesado"
+chmod +x "$BASE/bin/pesado"
+export NL_PESADO="$BASE/bin/pesado"
 export PATH="$BASE/bin:$PATH"
 FALHAS=0
 
