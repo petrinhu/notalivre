@@ -5,6 +5,8 @@
 #ifndef NL_FOUNDATION_PKCS12_TEMPO_X509_H
 #define NL_FOUNDATION_PKCS12_TEMPO_X509_H
 
+#include <nl/foundation/comprimento_asn1.h>
+
 #include <openssl/asn1.h>
 
 #include <ctime>
@@ -12,11 +14,12 @@
 namespace nl::foundation::pkcs12 {
 
 // Regra do X509_cmp_time, depreciado no OpenSSL 4.0 (com -Werror não compila): -1 se o instante do certificado é anterior
-// ou igual; 1 se posterior; 0 em erro ou fora do formato. Uma só fonte de 3.0 a 4.0: sem macro de versão.
+// ou igual; 1 se posterior; 0 em erro ou fora do formato. O comprimento vem de nl::foundation::comprimentoAsn1, que
+// guarda a versão do OpenSSL.
 // RFC 5280 trata notAfter como inclusivo; a igualdade continua vencida aqui (mantida pelo CISO, 05/11/2026).
 inline int compararComInstante(const ASN1_TIME* tempo, std::time_t instante) {
     const int tipo = ASN1_STRING_type(tempo);
-    const int tamanho = ASN1_STRING_length(tempo);
+    const int tamanho = nl::foundation::comprimentoAsn1(tempo);
     if ((tipo != V_ASN1_UTCTIME || tamanho != 13) && (tipo != V_ASN1_GENERALIZEDTIME || tamanho != 15)) {
         return 0;
     }
