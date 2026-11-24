@@ -220,10 +220,21 @@ int opcaoLocalInfile(const sql::Executor &executor)
     return static_cast<int>(valor);
 }
 
-char primeiroByteDaSenhaDoConector(const sql::Executor &executor)
+// Quantos dos primeiros `tamanho` bytes da cópia da senha feita pelo conector não são zero (NL-3.1l; parecer do CISO,
+// R4): o teste confere todos os bytes, não só o primeiro. Sessão ou ponteiro nulo devolve -1.
+int bytesNaoZeradosDaSenhaDoConector(const sql::Executor &executor, qsizetype tamanho)
 {
     const st_mysql *sessao = nl::foundation::sql::costura::sessaoDoConector(executor);
-    return sessao != nullptr && sessao->passwd != nullptr ? sessao->passwd[0] : '\0';
+    if (sessao == nullptr || sessao->passwd == nullptr) {
+        return -1;
+    }
+    int naoZerados = 0;
+    for (qsizetype i = 0; i < tamanho; ++i) {
+        if (sessao->passwd[i] != '\0') {
+            ++naoZerados;
+        }
+    }
+    return naoZerados;
 }
 
 bool ponteiroDaSenhaNulo(const sql::Executor &executor)
@@ -366,6 +377,8 @@ void TesteExecutorBanco::modoFixadoImpressaoCertaAbre()
         return;
     }
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
+    // Classes A e C: o modo fixado abre com TLS na sessão (tabela 1.3; NL-3.1l, parecer do CISO, R5).
+    QVERIFY2(!ab.executor->cifraTlsDaSessao().isEmpty(), "modo fixado abriu sem TLS na sessão: PARADA ao CISO");
 }
 
 void TesteExecutorBanco::modoFixadoImpressaoTrocadaRecusa()
@@ -849,7 +862,7 @@ void TesteExecutorBanco::dataNaoMudaComFusoDaSessao()
     QCOMPARE(primeiraColuna(*linhas), QByteArrayLiteral("2026-11-21"));
 }
 
-// A senha do conector é zerada depois de conectar (a cópia MYSQL::passwd): ponteiro não nulo, primeiro byte zero.
+// A senha do conector é zerada depois de conectar (a cópia MYSQL::passwd): ponteiro não nulo, e todos os bytes da senha do par zerados.
 // Depois disso, na mesma conexão, SELECT ? com 7 volta 7.
 void TesteExecutorBanco::senhaDoConectorZeradaDepoisDeConectar()
 {
@@ -862,7 +875,8 @@ void TesteExecutorBanco::senhaDoConectorZeradaDepoisDeConectar()
     QVERIFY2(ab.executor.has_value(), ab.codigo.constData());
     qInfo("NL-SENHA-PTR nulo=%d", ponteiroDaSenhaNulo(*ab.executor) ? 1 : 0);
     QVERIFY(!ponteiroDaSenhaNulo(*ab.executor));
-    QCOMPARE(primeiroByteDaSenhaDoConector(*ab.executor), '\0');
+    QVERIFY(!a.senha.isEmpty());
+    QCOMPARE(bytesNaoZeradosDaSenhaDoConector(*ab.executor, a.senha.size()), 0);
     const auto linhas = ab.executor->consultar(sql::Consulta::de("SELECT ?"),
                                                std::array{sql::Parametro::inteiro(7)});
     QVERIFY(linhas.has_value());
