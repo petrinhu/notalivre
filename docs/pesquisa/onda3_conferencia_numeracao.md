@@ -64,7 +64,7 @@ FATO (cópia de terceiro): o repositório `nfse-nacional/nfse-php`, commit `ac85
 ### 1.3 Limite de taxa
 
 - NÃO ACHEI limite de taxa oficial para `/dps`. Procurei nos dois manuais de contribuintes, no Manual Integrado, no FAQ v1.5, nas cópias dos Swagger (que não declaram 429 nem `Retry-After`), na página de APIs e no histórico de implantações.
-- FATO (cópia de terceiro): a documentação do projeto `Fm-s/open-nfse`, commit `18d70dd2acac6fcc5c4a918a451c61c548b20596`, arquivo `specs/ruleset/transporte.md:180-181`, diz a mesma coisa: os manuais e os OpenAPI capturados "não documentam 429 nem `Retry-After`", e a biblioteca trata 429 de forma defensiva.
+- INFERÊNCIA (afirmação de terceiro): a documentação do projeto `Fm-s/open-nfse`, commit `18d70dd2acac6fcc5c4a918a451c61c548b20596`, arquivo `specs/ruleset/transporte.md:180-181`, diz a mesma coisa: os manuais e os OpenAPI capturados "não documentam 429 nem `Retry-After`", e a biblioteca trata 429 de forma defensiva.
 - INFERÊNCIA (blogs comerciais, leitura por resumo, sem número): há relatos de 429 em consultas repetidas ao ADN. Não uso esses relatos como base. O bloqueio por "consumo indevido" da NF-e (rejeição 656) é de outro sistema e não vale aqui sem fonte da NFS-e.
 - O único número oficial de cadência que achei é do ADN, não da Sefin: esperar pelo menos 1 hora quando a distribuição não tiver documento novo (seção 2.3).
 - O que acontece ao passar do limite: NÃO ACHEI fonte.
@@ -72,7 +72,8 @@ FATO (cópia de terceiro): o repositório `nfse-nacional/nfse-php`, commit `ac85
 ### 1.4 Produção Restrita e Produção
 
 - FATO (cópia de terceiro): as cópias de Produção e de "homologation" (Produção Restrita) trazem a rota `/dps/{id}` idêntica, com os mesmos códigos e esquemas. A única diferença visível é o domínio do logotipo (`sefin.nfse.gov.br` e `sefin.producaorestrita.nfse.gov.br`). O campo `tipoAmbiente` da resposta diz o ambiente (1 Produção, 2 Homologação).
-- FATO: são hosts diferentes, com bases de dados separadas (página de APIs; `docs/pesquisa/onda2_api_sefin.md:61`). A série e o número usados num ambiente não existem no outro (INFERÊNCIA forte, pelo `tipoAmbiente` no Id da chave e pelos hosts separados).
+- FATO: são hosts diferentes (página de APIs; `docs/pesquisa/onda2_api_sefin.md:61`).
+- INFERÊNCIA: as bases de dados são separadas, e a série e o número usados num ambiente não existem no outro. Base: os hosts separados e o `tipoAmbiente` em cada resposta. Nenhuma fonte lida diz isso com todas as letras. A chave de acesso não serve de prova: o campo dela é o "Ambiente Gerador" (FAQ v1.5, assunto 18.4), que é outra coisa.
 - NÃO ACHEI diferença documentada de limite de taxa entre os ambientes.
 
 ### 1.5 Resposta curta
@@ -96,7 +97,7 @@ As fontes oficiais se contradizem. Não há resposta oficial única.
 
 - FATO, FAQ v1.5, assunto 6.7: não existe prazo fixo garantido para a nota ficar disponível a quem tem interesse. O texto trata de notas que o **município** compartilha com o ADN, e diz que a distribuição não tem envio automático ao interessado: ele precisa consultar.
 - FATO, FAQ v1.5, assunto 18.5: menciona a Sefin Nacional que "falha ao gravar no ADN por timeout". Daí a INFERÊNCIA de que a NFS-e gerada pela Sefin Nacional é gravada no ADN dentro do próprio processo de emissão, com atraso pequeno. Não achei número.
-- INFERÊNCIA (relato de terceiro): `RicardoBiazin/nfse-nacional`, `nfse_nacional/servico.py:410-414`, conta que o NSU 30 de uma empresa ficou de fora numa passada em que o 31 e o 32 já tinham chegado. O projeto relê os últimos 50 NSU a cada sincronização (`servico.py:437`, `REVISAR_NSU = 50`). Ou seja: um NSU pode aparecer atrasado e fora de ordem.
+- INFERÊNCIA (relato de terceiro): `RicardoBiazin/nfse-nacional`, `nfse_nacional/servico.py:411-413`, conta que o NSU 30 de uma empresa ficou de fora numa passada em que o 31 e o 32 já tinham chegado. O projeto relê os últimos 50 NSU a cada sincronização (`servico.py:437`, `REVISAR_NSU = 50`). Ou seja: um NSU pode aparecer atrasado e fora de ordem.
 - FATO, Manual Integrado, p. 112, e FAQ v1.5, assunto 19.2: a ordem do NSU é a ordem de recepção pelo ADN, não a ordem de emissão.
 
 ### 2.3 Tamanho de página e retomada
@@ -106,7 +107,7 @@ As fontes oficiais se contradizem. Não há resposta oficial única.
 - FATO (cópia de terceiro): o Swagger do ADN Contribuinte (`references/api-specs/production/prod-API-NFS-e-ADN-Contribuinte-(v1).json`, commit `ac855fa`) define `NSU` inteiro de 64 bits no caminho, `cnpjConsulta` texto e `lote` booleano com padrão `true`. A resposta `LoteDistribuicaoNSUResponse` tem `StatusProcessamento` (`REJEICAO`, `NENHUM_DOCUMENTO_LOCALIZADO`, `DOCUMENTOS_LOCALIZADOS`), `LoteDFe` (cada item com `NSU`, `ChaveAcesso`, `TipoDocumento`, `TipoEvento`, `ArquivoXml` e `DataHoraGeracao`), `Alertas`, `Erros`, `TipoAmbiente`, `VersaoAplicativo` e `DataHoraProcessamento`. Não há campo de último NSU nem de maior NSU.
 - FATO, texto oficial (manual do ADN 1.1, item 1.1.2): erros com HTTP. E2220, 404, "não existem documentos fiscais para o contribuinte a partir do NSU informado"; E2230, 404, "não existe documento fiscal para o contribuinte com o NSU informado"; E2210 a E2214, 400, problemas do certificado de transmissão; E2243 a E2247, 400, problemas de `cnpjConsulta`, `cpfConsulta` e procuração; E999, 400, falha não tratada. Pela redação, o E2220 é o fim da leitura em lote e o E2230 é a consulta de um NSU só (`lote=false`), INFERÊNCIA pela diferença entre "a partir do" e "com o".
 - **Conflito sobre o último e o maior NSU:** o Manual Integrado cita `ultNSU` e `maxNSU`; a cópia do Swagger não tem esses campos; o projeto `RicardoBiazin/nfse-nacional` afirma, depois de chamar o ADN real, que o ADN "não manda `UltimoNSU`/`MaiorNSU`; o fim é o 404 com E2220" (`HISTORICO.md:35-36`, INFERÊNCIA); a documentação do projeto `vasfvitor/nanci` (commit `8b31aa8b2bc2e0c1a4878f1b2b14255a69a2e573`, `docs/NFSE_ADN.md:17`) diz que a resposta traz `ultNSU` e `maxNSU` (INFERÊNCIA). O cursor seguro é o maior `NSU` dos itens recebidos.
-- **Conflito sobre o NSU ser exclusivo ou inclusivo:** o projeto `renan20553/baixar_nfse_portal_nacional` (commit `c0e68e42c6a0be37d887fc880c1138ae6eceac8e`) diz que "o NSU da distribuição em lote é exclusivo" e envia o anterior ao próximo desejado (`README.md:101`; `nfse/downloader.py:199-201`). O `RicardoBiazin/nfse-nacional` envia o último mais um e descarta o que for menor ou igual (`servico.py:427-429`). Os dois são INFERÊNCIA. O desenho que funciona nos dois casos é deduplicar por NSU.
+- **Conflito sobre o NSU ser exclusivo ou inclusivo:** o projeto `renan20553/baixar_nfse_portal_nacional` (commit `c0e68e42c6a0be37d887fc880c1138ae6eceac8e`) diz que "o NSU da distribuição em lote é exclusivo" e envia o anterior ao próximo desejado (`README.md:101`; `nfse/downloader.py:199-201`). O `RicardoBiazin/nfse-nacional` recua uma janela de 50 NSU a partir do último visto, pede o início da janela mais um e descarta o que for menor ou igual ao início (`servico.py:417` e `:420-421`). Os dois são INFERÊNCIA. O desenho que funciona nos dois casos é deduplicar por NSU.
 
 ### 2.4 O que muda para o emitente CPF
 
@@ -183,8 +184,8 @@ Uma nota sobre a âncora: numa série que nunca teve nota, não há Id existente
 
 - FATO: a Sefin recusa com E0014 a DPS cuja série, número, município e inscrição já existem numa NFS-e (Anexo I, regra E0014). A duplicidade fiscal não acontece por erro de K.
 - FATO: o plano já trata a E0014 em qualquer tentativa, comparando o digest do `infDPS` enviado com o da NFS-e encontrada (`plano:578`).
-- FATO: a ADR-0003 já prevê o teste `dpsDuplicadaViraPuloEVoltaAEscolha` para a NL-3.5 e a NL-3.7 (`docs/adr/0003-envelope-e-hierarquia-de-chaves.md:162`).
-- INFERÊNCIA: se a varredura parar cedo e o app reutilizar um número já emitido, o resultado é uma E0014 com digest diferente, ou seja, número ocupado por outra DPS. O tratamento do canon (o número vira pulo e o usuário volta à escolha) cobre o caso. O custo de um K curto é, então, uma recusa e uma nova escolha, não uma nota duplicada.
+- FATO: o canon já trata a E0014 de DPS diferente. O plano: "Diferente: estado novo `MotivoFalhaSefin::DpsDuplicada`, que nunca renumera sozinho e vai ao usuário, porque indica colisão de numeração" (`plano:578`). A ADR-0003: "E0014 com DPS diferente: o número reservado vira pulo, o app mostra o código e volta à escolha, sem trocar sozinho" (`docs/adr/0003-envelope-e-hierarquia-de-chaves.md:99`), com o teste `dpsDuplicadaViraPuloEVoltaAEscolha` (`:162`).
+- INFERÊNCIA: se a varredura parar cedo e o app reutilizar um número já emitido, o resultado é uma E0014 com digest diferente, ou seja, número ocupado por outra DPS. O tratamento do canon (o número vira pulo e o usuário volta à escolha) cobre o caso. O custo de um K curto é, então, uma recusa e uma volta ao usuário, não uma nota duplicada.
 
 ## 4. Pergunta 4: como outros emissores livres tratam a retomada
 
@@ -197,12 +198,16 @@ Li para aprender a técnica, sem copiar código (L-22). Cito arquivo:linha no co
 | https://github.com/cleitonleonel/nfse_manager (Python, FastAPI) | `09dcfc9482f2931024cd95f90dccc822e41117b3` | sem licença na API do GitHub | Reserva com trava por cliente e coluna `ultimo_numero_dps` (`backend/app/services/adn_service.py:91-148`). Se o usuário informa um número maior, o contador sobe até ele (`adn_service.py:123-128` e `:920`). Não consulta a Sefin para conferir. |
 | https://github.com/nfse-nacional/nfse-php (PHP, biblioteca) | `ac855fa750f074865a4df55c419d7e204abeb2ca` | MIT | Expõe GET e HEAD `/dps` (`src/Http/Client/SefinClient.php:154-207`) e a distribuição com `cpfConsulta` para inscrição de 11 dígitos (`src/Http/Client/AdnClient.php:121-131`). Não achei contador de número na lista de arquivos de `src/`; a numeração fica com quem usa a biblioteca (INFERÊNCIA). |
 | https://github.com/renan20553/baixar_nfse_portal_nacional (Python, só distribuição) | `c0e68e42c6a0be37d887fc880c1138ae6eceac8e` | MIT | Não emite. Guarda o próximo NSU por CNPJ e por ambiente (`README.md:101`) e trata 404 com E2220 ou E2230 como fim (`nfse/downloader.py:225-229`). |
+| https://github.com/gildonei/nfse-nacional (PHP, biblioteca) | `0e49c5f5d3f5a44da8150d46c00a60f1ca435f0e` | MIT | Expõe GET e HEAD `/dps`; o comentário do HEAD diz 200 se encontrado e 404 se não (`src/Application/Service/SefinNacionalService.php:122-156`). Não achei contador de número na árvore de arquivos (INFERÊNCIA). |
+| https://github.com/gsse/nfse-core-client (PHP, biblioteca) | `cc2b65a6edf3a541f55c5c986e9539581b5ec54d` | sem licença na API do GitHub | Só a consulta da DPS na interface do cliente (`packages/nfse-client/src/Contracts/NfseClientInterface.php:20`). Não achei contador de número na árvore (INFERÊNCIA). |
+| https://github.com/pedrocasado/nfse-php (PHP, biblioteca) | `f3f49d91693bf4bad471bfa2c8e31cb4422411a3` | sem licença na API do GitHub | Só tipos de resposta da DPS em `src/DTO/`. Não achei contador de número na árvore (INFERÊNCIA). |
+| https://github.com/LibreCodeCoop/nfse-php (PHP, biblioteca) | `107b0971122c6d7dc293bf865b275b2607d4c619` | AGPL-3.0 | O HEAD `/dps` serve para "recovery after ambiguous network failures without re-sending the DPS" (`src/Contracts/DpsLookupInterface.php:19-25`). Não achei contador de número na árvore (INFERÊNCIA). |
 | Webmania, artigo de ajuda de 28/10/2025 (comercial): https://ajuda.webmania.com.br/pt-BR/articles/12680564-mei-como-localizar-a-serie-e-numero-do-proximo-dps-da-nfs-e-padrao-nacional | não se aplica | não se aplica | O usuário abre a última nota no portal, lê a série e o número da DPS no DANFSe ou no XML e digita no painel (leitura por resumo). |
 
 O que se aprende (INFERÊNCIA a partir do lido):
 
-1. Nos projetos lidos, a fonte do número é sempre um contador local com reserva atômica, como a NL-3.7 já prevê.
-2. Nos projetos lidos, a correção depois de perda é **manual**: o usuário informa o próximo número. Nenhum deles faz varredura para a frente na Sefin. A DA-2.93 está à frente do que li, não atrás.
+1. Nos nove repositórios e no artigo lidos, quem emite tem a fonte do número num contador local com reserva atômica, como a NL-3.7 já prevê; as cinco bibliotecas sem contador deixam o número com quem as usa.
+2. Nos projetos lidos que tratam disso, a correção depois de perda é **manual**: o usuário informa o próximo número. Nenhum deles faz varredura para a frente na Sefin. A DA-2.93 está à frente do que li, não atrás.
 3. GET e HEAD `/dps` aparecem só para resolver uma DPS específica cujo resultado ficou em dúvida.
 4. Dois projetos usam o ADN para reconstruir as notas emitidas depois de perder o banco, e um deles relê uma janela de NSU para pegar documento atrasado.
 
@@ -265,6 +270,7 @@ Recomendações ao CTO. Nenhuma decisão foi tomada aqui.
 | https://github.com/cleitonleonel/nfse_manager @ `09dcfc9` | Terceiro | Contador local com número informado pelo usuário |
 | https://github.com/renan20553/baixar_nfse_portal_nacional @ `c0e68e4` | Terceiro | NSU exclusivo; fim com E2220 ou E2230 |
 | https://github.com/vasfvitor/nanci @ `8b31aa8` | Terceiro | Afirma `ultNSU` e `maxNSU` na resposta |
+| gildonei/nfse-nacional, gsse/nfse-core-client, pedrocasado/nfse-php e LibreCodeCoop/nfse-php, nos commits da seção 4 | Terceiro | GET e HEAD `/dps`; sem contador de número |
 | https://www.contabeis.com.br/forum/tecnologia-contabil/416021/download-em-lote-de-nfs-e-do-padrao-nacional-como-automatizar-pela-api-do-adn/ | Fórum, leitura por resumo | ADN devolve as notas emitidas |
 | https://ajuda.webmania.com.br/pt-BR/articles/12680564-mei-como-localizar-a-serie-e-numero-do-proximo-dps-da-nfs-e-padrao-nacional | Comercial, leitura por resumo | Número da DPS digitado pelo usuário |
 | GitLab (API pública) e Codeberg (API, 429) | Busca | Nada sobre retomada; Codeberg em aberto |
