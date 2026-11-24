@@ -137,7 +137,7 @@ Mantenha a GUI em Wayland com X11 de reserva: o manifesto fica com `--socket=way
 
 Aplique a L-70 inteira, com uma única troca, na Fase 2:
 
-- As 7 fases da L-70 valem para duas situações: (a) a liberação de emissão real a terceiros, que é a virada fiscal de Produção (NL-12); (b) toda versão do app que toque uma das classes da própria L-70 (login, permissão, token, segredo, apagar dado, schema de banco e rotação de chave).
+- As 7 fases da L-70 valem para duas situações: (a) a liberação de emissão real a terceiros, que é a virada fiscal de Produção (NL-12); (b) toda versão do app que mude schema do banco, autenticação ou chave criptográfica (categorias da própria L-70).
 - Na Fase 2, faça "dupla validação manual em staging (ambiente de Produção Restrita)" no lugar do Shadow Deployment. Justificativa de inviabilidade técnica: o NotaLivre é um app desktop instalado na máquina de cada usuário, sem balanceador e sem tráfego que se possa espelhar.
 - As outras 6 fases são obrigatórias, sem exceção.
 - As fases da L-70 que não couberem num app desktop voltam ao líder, uma a uma, antes da Onda 3 (pendente, não decidido).
