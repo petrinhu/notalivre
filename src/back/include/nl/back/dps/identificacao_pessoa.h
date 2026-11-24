@@ -22,7 +22,7 @@ using NomeRazaoSocial = TextoLimitado<1, 300>;
 using InscricaoMunicipal = TextoLimitado<1, 15>;
 
 /// E-mail, 1 a 80 caracteres (TSEmail, tiposSimples_v1.01.xsd:561).
-using EmailPessoa = TextoLimitado<1, 80>;
+using EmailPessoa = TextoLimitado<1, 80, Alfabeto::tsString>;
 
 /// NIF de pessoa no exterior, 1 a 40 caracteres (TSNIF, tiposSimples_v1.01.xsd:387).
 using Nif = TextoLimitado<1, 40>;

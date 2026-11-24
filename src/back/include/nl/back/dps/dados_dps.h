@@ -27,7 +27,7 @@
 namespace nl::back {
 
 /// Versão do aplicativo emissor, 1 a 20 caracteres (TSVerAplic, tiposSimples_v1.01.xsd:149-158).
-using VerAplic = TextoLimitado<1, 20>;
+using VerAplic = TextoLimitado<1, 20, Alfabeto::tsString>;
 
 /// Campos de infDPS. tpEmit (sempre 1) e finNFSe (sempre 0) não entram aqui: são constantes de Dps (DA-1.3).
 struct DadosDps

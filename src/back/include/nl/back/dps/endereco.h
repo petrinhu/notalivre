@@ -17,16 +17,16 @@
 namespace nl::back {
 
 /// Logradouro, 1 a 255 caracteres (TSLogradouro, tiposSimples_v1.01.xsd:431).
-using Logradouro = TextoLimitado<1, 255>;
+using Logradouro = TextoLimitado<1, 255, Alfabeto::tsString>;
 
 /// Número do endereço, 1 a 60 caracteres (TSNumeroEndereco, tiposSimples_v1.01.xsd:440).
-using NumeroEndereco = TextoLimitado<1, 60>;
+using NumeroEndereco = TextoLimitado<1, 60, Alfabeto::tsString>;
 
 /// Complemento, 1 a 156 caracteres (TSComplementoEndereco, tiposSimples_v1.01.xsd:449).
-using ComplementoEndereco = TextoLimitado<1, 156>;
+using ComplementoEndereco = TextoLimitado<1, 156, Alfabeto::tsString>;
 
 /// Bairro, 1 a 60 caracteres (TSBairro, tiposSimples_v1.01.xsd:458).
-using Bairro = TextoLimitado<1, 60>;
+using Bairro = TextoLimitado<1, 60, Alfabeto::tsString>;
 
 /// Escolha de TCEndereco: endNac ou endExt (tiposComplexos_v1.01.xsd:1078-1083).
 using LocalEndereco = std::variant<EnderecoNacional, EnderecoExterior>;

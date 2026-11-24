@@ -64,3 +64,8 @@ add_executable(tst_dh_emi tst_dh_emi.cpp)
 target_link_libraries(tst_dh_emi PRIVATE Qt6::Test nl_back nl_warnings)
 nl_registra_teste_qt(NAME tst_dh_emi COMMAND tst_dh_emi)
 
+# NL-3.B1: alfabeto do leiaute nos textos que derivam de TSString.
+add_executable(tst_texto_leiaute tst_texto_leiaute.cpp)
+target_link_libraries(tst_texto_leiaute PRIVATE Qt6::Test nl_back nl_warnings)
+nl_registra_teste_qt(NAME tst_texto_leiaute COMMAND tst_texto_leiaute)
+
