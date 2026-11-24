@@ -280,6 +280,8 @@ jobs:
         include:
           - distro: fedora45
             imagem: fedora@sha256:a7d72ba2745b100a3351087472e5ee7b2450af7cf331e7673007e3817612839c
+          - distro: manjaro
+            imagem: manjarolinux/base@sha256:bbf1f1d746f28e138eea610e140d2f28cbb5b7c5da2fbff034b883527aa604e9
           - distro: mint22.3
             imagem: linuxmintd/mint22.3-amd64@sha256:304bbf7ec2a61252962c5210467d231a141661490e8962f52fd4df7688370369
     container:
