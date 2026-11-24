@@ -3,7 +3,7 @@
 # Espelho local do CI (R2, achado A0-02; L-36). Uma linha por job do ci.yml: NOME DO JOB NO CI | COMANDO LOCAL.
 # Os nomes são os do GitHub (matriz expandida). tools/espelho/comparar_jobs.py confere esta lista contra os jobs
 # do ci.yml e contra os nomes do último run empurrado. Executar tudo: tools/espelho/rodar_espelho.sh.
-# Cada comando roda o próprio trabalho dentro de contêiner (L-50) e pega a trava flock (L-11).
+# Cada comando roda o próprio trabalho dentro de contêiner (L-50) e roda na trava única ~/.claude/bin/pesado (L-11, item 2).
 qt-cache | bash tools/conteiner/build_local.sh qt
 nativo (fedora45) | NL_FATIA=espelho-fedora45 bash tools/conteiner/build_local.sh fedora45 debug && NL_FATIA=espelho-fedora45 bash tools/conteiner/build_local.sh fedora45 sabotagem-sanidade
 nativo (ubuntu26.04) | NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 debug && NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 sabotagem-sanidade

@@ -16,7 +16,7 @@
 # Variáveis:
 #   HIGIENE_IMAGEM              imagem dos portões em contêiner (padrão notalivre-higiene:ci)
 #   FLATHUB_KDE_IMAGEM          imagem do build Flatpak no modo docker (padrão: digest do índice kde-6.11)
-#   NL_PORTOES                  portões a sabotar (padrão: a2 gitleaks travessao spdx flatpak611 hex)
+#   NL_PORTOES                  portões a sabotar (padrão: gitleaks, o de segurança; L-35, item 3)
 #   MUTACAO_CONTROLE_HARNESS=1  controle do PRÓPRIO harness: só o a2, SEM sabotagem; o veredito tem de sair 1.
 # Saída: "portao=<nome> rc=<rc> motivo=<ok|nao> sha=<sha>" por portão, e o veredito. Termina com exit 1
 # se algum portão não reprovar pelo motivo esperado, ou se nenhum portão rodou (varredura vazia, L-36).
@@ -27,7 +27,7 @@ TRABALHO="${2:?uso: sabotar_portoes.sh REF TRABALHO MODO_FLATPAK}"
 MODO="${3:?uso: sabotar_portoes.sh REF TRABALHO MODO_FLATPAK}"
 IMAGEM="${HIGIENE_IMAGEM:-notalivre-higiene:ci}"
 FLATHUB_KDE="${FLATHUB_KDE_IMAGEM:-ghcr.io/flathub-infra/flatpak-github-actions@sha256:b0a8a2acb9e420dd0e3e083ff552bea5a817e17e41532f1d2287ff49ef9aae0e}"
-PORTOES="${NL_PORTOES:-a2 gitleaks travessao spdx flatpak611 hex}"
+PORTOES="${NL_PORTOES:-gitleaks}"
 CONTROLE="${MUTACAO_CONTROLE_HARNESS:-}"
 RESUMO="${GITHUB_STEP_SUMMARY:-/dev/null}"
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -100,10 +100,9 @@ em_conteiner() {
     docker run --pull=never "${NL_COTAS_DOCKER[@]}" --rm --network none --user "$(id -u):$(id -g)" -e HOME=/var/tmp -e TMPDIR=/var/tmp "$@"
 }
 
-# 1. A2 de camadas: include de camada proibida (back incluindo mid). Sem sabotagem no controle do harness.
-if ativo a2; then
+# 1. Controle do harness: o A2 de camadas roda SEM sabotagem, e o veredito tem de sair 1 (verde falso).
+if [ -n "$CONTROLE" ]; then
     d=$(copiar a2) || { echo "copia a2 falhou"; exit 1; }
-    [ -n "$CONTROLE" ] || echo '#include <nl/mid/camada.h>' >> "$d/src/back/camada.cpp"
     log="$TRABALHO/a2.log"
     em_conteiner -v "$d:/src:ro,z" "$IMAGEM" python3 -I /src/tools/portoes/camadas.py /src > "$log" 2>&1
     rc=$?
@@ -125,29 +124,8 @@ if ativo gitleaks; then
     registrar gitleaks "$rc" "$m" "$log"
 fi
 
-# 3. Travessão: U+2014 (bytes E2 80 94) escrito em octal, para este arquivo não conter o caractere.
-if ativo travessao; then
-    d=$(copiar travessao) || { echo "copia travessao falhou"; exit 1; }
-    printf 'Texto de mutacao com travess\303\243o \342\200\224 no README.\n' >> "$d/README.md"
-    log="$TRABALHO/travessao.log"
-    em_conteiner -v "$d:/src:ro,z" "$IMAGEM" python3 -I /src/tools/portoes/higiene_travessao.py /src > "$log" 2>&1
-    rc=$?
-    grep -q 'VIOLACAO README.md' "$log" && m=sim || m=nao
-    registrar travessao "$rc" "$m" "$log"
-fi
-
-# 4. SPDX (A0-06): arquivo de código sem cabeçalho na árvore do commit.
-if ativo spdx; then
-    d=$(copiar spdx) || { echo "copia spdx falhou"; exit 1; }
-    printf 'int sem_cabecalho = 0;\n' > "$d/src/back/sem_cabecalho.cpp"
-    log="$TRABALHO/spdx.log"
-    em_conteiner -v "$d:/src:ro,z" "$IMAGEM" python3 -I /src/tools/portoes/spdx.py /src > "$log" 2>&1
-    rc=$?
-    grep -q 'VIOLACAO src/back/sem_cabecalho.cpp' "$log" && m=sim || m=nao
-    registrar spdx "$rc" "$m" "$log"
-fi
-
 # 5. Flatpak contra o SDK 6.11: API só do Qt 6.12 (qSharedPointerStaticCast) numa cópia do teste.
+# Fora do padrão desde 23/11/2026 (L-35, item 3). Sai junto das exceções que três portões fazem a este bloco (NL-I.370).
 if ativo flatpak611; then
     d=$(copiar flatpak611) || { echo "copia flatpak611 falhou"; exit 1; }
     printf '\n#include <QSharedPointer>\nstatic const auto kSabotagemQt612 = qSharedPointerStaticCast<QObject>(QSharedPointer<QObject>());\n' \
@@ -167,18 +145,6 @@ if ativo flatpak611; then
     rc=$?
     grep -q 'qSharedPointerStaticCast' "$log" && m=sim || m=nao
     registrar flatpak611 "$rc" "$m" "$log"
-fi
-
-# 6. Hexadecimal fora do Theme (NL-1.8, L-36): um #RRGGBB num .qml de interface que não é Theme.qml.
-if ativo hex; then
-    d=$(copiar hex) || { echo "copia hex falhou"; exit 1; }
-    mkdir -p "$d/apps/gui/qml"
-    printf 'import QtQuick\n\nRectangle { color: "#FF0000" }\n' > "$d/apps/gui/qml/SabotagemHex.qml"
-    log="$TRABALHO/hex.log"
-    em_conteiner -v "$d:/src:ro,z" "$IMAGEM" python3 -I /src/tools/portoes/nenhum_hex_fora_do_theme.py /src > "$log" 2>&1
-    rc=$?
-    grep -q 'violacao: apps/gui/qml/SabotagemHex.qml:' "$log" && m=sim || m=nao
-    registrar hex "$rc" "$m" "$log"
 fi
 
 if [ "$EXECUTADOS" -eq 0 ]; then

@@ -6,20 +6,18 @@
 NL_TMP_BASE="${NL_TMP_BASE:-/var/tmp}"
 export NL_TMP_BASE TMPDIR="$NL_TMP_BASE"
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TRAVA="$NL_TMP_BASE/notalivre-heavy.lock"
 ESPELHO_TRAB="$NL_TMP_BASE/notalivre-espelho"
 IMAGEM_HIGIENE="notalivre-higiene:ci"
 # Teto de contêiner (NL-3.K): todo docker run dos jobs recebe "${NL_COTAS_DOCKER[@]}", do átomo único.
 . "$RAIZ/tools/conteiner/cota_conteiner.sh"
 nl_cotas_docker || { echo "REPROVA: teto de contêiner inválido"; exit 2; }
 
-# Trava única de trabalho pesado (L-11). Cada job_*.sh chama travar antes de qualquer contêiner.
+# Trava única da máquina (L-11, item 2). Cada job_*.sh chama travar antes de qualquer contêiner: o job inteiro roda uma
+# vez dentro do ~/.claude/bin/pesado, e a marca NL_TRAVA_DETIDA=1 impede o filho de pedir de novo.
 travar() {
-    exec 9> "$TRAVA"
-    flock -w 3600 9 || { echo "REPROVA: sem trava de trabalho pesado em 3600 s ($TRAVA)"; exit 1; }
-    # Marca para os filhos: nenhum comando filho pega a mesma trava de novo (flock aninhado trava o processo).
-    NL_TRAVA_DETIDA=1
-    export NL_TRAVA_DETIDA
+    [ "${NL_TRAVA_DETIDA:-}" != 1 ] || return 0
+    export NL_TRAVA_DETIDA=1
+    exec "${NL_PESADO:-$HOME/.claude/bin/pesado}" --teto "${NL_PESADO_TETO:-15}" -- bash "$(readlink -f "$0")"
 }
 
 # Cópia do COMMIT de $RAIZ, com .git DIRETÓRIO, como o actions/checkout do CI entrega (NL-3.E).

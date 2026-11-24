@@ -29,6 +29,8 @@ ok() { echo "[VERDE] $1"; }
 falha() { echo "[VERMELHO] $1"; FALHAS=$((FALHAS + 1)); }
 
 mkdir -p "$BASE/bin"
+# Sem trava aqui: nenhum caso mede a fila, e o ~/.claude/bin/pesado não existe no CI (L-11).
+export NL_TRAVA_DETIDA=1
 cat > "$BASE/bin/docker" <<'STUB'
 #!/bin/sh
 # Docker de mentira (V-a, NL-3.1h): responde ao que o harness pede e grava a linha de comando no log.

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Executor do espelho local (R2, A0-02): roda cada linha de tools/espelho_local.txt, UM POR VEZ,
-# e imprime o rc de cada job com o log. Cada comando pega a própria trava flock (L-11).
+# e imprime o rc de cada job com o log. Cada job roda na trava única ~/.claude/bin/pesado (L-11, item 2).
 # rc 0 = verde; rc 2 = não executado (lacuna declarada); qualquer outro = vermelho.
 # Uso: rodar_espelho.sh          (saída: uma linha por job e o resumo; sai 1 se algum job não for verde)
 set -u

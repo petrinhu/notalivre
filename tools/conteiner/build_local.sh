@@ -4,7 +4,7 @@
 # Build e teste local do NotaLivre dentro de contêiner (L-50: nada de teste dinâmico na sessão do líder).
 #
 # Uso:
-#   build_local.sh imagem <distro>        constrói a imagem de build da distro (pesado, sob flock)
+#   build_local.sh imagem <distro>        constrói a imagem de build da distro (pesado, sob a trava única)
 #   build_local.sh qt                     instala Qt 6.12 no volume notalivre-qt-6120 (só se ainda não estiver)
 #   build_local.sh preparar               imagem fedora45 + Qt (forma antiga da NL-0.2)
 #   build_local.sh <distro> <preset>      configure + build + ctest do preset na distro (exige NL_FATIA)
@@ -44,7 +44,7 @@
 # que o contêiner viu. tools/conteiner/evidencia_sha.sh verificar <log> confere o manifesto contra o commit.
 #
 # Regras aplicadas (L-11, L-36, L-45, L-49, L-53):
-#   - um trabalho pesado por vez: cópia da fonte E docker run ficam DENTRO da mesma trava flock $TRAVA;
+#   - um trabalho pesado por vez: cópia da fonte E docker run ficam DENTRO da trava única ~/.claude/bin/pesado, pega na entrada;
 #   - cada fatia tem a própria fonte (notalivre-src-<SHA>-<fatia>) e o próprio build; nada compartilhado;
 #   - teto de CPU e RAM do contêiner: NL_THREADS (até 7) e NL_MEMORIA (até 12g), pelo átomo cota_conteiner.sh (NL-3.K);
 #   - núcleos presos só com NL_CPUSET explícita (a reserva de 11/11/2026 acabou em 13/11/2026);
@@ -52,6 +52,14 @@
 #   - o status é o do contêiner: o log é gravado por redirecionamento, nunca por pipe em tail;
 #   - o contêiner roda com --user 1000:1000 e sem --privileged.
 set -euo pipefail
+
+# Trava única da máquina (L-11, item 2): o script inteiro roda uma vez dentro do ~/.claude/bin/pesado.
+# NL_TRAVA_DETIDA=1 marca que já está dentro, e o filho não pede de novo. NL_PESADO troca o executor (os autotestes
+# usam um de mentira); NL_PESADO_TETO é o teto em minutos (padrão 15, L-11).
+if [ "${NL_TRAVA_DETIDA:-}" != 1 ]; then
+    export NL_TRAVA_DETIDA=1
+    exec "${NL_PESADO:-$HOME/.claude/bin/pesado}" --teto "${NL_PESADO_TETO:-15}" -- bash "$(readlink -f "${BASH_SOURCE[0]}")" "$@"
+fi
 
 # Base de temporários e de build no HOST (A0-08). Padrão /var/tmp; trocável pela variável NL_TMP_BASE.
 NL_TMP_BASE="${NL_TMP_BASE:-/var/tmp}"
@@ -77,7 +85,6 @@ QT_PREFIXO="/opt/qt/6.12.0/gcc_64"
 # Por isso o contêiner recebe uma cópia montada de /var/tmp (rótulo do próprio usuário, :z), refeita a cada fatia.
 # Não se relabela a árvore sincronizada do líder.
 LOG_DIR="$NL_TMP_BASE/notalivre-logs"
-TRAVA="$NL_TMP_BASE/notalivre-heavy.lock"
 # Teto de contêiner (NL-3.K): padrão e teto no átomo tools/conteiner/cota_conteiner.sh. Os efetivos (THREADS, NL_MEMORIA,
 # CPUSET e o vetor NL_COTAS_DOCKER) são preenchidos por resolver_cpuset, nunca no nível de cima do script.
 THREADS=""
@@ -113,16 +120,10 @@ imagem_de()
     echo "notalivre/build-$1:nl-2.0"
 }
 
-# Executa um comando pesado sob a trava compartilhada e com prioridade reduzida.
-# Se o chamador já detém a trava (NL_TRAVA_DETIDA=1), não pede de novo: flock aninhado no mesmo arquivo
-# trava o próprio processo (medido em 25/10/2026: um flock órfão esperou a própria trava por 18 min).
+# Executa um comando pesado. A trava única (~/.claude/bin/pesado, L-11 item 2) já foi pega na entrada do script.
 pesado()
 {
-    if [ "${NL_TRAVA_DETIDA:-}" = 1 ]; then
-        nice -n 5 "$@"
-    else
-        flock "$TRAVA" nice -n 5 "$@"
-    fi
+    "$@"
 }
 
 # Reconstrói a imagem de uma distro. O log é gravado por redirecionamento (NL_LOG ou padrão).
@@ -271,21 +272,6 @@ preparar_fonte()
     fi
 }
 
-# Trava própria do build: o subcomando "executar" a adquire aqui, antes de tocar em qualquer coisa.
-# Assim, mesmo chamado direto (sem construir), ele não roda fora da trava (L-11: um trabalho pesado por vez).
-# Se o chamador já detém a trava (NL_TRAVA_DETIDA=1), não pega de novo (ver pesado).
-adquirir_trava()
-{
-    if [ "${NL_TRAVA_DETIDA:-}" = 1 ]; then
-        return 0
-    fi
-    exec 9> "$TRAVA"
-    flock 9
-    # Quem adquire exporta a marca: nenhum filho readquire o mesmo arquivo.
-    NL_TRAVA_DETIDA=1
-    export NL_TRAVA_DETIDA
-}
-
 # Corpo do build. A linha 1 do log é o SHA (escrita antes de qualquer trava, para que um log interrompido ainda
 # diga de qual commit era). O trailer NL-RC é gravado ao sair, com o status real do script.
 executar()
@@ -324,7 +310,6 @@ executar()
     xsd_host="${NL_XSD_ZIP_CACHE:-$NL_TMP_BASE/notalivre-xsd-cache}"
     imagem="$(imagem_de "$distro")"
 
-    adquirir_trava
     preparar_fonte "$sha" "$fonte"
     manifesto="$(manifesto_de_dir "$fonte")"
     printf 'NL-SRC=%s\nNL-BUILD=%s\nNL-XSD-CACHE=%s\nNL-MANIFESTO-SHA256=%s\n' \

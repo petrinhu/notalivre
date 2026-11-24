@@ -4,7 +4,7 @@
 # Harness de integração com servidor de banco (NL-3.1h, passo 8). Uso: integracao_banco.sh <distro> <nome|todos>.
 # Um par por vez: credencial 0700, servidor com rede none, conta de teste, classe do certificado conferida, executor na rede
 # do servidor, resultado por junitxml e quatro linhas NL-TLS (critério 4 de TLS, C4').
-# Só orquestra: cada assunto mora num átomo de banco/. Trava única para a execução inteira (flock do passo 8).
+# Só orquestra: cada assunto mora num átomo de banco/. Trava única para a execução inteira (~/.claude/bin/pesado, L-11 item 2).
 set -u
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 NL_BANCO_DIR="$RAIZ/tools/conteiner"
@@ -22,7 +22,8 @@ case "$NL_PRESET_BANCO" in
 esac
 export NL_PRESET_BANCO
 if [ "${NL_TRAVA_DETIDA:-}" != 1 ]; then
-    exec flock /var/tmp/notalivre-heavy.lock env NL_TRAVA_DETIDA=1 nice -n 5 "$0" "$@"
+    export NL_TRAVA_DETIDA=1
+    exec "${NL_PESADO:-$HOME/.claude/bin/pesado}" --teto "${NL_PESADO_TETO:-15}" -- bash "$(readlink -f "$0")" "$@"
 fi
 echo "SHA: $NL_SHA fatia=$NL_FATIA distro=$DISTRO"
 : "${NL_TMP_BASE:?defina NL_TMP_BASE (no host, /var/tmp)}"
