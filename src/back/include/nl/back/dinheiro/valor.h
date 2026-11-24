@@ -8,6 +8,7 @@
 
 #include <nl/base/erro.h>
 
+#include <concepts>
 #include <cstdint>
 #include <expected>
 #include <span>
@@ -28,6 +29,9 @@ public:
 
     /// Constrói a partir de centavos. Negativo devolve valor.negativo; acima do teto devolve valor.limite.
     [[nodiscard]] static std::expected<Valor, nl::base::Erro> de(std::int64_t centavos);
+
+    /// Ponto flutuante não entra no dinheiro (NF-19): Valor::de(10.5) não compila.
+    static std::expected<Valor, nl::base::Erro> de(std::floating_point auto) = delete;
 
     /// Lê texto pt-br: "1.234,56", "10", "10,5". Ponto só como separador de milhar (grupos de três);
     /// até duas casas decimais; sem sinal, sem espaço, sem símbolo, dígitos ASCII.

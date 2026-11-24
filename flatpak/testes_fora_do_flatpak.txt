@@ -133,3 +133,4 @@ sql.naoCompila.consultaComComentario | teste de compilação do compilador das 4
 sql.naoCompila.ddlNoLugarDeConsulta | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
 sql.naoCompila.parametroQString | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
 sql.naoCompila.dadosSemModo | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
+dinheiro.naoCompila.valorDeDouble | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
