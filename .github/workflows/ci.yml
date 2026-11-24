@@ -668,6 +668,11 @@ jobs:
       # Fixada por digest do índice multi-arch (A0-07, R6). Decisão de risco: docs/adr/0001-flatpak-privileged.md.
       image: ghcr.io/flathub-infra/flatpak-github-actions@sha256:b0a8a2acb9e420dd0e3e083ff552bea5a817e17e41532f1d2287ff49ef9aae0e
       options: --privileged
+      # NL-3.1a (CI da onda-3, run 44939648309): os runtimes do SDK vêm na camada da imagem, e em parte dos hosts (medido:
+      # AWS us-east-1) o overlay do Docker não renomeia diretório dessa camada; a atualização do runtime cai com
+      # "Invalid cross-device link". Um volume não é overlay, e o Docker copia para ele o /var/lib/flatpak da imagem.
+      volumes:
+        - notalivre-flatpak:/var/lib/flatpak
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -843,10 +848,11 @@ jobs:
             echo "| CAs do runtime KDE 6.11 (NL-2.10e, E2) | ${{ steps.cas_runtime.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Mutação dos portões (definição de fechamento da Onda 0, L-36 e L-27): cada portão TEM de reprovar a própria
-  # sabotagem, pelo motivo esperado. Sabota só cópias em $RUNNER_TEMP. O job passa só se os quatro reprovarem.
+  # Mutação do portão de segredos (L-36 e L-27): o gitleaks TEM de reprovar a própria sabotagem, pelo motivo esperado.
+  # Sabota só cópias em $RUNNER_TEMP. Desde 23/11/2026 (NF-12; L-35, item 3) só o portão de segurança é sabotado:
+  # A2, travessão, SPDX, hex e Flatpak 6.11 saíram da mutação do CI.
   mutacao:
-    name: mutação dos portões (A2, gitleaks, travessão, Flatpak 6.11)
+    name: mutação do portão de segredos (gitleaks)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -857,10 +863,11 @@ jobs:
       - name: Imagem de higiene (mesma do job higiene)
         run: docker build -t notalivre-higiene:ci -f tools/portoes/higiene.Dockerfile tools/portoes
 
-      - name: Sabotagens e veredito dos quatro portões
+      - name: Sabotagem e veredito do portão de segredos
         id: mutacao
         env:
           HIGIENE_IMAGEM: notalivre-higiene:ci
+          NL_PORTOES: gitleaks
         run: bash tools/mutacao/sabotar_portoes.sh "$GITHUB_SHA" "$RUNNER_TEMP/mutacao" docker
 
       # A0-15 (L-36): o próprio harness precisa reprovar quando um portão não reprova. Sabota o harness
