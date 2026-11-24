@@ -11,7 +11,7 @@ REF="${ESPELHO_REF:-WORKTREE}"
 T="$ESPELHO_TRAB/mutacao"
 mkdir -p "$T" && cd "$T" || exit 1
 passo "imagem-higiene" garantir_imagem_higiene
-passo "sabotagens" env HIGIENE_IMAGEM="$IMAGEM_HIGIENE" bash "$RAIZ/tools/mutacao/sabotar_portoes.sh" "$REF" "$T/sabotagens" flatpak
+passo "sabotagens" env HIGIENE_IMAGEM="$IMAGEM_HIGIENE" NL_PORTOES=gitleaks bash "$RAIZ/tools/mutacao/sabotar_portoes.sh" "$REF" "$T/sabotagens" flatpak
 # Controle do harness: o veredito TEM de sair 1. Rc 0 aqui seria verde falso do próprio harness.
 rc=0
 env HIGIENE_IMAGEM="$IMAGEM_HIGIENE" MUTACAO_CONTROLE_HARNESS=1 bash "$RAIZ/tools/mutacao/sabotar_portoes.sh" "$REF" "$T/controle" flatpak || rc=$?
