@@ -47,7 +47,22 @@ public:
                 std::string{"campo "} + std::string{campo} + " deve ter de " + std::to_string(Minimo) + " a " + std::to_string(Maximo) +
                     " caracteres"});
         }
-        // Esboço da NL-3.B1 (passo R): o alfabeto do TSString ainda não é conferido.
+        if constexpr (alfabeto == Alfabeto::tsString) {
+            for (const auto ponto : pontos) {
+                if (ponto < 0x20U || ponto > 0xFFU) {
+                    return std::unexpected(nl::base::Erro{
+                        "texto.caractere", std::string{campo},
+                        std::string{"campo "} + std::string{campo} +
+                            " tem caractere que o leiaute da NFS-e não aceita, como aspas curvas, travessão, emoji ou"
+                            " quebra de linha"});
+                }
+            }
+            if (!pontos.isEmpty() && (pontos.front() == 0x20U || pontos.back() == 0x20U)) {
+                return std::unexpected(nl::base::Erro{
+                    "texto.espaco_na_ponta", std::string{campo},
+                    std::string{"campo "} + std::string{campo} + " não pode começar nem terminar com espaço"});
+            }
+        }
         return TextoLimitado{entrada.toString()};
     }
 
