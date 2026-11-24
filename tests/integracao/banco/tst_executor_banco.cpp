@@ -862,7 +862,7 @@ void TesteExecutorBanco::dataNaoMudaComFusoDaSessao()
     QCOMPARE(primeiraColuna(*linhas), QByteArrayLiteral("2026-11-21"));
 }
 
-// A senha do conector é zerada depois de conectar (a cópia MYSQL::passwd): ponteiro não nulo, primeiro byte zero.
+// A senha do conector é zerada depois de conectar (a cópia MYSQL::passwd): ponteiro não nulo, e todos os bytes da senha do par zerados.
 // Depois disso, na mesma conexão, SELECT ? com 7 volta 7.
 void TesteExecutorBanco::senhaDoConectorZeradaDepoisDeConectar()
 {

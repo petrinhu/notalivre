@@ -41,7 +41,7 @@
 - Item 2: o teste nomeado na fatia do adaptador, visto vermelho antes (sabotagem: tirar a impressão fixada e desligar `MYSQL_OPT_SSL_VERIFY_SERVER_CERT` (com ou sem `MYSQL_OPT_SSL_ENFORCE`=1, como a sab3 da NL-3.1h), e ver a sessão abrir sem TLS no servidor sem TLS).
 - Item 3: a versão do conector está no manifesto Flatpak e em `tools/conteiner/modulo_mariadb.sh`; a troca de versão cita esta ADR no commit.
 - Item 4: o teste de integração com a impressão trocada e `MARIADB_TLS_DISABLE_PEER_VERIFICATION=1` no ambiente do processo recusa a conexão, nos 16 pares.
-- Item 5: o teste `senhaDoConectorZeradaDepoisDeConectar` lê todos os bytes de `MYSQL::passwd` depois de conectar, no tamanho da senha do par, e espera que nenhum seja diferente de 0, e a mesma conexão ainda roda uma consulta preparada; visto vermelho tirando a zeragem. A leitura de todos os bytes é da NL-3.1l (parecer do CISO, R4), porque a leitura só do primeiro byte aprovava uma zeragem que parasse nele.
+- Item 5: o teste `senhaDoConectorZeradaDepoisDeConectar` lê todos os bytes de `MYSQL::passwd` depois de conectar, no tamanho da senha do par, e espera que nenhum seja diferente de 0, e a mesma conexão ainda roda uma consulta preparada. Medido em 24/11/2026 com o mutante que zera só o primeiro byte (commit b07c453, nunca enviado, par fedora45/mariadb118): vermelho, com 47 bytes não zerados contra 0 esperado. A rodada do 041c7d3 sem mutante no par ainda não foi medida. A leitura de todos os bytes é da NL-3.1l (parecer do CISO, R4), porque a leitura só do primeiro byte aprovava uma zeragem que parasse nele.
 
 ## Consequências
 
