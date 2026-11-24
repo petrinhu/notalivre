@@ -42,3 +42,20 @@ foreach(slot IN ITEMS
                        LABELS banco
                        TIMEOUT 120)  # teto explícito, como nos quatro slots de TLS
 endforeach()
+
+# Migrador no banco (NL-3.1b, parte b2): 12 slots, um por comportamento, no mesmo label banco. Cada slot é um processo,
+# com uma linha NL-CONECTOR e uma NL-TLS, como os do executor.
+add_executable(tst_migrador_banco tst_migrador_banco.cpp)
+target_include_directories(tst_migrador_banco PRIVATE ${NL_MARIADB_INCLUDE_DIR})
+target_compile_definitions(tst_migrador_banco PRIVATE "NL_MARIADB_PREFIXO_DO_BUILD=\"${NL_MARIADB_PREFIX}\"")
+target_link_libraries(tst_migrador_banco PRIVATE Qt6::Core Qt6::Test nl_foundation_sql ${NL_MARIADB_LIB} nl_warnings)
+foreach(slot IN ITEMS
+        bancoVazioAplicaTudoERegistra segundaExecucaoNaoAplicaNada versaoNovaAplicaSoAQueFalta
+        bancoAFrenteRecusaSemEscrita checksumDivergenteRecusaSemEscrita ddlQueFalhaDeixaMarcaETravaAsSeguintes
+        travaOcupadaRecusaSemEscrita travaLiberadaQuandoASessaoCai travaLiberadaAoSair catalogoInvalidoNaoTocaOBanco
+        linhaIlegivelRecusaSemEscrita marcaQueFalhaNaoRodaODdl)
+  nl_registra_teste_qt(NAME integracao.banco.migrador.${slot} COMMAND tst_migrador_banco ${slot})
+  set_tests_properties(integracao.banco.migrador.${slot} PROPERTIES
+                       LABELS banco
+                       TIMEOUT 120)
+endforeach()

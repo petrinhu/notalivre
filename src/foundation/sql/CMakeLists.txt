@@ -18,7 +18,9 @@ add_library(nl_foundation_sql STATIC
     erros.cpp
     executor.cpp
     migracao_catalogo.cpp
-    migracao_plano.cpp)
+    migracao_plano.cpp
+    migracao_aplicacao.cpp
+    trava_migracao.cpp)
 target_include_directories(nl_foundation_sql PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(nl_foundation_sql PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/privado ${NL_MARIADB_INCLUDE_DIR})
 target_link_libraries(nl_foundation_sql PUBLIC nl_foundation_base Qt6::Core)

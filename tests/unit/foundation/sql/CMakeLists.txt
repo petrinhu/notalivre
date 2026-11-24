@@ -46,3 +46,9 @@ endif()
 add_executable(tst_migracao tst_migracao.cpp)
 target_link_libraries(tst_migracao PRIVATE Qt6::Test nl_foundation_sql nl_warnings)
 nl_registra_teste_qt(NAME tst_migracao COMMAND tst_migracao)
+
+# Resposta do GET_LOCK do migrador, sem servidor (NL-3.1b, parte b2; parecer do CISO, I-a).
+add_executable(tst_migracao_trava tst_migracao_trava.cpp)
+target_include_directories(tst_migracao_trava PRIVATE ${CMAKE_SOURCE_DIR}/src/foundation/sql/privado)
+target_link_libraries(tst_migracao_trava PRIVATE Qt6::Test nl_foundation_sql nl_warnings)
+nl_registra_teste_qt(NAME tst_migracao_trava COMMAND tst_migracao_trava)
