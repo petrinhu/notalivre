@@ -16,7 +16,7 @@
 namespace nl::back {
 
 /// Motivo, 15 a 255 caracteres (TSMotivo, tiposSimples_v1.01.xsd:348).
-using MotivoSubstituicao = TextoLimitado<15, 255>;
+using MotivoSubstituicao = TextoLimitado<15, 255, Alfabeto::tsString>;
 
 /// Invariante: a chave e o código já vêm validados. cMotivo tem exatamente duas posições (CodigoJustificativaSubstituicao).
 class Substituicao
