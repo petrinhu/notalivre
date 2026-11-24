@@ -49,7 +49,7 @@ Leia [`GODS_LAWS.md`](GODS_LAWS.md) antes de agir. `L-NN` sem prefixo é lei glo
 | [NF-14](GODS_LAWS.md#nf-14) | mexer em workflow disparado por PR |
 | [NF-15](GODS_LAWS.md#nf-15) | ligar a GUI ao núcleo ou à CLI |
 | [NF-16](GODS_LAWS.md#nf-16) | mexer no manifesto Flatpak ou no suporte a Wayland e X11 |
-| [NF-17](GODS_LAWS.md#nf-17) | planejar emissão real a terceiros, ou versão que mude schema do banco, autenticação ou chave criptográfica |
+| [NF-17](GODS_LAWS.md#nf-17) | planejar emissão real a terceiros, ou versão que toque login, permissão, token, segredo, apagar dado, schema ou chave |
 | [NF-18](GODS_LAWS.md#nf-18) | escrever texto de interface ou de documento |
 
 ## Pendências

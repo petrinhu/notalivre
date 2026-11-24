@@ -41,9 +41,9 @@ Escreva os identificadores em português sem acento, alinhados ao leiaute (Dps, 
 
 ## NF-04
 
-**Data:** decisão do líder, 25/10/2026, ponto L7. **Verbatim (na confirmação da exceção):** "autorizo containers locais" e "pode deixar tudo nas pastas padrao".
+**Data:** decisão do líder, 25/10/2026, ponto L7. **Verbatim (na confirmação da exceção):** "autorizo containers locais" e "pode deixar tudo nas pastas padrao". Alinhada à lei global por AskUserQuestion, 23/11/2026: *"Alinhar ao global (Recomendado)"*.
 
-Rode cada fatia primeiro em contêiner local, nunca na sessão do líder (L-50), e só então mande-a por push à branch da onda, onde o CI repete (L-36). Rode o QML só offscreen, dentro do contêiner.
+Nunca rode nada na sessão do líder (L-50). Rode o teste sem janela no host, com os limites da L-11 item 2, e o QML só offscreen (`QT_QPA_PLATFORM=offscreen`), porque assim ele não toca a tela, o foco nem o teclado da sessão viva (L-50). Mande cada fatia commitada por push à branch da onda, onde o CI seletivo é o portão (L-35, L-36). O contêiner local antes do push é opcional.
 
 ## NF-05
 
@@ -85,9 +85,9 @@ Dê a cada onda uma branch própria (`onda-0`, `onda-1` e assim por diante). Man
 
 ## NF-09
 
-**Data:** regra de execução (leis globais L-49 e L-12).
+**Data:** regra de execução (leis globais L-49 e L-12); ajustada à NF-04 por AskUserQuestion, 23/11/2026: *"Alinhar ao global (Recomendado)"*.
 
-Faça o executor gravar o log do contêiner local em `/var/tmp` e citá-lo na entrega. O main lê esse log e o do job de CI do SHA empurrado, este pelo MCP do GitHub, e faz spot-check arquivo:linha no blob commitado.
+Quando houver rodada em contêiner local, faça o executor gravar o log dela em `/var/tmp` e citá-lo na entrega. O main lê esse log, se houver, e o do job de CI do SHA empurrado, este pelo MCP do GitHub, e faz spot-check arquivo:linha no blob commitado.
 
 ## NF-10
 
@@ -103,9 +103,9 @@ Versione no formato vA.B.C.D, estilo GlintFx. Crie tag de marco a cada onda fech
 
 ## NF-12
 
-**Data:** decisão do líder, 25/10/2026.
+**Data:** decisão do líder, 25/10/2026; alinhada à lei global por AskUserQuestion, 23/11/2026: *"Alinhar ao global (Recomendado)"*.
 
-Rode o job `mutacao` em todo push, sem filtro de caminho.
+Rode o job `mutacao` só quando a mudança tocar segurança, privacidade ou deploy irreversível (L-35, L-27), num CI seletivo pelo que a mudança toca (L-35), porque fora desses casos a mutação custa mais do que confere.
 
 ## NF-13
 
@@ -133,11 +133,11 @@ Mantenha a GUI em Wayland com X11 de reserva: o manifesto fica com `--socket=way
 
 ## NF-17
 
-**Data:** decisão do líder, 25/10/2026, pelo rito da LEI DAS LEIS. **Verbatim:** "Cancelo: L-70 inteira".
+**Data:** decisão do líder, 25/10/2026, pelo rito da LEI DAS LEIS. **Verbatim:** "Cancelo: L-70 inteira". Alcance (b) por AskUserQuestion, 23/11/2026: *"As sete da L-70 (Recomendado)"*.
 
 Aplique a L-70 inteira, com uma única troca, na Fase 2:
 
-- As 7 fases da L-70 valem para duas situações: (a) a liberação de emissão real a terceiros, que é a virada fiscal de Produção (NL-12); (b) toda versão do app que mude schema do banco, autenticação ou chave criptográfica (categorias da própria L-70).
+- As 7 fases da L-70 valem para duas situações: (a) a liberação de emissão real a terceiros, que é a virada fiscal de Produção (NL-12); (b) toda versão do app que toque uma das sete classes da L-70: login, permissão, token, segredo, apagar dado, schema de banco e rotação de chave.
 - Na Fase 2, faça "dupla validação manual em staging (ambiente de Produção Restrita)" no lugar do Shadow Deployment. Justificativa de inviabilidade técnica: o NotaLivre é um app desktop instalado na máquina de cada usuário, sem balanceador e sem tráfego que se possa espelhar.
 - As outras 6 fases são obrigatórias, sem exceção.
 - As fases da L-70 que não couberem num app desktop voltam ao líder, uma a uma, antes da Onda 3 (pendente, não decidido).
