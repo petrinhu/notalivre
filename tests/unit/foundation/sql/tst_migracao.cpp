@@ -7,6 +7,7 @@
 #include <nl/foundation/sql/migracao.h>
 
 #include <QByteArray>
+#include <QCryptographicHash>
 #include <QString>
 #include <QStringList>
 #include <QtTest>
@@ -25,6 +26,13 @@ sql::ArquivoMigracao arquivo(const char* nome, const char* conteudo)
 QString codigoDe(const nl::base::Erro& erro)
 {
     return QString::fromStdString(erro.codigo());
+}
+
+// Migração montada à mão, sem passar por catalogoDe, para o plano receber um catálogo que catalogoDe recusaria.
+sql::Migracao migracaoMontada(int versao, const char* conteudo)
+{
+    const QByteArray sql(conteudo);
+    return sql::Migracao{versao, QStringLiteral("montada"), sql, QCryptographicHash::hash(sql, QCryptographicHash::Sha256)};
 }
 
 // Catálogo de duas migrações válidas, para os testes do plano.
@@ -57,6 +65,9 @@ private slots:
     void schemaMaisNovoRecusadoSemPlano();
     void checksumDivergenteRecusado();
     void aplicadasComBuracoRecusadas();
+    void catalogoComBuracoRecusadoNoPlano();
+    void checksumDoCatalogoDivergenteRecusado();
+    void catalogoComBuracoComMaisAplicadasQueEntradas();
 };
 
 void TstMigracao::catalogoOrdenaPorVersao()
@@ -93,7 +104,8 @@ void TstMigracao::nomeForaDoPadraoRecusado()
                             QStringLiteral("v0001__a.sql"), QStringLiteral("V0001__A.sql"),
                             QStringLiteral("V0001__a.txt"), QStringLiteral("V0000__a.sql"),
                             QStringLiteral("V0001__.sql"), QStringLiteral("V0001__a b.sql"),
-                            QStringLiteral("V00001__a.sql"), QStringLiteral(" V0001__a.sql")};
+                            QStringLiteral("V00001__a.sql"), QStringLiteral(" V0001__a.sql"),
+                            QStringLiteral("V0001__a.sql\n")};
     for (const QString& nome : nomes) {
         const auto catalogo = sql::catalogoDe({sql::ArquivoMigracao{nome, QByteArray("A")}});
         QVERIFY2(!catalogo.has_value(), qPrintable(nome));
@@ -184,6 +196,36 @@ void TstMigracao::aplicadasComBuracoRecusadas()
                                                     sql::MigracaoAplicada{1, catalogo.at(0).checksum}});
     QVERIFY(!umRepetido.has_value());
     QCOMPARE(codigoDe(umRepetido.error()), QStringLiteral("migracao.aplicadas_com_buraco"));
+}
+
+void TstMigracao::catalogoComBuracoRecusadoNoPlano()
+{
+    const std::vector<sql::Migracao> catalogo{migracaoMontada(1, "A"), migracaoMontada(3, "C")};
+    const auto plano = sql::planoDe(catalogo, {});
+    QVERIFY(!plano.has_value());
+    QCOMPARE(codigoDe(plano.error()), QStringLiteral("migracao.versao_com_buraco"));
+}
+
+void TstMigracao::checksumDoCatalogoDivergenteRecusado()
+{
+    // A entrada 2 ainda não foi aplicada: o SQL adulterado é o que rodaria, então o plano tem de recusar.
+    std::vector<sql::Migracao> catalogo = catalogoDeDuas();
+    QCOMPARE(catalogo.size(), std::size_t{2});
+    catalogo.at(1).sql = QByteArray("CREATE TABLE adulterada (x INT)");
+    const auto plano = sql::planoDe(catalogo, {sql::MigracaoAplicada{1, catalogo.at(0).checksum}});
+    QVERIFY(!plano.has_value());
+    QCOMPARE(codigoDe(plano.error()), QStringLiteral("migracao.catalogo_checksum_divergente"));
+}
+
+void TstMigracao::catalogoComBuracoComMaisAplicadasQueEntradas()
+{
+    // Catálogo com buraco e três aplicadas: antes da checagem do catálogo, a leitura passava do fim do vetor.
+    const std::vector<sql::Migracao> catalogo{migracaoMontada(1, "A"), migracaoMontada(3, "C")};
+    const auto plano = sql::planoDe(catalogo, {sql::MigracaoAplicada{1, catalogo.at(0).checksum},
+                                               sql::MigracaoAplicada{2, catalogo.at(1).checksum},
+                                               sql::MigracaoAplicada{3, catalogo.at(1).checksum}});
+    QVERIFY(!plano.has_value());
+    QCOMPARE(codigoDe(plano.error()), QStringLiteral("migracao.versao_com_buraco"));
 }
 
 QTEST_GUILESS_MAIN(TstMigracao)
