@@ -43,7 +43,7 @@ Escreva os identificadores em português sem acento, alinhados ao leiaute (Dps, 
 
 **Data:** decisão do líder, 25/10/2026, ponto L7. **Verbatim (na confirmação da exceção):** "autorizo containers locais" e "pode deixar tudo nas pastas padrao". Alinhada à lei global por AskUserQuestion, 23/11/2026: *"Alinhar ao global (Recomendado)"*.
 
-Nunca rode nada na sessão do líder (L-50). Rode o teste sem janela no host, com os limites da L-11 item 2, e o QML só offscreen (`QT_QPA_PLATFORM=offscreen`), porque assim ele não toca a tela, o foco nem o teclado da sessão viva (L-50). Mande cada fatia commitada por push à branch da onda, onde o CI seletivo é o portão (L-35, L-36). O contêiner local antes do push é opcional.
+Nunca rode na sessão viva do líder teste que abre janela ou mexe no foco, no teclado ou no mouse (L-50). Rode o teste sem janela no host, com os limites da L-11 item 2, e o QML só offscreen (`QT_QPA_PLATFORM=offscreen`), porque assim ele não toca a tela, o foco nem o teclado da sessão viva (L-50). Mande cada fatia commitada por push à branch da onda, onde o CI seletivo é o portão (L-35, L-36). O contêiner local antes do push é opcional.
 
 ## NF-05
 
