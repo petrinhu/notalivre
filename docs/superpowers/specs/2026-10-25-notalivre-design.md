@@ -228,7 +228,7 @@
 
 - **Comportamento** (decisão do líder, rodada 3, paráfrase): o lote continua e relata no fim. Só as falhas são reenviadas.
 - **Fontes do lote** (decisão do líder, rodada 5, paráfrase): planilha CSV ou XLSX, tomadores selecionados com um modelo, e notas recorrentes.
-- **Mecânica:** POST síncrono, uma DPS por chamada (inferência de pesquisa, com força alta; ver R5). Cada DPS ocupa seu número na série. Número reservado e não usado gera pulo, que não pode ser reutilizado (NT 007, p. 9).
+- **Mecânica:** POST síncrono, uma DPS por chamada (inferência de pesquisa, com força alta; ver R5). Cada DPS ocupa seu número na série. Número reservado e não usado gera pulo, e o app não o reutiliza, para não duplicar nota às cegas (decisão do projeto, P3 do plano; ver R4). A NT 007 trata desse pulo só no nNFSe, que a Sefin atribui, e não no nDPS.
 - **Anti-objetivo:** perder a numeração da DPS em lote (orquestrador, a confirmar).
 - **Confirmação:** uma senha vale para o lote, e o app pede confirmação antes de emitir em Produção (rodada 3). EM ABERTO: o fluxo exato dessa confirmação no lote.
 - **Notas recorrentes:** JÁ RESPONDIDO. O usuário confirma antes de enviar, e nenhuma nota recorrente roda sozinha. Fonte da resposta: ordem do orquestrador de 25/10/2026. O arquivo de memória não registra este item.
