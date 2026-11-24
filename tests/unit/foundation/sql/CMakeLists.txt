@@ -15,6 +15,12 @@ target_include_directories(tst_sql_vinculos PRIVATE ${CMAKE_SOURCE_DIR}/src/foun
 target_link_libraries(tst_sql_vinculos PRIVATE Qt6::Test nl_foundation_sql nl_warnings)
 nl_registra_teste_qt(NAME tst_sql_vinculos COMMAND tst_sql_vinculos)
 
+# Opções de TLS lidas de volta, sem servidor (NL-3.1k; parecer do CISO, R3): chama os átomos de modo do motor.
+add_executable(tst_sql_opcoes_tls tst_sql_opcoes_tls.cpp)
+target_include_directories(tst_sql_opcoes_tls PRIVATE ${CMAKE_SOURCE_DIR}/src/foundation/sql/privado ${NL_MARIADB_INCLUDE_DIR})
+target_link_libraries(tst_sql_opcoes_tls PRIVATE Qt6::Test nl_foundation_sql ${NL_MARIADB_LIB} nl_warnings)
+nl_registra_teste_qt(NAME tst_sql_opcoes_tls COMMAND tst_sql_opcoes_tls)
+
 # Não-compilação: o caso negativo tem de falhar ao compilar, e o positivo tem de compilar. Sem nl_warnings: um aviso não
 # pode contar como falha de compilação. O comando é cmake -P <script absoluto> (formato exigido pelo portão pulos_testes);
 # o compilador e os includes entram pelo ENVIRONMENT do teste. Os includes vão separados por ":" (caminhos não têm ":").
