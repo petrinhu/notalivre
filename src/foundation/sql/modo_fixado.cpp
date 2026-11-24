@@ -15,7 +15,7 @@ std::expected<void, nl::base::Erro> aplicarModoFixado(MYSQL* conexao, const QByt
     if (mysql_optionsv(conexao, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &verifica) != 0) {
         return std::unexpected(erroDeOpcao("não foi possível exigir a verificação do certificado"));
     }
-    // Cópia NUL-terminada da impressão: o conector guarda o ponteiro até a conexão.
+    // Cópia NUL-terminada da impressão: o conector faz cópia própria (strdup), conferida por tst_sql_opcoes_tls.
     const QByteArray impressaoNul = impressao;
     if (mysql_optionsv(conexao, MARIADB_OPT_TLS_PEER_FP, impressaoNul.constData()) != 0) {
         return std::unexpected(erroDeOpcao("não foi possível fixar a impressão do certificado"));

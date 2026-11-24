@@ -15,7 +15,8 @@ Regras (texto sensível a maiúsculas; o motor é src/foundation/sql):
   S1  texto proibido em toda a varredura (contagem); zero.
   S2  seis opções de sessão, cada uma exatamente uma vez e só em opcoes_sessao.cpp (k = quantas passam).
   S3  MYSQL_OPT_SSL_VERIFY_SERVER_CERT: pelo menos 1 em modo_aberto.cpp e 1 em modo_fixado.cpp; zero fora dos dois.
-  S4  MYSQL_OPT_SSL_ENFORCE exatamente 1 vez, e em modo_aberto.cpp (o portão não lê o valor; o mutante m29 prova o 0).
+  S4  MYSQL_OPT_SSL_ENFORCE exatamente 1 vez, e em modo_aberto.cpp (o portão não lê o valor; quem prova o 0 é o
+      teste tst_sql_opcoes_tls, que lê a opção de volta sem servidor, NL-3.1k).
   S5  impressão do certificado (MARIADB_OPT_TLS_PEER_FP, MARIADB_OPT_SSL_FP): pelo menos 1 em modo_fixado.cpp; zero fora.
   S6  mysql_real_connect exatamente 1 vez, em conexao.cpp.
   S7  include do conector (nome do arquivo inteiro) só em src/foundation/sql/*.cpp e src/foundation/sql/privado/;
