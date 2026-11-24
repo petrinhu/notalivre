@@ -41,3 +41,8 @@ foreach(caso IN LISTS NL_CASOS_NAO_COMPILA)
         "NL_CXX=${CMAKE_CXX_COMPILER};NL_INCLUDES=${NL_INCLUDES_NAO_COMPILA_TEXTO};NL_NEGATIVO=${CMAKE_CURRENT_SOURCE_DIR}/nao_compila/${caso}_negativo.cpp;NL_POSITIVO=${CMAKE_CURRENT_SOURCE_DIR}/nao_compila/${caso}_positivo.cpp")
 endforeach()
 endif()
+
+# Catálogo e plano do migrador, sem servidor (NL-3.1b, parte b1).
+add_executable(tst_migracao tst_migracao.cpp)
+target_link_libraries(tst_migracao PRIVATE Qt6::Test nl_foundation_sql nl_warnings)
+nl_registra_teste_qt(NAME tst_migracao COMMAND tst_migracao)
