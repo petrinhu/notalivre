@@ -45,6 +45,8 @@ Escreva os identificadores em português sem acento, alinhados ao leiaute (Dps, 
 
 Nunca rode na sessão viva do líder teste que abre janela ou mexe no foco, no teclado ou no mouse (L-50). Rode o teste sem janela no host, com os limites da L-11 item 2, e o QML só offscreen (`QT_QPA_PLATFORM=offscreen`), porque assim ele não toca a tela, o foco nem o teclado da sessão viva (L-50). Mande cada fatia commitada por push à branch da onda, onde o CI seletivo é o portão (L-35, L-36). O contêiner local antes do push é opcional.
 
+**Base do seletivo** (decisão do líder, 23/11/2026, por AskUserQuestion: *"Último ponto verde (Recomendado)"*). Compare a mudança com o último SHA da mesma branch cujo run do CI terminou em `success`; sem esse SHA, com a main. Run cancelado ou vermelho não vira base. Esta leitura troca, no projeto, a base "a última versão publicada, ou o ramo principal" da L-35, porque, contra a main, a primeira fatia que muda o build manda rodar tudo até o fim da onda, e o seletivo não poupa nada.
+
 ## NF-05
 
 **Data:** decisão do líder, 25/10/2026 (pontos L7 e L9), 28/10/2026, 29/10/2026 e 30/10/2026. **Verbatim:** no ponto L9, "Autorizo a lista toda"; por AskUserQuestion, "Autorizo nas 3 imagens (Recomendado)" (28/10/2026, NL-2.2), "Autorizo agora (Recomendado)" (29/10/2026, libsodium), "Autorizo o download do ITI (Recomendado)" (29/10/2026), "Autorizo a zlib (Recomendado)" (29/10/2026) e "ITI + Serpro (Recomendado)" (30/10/2026, NL-2.13).
@@ -149,3 +151,9 @@ Corpo das 7 fases: L-70 do `GODS_LAWS.md` global (anexo `docs/deploy-irreversive
 **Data:** decisão do líder, 25/10/2026 (exceção do portão); achado A0-16.
 
 Escreva o texto de interface e de documento em pt-br. As pastas internas `docs/origem/`, `docs/auditoria/` e `docs/adr/` ficam fora do portão de travessão; o texto voltado ao usuário fora dessas pastas continua sob a L-32.
+
+## NF-19
+
+**Data:** decisão do líder, 21/11/2026; verificação recortada em 23/11/2026. **Verbatim:** "esse é um app financeiro que envolve calculos com dinheiro, não use float!" e "falei isso apenas para dinheiro, pode usar no restante do app"; por AskUserQuestion, "Aprovo (Recomendado)", "Contam (Recomendado)" (alíquota e percentual) e, em 23/11/2026, "Só o bloqueio no tipo (Recomendado)".
+
+Guarde valor monetário só em `nl::back::Valor`, em centavos `int64`, e faça-o entrar ou sair só por inteiro ou por texto. Não use `float`, `double`, `qreal` nem `long double` no motor `src/back/domain/dinheiro` nem em arquivo que chama a API do `Valor`. Calcule com dinheiro, alíquota e percentual no motor `dinheiro`, em aritmética inteira e com o arredondamento declarado. Na interface, mostre dinheiro como texto vindo do núcleo, nunca como número do QML. Fora do dinheiro, ponto flutuante é permitido. Verificação: a sobrecarga apagada `Valor::de(std::floating_point auto) = delete` e o par de não compilação `dinheiro.naoCompila.valorDeDouble`, sem portão de script (L-35, item 3).
