@@ -264,6 +264,131 @@ jobs:
             echo "| Sabotagem do tst_sanidade (deve reprovar) | ${{ steps.sabotagem_sanidade.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # NL-3.1q, DIAGNÓSTICO TEMPORÁRIO (sai da branch antes de qualquer merge): corrupção de heap do xmldsig só no manjaro,
+      # com OpenSSL 4.1.0. Hipótese do CTO: openssl/openssl#33666. Só mede e grava no log; não muda o resultado do job.
+      # Fica no fim do job porque o ctest de novo sobrescreve o junitxml que os portões leem.
+      - name: "DIAG NL-3.1q: heap do xmldsig no manjaro (temporário)"
+        if: ${{ always() && matrix.distro == 'manjaro' && steps.build.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          set +e +o pipefail
+          set -u
+          B="$NL_TMP_BASE/notalivre-build/debug"
+          T="$B/tests/unit/foundation/xmldsig/tst_assinador_xml"
+          C="$B/apps/cli/notalivre-cli"
+          D="$RUNNER_TEMP/diag-heap"
+          P="glibc.malloc.perturb=165:glibc.malloc.tcache_count=0"
+          mkdir -p "$D"
+          echo "=== D1 pacotes e quem depende do openssl-3"
+          pacman -Q openssl openssl-3 glibc libxml2 xmlsec 2>&1
+          pacman -Qi openssl-3 2>&1 | grep -E '^(Required By|Optional For)' || echo "D1 sem o campo Required By"
+          echo "=== D2 ldd do tst_assinador_xml e da CLI"
+          for x in "$T" "$C"; do
+              echo "--- $x"
+              ldd "$x" > "$D/ldd.txt" 2>&1; echo "D2 rc=$?"
+              grep -E 'crypto|ssl|xml|Qt6' "$D/ldd.txt" || echo "D2 nenhuma linha casou"
+          done
+          echo "=== D3 libcrypto iniciada por processo (LD_DEBUG=libs) no e2e semConexao"
+          LD_DEBUG=libs LD_DEBUG_OUTPUT="$D/ld" ctest --preset debug -R '^e2e\.cliEmitir\.semConexaoSaiComSeisETextoDoCatalogo$' --output-on-failure > "$D/d3.txt" 2>&1; echo "D3 rc=$?"
+          for f in "$D"/ld.*; do
+              [ -e "$f" ] || { echo "D3 nenhum arquivo do LD_DEBUG"; break; }
+              tres=$(grep -c 'calling init: .*libcrypto\.so\.3' "$f" || true)
+              quatro=$(grep -c 'calling init: .*libcrypto\.so\.4' "$f" || true)
+              echo "D3 $(basename "$f") so3=$tres so4=$quatro"
+          done
+          echo "=== D4 reprodutor mínimo da issue 33666 (sem código do NotaLivre)"
+          cat > "$D/repro.c" <<'REPRO'
+          #include <openssl/evp.h>
+          #include <openssl/provider.h>
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+
+          static void espalhar(void) {
+              void* p[256];
+              for (int i = 0; i < 256; ++i) {
+                  const size_t n = (size_t)(16 * (i % 64 + 1));
+                  p[i] = malloc(n);
+                  if (p[i] != NULL) {
+                      memset(p[i], 0xA5, n);
+                  }
+              }
+              for (int i = 0; i < 256; ++i) {
+                  free(p[i]);
+              }
+          }
+
+          int main(int argc, char** argv) {
+              const int chaveAntes = argc > 1 && strcmp(argv[1], "chave-antes") == 0;
+              EVP_PKEY* chave = EVP_PKEY_Q_keygen(NULL, NULL, "RSA", (size_t)2048);
+              OSSL_LIB_CTX* ctx = OSSL_LIB_CTX_new();
+              OSSL_PROVIDER* prov = ctx != NULL ? OSSL_PROVIDER_load(ctx, "default") : NULL;
+              EVP_MD_CTX* md = EVP_MD_CTX_new();
+              if (chave == NULL || prov == NULL || md == NULL) {
+                  puts("REPRO preparo falhou");
+                  return 2;
+              }
+              if (EVP_DigestSignInit_ex(md, NULL, "SHA256", ctx, NULL, chave, NULL) != 1) {
+                  puts("REPRO DigestSignInit_ex falhou");
+                  return 3;
+              }
+              const unsigned char dados[] = "notalivre";
+              unsigned char sig[512];
+              size_t n = sizeof sig;
+              if (EVP_DigestSignUpdate(md, dados, sizeof dados) != 1 || EVP_DigestSignFinal(md, sig, &n) != 1) {
+                  puts("REPRO assinatura falhou");
+                  return 4;
+              }
+              EVP_MD_CTX_free(md);
+              if (chaveAntes) {
+                  EVP_PKEY_free(chave);
+                  OSSL_PROVIDER_unload(prov);
+                  OSSL_LIB_CTX_free(ctx);
+                  espalhar();
+              } else {
+                  OSSL_PROVIDER_unload(prov);
+                  OSSL_LIB_CTX_free(ctx);
+                  espalhar();
+                  EVP_PKEY_free(chave);
+              }
+              puts("REPRO fim");
+              fflush(stdout);
+              return 0;
+          }
+          REPRO
+          cc -O0 -g -Wall -o "$D/repro" "$D/repro.c" -lcrypto > "$D/cc.txt" 2>&1; echo "D4 cc rc=$?"
+          cat "$D/cc.txt"
+          ldd "$D/repro" 2>&1 | grep -E 'crypto' || echo "D4 ldd sem libcrypto"
+          for ordem in cruzada chave-antes; do
+              "$D/repro" "$ordem" > "$D/r.txt" 2>&1; echo "D4 $ordem sem-perturb rc=$?"
+              cat "$D/r.txt"
+              GLIBC_TUNABLES="$P" "$D/repro" "$ordem" > "$D/r.txt" 2>&1; echo "D4 $ordem perturb rc=$?"
+              cat "$D/r.txt"
+          done
+          echo "=== D5 três slots do xmldsig com perturb do malloc e tcache desligado"
+          GLIBC_TUNABLES="$P" ctest --preset debug -R '^xmldsig\.(assinaturaConfereNoXmlsec1Cli|contextoProprioIgnoraConfiguracaoGlobal|digestMudaComCampoAlterado)$' --output-on-failure > "$D/d5.txt" 2>&1; echo "D5 rc=$?"
+          grep -E 'Test +#|corrupted|free\(\)|Received signal|tests passed' "$D/d5.txt" || echo "D5 nenhuma linha casou"
+          echo "=== D6 MALLOC_CHECK_=3 (no glibc 2.34 ou mais novo só vale com libc_malloc_debug em LD_PRELOAD)"
+          if [ -f /usr/lib/libc_malloc_debug.so.0 ]; then
+              LD_PRELOAD=/usr/lib/libc_malloc_debug.so.0 MALLOC_CHECK_=3 ctest --preset debug -R '^xmldsig\.materialEmprestadoNaoLiberaNemCopia$' --output-on-failure > "$D/d6.txt" 2>&1; echo "D6 rc=$?"
+              grep -E 'Test +#|malloc|free|Received signal|tests passed' "$D/d6.txt" || echo "D6 nenhuma linha casou"
+          else
+              echo "D6 /usr/lib/libc_malloc_debug.so.0 ausente"
+          fi
+          echo "=== D7 gdb e valgrind, só se já estiverem na imagem (NF-05: nada se instala aqui)"
+          command -v gdb || echo "D7 gdb ausente"
+          command -v valgrind || echo "D7 valgrind ausente"
+          export NL_CERTIFICADOS_DIR="$B/certificados_teste" NL_FIXTURES_DPS="$GITHUB_WORKSPACE/tests/fixtures/dps" NL_FIXTURES_XMLDSIG="$GITHUB_WORKSPACE/tests/fixtures/xmldsig" QT_QPA_PLATFORM=offscreen
+          if command -v gdb > /dev/null; then
+              gdb -batch -ex run -ex bt -ex 'info sharedlibrary' --args "$T" materialEmprestadoNaoLiberaNemCopia > "$D/gdb.txt" 2>&1; echo "D7 gdb rc=$?"
+              cat "$D/gdb.txt"
+          fi
+          if command -v valgrind > /dev/null; then
+              valgrind --error-exitcode=99 --num-callers=30 "$T" materialEmprestadoNaoLiberaNemCopia > "$D/vg.txt" 2>&1; echo "D7 valgrind rc=$?"
+              grep -E -A30 'Invalid (read|write|free)' "$D/vg.txt" | head -n 120
+          fi
+          exit 0
+
   # NL-3.0h (ordem do CTO, passo 5): ASan e UBSan em push de onda-* e main e em pull_request, nas distros fedora45 e mint22.3.
   # Não é falta de libasan: o preset roda também em ubuntu26.04 e manjaro (NL-3.2c). ubuntu26.04 fica fora por vazamento em aberto (INBOX).
   # O mint22.3 é o único com cliente HTTP da libxml2 (com_http): o ramo que a causa A do validador XSD exige.
@@ -376,6 +501,32 @@ jobs:
       - name: ctest (preset asan-ubsan)
         id: ctest_asan
         run: ctest --preset asan-ubsan --output-on-failure --no-tests=error
+
+      # NL-3.1q, DIAGNÓSTICO TEMPORÁRIO (sai da branch antes de qualquer merge): pilha da corrupção de heap pelo próprio ASan,
+      # com a memória liberada preenchida (max_free_fill_size e free_fill_byte), sem instalar gdb. Não muda o resultado do job.
+      - name: "DIAG NL-3.1q: pilha do ASan com memória liberada preenchida (temporário)"
+        if: ${{ always() && matrix.distro == 'manjaro' }}
+        continue-on-error: true
+        run: |
+          set +e +o pipefail
+          set -u
+          B="$NL_TMP_BASE/notalivre-build/asan-ubsan"
+          T="$B/tests/unit/foundation/xmldsig/tst_assinador_xml"
+          BASE=halt_on_error=1:detect_leaks=0:exitcode=86
+          export NL_CERTIFICADOS_DIR="$B/certificados_teste" NL_FIXTURES_DPS="$GITHUB_WORKSPACE/tests/fixtures/dps" NL_FIXTURES_XMLDSIG="$GITHUB_WORKSPACE/tests/fixtures/xmldsig" QT_QPA_PLATFORM=offscreen
+          export UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1:exitcode=86
+          echo "=== A1 as duas opções existem nesta libasan"
+          ASAN_OPTIONS=help=1 "$T" -functions > "$RUNNER_TEMP/a1.txt" 2>&1; echo "A1 rc=$?"
+          grep -E 'max_free_fill_size|free_fill_byte' "$RUNNER_TEMP/a1.txt" || echo "A1 opções ausentes"
+          echo "=== A2 controle: materialEmprestadoNaoLiberaNemCopia sem preenchimento"
+          ASAN_OPTIONS="$BASE" "$T" materialEmprestadoNaoLiberaNemCopia > "$RUNNER_TEMP/a2.txt" 2>&1; echo "A2 controle rc=$?"
+          cat "$RUNNER_TEMP/a2.txt"
+          for slot in materialEmprestadoNaoLiberaNemCopia materialVencidoNaHoraDeAssinarRecusado; do
+              echo "=== A3 $slot com a memória liberada preenchida"
+              ASAN_OPTIONS="$BASE:max_free_fill_size=4096:free_fill_byte=165" "$T" "$slot" > "$RUNNER_TEMP/a3.txt" 2>&1; echo "A3 $slot rc=$?"
+              cat "$RUNNER_TEMP/a3.txt"
+          done
+          exit 0
 
       # NL-3.A (L-17, L-36): o mesmo portão de pulos do job nativo e do contêiner local (executar_no_conteiner.sh). Sem regex
       # de passe, o pulo e a contagem exata de funções do build asan são conferidos aqui, pelo junitxml.
