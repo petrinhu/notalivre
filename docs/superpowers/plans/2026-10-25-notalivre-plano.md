@@ -997,6 +997,7 @@ Cada ponto vai por `AskUserQuestion`, com a recomendação primeiro. L4 e L11 fo
 | L11 Descarte | "Cópia e série nova (Recomendado)" | CLAUDE.md, Adaptação da L-70 (Fase 5); P:691; P:152 |
 | L11 Segurança e Bitwarden | "com segundo passo opcional, opt-in, nas configuracoes"; "Guardar no Bitwarden (Recomendado)" | CLAUDE.md, Adaptação da L-70 (Fase 4); ADR-0003 aceita com condições (NL-3.0b e NL-3.0c) |
 | L11 Depois | "Sem envio automático (Recomendado)" | CLAUDE.md, Adaptação da L-70 (Fase 6) |
+| L11, revisita (25/11/2026) | Perguntas repetidas por uma sessão que não via a onda-3; o líder decidiu os conflitos por AskUserQuestion no mesmo dia. Fase 3: "04/11 + ensaio no CI (Recomendado)". Fase 5: "Somar as duas (Recomendado)" (beta de 48 h, assinatura nominal e cópia de 30 dias, somados a "Cópia e série nova"). Fase 6: mantida a de 04/11. Código de recuperação: "Vale a de 13/11 (Recomendado)" ("Também em arquivo" continua). As demais respostas repetidas (P3, P4, P5, Argon2id do login, ADR-0007) confirmam as já registradas e não mudam nada | CLAUDE.md, Adaptação da L-70 (Fases 3 e 5); NL-3.1; NL-12.1 |
 | Outra série | "Oferecer com aviso curto (Recomendado)" | P:152, coluna 2 |
 | Nome | "Qualquer ordem (Recomendado)" | Spec, bloco Resgate (S:216) |
 | Cancelar | "App e certificado (Recomendado)" | Spec, bloco Cancelar (S:214); NL-4.8 (P:714 ao lado) |

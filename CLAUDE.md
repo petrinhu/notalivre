@@ -88,9 +88,9 @@ Decisão do líder, 25/10/2026, pelo rito da LEI DAS LEIS: "Cancelo: L-70 inteir
 - As outras 6 fases são obrigatórias, sem exceção.
 - **Fase 0, a partir de quando conta (decisão do líder, 04/11/2026, pelo rito da LEI DAS LEIS).** Resposta verbatim: "Primeiro dado real (Recomendado)". A L-70 passa a contar da primeira instalação com dado real, registrada em `docs/auditoria/deploys/`; antes dela, a estrutura se ajusta direto. Depois, cada versão é classificada antes de publicar; a autorização do modo sem tela conta como mudança sensível.
 - **Fase 1 (decisão do líder, 04/11/2026).** Resposta verbatim: "Confirmar, script para (Recomendado)".
-- **Fase 3 (decisão do líder, 04/11/2026).** Resposta verbatim: "Copiar, conferir, trocar (Recomendado)".
+- **Fase 3 (decisão do líder, 04/11/2026).** Resposta verbatim: "Copiar, conferir, trocar (Recomendado)". Acréscimo (decisão do líder, 25/11/2026, via AskUserQuestion: "04/11 + ensaio no CI (Recomendado)"): toda versão que mude o schema tem a migração ensaiada no CI a partir de cada schema já publicado, com dados de fixture, no MySQL 8.4 e no MariaDB 11.8.
 - **Fase 4 (decisão do líder, 04/11/2026).** Resposta livre, verbatim: "com segundo passo opcional, opt-in, nas configuracoes". Pergunta seguinte: "Guardar no Bitwarden (Recomendado)". Texto: `onda3-seguranca-final.md`, do CISO.
-- **Fase 5 (decisão do líder, 04/11/2026).** Resposta verbatim: "Cópia e série nova (Recomendado)". Emenda a DA-2.93, ratificada.
+- **Fase 5 (decisão do líder, 04/11/2026).** Resposta verbatim: "Cópia e série nova (Recomendado)". Emenda a DA-2.93, ratificada. Acréscimo (decisão do líder, 25/11/2026, via AskUserQuestion: "Somar as duas (Recomendado)", sobre a resposta "Beta 48 h + cópia 30 dias (Recomendado)" do mesmo dia): a versão fica 48 h no canal beta antes do estável, o líder assina o checklist pelo nome, e a cópia de antes da migração fica 30 dias na máquina do usuário, sem que o app a apague antes disso.
 - **Fase 6 (decisão do líder, 04/11/2026).** Resposta verbatim: "Sem envio automático (Recomendado)".
 
 Corpo das 7 fases: L-70 do `GODS_LAWS.md` global (anexo `docs/deploy-irreversivel.md`).
