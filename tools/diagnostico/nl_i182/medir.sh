@@ -6,6 +6,11 @@ set -u
 export TMPDIR=/var/tmp
 FAM="$1"
 AQUI="$(cd "$(dirname "$0")" && pwd)"
+# Teto de contêiner pelo átomo do projeto (NL-3.K): a medição de 25/11/2026 usou 1 CPU e 2 GB, que ficam de padrão.
+. "$AQUI/../../conteiner/cota_conteiner.sh"
+NL_THREADS="${NL_THREADS:-1}"
+NL_MEMORIA="${NL_MEMORIA:-2g}"
+nl_cotas_docker || exit 2
 SQLD="$AQUI/sql"
 LOGD=/var/tmp/notalivre-logs
 LOG="$LOGD/NL-I.182-$FAM.log"
@@ -78,10 +83,10 @@ log "\$ docker image inspect $IMG --format '{{.Id}} {{.Size}}'"
 docker image inspect "$IMG" --format '{{.Id}} {{.Size}}' >> "$LOG" 2>&1
 log "\$ docker network create --internal $REDE"
 docker network create --internal "$REDE" >> "$LOG" 2>&1
-log "\$ docker run -d --name $SRV --network $REDE --memory 2g --cpus 1 --env-file <(senha root, não registrada) $IMG"
-docker run -d --name "$SRV" --network "$REDE" --memory 2g --cpus 1 --env-file <(printf '%s=%s\n' "$VARPW" "$PW_ROOT") "$IMG" >> "$LOG" 2>&1
-log "\$ docker run -d --name $CLI --network $REDE --memory 2g --cpus 1 --entrypoint sleep $IMG infinity"
-docker run -d --name "$CLI" --network "$REDE" --memory 2g --cpus 1 --entrypoint sleep "$IMG" infinity >> "$LOG" 2>&1
+log "\$ docker run -d --name $SRV --network $REDE ${NL_COTAS_DOCKER[*]} --env-file <(senha root, não registrada) $IMG"
+docker run -d --name "$SRV" --network "$REDE" "${NL_COTAS_DOCKER[@]}" --env-file <(printf '%s=%s\n' "$VARPW" "$PW_ROOT") "$IMG" >> "$LOG" 2>&1
+log "\$ docker run -d --name $CLI --network $REDE ${NL_COTAS_DOCKER[*]} --entrypoint sleep $IMG infinity"
+docker run -d --name "$CLI" --network "$REDE" "${NL_COTAS_DOCKER[@]}" --entrypoint sleep "$IMG" infinity >> "$LOG" 2>&1
 grava_cnf root.cnf root "$PW_ROOT" mysql
 log "Esperando o servidor aceitar TCP (até 180 s)"
 pronto=0
