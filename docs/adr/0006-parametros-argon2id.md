@@ -2,6 +2,7 @@
 
 **Status:** ACEITO por Narciso (CISO) em 25/10/2026 (N6), com as mudanças marcadas `[alterado pelo CISO, 25/10/2026]`. Ver a seção "Revisão do CISO (25/10/2026)" no fim. O paralelismo fora da RFC continua registrado como desvio de risco (seção "Desvio de risco").
 **Data:** 25/10/2026.
+**Ratificação do líder (25/11/2026, AskUserQuestion: "Confirmo a ADR-0006 (Recomendado)"):** estes parâmetros valem também para a senha-mestra do login, uma por emissor (spec 4.4).
 **Origem:** plano, NL-1.9 (parâmetros gravados junto do dado, recomendação do CTO); spec 4.4 (senha-mestra com Argon2id, parâmetros em aberto).
 **Relacionadas:** ADR-0003 (a KEK-senha sai desta derivação e envelopa a DEK).
 

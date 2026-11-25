@@ -180,9 +180,9 @@
 - **Consequência a registrar** (preenchimento do orquestrador, a validar com Narciso e Cláudio): a chave do banco passa a depender também do par .pfx e senha do certificado. Quem tiver o .pfx, a senha dele e uma cópia do banco consegue decifrar os dados pessoais, sem a senha-mestra. Isso enfraquece a separação de segredos que o anti-objetivo 2.3 protege. A decisão do líder não trata desse trade-off, e ele fica registrado aqui para ser aceito ou revisto.
 - **Senha-mestra e senha do certificado são separadas** (decisão do líder, rodada builder check, item b). Ver 4.5.
 - **Riscos de chaveiro (FATO):** o Secret portal tem falhas reportadas em Flatpak (KDE Discourse, 15/05/2024; Red Hat Bugzilla 2491140, 21/06/2026). Estado atual não verificado.
+- **Código de recuperação (decisão do líder, 25/11/2026, opção escolhida: "Mostrar uma vez e imprimir (Recomendado)").** O app nunca grava o código: mostra uma vez, pede confirmação, oferece imprimir pelo portal de impressão e recomenda guardar o papel fora do computador e longe do .pfx; um código por emissor (paráfrase da opção).
+- **Parâmetros do Argon2id (decisão do líder, 25/11/2026, opção escolhida: "Confirmo a ADR-0006 (Recomendado)").** Os da ADR-0006 valem para a senha-mestra do login, uma por emissor.
 - **EM ABERTO:**
-  - onde o código de recuperação fica e quem o custodia. A resposta 1+2 trata da cópia da chave cifrada com o A1, e não diz onde o código mora;
-  - parâmetros do Argon2id;
   - como recuperar a numeração da série (R4) quando o banco se perde e as notas voltam do ADN. INFERÊNCIA: o cadastro local de tomadores não volta com o ADN (novo).
 
 ### 4.5 Emissores e certificado

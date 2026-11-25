@@ -32,6 +32,7 @@
 
 - Por que HKDF no código de recuperação: a RFC 5869, seção 4, diz que o passo de extração não amplifica entropia, e por isso uma senha precisa de KDF de senha. O código tem 128 bits gerados por CSPRNG, então não é senha, e a seção 3.3 aceita material de entrada que já é chave forte. Por isso, o código não passa pelo Argon2id.
 - O código de recuperação é formatado em Base32 com verificação, mostrado uma vez e confirmado pelo usuário. O app não o grava em claro. Onde ele fica (papel, cofre pessoal, outro) é decisão de Narciso (spec 4.4, em aberto).
+- **Decidido pelo líder em 25/11/2026** (AskUserQuestion: "Mostrar uma vez e imprimir (Recomendado)"): vale a recomendação do CISO abaixo, com um código por emissor.
 - `[alterado pelo CISO, 25/10/2026]` O spec 4.4 marca "onde o código de recuperação fica e quem o custodia" como EM ABERTO, e EM ABERTO no spec é ponto do líder. Recomendação do CISO, sem decidir: o app nunca grava o código, mostra uma vez, oferece imprimir pelo portal Print e recomenda guardá-lo em papel, fora do computador e longe do `.pfx`.
 
 ### Regras

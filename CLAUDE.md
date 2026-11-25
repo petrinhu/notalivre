@@ -14,7 +14,7 @@ O canon do NotaLivre é este `CLAUDE.md` e o `GODS_LAWS.md` do projeto. As leis 
 
 ## Adaptação da L-70 (deploy irreversível)
 
-A L-70 vale inteira, com uma única troca, na Fase 2: no lugar do Shadow Deployment, dupla validação manual em staging (ambiente de Produção Restrita). Justificativa de inviabilidade técnica: o NotaLivre é um app desktop instalado na máquina de cada usuário, sem balanceador e sem tráfego que se possa espelhar. As outras 6 fases são obrigatórias, sem exceção. Decisão, verbatim e alcance: NF-17.
+A L-70 vale inteira, com quatro trocas. Fase 2: no lugar do Shadow Deployment, dupla validação manual em staging (ambiente de Produção Restrita). Fase 3: cópia cifrada do banco antes de migrar, volta automática na falha e ensaio da migração no CI a partir de cada schema publicado. Fase 5: 48 h no canal beta, checklist assinado pelo líder e cópia de antes da migração guardada 30 dias na máquina do usuário. Fase 6: sem telemetria, com acompanhamento de 7 dias pelos testadores e pelas issues. Justificativa comum de inviabilidade técnica: o NotaLivre é um app desktop instalado na máquina de cada usuário, com banco local, sem balanceador e sem tráfego que se possa espelhar. As Fases 1, 4 e 7 são obrigatórias, sem exceção. Decisão, verbatim e alcance: NF-17.
 
 ## Documentos do projeto
 

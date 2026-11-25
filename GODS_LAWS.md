@@ -135,14 +135,17 @@ Mantenha a GUI em Wayland com X11 de reserva: o manifesto fica com `--socket=way
 
 ## NF-17
 
-**Data:** decisão do líder, 25/10/2026, pelo rito da LEI DAS LEIS. **Verbatim:** "Cancelo: L-70 inteira". Alcance (b) por AskUserQuestion, 23/11/2026: *"As sete da L-70 (Recomendado)"*.
+**Data:** decisão do líder, 25/10/2026, pelo rito da LEI DAS LEIS. **Verbatim:** "Cancelo: L-70 inteira". Alcance (b) por AskUserQuestion, 23/11/2026: *"As sete da L-70 (Recomendado)"*. Fases 3, 5 e 6 adaptadas por AskUserQuestion, 25/11/2026 (ponto L11), uma pergunta por fase: *"Cópia cifrada + ensaio (Recomendado)"*, *"Beta 48 h + cópia 30 dias (Recomendado)"* e *"Sem telemetria (Recomendado)"*.
 
-Aplique a L-70 inteira, com uma única troca, na Fase 2:
+Aplique a L-70 inteira, com as trocas abaixo, nas Fases 2, 3, 5 e 6:
 
 - As 7 fases da L-70 valem para duas situações: (a) a liberação de emissão real a terceiros, que é a virada fiscal de Produção (NL-12); (b) toda versão do app que toque uma das sete classes da L-70: login, permissão, token, segredo, apagar dado, schema de banco e rotação de chave.
 - Na Fase 2, faça "dupla validação manual em staging (ambiente de Produção Restrita)" no lugar do Shadow Deployment. Justificativa de inviabilidade técnica: o NotaLivre é um app desktop instalado na máquina de cada usuário, sem balanceador e sem tráfego que se possa espelhar.
-- As outras 6 fases são obrigatórias, sem exceção.
-- As fases da L-70 que não couberem num app desktop voltam ao líder, uma a uma, antes da Onda 3 (pendente, não decidido).
+- Na Fase 3 (Parallel DB Migration), em toda versão que mude o schema: antes de migrar, o migrador faz uma cópia cifrada do banco; se a migração falhar, volta sozinho à cópia; registra cada migração com versão e data. No CI, a migração é ensaiada a partir de cada schema já publicado, com dados de fixture, no MySQL 8.4 e no MariaDB 11.8. Justificativa: o banco é local, um por usuário, e não há dois schemas que se possam rodar lado a lado.
+- Na Fase 5 (Blue-Green Cutover e sub-fase 5.3): a versão fica 48 h no canal beta antes do estável, e o líder assina o checklist pelo nome. A cópia cifrada de antes da migração fica 30 dias na máquina do usuário, e o app não a apaga antes disso. O caminho de volta à versão anterior fica documentado. Justificativa: a migração roda na máquina de cada usuário, sem ambiente azul e verde.
+- Na Fase 6 (Pós-Deploy): o monitoramento vem da instalação do líder, dos testadores do beta e das issues, acompanhados por 7 dias. O app guarda log local sem PII (ADR-0005), que o usuário exporta só se quiser; nada sai da máquina sem a ação dele. Justificativa: o app não tem telemetria.
+- As Fases 1, 4 e 7 valem sem adaptação.
+- Origem das adaptações: o texto das Fases 3, 5 e 6 foi proposto pelo orquestrador na própria pergunta, sem o parecer prévio do software-architect nem a recomendação de Narciso que o ponto L11 do plano previa; o modelo do checklist em `docs/auditoria/deploys/` (fechamento da Onda 3) passa pela revisão dos dois.
 
 Corpo das 7 fases: L-70 do `GODS_LAWS.md` global (anexo `docs/deploy-irreversivel.md`).
 
