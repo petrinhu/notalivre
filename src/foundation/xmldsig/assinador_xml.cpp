@@ -190,6 +190,33 @@ std::expected<std::vector<unsigned char>, ErroAssinatura> digest(OSSL_LIB_CTX* c
     return saida;
 }
 
+// Contexto próprio da assinatura, criado uma vez e nunca liberado (NL-3.1u; decisão do líder, 25/11/2026, via
+// AskUserQuestion: "Contexto fixo no processo (Recomendado)"). A chave é emprestada e nasce no contexto default (o
+// pkcs12 a reimporta lá, NL-2.2). Assinar com ela aqui faz o OpenSSL guardar, no cache da chave, uma exportação que
+// pertence a este contexto. Liberar o contexto antes da chave deixa esse cache pendurado, e o OpenSSL 4.1 corrompe o
+// heap no EVP_PKEY_free (manjaro; reprodutor mínimo da NL-3.1q: contexto antes da chave quebra, chave antes do
+// contexto não). Vivo até o fim do processo, o contexto deixa a chave ser liberada a qualquer hora, sem cópia da chave e
+// sem mexer na contagem de referência. Continua isolado da configuração global (DA-2.10): OSSL_LIB_CTX_new não lê o
+// openssl.cnf. Falha na criação fica guardada, e toda assinatura sai como FalhaInterna (falha fechada).
+OSSL_LIB_CTX* contextoDaAssinatura() {
+    struct Contexto {
+        OSSL_LIB_CTX* ctx = nullptr;
+        OSSL_PROVIDER* provedor = nullptr;
+    };
+    static const Contexto contexto = [] {
+        Contexto criado;
+        criado.ctx = OSSL_LIB_CTX_new();
+        criado.provedor = criado.ctx != nullptr ? OSSL_PROVIDER_load(criado.ctx, "default") : nullptr;  // DA-2.10
+        if (criado.provedor == nullptr) {
+            ERR_clear_error();
+            OSSL_LIB_CTX_free(criado.ctx);
+            criado.ctx = nullptr;
+        }
+        return criado;
+    }();
+    return contexto.ctx;
+}
+
 std::expected<std::vector<unsigned char>, ErroAssinatura> assinarRsa(OSSL_LIB_CTX* ctx, const std::string& nome,
                                                                      evp_pkey_st* chave, const std::string& dados) {
     EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
@@ -457,12 +484,8 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
     Doc doc = std::move(localizada->doc);
     xmlNodePtr referencia = localizada->referencia;
 
-    LibCtx ctx(OSSL_LIB_CTX_new());
-    if (!ctx) {
-        return std::unexpected(ErroAssinatura::FalhaInterna);
-    }
-    Provedor provedor(OSSL_PROVIDER_load(ctx.get(), "default"));  // provider default explícito (DA-2.10)
-    if (!provedor) {
+    OSSL_LIB_CTX* const ctx = contextoDaAssinatura();
+    if (ctx == nullptr) {
         return std::unexpected(ErroAssinatura::FalhaInterna);
     }
 
@@ -483,7 +506,7 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
     if (!canonicoReferencia) {
         return std::unexpected(ErroAssinatura::FalhaInterna);
     }
-    const auto digestReferencia = digest(ctx.get(), *nomeDigest, *canonicoReferencia);
+    const auto digestReferencia = digest(ctx, *nomeDigest, *canonicoReferencia);
     if (!digestReferencia) {
         return std::unexpected(digestReferencia.error());
     }
@@ -501,7 +524,7 @@ std::expected<QByteArray, ErroAssinatura> AssinadorXml::assinarEnveloped(QByteAr
     if (!canonicoSignedInfo) {
         return std::unexpected(ErroAssinatura::FalhaInterna);
     }
-    const auto assinado = assinarRsa(ctx.get(), *nomeSig, const_cast<evp_pkey_st*>(material.chave), *canonicoSignedInfo);
+    const auto assinado = assinarRsa(ctx, *nomeSig, const_cast<evp_pkey_st*>(material.chave), *canonicoSignedInfo);
     if (!assinado) {
         return std::unexpected(assinado.error());
     }
