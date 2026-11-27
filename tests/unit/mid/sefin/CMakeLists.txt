@@ -6,7 +6,7 @@
 # <build>/tests/tools/gera_fixtures_dps/gera_fixtures_dps <pasta de saída>. Revisar o diff e copiar para tests/fixtures/dps/.
 add_executable(tst_codec_dps tst_codec_dps.cpp)
 # Os limites da pasta do leiaute são lidos direto pelo teste (kLimiteXDescServ, kVersaoLeiaute), sem constante copiada.
-target_include_directories(tst_codec_dps PRIVATE ${CMAKE_SOURCE_DIR}/src/mid/sefin/leiaute/prodrest_20261020)
+target_include_directories(tst_codec_dps PRIVATE ${CMAKE_SOURCE_DIR}/src/mid/sefin/leiaute/prodrest_20261124)
 target_link_libraries(tst_codec_dps PRIVATE Qt6::Test nl_mid nl_back nl_foundation nl_warnings)
 target_compile_definitions(tst_codec_dps PRIVATE
     "NL_XSD_PRODREST_DIR=\"${NL_XSD_PRODREST_DIR}\""

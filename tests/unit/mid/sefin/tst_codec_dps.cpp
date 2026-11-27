@@ -8,7 +8,7 @@
 #include <nl/foundation/xml/erros_xsd.h>
 #include <nl/foundation/xml/esquema.h>
 #include <nl/foundation/xml/validador_xsd.h>
-#include <nl/mid/sefin/leiaute/prodrest_20261020/codec_dps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/codec_dps.h>
 
 #include <QByteArray>
 #include <QDir>
@@ -23,7 +23,7 @@
 
 namespace {
 
-namespace prod = nl::mid::sefin::prodrest_20261020;
+namespace prod = nl::mid::sefin::prodrest_20261124;
 using nl::foundation::xml::ErrosXsd;
 using nl::foundation::xml::Esquema;
 using nl::foundation::xml::ValidadorXsd;

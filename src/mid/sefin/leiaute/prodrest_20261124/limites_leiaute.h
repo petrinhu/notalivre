@@ -2,13 +2,13 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Valores do leiaute de Produção Restrita de 20/10/2026 (NL-1.6b, DA-1.2). Só esta pasta conhece estes números:
 // o Back e o QML recebem o limite pela fachada, nunca por constante própria.
-#ifndef NL_MID_SEFIN_LEIAUTE_PRODREST_20261020_LIMITES_LEIAUTE_H
-#define NL_MID_SEFIN_LEIAUTE_PRODREST_20261020_LIMITES_LEIAUTE_H
+#ifndef NL_MID_SEFIN_LEIAUTE_PRODREST_20261124_LIMITES_LEIAUTE_H
+#define NL_MID_SEFIN_LEIAUTE_PRODREST_20261124_LIMITES_LEIAUTE_H
 
 #include <cstddef>
 #include <string_view>
 
-namespace nl::mid::sefin::prodrest_20261020 {
+namespace nl::mid::sefin::prodrest_20261124 {
 
 /// Atributo versao do TCDPS (TVerNFSe, tiposSimples_v1.01.xsd:3-7: 1.00 ou 1.01).
 inline constexpr std::string_view kVersaoLeiaute = "1.01";
@@ -20,6 +20,6 @@ inline constexpr int kLimiteXDescServ = 2000;
 /// folga; a medir na NL-2.10.
 inline constexpr std::size_t kLimiteXmlNfse = 5 * 1024 * 1024;
 
-} // namespace nl::mid::sefin::prodrest_20261020
+} // namespace nl::mid::sefin::prodrest_20261124
 
-#endif // NL_MID_SEFIN_LEIAUTE_PRODREST_20261020_LIMITES_LEIAUTE_H
+#endif // NL_MID_SEFIN_LEIAUTE_PRODREST_20261124_LIMITES_LEIAUTE_H

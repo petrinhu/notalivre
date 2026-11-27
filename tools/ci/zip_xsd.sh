@@ -9,7 +9,7 @@
 set -u
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ZIP_NOME=esquemas_prod_restrita_20261020.zip
-MANIFESTO="$RAIZ/third_party/nfse-xsd/prodrest-20261020/SHA256SUMS"
+MANIFESTO="$RAIZ/third_party/nfse-xsd/prodrest-20261124/SHA256SUMS"
 
 # nl_zip_xsd_manifesto_confere: rc 0 só se o SHA-256 do ci.yml é o do manifesto da árvore (cache e código falam do mesmo ZIP).
 nl_zip_xsd_manifesto_confere() {

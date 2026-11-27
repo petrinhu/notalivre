@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Enumeração do Back para o código do XML, só nesta pasta do leiaute (NL-1.6b). Cada função cobre todos os valores do enum.
-#ifndef NL_MID_SEFIN_LEIAUTE_PRODREST_20261020_CODIGOS_H
-#define NL_MID_SEFIN_LEIAUTE_PRODREST_20261020_CODIGOS_H
+#ifndef NL_MID_SEFIN_LEIAUTE_PRODREST_20261124_CODIGOS_H
+#define NL_MID_SEFIN_LEIAUTE_PRODREST_20261124_CODIGOS_H
 
 #include <nl/back/dps/codigo_justificativa_substituicao.h>
 #include <nl/back/dps/indicador_destinatario.h>
@@ -18,7 +18,7 @@
 
 #include <QString>
 
-namespace nl::mid::sefin::prodrest_20261020::codigos {
+namespace nl::mid::sefin::prodrest_20261124::codigos {
 
 QString ambiente(nl::back::TipoAmbiente::Valor valor);
 QString opSimpNac(nl::back::OpSimpNac::Valor valor);
@@ -32,6 +32,6 @@ QString tipoOperacao(nl::back::TipoOperacao::Valor valor);
 QString indDestinatario(nl::back::IndicadorDestinatario::Valor valor);
 QString justificativaSubstituicao(nl::back::CodigoJustificativaSubstituicao::Valor valor);
 
-} // namespace nl::mid::sefin::prodrest_20261020::codigos
+} // namespace nl::mid::sefin::prodrest_20261124::codigos
 
-#endif // NL_MID_SEFIN_LEIAUTE_PRODREST_20261020_CODIGOS_H
+#endif // NL_MID_SEFIN_LEIAUTE_PRODREST_20261124_CODIGOS_H

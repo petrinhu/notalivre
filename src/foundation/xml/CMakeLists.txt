@@ -18,5 +18,5 @@ target_link_libraries(nl_foundation PUBLIC Qt6::Core)
 target_include_directories(nl_foundation PRIVATE ${LIBXML2_INCLUDE_DIRS})
 target_link_libraries(nl_foundation PRIVATE ${LIBXML2_LIBRARIES} nl_warnings)
 
-add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/nfse-xsd/prodrest-20261020
-                 ${CMAKE_BINARY_DIR}/third_party/nfse-xsd/prodrest-20261020)
+add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/nfse-xsd/prodrest-20261124
+                 ${CMAKE_BINARY_DIR}/third_party/nfse-xsd/prodrest-20261124)

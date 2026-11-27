@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Testes do adaptador AssinadorDpsSefin (NL-2.9, DA-2.42). O oráculo das URIs e do namespace é literal, do leiaute
-// prodrest_20261020: não lê parametros_infdps.h, para que uma URI trocada lá apareça aqui (mutação).
+// prodrest_20261124: não lê parametros_infdps.h, para que uma URI trocada lá apareça aqui (mutação).
 #include <nl/foundation/pkcs12/ancoras.h>
 #include <nl/foundation/pkcs12/carregador_pkcs12.h>
 #include <nl/foundation/pkcs12/credencial_x509.h>
 #include <nl/foundation/pkcs12/senha_segura.h>
 #include <nl/mid/composicao/emissao_nota.h>
 #include <nl/mid/sefin/assinatura/assinador_dps_sefin.h>
-#include <nl/mid/sefin/leiaute/prodrest_20261020/parametros_infdps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/parametros_infdps.h>
 #include <nl/teste/tabela_sha1_distro.h>
 
 #include <libxml/parser.h>
@@ -151,7 +151,7 @@ void TesteAssinaturaDps::parametrosDaAssinaturaVemDaPastaDoLeiaute()
     QCOMPARE(contarNos(xml, "//*[local-name()='infDPS'][namespace-uri()='http://www.sped.fazenda.gov.br/nfse'][@Id='DPS430510821122233300018100001000000000000001']"), 1);
 
     // Mesmos valores que a pasta do leiaute declara (o include público), comparados com as constantes literais acima.
-    const auto parametros = sefin::prodrest_20261020::parametrosDaAssinaturaDps();
+    const auto parametros = sefin::prodrest_20261124::parametrosDaAssinaturaDps();
     QVERIFY(parametros.uriDigest == std::string_view(kSha1));
     QVERIFY(parametros.uriAssinatura == std::string_view(kRsaSha1));
     QVERIFY(parametros.uriC14n == std::string_view(kC14n));
@@ -161,7 +161,7 @@ void TesteAssinaturaDps::parametrosDaAssinaturaVemDaPastaDoLeiaute()
 
 void TesteAssinaturaDps::digestDeComparacaoEhSha256()
 {
-    const auto comparacao = sefin::prodrest_20261020::parametrosDoDigestDeComparacao();
+    const auto comparacao = sefin::prodrest_20261124::parametrosDoDigestDeComparacao();
     QVERIFY(comparacao.uriDigest == std::string_view(kSha256));
 }
 

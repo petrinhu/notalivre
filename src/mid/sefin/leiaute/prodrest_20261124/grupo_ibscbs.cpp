@@ -8,7 +8,7 @@
 #include <nl/back/dps/ref_nfse.h>
 #include <nl/back/dps/tributacao_ibscbs.h>
 
-namespace nl::mid::sefin::prodrest_20261020::grupos {
+namespace nl::mid::sefin::prodrest_20261124::grupos {
 
 namespace nb = nl::back;
 
@@ -38,4 +38,4 @@ void escreveIbscbs(QXmlStreamWriter& w, const nb::Ibscbs& ibscbs)
     w.writeEndElement();
 }
 
-} // namespace nl::mid::sefin::prodrest_20261020::grupos
+} // namespace nl::mid::sefin::prodrest_20261124::grupos

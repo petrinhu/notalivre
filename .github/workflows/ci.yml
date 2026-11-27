@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 # Base de temporários e de build (A0-08): padrão /var/tmp, trocável por variável; o preset exige NL_TMP_BASE.
-# ZIP do XSD de Produção Restrita (NL-1.6c): URL e SHA-256 espelham third_party/nfse-xsd/prodrest-20261020/SHA256SUMS
+# ZIP do XSD de Produção Restrita (NL-1.6c): URL e SHA-256 espelham third_party/nfse-xsd/prodrest-20261124/SHA256SUMS
 # (o passo do cache confere essa igualdade antes de usar). A chave do cache é o SHA-256: conteúdo fixo, chave fixa.
 env:
   NL_TMP_BASE: /var/tmp
@@ -258,7 +258,7 @@ jobs:
           zip="$pasta/$zip_nome"
           mkdir -p "$pasta"
           # Cache e código têm de falar do mesmo ZIP: o SHA-256 do passo tem de ser o do manifesto da árvore.
-          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261020/SHA256SUMS
+          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261124/SHA256SUMS
           if [ -f "$zip" ]; then
               echo "ZIP do XSD: cache hit ($zip)"
           else
@@ -446,7 +446,7 @@ jobs:
           zip="$pasta/$zip_nome"
           mkdir -p "$pasta"
           # Cache e código têm de falar do mesmo ZIP: o SHA-256 do passo tem de ser o do manifesto da árvore.
-          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261020/SHA256SUMS
+          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261124/SHA256SUMS
           if [ -f "$zip" ]; then
               echo "ZIP do XSD: cache hit ($zip)"
           else
@@ -955,7 +955,7 @@ jobs:
           pasta="$RUNNER_TEMP/xsd-cache"
           zip="$pasta/$zip_nome"
           mkdir -p "$pasta"
-          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261020/SHA256SUMS
+          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261124/SHA256SUMS
           if [ -f "$zip" ]; then
               echo "ZIP do XSD (flatpak): cache hit ($zip)"
           else

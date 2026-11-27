@@ -57,7 +57,7 @@
 #include <nl/back/identificacao/cpf.h>
 #include <nl/back/identificacao/inscricao.h>
 
-#include <nl/mid/sefin/leiaute/prodrest_20261020/codec_dps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/codec_dps.h>
 
 #include <QByteArray>
 #include <QDate>
@@ -422,13 +422,13 @@ inline std::optional<std::vector<CasoFixture>> casosFixture()
         if (!entrada.dps) {
             return std::nullopt;
         }
-        casos.push_back(CasoFixture{entrada.nome, nl::mid::sefin::prodrest_20261020::CodecDps::serializar(*entrada.dps)});
+        casos.push_back(CasoFixture{entrada.nome, nl::mid::sefin::prodrest_20261124::CodecDps::serializar(*entrada.dps)});
     }
     if (!mei) {
         return std::nullopt;
     }
     casos.push_back(CasoFixture{QStringLiteral("invalida_dps_xdescserv_so_espacos.xml"),
-                                comDescricaoSoEspacos(nl::mid::sefin::prodrest_20261020::CodecDps::serializar(*mei))});
+                                comDescricaoSoEspacos(nl::mid::sefin::prodrest_20261124::CodecDps::serializar(*mei))});
     return casos;
 }
 

@@ -5,7 +5,7 @@
 
 #include <utility>
 
-namespace nl::mid::sefin::prodrest_20261020::codigos {
+namespace nl::mid::sefin::prodrest_20261124::codigos {
 
 namespace nb = nl::back;
 
@@ -166,4 +166,4 @@ QString justificativaSubstituicao(nb::CodigoJustificativaSubstituicao::Valor val
     std::unreachable();
 }
 
-} // namespace nl::mid::sefin::prodrest_20261020::codigos
+} // namespace nl::mid::sefin::prodrest_20261124::codigos

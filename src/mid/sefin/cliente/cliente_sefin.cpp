@@ -12,9 +12,9 @@
 #include <nl/mid/sefin/cliente/campos_lidos_sefin.h>
 #include <nl/mid/sefin/cliente/leitor_erro_sefin.h>
 #include <nl/mid/sefin/cliente/falhas_do_envio.h>
-#include <nl/mid/sefin/leiaute/prodrest_20261020/envelope_dps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/envelope_dps.h>
 // Teto do XML (kLimiteXmlNfse): o número mora só na pasta do leiaute (include relativo, como codec_dps.cpp).
-#include "../leiaute/prodrest_20261020/limites_leiaute.h"
+#include "../leiaute/prodrest_20261124/limites_leiaute.h"
 
 #include <nl/foundation/gzip/gzip.h>
 #include <nl/foundation/log/log.h>
@@ -41,7 +41,7 @@ namespace {
 namespace bk = nl::back;
 namespace fl = nl::foundation::log;
 namespace ft = nl::foundation::transporte;
-namespace lx = nl::mid::sefin::prodrest_20261020;
+namespace lx = nl::mid::sefin::prodrest_20261124;
 
 using Desfecho = std::expected<bk::NotaSefin, bk::FalhaSefin>;
 

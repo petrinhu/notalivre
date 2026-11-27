@@ -16,7 +16,7 @@
 
 #include <variant>
 
-namespace nl::mid::sefin::prodrest_20261020::grupos {
+namespace nl::mid::sefin::prodrest_20261124::grupos {
 
 namespace nb = nl::back;
 
@@ -135,4 +135,4 @@ void escreveTomador(QXmlStreamWriter& w, const nb::Tomador& tomador)
     w.writeEndElement();
 }
 
-} // namespace nl::mid::sefin::prodrest_20261020::grupos
+} // namespace nl::mid::sefin::prodrest_20261124::grupos

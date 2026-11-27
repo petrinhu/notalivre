@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Codec da DPS (NL-1.6b): raiz DPS e grupo infDPS. Os grupos de pessoa, serviço e IBS/CBS ficam nos arquivos grupos_*.
-#include <nl/mid/sefin/leiaute/prodrest_20261020/codec_dps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/codec_dps.h>
 
 #include "codigos.h"
 #include "grupos.h"
@@ -16,7 +16,7 @@
 
 #include <string_view>
 
-namespace nl::mid::sefin::prodrest_20261020 {
+namespace nl::mid::sefin::prodrest_20261124 {
 
 namespace nb = nl::back;
 
@@ -94,4 +94,4 @@ QByteArray CodecDps::serializar(const nb::Dps& dps)
     return xml;
 }
 
-} // namespace nl::mid::sefin::prodrest_20261020
+} // namespace nl::mid::sefin::prodrest_20261124

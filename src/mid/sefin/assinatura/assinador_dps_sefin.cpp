@@ -5,7 +5,7 @@
 
 #include <nl/foundation/xmldsig/assinador_xml.h>
 #include <nl/mid/cofre/material_assinatura.h>
-#include <nl/mid/sefin/leiaute/prodrest_20261020/parametros_infdps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/parametros_infdps.h>
 
 #include <optional>
 #include <string>
@@ -22,9 +22,9 @@ namespace {
 nl::foundation::xmldsig::ParametrosAssinatura parametrosPara(AlgoritmoAssinatura algoritmo)
 {
     if (algoritmo == AlgoritmoAssinatura::RsaSha256) {
-        return nl::mid::sefin::prodrest_20261020::parametrosDaAssinaturaDpsSha256();
+        return nl::mid::sefin::prodrest_20261124::parametrosDaAssinaturaDpsSha256();
     }
-    return nl::mid::sefin::prodrest_20261020::parametrosDaAssinaturaDps();
+    return nl::mid::sefin::prodrest_20261124::parametrosDaAssinaturaDps();
 }
 
 } // namespace

@@ -10,7 +10,7 @@
 #include <nl/foundation/xml/erros_xsd.h>
 #include <nl/foundation/xml/esquema.h>
 #include <nl/foundation/xml/validador_xsd.h>
-#include <nl/mid/sefin/leiaute/prodrest_20261020/codec_dps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/codec_dps.h>
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -28,7 +28,7 @@ namespace nl::mid::composicao {
 
 namespace nb = nl::back;
 namespace xsd = nl::foundation::xml;
-namespace prod = nl::mid::sefin::prodrest_20261020;
+namespace prod = nl::mid::sefin::prodrest_20261124;
 
 namespace {
 

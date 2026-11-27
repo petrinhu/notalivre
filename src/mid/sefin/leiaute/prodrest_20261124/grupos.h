@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Escritores dos grupos do TCDPS, um por assunto (NL-1.6b). Cada um escreve na ordem da xs:sequence do XSD.
-#ifndef NL_MID_SEFIN_LEIAUTE_PRODREST_20261020_GRUPOS_H
-#define NL_MID_SEFIN_LEIAUTE_PRODREST_20261020_GRUPOS_H
+#ifndef NL_MID_SEFIN_LEIAUTE_PRODREST_20261124_GRUPOS_H
+#define NL_MID_SEFIN_LEIAUTE_PRODREST_20261124_GRUPOS_H
 
 #include <nl/back/dps/ibscbs.h>
 #include <nl/back/dps/prestador.h>
@@ -12,7 +12,7 @@
 
 #include <QXmlStreamWriter>
 
-namespace nl::mid::sefin::prodrest_20261020::grupos {
+namespace nl::mid::sefin::prodrest_20261124::grupos {
 
 /// Visitante de std::visit com lambdas: uma linha por alternativa, sem cadeia de get_if.
 template <typename... Ts>
@@ -38,6 +38,6 @@ void escreveValores(QXmlStreamWriter& w, const nl::back::ValoresServico& valores
 /// IBSCBS (TCRTCInfoIBSCBS): cIndOp, tpOper, gRefNFSe, indDest e valores/trib (CST e cClassTrib).
 void escreveIbscbs(QXmlStreamWriter& w, const nl::back::Ibscbs& ibscbs);
 
-} // namespace nl::mid::sefin::prodrest_20261020::grupos
+} // namespace nl::mid::sefin::prodrest_20261124::grupos
 
-#endif // NL_MID_SEFIN_LEIAUTE_PRODREST_20261020_GRUPOS_H
+#endif // NL_MID_SEFIN_LEIAUTE_PRODREST_20261124_GRUPOS_H

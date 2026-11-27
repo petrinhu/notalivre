@@ -3,7 +3,7 @@
 // Envelope do POST /nfse (NL-2.4, DA-2.4). INFERÊNCIA até a NL-2.10: JSON {"dpsXmlGZipB64": Base64(gzip)} com
 // application/json. Só codifica e decodifica; quem comprime é o gzip da Foundation.
 
-#include <nl/mid/sefin/leiaute/prodrest_20261020/envelope_dps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/envelope_dps.h>
 
 #include <nl/base/erro.h>
 
@@ -16,7 +16,7 @@
 #include <expected>
 #include <optional>
 
-namespace nl::mid::sefin::prodrest_20261020 {
+namespace nl::mid::sefin::prodrest_20261124 {
 namespace {
 
 QString chaveDoEnvelope()
@@ -70,4 +70,4 @@ std::expected<QByteArray, nl::base::Erro> lerEnvelopeDps(const QByteArray& corpo
     return gzip;
 }
 
-} // namespace nl::mid::sefin::prodrest_20261020
+} // namespace nl::mid::sefin::prodrest_20261124
