@@ -21,7 +21,7 @@ QByteArray impressaoParaFixar(const DadosBanco &dados)
 }
 
 // Impressão errada de propósito: o primeiro dígito muda (0 vira 1; qualquer outro vira 0). O comprimento fica.
-QByteArray impressaoTrocada(const QByteArray &impressao)
+[[maybe_unused]] QByteArray impressaoTrocada(const QByteArray &impressao)
 {
     QByteArray errada = impressao;
     if (!errada.isEmpty()) {
