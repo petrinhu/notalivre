@@ -91,6 +91,9 @@ modules:
           - tools/conteiner
       - type: file
         url: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas-xsd-producao-restrita-20261124.zip
+        # Espelho (decisão do líder, 27/11/2026): tentado se o gov.br falhar. O sha256 vale para as duas.
+        mirror-urls:
+          - https://github.com/petrinhu/notalivre/releases/download/espelho-xsd-prodrest-20261124/esquemas-xsd-producao-restrita-20261124.zip
         sha256: 1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
         dest-filename: esquemas-xsd-producao-restrita-20261124.zip
   - name: notalivre-qml-smoke

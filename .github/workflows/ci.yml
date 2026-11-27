@@ -23,6 +23,10 @@ env:
   NL_TMP_BASE: /var/tmp
   NL_XSD_ZIP_SHA256: 1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
   NL_XSD_ZIP_URL: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas-xsd-producao-restrita-20261124.zip
+  # Espelho do mesmo ZIP (decisão do líder, 27/11/2026, "Release do GitHub como espelho (Recomendado)"): o gov.br recusa os
+  # runners do GitHub (run 46007980323, SSL connect error em todas as tentativas). O download tenta primeiro NL_XSD_ZIP_URL
+  # e, só se falhar no transporte, esta URL. O SHA-256 é conferido nas duas; divergência é fatal na hora.
+  NL_XSD_ZIP_ESPELHO: https://github.com/petrinhu/notalivre/releases/download/espelho-xsd-prodrest-20261124/esquemas-xsd-producao-restrita-20261124.zip
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -134,8 +138,8 @@ jobs:
   # contêiner (o actions/cache põe o caminho na versão do cache), e o gov.br caiu 5 vezes com "SSL connect error" a partir
   # do runner. Este job, na mesma imagem do qt-cache e com o mesmo path e a mesma chave dos jobs nativos, restaura o
   # cache, confere o SHA-256 contra o manifesto e entrega o ZIP ao job banco por artefato, 1 dia.
-  # NL-3.L: chave nova (leiaute de 24/11/2026). No cache miss, o job baixa do gov.br como o nativo (cmake -P, 5 tentativas,
-  # EXPECTED_HASH), no lugar do fail-on-cache-miss: com a chave nova o primeiro run é sempre miss, e sem o download o
+  # NL-3.L: chave nova (leiaute de 24/11/2026). No cache miss, o job baixa do gov.br como o nativo (cmake -P, 5 tentativas por URL,
+  # e o espelho, SHA-256 conferido), no lugar do fail-on-cache-miss: com a chave nova o primeiro run é sempre miss, e sem o download o
   # xsd-cache reprova e o banco (needs) não roda. O cmake e as raízes de TLS entram pelo apt da imagem, só no miss (NF-05).
   xsd-cache:
     name: xsd-cache
@@ -161,7 +165,7 @@ jobs:
           key: xsd-prodrest-20261124-1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
 
       # Só no miss: cmake e ca-certificates pelo apt da imagem (NF-05, no CI sem pergunta, registrado no resumo) e o ZIP
-      # pelo mesmo tools/ci/baixar_zip_xsd.cmake do nativo. Hash divergente é fatal no próprio download.
+      # pelo mesmo tools/ci/baixar_zip_xsd.cmake do nativo. O SHA-256 é conferido depois do download; divergência é fatal na hora.
       - name: ZIP do XSD do gov.br (só em cache miss; 5 tentativas, SHA-256 conferido)
         if: steps.xsd-cache.outputs.cache-hit != 'true'
         run: |
@@ -172,7 +176,7 @@ jobs:
           pasta="$RUNNER_TEMP/xsd-cache"
           mkdir -p "$pasta"
           grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261124/SHA256SUMS
-          cmake -DNL_URL="$NL_XSD_ZIP_URL" -DNL_DESTINO="$pasta/esquemas-xsd-producao-restrita-20261124.zip" \
+          cmake -DNL_URLS="$NL_XSD_ZIP_URL;$NL_XSD_ZIP_ESPELHO" -DNL_DESTINO="$pasta/esquemas-xsd-producao-restrita-20261124.zip" \
                 -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake
           {
             echo "## xsd-cache: instalado neste run (cache miss, NF-05)"
@@ -289,11 +293,11 @@ jobs:
           if [ -f "$zip" ]; then
               echo "ZIP do XSD: cache hit ($zip)"
           else
-              echo "ZIP do XSD: cache miss, baixando de $NL_XSD_ZIP_URL"
-              # cmake -P (file(DOWNLOAD), 5 tentativas, EXPECTED_HASH): o urllib do Python levou 403 do gov.br.
-              if ! cmake -DNL_URL="$NL_XSD_ZIP_URL" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+              echo "ZIP do XSD: cache miss, baixando de $NL_XSD_ZIP_URL e, se falhar, do espelho $NL_XSD_ZIP_ESPELHO"
+              # cmake -P (file(DOWNLOAD), 5 tentativas por URL, SHA-256 conferido depois): o urllib do Python levou 403 do gov.br.
+              if ! cmake -DNL_URLS="$NL_XSD_ZIP_URL;$NL_XSD_ZIP_ESPELHO" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
                   rm -f "$zip"
-                  echo "::error::ZIP do XSD não baixado do gov.br (5 tentativas, ou hash divergente)"
+                  echo "::error::ZIP do XSD não baixado (gov.br e espelho, 5 tentativas cada, ou hash divergente)"
                   exit 1
               fi
           fi
@@ -477,11 +481,11 @@ jobs:
           if [ -f "$zip" ]; then
               echo "ZIP do XSD: cache hit ($zip)"
           else
-              echo "ZIP do XSD: cache miss, baixando de $NL_XSD_ZIP_URL"
-              # cmake -P (file(DOWNLOAD), 5 tentativas, EXPECTED_HASH): o urllib do Python levou 403 do gov.br.
-              if ! cmake -DNL_URL="$NL_XSD_ZIP_URL" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+              echo "ZIP do XSD: cache miss, baixando de $NL_XSD_ZIP_URL e, se falhar, do espelho $NL_XSD_ZIP_ESPELHO"
+              # cmake -P (file(DOWNLOAD), 5 tentativas por URL, SHA-256 conferido depois): o urllib do Python levou 403 do gov.br.
+              if ! cmake -DNL_URLS="$NL_XSD_ZIP_URL;$NL_XSD_ZIP_ESPELHO" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
                   rm -f "$zip"
-                  echo "::error::ZIP do XSD não baixado do gov.br (5 tentativas, ou hash divergente)"
+                  echo "::error::ZIP do XSD não baixado (gov.br e espelho, 5 tentativas cada, ou hash divergente)"
                   exit 1
               fi
           fi
@@ -986,9 +990,9 @@ jobs:
           if [ -f "$zip" ]; then
               echo "ZIP do XSD (flatpak): cache hit ($zip)"
           else
-              echo "ZIP do XSD (flatpak): cache miss, baixando de $NL_XSD_ZIP_URL"
-              if ! cmake -DNL_URL="$NL_XSD_ZIP_URL" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
-                  echo "::error::ZIP do XSD não baixado do gov.br (flatpak): 5 tentativas, ou hash divergente"
+              echo "ZIP do XSD (flatpak): cache miss, baixando de $NL_XSD_ZIP_URL e, se falhar, do espelho $NL_XSD_ZIP_ESPELHO"
+              if ! cmake -DNL_URLS="$NL_XSD_ZIP_URL;$NL_XSD_ZIP_ESPELHO" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+                  echo "::error::ZIP do XSD não baixado (flatpak; gov.br e espelho, 5 tentativas cada, ou hash divergente)"
                   exit 1
               fi
           fi

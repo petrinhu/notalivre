@@ -16,6 +16,13 @@ endif()
 # URL do ZIP: o padrão é o gov.br; o teste de hash (tests/unit/foundation/xml/hash_zip) aponta file:// para ficar sem rede.
 set(NL_XSD_URL "https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas-xsd-producao-restrita-20261124.zip" CACHE STRING "URL do ZIP do XSD de Produção Restrita")
 set(_nl_xsd_url "${NL_XSD_URL}")
+# Espelho (decisão do líder, 27/11/2026, "Release do GitHub como espelho (Recomendado)"): tentado só se o gov.br falhar no
+# transporte; o SHA-256 é conferido nos dois. Vazio desliga o espelho.
+set(NL_XSD_ESPELHO_URL "https://github.com/petrinhu/notalivre/releases/download/espelho-xsd-prodrest-20261124/esquemas-xsd-producao-restrita-20261124.zip" CACHE STRING "Espelho do ZIP do XSD (release do próprio repositório), tentado se a URL principal falhar no transporte. Vazio desliga.")
+set(_nl_xsd_urls "${_nl_xsd_url}")
+if(NOT NL_XSD_ESPELHO_URL STREQUAL "")
+    list(APPEND _nl_xsd_urls "${NL_XSD_ESPELHO_URL}")
+endif()
 set(_nl_xsd_zip_nome "esquemas-xsd-producao-restrita-20261124.zip")
 set(_nl_xsd_manifesto "${CMAKE_CURRENT_SOURCE_DIR}/SHA256SUMS")
 set(_nl_xsd_dir "${CMAKE_CURRENT_BINARY_DIR}/nfse-xsd")
@@ -45,36 +52,64 @@ if(_nl_xsd_n_entradas EQUAL 0)
     message(FATAL_ERROR "NL-1.6a: ${_nl_xsd_manifesto} sem nenhuma linha de hash. Piso de conferência: não-vazio.")
 endif()
 
-# 1. ZIP: cache local opcional, depois download com EXPECTED_HASH (pula o download se o arquivo já tem o hash).
+# 1. ZIP: cache local opcional, depois download (sem EXPECTED_HASH; o SHA-256 é conferido depois; sem download se o arquivo já tem o hash).
 if(NL_XSD_ZIP_CACHE AND EXISTS "${NL_XSD_ZIP_CACHE}/${_nl_xsd_zip_nome}")
     file(MAKE_DIRECTORY "${_nl_xsd_dir}")
     file(COPY_FILE "${NL_XSD_ZIP_CACHE}/${_nl_xsd_zip_nome}" "${_nl_xsd_zip}")
 endif()
 file(MAKE_DIRECTORY "${_nl_xsd_dir}")
-# Até 3 tentativas para falha de rede (gov.br caiu no CI, NL-1.6c). Divergência de hash não é transitória:
-# para na primeira, com a mesma mensagem de antes. O EXPECTED_HASH é o mesmo em todas as tentativas.
+# Por URL (origem, depois espelho), até 3 tentativas em qualquer falha de download (gov.br caiu no CI, NL-1.6c). Passa à
+# URL seguinte só se as 3 falharem. Sem EXPECTED_HASH no file(DOWNLOAD): com ele o CMake aborta na hora em resposta HTTP
+# de erro e não chega ao espelho. O SHA-256 é conferido depois do download. Divergência não é transitória e não cai para
+# o espelho: para na hora e apaga o ZIP.
 set(_nl_xsd_tentativas 3)
-foreach(_nl_xsd_tentativa RANGE 1 ${_nl_xsd_tentativas})
-    file(DOWNLOAD "${_nl_xsd_url}" "${_nl_xsd_zip}"
-        EXPECTED_HASH SHA256=${_nl_xsd_zip_sha}
-        TLS_VERIFY ON
-        TIMEOUT 120
-        STATUS _nl_xsd_status)
-    list(GET _nl_xsd_status 0 _nl_xsd_cod)
+set(_nl_xsd_cod 1)
+set(_nl_xsd_msg "")
+set(_nl_xsd_servida "")
+# Arquivo já presente com o SHA-256 esperado (cache copiado acima) não vai à rede: o build sem rede depende disso.
+set(_nl_xsd_urls_usar "${_nl_xsd_urls}")
+if(EXISTS "${_nl_xsd_zip}")
+    file(SHA256 "${_nl_xsd_zip}" _nl_xsd_ja_presente)
+    if(_nl_xsd_ja_presente STREQUAL _nl_xsd_zip_sha)
+        set(_nl_xsd_cod 0)
+        set(_nl_xsd_servida "arquivo já presente em ${_nl_xsd_zip}")
+        set(_nl_xsd_urls_usar "")
+    endif()
+endif()
+foreach(_nl_xsd_url_candidata IN LISTS _nl_xsd_urls_usar)
+    foreach(_nl_xsd_tentativa RANGE 1 ${_nl_xsd_tentativas})
+        file(DOWNLOAD "${_nl_xsd_url_candidata}" "${_nl_xsd_zip}"
+            TLS_VERIFY ON
+            TIMEOUT 120
+            STATUS _nl_xsd_status)
+        list(GET _nl_xsd_status 0 _nl_xsd_cod)
+        if(_nl_xsd_cod EQUAL 0)
+            break()
+        endif()
+        list(GET _nl_xsd_status 1 _nl_xsd_msg)
+        if(_nl_xsd_tentativa EQUAL _nl_xsd_tentativas)
+            break()
+        endif()
+        message(WARNING "NL-1.6a: tentativa ${_nl_xsd_tentativa} de ${_nl_xsd_tentativas} do ZIP do XSD falhou em ${_nl_xsd_url_candidata} (${_nl_xsd_msg}); tentando de novo.")
+    endforeach()
     if(_nl_xsd_cod EQUAL 0)
+        file(SHA256 "${_nl_xsd_zip}" _nl_xsd_obtido)
+        if(NOT _nl_xsd_obtido STREQUAL _nl_xsd_zip_sha)
+            set(_nl_xsd_cod 2)
+            set(_nl_xsd_msg "HASH mismatch: SHA-256 esperado ${_nl_xsd_zip_sha}, obtido ${_nl_xsd_obtido}")
+            break()
+        endif()
+        set(_nl_xsd_servida "${_nl_xsd_url_candidata}")
         break()
     endif()
-    list(GET _nl_xsd_status 1 _nl_xsd_msg)
-    if(_nl_xsd_msg MATCHES "HASH mismatch" OR _nl_xsd_tentativa EQUAL _nl_xsd_tentativas)
-        break()
-    endif()
-    message(WARNING "NL-1.6a: tentativa ${_nl_xsd_tentativa} de ${_nl_xsd_tentativas} do ZIP do XSD falhou (${_nl_xsd_msg}); tentando de novo.")
+    message(WARNING "NL-1.6a: ${_nl_xsd_url_candidata} falhou em ${_nl_xsd_tentativas} tentativas; passando à URL seguinte, se houver.")
 endforeach()
 if(NOT _nl_xsd_cod EQUAL 0)
-    list(GET _nl_xsd_status 1 _nl_xsd_msg)
-    message(FATAL_ERROR "NL-1.6a: não consegui obter o ZIP do XSD de ${_nl_xsd_url} com SHA-256 esperado ${_nl_xsd_zip_sha}: ${_nl_xsd_msg}. "
+    file(REMOVE "${_nl_xsd_zip}")
+    message(FATAL_ERROR "NL-1.6a: não consegui obter o ZIP do XSD (URLs: ${_nl_xsd_urls}) com SHA-256 esperado ${_nl_xsd_zip_sha}: ${_nl_xsd_msg}. "
         "Sem rede no build: pré-baixe o ZIP e aponte NL_XSD_ZIP_CACHE para o diretório dele.")
 endif()
+message(STATUS "NL-1.6a: ZIP do XSD servido por ${_nl_xsd_servida}")
 
 # 2. Extração em diretório de build (nunca na árvore de código).
 file(REMOVE_RECURSE "${_nl_xsd_extraido}")
