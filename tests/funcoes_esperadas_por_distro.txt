@@ -15,8 +15,15 @@
 #   dps_validar +3, tst_dps +2, tst_validador_xsd +1, tst_regra_e0390 +2, tst_validador_local +1, tst_codec_dps +4 = 13.
 #   Soma: 47 + 13 = 60. Fora do Flatpak (não entram): cliente rejeicaoE0244 e falhas_envio status403 (6). 66 - 6 = 60.
 #   O próximo run mede; se divergir, o main corrige este número.
-fedora45 1857
-ubuntu26.04 1857
-manjaro 1857
-mint22.3 1857
-flatpak 1578
+# NL-3.L (B2, revisão QA da NL-3.L): nativo 1857 -> 1867 (+10, ESTIMADO pela regra acima; não medido). Conta: entrada nova
+#   mid.composicao.leitorIndicadorDestinatario (tst_leitor_indicador_destinatario, registrada inteira): 6 slots + 2 de
+#   initTestCase/cleanupTestCase = 8; em tst_dps_validar (entrada que já existia), 2 slots novos (indDestUmNaRaizSaiNoXml,
+#   indDestDoisNaRaizRecusado) = 2. Soma: 8 + 2 = 10. O Bx2 (tst_validador_xsd indDestNoGrupoIbscbsReprova) troca asserts, sem
+#   slot novo: soma 0.
+# flatpak 1578 -> 1588 (+10, ESTIMADO): a entrada nova roda no Flatpak (sem guarda NL_FLATPAK_BUILD), com os mesmos 8, e os 2
+#   slots do tst_dps_validar também entram. Se divergir, o próximo run mede e o main corrige.
+fedora45 1867
+ubuntu26.04 1867
+manjaro 1867
+mint22.3 1867
+flatpak 1588
