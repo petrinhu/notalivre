@@ -4,11 +4,12 @@
 # Conferência do ZIP do XSD de Produção Restrita no CI (NL-3.1v, seção 1.4, passo 3, do plano do CTO), na regra do passo do
 # job nativo (NL-1.6c): o SHA-256 do ci.yml tem de ser o do manifesto da árvore, e o ZIP em PASTA tem de ter esse SHA-256;
 # divergência apaga o ZIP. Só confere, nunca baixa: o gov.br caiu 5 vezes com "SSL connect error" a partir do runner (run
-# 45985663535), e o ZIP vem do cache dos jobs nativos, pelo job xsd-cache e por artefato. ZIP ausente reprova.
+# 45985663535), e o ZIP vem do cache dos jobs nativos ou, no cache miss, do download do próprio job xsd-cache (NL-3.L),
+# e chega ao job banco por artefato. ZIP ausente reprova.
 # Lê NL_XSD_ZIP_SHA256 do ambiente do ci.yml. Uso: zip_xsd.sh PASTA
 set -u
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ZIP_NOME=esquemas_prod_restrita_20261020.zip
+ZIP_NOME=esquemas-xsd-producao-restrita-20261124.zip
 MANIFESTO="$RAIZ/third_party/nfse-xsd/prodrest-20261124/SHA256SUMS"
 
 # nl_zip_xsd_manifesto_confere: rc 0 só se o SHA-256 do ci.yml é o do manifesto da árvore (cache e código falam do mesmo ZIP).

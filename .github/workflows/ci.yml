@@ -21,8 +21,8 @@ permissions:
 # (o passo do cache confere essa igualdade antes de usar). A chave do cache é o SHA-256: conteúdo fixo, chave fixa.
 env:
   NL_TMP_BASE: /var/tmp
-  NL_XSD_ZIP_SHA256: 25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
-  NL_XSD_ZIP_URL: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas_prod_restrita_20261020.zip
+  NL_XSD_ZIP_SHA256: 1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
+  NL_XSD_ZIP_URL: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas-xsd-producao-restrita-20261124.zip
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -132,8 +132,11 @@ jobs:
 
   # NL-3.1v (run 45985663535): o job banco roda no host e não acha o cache do ZIP do XSD dos jobs nativos, gravado em
   # contêiner (o actions/cache põe o caminho na versão do cache), e o gov.br caiu 5 vezes com "SSL connect error" a partir
-  # do runner. Este job, na mesma imagem do qt-cache e com o mesmo path e a mesma chave dos jobs nativos, só restaura o
-  # cache (miss reprova, sem gov.br), confere o SHA-256 contra o manifesto e entrega o ZIP ao job banco por artefato, 1 dia.
+  # do runner. Este job, na mesma imagem do qt-cache e com o mesmo path e a mesma chave dos jobs nativos, restaura o
+  # cache, confere o SHA-256 contra o manifesto e entrega o ZIP ao job banco por artefato, 1 dia.
+  # NL-3.L: chave nova (leiaute de 24/11/2026). No cache miss, o job baixa do gov.br como o nativo (cmake -P, 5 tentativas,
+  # EXPECTED_HASH), no lugar do fail-on-cache-miss: com a chave nova o primeiro run é sempre miss, e sem o download o
+  # xsd-cache reprova e o banco (needs) não roda. O cmake e as raízes de TLS entram pelo apt da imagem, só no miss (NF-05).
   xsd-cache:
     name: xsd-cache
     runs-on: ubuntu-latest
@@ -150,12 +153,36 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Cache do ZIP do XSD (mesmo path e chave dos jobs nativos; falha se faltar, sem gov.br)
+      - name: Cache do ZIP do XSD (mesmo path e chave dos jobs nativos)
+        id: xsd-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/xsd-cache
-          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
-          fail-on-cache-miss: true
+          key: xsd-prodrest-20261124-1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
+
+      # Só no miss: cmake e ca-certificates pelo apt da imagem (NF-05, no CI sem pergunta, registrado no resumo) e o ZIP
+      # pelo mesmo tools/ci/baixar_zip_xsd.cmake do nativo. Hash divergente é fatal no próprio download.
+      - name: ZIP do XSD do gov.br (só em cache miss; 5 tentativas, SHA-256 conferido)
+        if: steps.xsd-cache.outputs.cache-hit != 'true'
+        run: |
+          set -eu
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends cmake ca-certificates
+          pasta="$RUNNER_TEMP/xsd-cache"
+          mkdir -p "$pasta"
+          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261124/SHA256SUMS
+          cmake -DNL_URL="$NL_XSD_ZIP_URL" -DNL_DESTINO="$pasta/esquemas-xsd-producao-restrita-20261124.zip" \
+                -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake
+          {
+            echo "## xsd-cache: instalado neste run (cache miss, NF-05)"
+            echo "| Item | Valor |"
+            echo "| --- | --- |"
+            echo "| O quê | cmake $(cmake --version | head -1 | cut -d' ' -f3) e ca-certificates, pelo apt da imagem |"
+            echo "| Onde | contêiner do job xsd-cache |"
+            echo "| ZIP baixado | $(stat -c %s "$pasta/esquemas-xsd-producao-restrita-20261124.zip") bytes |"
+            echo "| Motivo | chave nova do cache do ZIP do XSD (leiaute de 24/11/2026, NL-3.L) |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: SHA-256 do ZIP do XSD contra o manifesto
         run: bash tools/ci/zip_xsd.sh "$RUNNER_TEMP/xsd-cache"
@@ -164,7 +191,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: notalivre-xsd-zip
-          path: ${{ runner.temp }}/xsd-cache/esquemas_prod_restrita_20261020.zip
+          path: ${{ runner.temp }}/xsd-cache/esquemas-xsd-producao-restrita-20261124.zip
           retention-days: 1
           if-no-files-found: error
 
@@ -247,13 +274,13 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/xsd-cache
-          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
+          key: xsd-prodrest-20261124-1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
 
       - name: ZIP do XSD (cache ou download com nova tentativa; SHA-256 conferido)
         id: xsd
         run: |
           set -eu
-          zip_nome=esquemas_prod_restrita_20261020.zip
+          zip_nome=esquemas-xsd-producao-restrita-20261124.zip
           pasta="$RUNNER_TEMP/xsd-cache"
           zip="$pasta/$zip_nome"
           mkdir -p "$pasta"
@@ -435,13 +462,13 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/xsd-cache
-          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
+          key: xsd-prodrest-20261124-1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
 
       - name: ZIP do XSD (cache ou download com nova tentativa; SHA-256 conferido)
         id: xsd
         run: |
           set -eu
-          zip_nome=esquemas_prod_restrita_20261020.zip
+          zip_nome=esquemas-xsd-producao-restrita-20261124.zip
           pasta="$RUNNER_TEMP/xsd-cache"
           zip="$pasta/$zip_nome"
           mkdir -p "$pasta"
@@ -945,13 +972,13 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/xsd-cache
-          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
+          key: xsd-prodrest-20261124-1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
 
       - name: ZIP do XSD para o flatpak-builder (cache ou download com nova tentativa; SHA-256 conferido)
         id: xsd-flatpak
         run: |
           set -eu
-          zip_nome=esquemas_prod_restrita_20261020.zip
+          zip_nome=esquemas-xsd-producao-restrita-20261124.zip
           pasta="$RUNNER_TEMP/xsd-cache"
           zip="$pasta/$zip_nome"
           mkdir -p "$pasta"

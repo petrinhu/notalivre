@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-# XSD de Produção Restrita, leiaute de 20/10/2026 (NL-1.6a). Os XSD NÃO entram na árvore: o configure baixa o ZIP
+# XSD de Produção Restrita, leiaute de 24/11/2026 (NL-1.6a; troca de leiaute na NL-3.L). Os XSD NÃO entram na árvore: o configure baixa o ZIP
 # de URL fixa para o diretório de build, confere o SHA-256 do ZIP e de cada .xsd contra SHA256SUMS e extrai.
 # Qualquer divergência aborta o configure (FATAL_ERROR com o nome do arquivo e os dois hashes).
 # Sem rede: NL_XSD_ZIP_CACHE aponta para um diretório que contém o ZIP pré-baixado; o hash continua conferido.
@@ -14,9 +14,9 @@ if(NOT NL_XSD_ZIP_CACHE AND NOT "$ENV{NL_XSD_ZIP_CACHE}" STREQUAL "")
     set(NL_XSD_ZIP_CACHE "$ENV{NL_XSD_ZIP_CACHE}")
 endif()
 # URL do ZIP: o padrão é o gov.br; o teste de hash (tests/unit/foundation/xml/hash_zip) aponta file:// para ficar sem rede.
-set(NL_XSD_URL "https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas_prod_restrita_20261020.zip" CACHE STRING "URL do ZIP do XSD de Produção Restrita")
+set(NL_XSD_URL "https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas-xsd-producao-restrita-20261124.zip" CACHE STRING "URL do ZIP do XSD de Produção Restrita")
 set(_nl_xsd_url "${NL_XSD_URL}")
-set(_nl_xsd_zip_nome "esquemas_prod_restrita_20261020.zip")
+set(_nl_xsd_zip_nome "esquemas-xsd-producao-restrita-20261124.zip")
 set(_nl_xsd_manifesto "${CMAKE_CURRENT_SOURCE_DIR}/SHA256SUMS")
 set(_nl_xsd_dir "${CMAKE_CURRENT_BINARY_DIR}/nfse-xsd")
 set(_nl_xsd_zip "${_nl_xsd_dir}/${_nl_xsd_zip_nome}")
@@ -101,8 +101,8 @@ endforeach()
 install(FILES ${_nl_xsd_instalar} "${_nl_xsd_manifesto}"
         DESTINATION share/notalivre/xsd)
 
-set(NL_XSD_PRODREST_DIR "${_nl_xsd_extraido}" CACHE INTERNAL "XSD de Produção Restrita 20/10/2026, extraído e conferido")
-set(NL_XSD_PRODREST_MANIFESTO "${_nl_xsd_manifesto}" CACHE INTERNAL "SHA256SUMS do leiaute de 20/10/2026")
+set(NL_XSD_PRODREST_DIR "${_nl_xsd_extraido}" CACHE INTERNAL "XSD de Produção Restrita 24/11/2026, extraído e conferido")
+set(NL_XSD_PRODREST_MANIFESTO "${_nl_xsd_manifesto}" CACHE INTERNAL "SHA256SUMS do leiaute de 24/11/2026")
 set(NL_XSD_PRODREST_RAIZ "DPS_v1.01.xsd" CACHE INTERNAL "Esquema raiz da DPS")
 set(NL_XSD_PRODREST_ZIP "${_nl_xsd_zip}" CACHE INTERNAL "ZIP baixado e conferido (usado pelo teste de hash)")
 message(STATUS "NL-1.6a: XSD conferidos (${_nl_xsd_n_entradas} arquivos, ZIP ${_nl_xsd_zip_sha}) em ${_nl_xsd_extraido}")

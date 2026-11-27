@@ -90,9 +90,9 @@ modules:
           - .git
           - tools/conteiner
       - type: file
-        url: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas_prod_restrita_20261020.zip
-        sha256: 25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
-        dest-filename: esquemas_prod_restrita_20261020.zip
+        url: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas-xsd-producao-restrita-20261124.zip
+        sha256: 1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
+        dest-filename: esquemas-xsd-producao-restrita-20261124.zip
   - name: notalivre-qml-smoke
     buildsystem: cmake-ninja
     sources:
