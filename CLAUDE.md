@@ -66,6 +66,7 @@ Leia [`GODS_LAWS.md`](GODS_LAWS.md) antes de agir. `L-NN` sem prefixo é lei glo
 | [NF-31](GODS_LAWS.md#nf-31) | usar SHA-1 no arnês de teste, mexer no cTribMun ou citar a ADR-0007 ou a DA-2.98 |
 | [NF-32](GODS_LAWS.md#nf-32) | escrever, cortar ou revisar função ou arquivo de código, ou planejar a Onda 9A |
 | [NF-33](GODS_LAWS.md#nf-33) | despachar ou revisar um agente, abrir ou fechar fatia ou onda, contar um portão, escrever teste ou apagar arquivo |
+| [NF-34](GODS_LAWS.md#nf-34) | seguir um manual do plugin bigtech (CONTRACT, TESTES) onde ele diverge de uma lei, ou escrever SQL |
 
 ## Pendências
 A tabela de pendências e planejamento do projeto está em `TODO.md` na raiz (ordenada por execução, coluna Onda marca passos paralelizáveis).

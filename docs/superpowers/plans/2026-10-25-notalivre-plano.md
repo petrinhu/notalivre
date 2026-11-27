@@ -67,6 +67,9 @@ As cinco entradas que nenhum teste de fatia cobriria sozinho e que mais podem mo
 - **NL-P.3** Registrar no `TODO.md` dois desvios de manual (L-73):
   - CONTRACT 5.1 diz "Backend ← Infrastructure" e Middleware sem HTTP nem SQL. A L-33 diz "Cada camada só depende das de baixo" com Foundation embaixo e Mid como "orquestração/protocolo". Por precedência, vale a L-33 (mapeamento em 1.1).
   - TESTES T1 diz "Cobertura mínima de 70%". A L-35 proíbe meta numérica. Vale a L-35.
+  - Registro (27/11/2026): os dois desvios acima e o da NL-P.4 ficaram na NF-34 do `GODS_LAWS.md`, desvios (a), (b) e (c).
+- **NL-P.4** Desvio do CONTRACT:800 (L-73): verbatim, "MUST use `QSqlQuery` with `bindValue()`  -  NEVER string concatenation for SQL." Vale a emenda do CTO: sem `QSqlQuery`, o cliente MariaDB direto (DECISÃO DO LÍDER, 04/11/2026: "Biblioteca direto (Recomendado)"), concatenação de SQL proibida e todo valor por parâmetro vinculado da biblioteca direta. Ratificada pelo líder em 27/11/2026, por AskUserQuestion: "Ratifico a emenda (Recomendado)". Registro: NF-34 do `GODS_LAWS.md`, desvio (c).
+- **NL-P.2, fechamento (27/11/2026):** o L4 está cumprido (respondido em 04/11/2026; Bloco B em 13/11/2026); o L8 sai da NL-P.2 e vira a NL-P.5 (DECISÃO DO LÍDER, 27/11/2026, por AskUserQuestion: "Fechar e mover o L8 (Recomendado)").
 
 ---
 
@@ -962,7 +965,7 @@ O critério de "verde" de T1 é zero falha, sem percentual de cobertura (L-35 pr
 
 Cada ponto vai por `AskUserQuestion`, com a recomendação primeiro. L4 e L11 foram respondidos pelo líder em 04/11/2026 (seção 6.2). L8 não trava onda, mas condiciona os testes reais de NL-7.5 e a Onda 11.
 
-- **L8. Ações que só o líder faz (dependências, não decisões técnicas):** comprar o A1; criar o cliente OAuth desktop no Google Cloud dele e pedir a verificação do escopo `gmail.send` (FATO: teto de 100 usuários novos sem verificação, para sempre, `email.md` Q2); registrar o app no Entra; levar ao contador os 8 pontos do spec 6.4 e o prazo de guarda fiscal; consultar o INPI; na Onda 11, instalar o bundle da Onda 9 e operar a primeira emissão real com o A1 dele (NL-11.1), porque o A1 real não passa por mão de agente nem pelo CI.
+- **L8. Ações que só o líder faz (dependências, não decisões técnicas; linha própria no `TODO.md`: NL-P.5, desde 27/11/2026):** comprar o A1; criar o cliente OAuth desktop no Google Cloud dele e pedir a verificação do escopo `gmail.send` (FATO: teto de 100 usuários novos sem verificação, para sempre, `email.md` Q2); registrar o app no Entra; levar ao contador os 8 pontos do spec 6.4 e o prazo de guarda fiscal; consultar o INPI; na Onda 11, instalar o bundle da Onda 9 e operar a primeira emissão real com o A1 dele (NL-11.1), porque o A1 real não passa por mão de agente nem pelo CI.
 - **Perguntas abertas (Bloco C).** O Bloco B (8 perguntas, mais os ajustes P1 a P5, as 4 perguntas do quiz e as perguntas K4 e Admin órfão), o N7 e a senha admin foram respondidos pelo líder em 13/11/2026 (`GODS_LAWS.md`, NF-27 a NF-30). Continuam no registro do main: Bloco C (4, pelo pacote final v5: Teste e Chave script, da NL-3.9, marcadas na ADR-0003; CNPJ, da tela de login, NL-8.12; Registro, da ADR-0002, sem fatia, antes da NL-3.3; dono de todas: CISO). Cada uma volta ao líder antes da fatia que a usa, como na ADR-0003, Status, e no pacote final v5 ("Bloco C: podem esperar a fatia que as usa"; decisão do main, 13/11/2026).
 
 ### 6.2 Decisões do líder registradas (25/10/2026, AskUserQuestion do orquestrador)
@@ -1005,6 +1008,8 @@ Cada ponto vai por `AskUserQuestion`, com a recomendação primeiro. L4 e L11 fo
 | Fora prazo | "Só orientar" | NL-4.1a (P:709); spec, bloco Cancelar |
 | Próximo | "Registrar e abrir fatias (Recomendado)" | Registrado no canon na NL-3.0 (P:686) |
 | N-01 | "Adotar na Onda 3 (Recomendado)" | substituída em 23/11/2026 pelo espelho opcional: `GODS_LAWS.md`, NF-20 |
+| NL-P.4 (27/11/2026) | "Ratifico a emenda (Recomendado)": vale a emenda do CTO ao CONTRACT:800 (sem `QSqlQuery`, cliente MariaDB direto, todo valor por parâmetro vinculado) | `GODS_LAWS.md`, NF-34 (c); seção 0, NL-P.4 |
+| L8 e NL-P.2 (27/11/2026) | "Fechar e mover o L8 (Recomendado)": a NL-P.2 fecha pelo L4 cumprido, e o L8 vira linha própria | `TODO.md`, NL-P.2 e NL-P.5; 6.1, L8 |
 
 Decisões que o próprio líder deixou para depois, com data marcada no plano: runtime e matriz Flatpak no início da Onda 9 (ponto L6); go/no-go de Produção na Onda 12 (sempre do líder, LEI ZERO).
 
