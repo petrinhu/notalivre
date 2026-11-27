@@ -17,7 +17,7 @@ class RegraLocal
 public:
     virtual ~RegraLocal();
 
-    /// Código E no formato do XLSX de 20/10 (por exemplo "E0202"). É o código do erro devolvido.
+    /// Código E no formato do Anexo I de 24/11/2026 (por exemplo "E0202", mesma regra nos dois anexos). É o código do erro devolvido.
     virtual std::string_view codigo() const noexcept = 0;
 
     /// Primeira violação da regra, ou nullopt se a DPS a cumpre. Função pura: não toca I/O nem estado global.

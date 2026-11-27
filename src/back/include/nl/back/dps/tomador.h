@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Tomador do serviço (grupo infDPS/toma): identificação, nome e endereço opcionais pelo Anexo de 20/10 (NL-1.4, TCInfoPessoa, tiposComplexos_v1.01.xsd:1006).
+// Tomador do serviço (grupo infDPS/toma): identificação, nome e endereço opcionais pelo Anexo de 20/10 (NL-1.4, TCInfoPessoa, tiposComplexos_v1.01.xsd:1006; não remedido em 24/11).
 
 #ifndef NL_BACK_DPS_TOMADOR_H
 #define NL_BACK_DPS_TOMADOR_H
@@ -16,7 +16,7 @@
 namespace nl::back {
 
 /// Invariante: a identificação é obrigatória e é uma das quatro alternativas de IdentificacaoPessoa (sem default).
-/// xNome é opcional no leiaute de 20/10 (toma/xNome, 0-1). Se a tela exige o nome é a linha 5 da INBOX, não uma regra daqui.
+/// xNome é opcional no leiaute de 20/10 (toma/xNome, 0-1; não remedido em 24/11). Se a tela exige o nome é a linha 5 da INBOX, não uma regra daqui.
 class Tomador
 {
 public:
