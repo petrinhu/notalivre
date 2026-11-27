@@ -162,13 +162,16 @@ executavel_do_alvo() {
 }
 
 # Restaura TODOS os fontes da cópia ao pristino e confere o sha256 de cada um. Qualquer diferença é PARADA (exit 2).
+# Variáveis locais: o laço de restauração não pode sobrescrever as variáveis do par (no CI, o `arq` global do par 1 ficou
+# com o caminho do último arquivo do laço, e o mutante foi aplicado no fonte errado).
 restaurar_todos() {
-    for i in "${!MUTANTES[@]}"; do
-        arq="$TRAB/src/${ARQS_REL[$i]}"
-        cp -- "${PRISTINOS[$i]}" "$arq" || { echo "PARADA: restauração de ${ARQS_REL[$i]} falhou"; exit 2; }
-        sha_volta=$(sha256sum "$arq" | cut -d' ' -f1)
-        if [ "$sha_volta" != "${SHAS_PRISTINOS[$i]}" ]; then
-            echo "PARADA: ${ARQS_REL[$i]} não voltou ao pristino (sha256 $sha_volta)"
+    local j arq_j sha_volta_j
+    for j in "${!MUTANTES[@]}"; do
+        arq_j="$TRAB/src/${ARQS_REL[$j]}"
+        cp -- "${PRISTINOS[$j]}" "$arq_j" || { echo "PARADA: restauração de ${ARQS_REL[$j]} falhou"; exit 2; }
+        sha_volta_j=$(sha256sum "$arq_j" | cut -d' ' -f1)
+        if [ "$sha_volta_j" != "${SHAS_PRISTINOS[$j]}" ]; then
+            echo "PARADA: ${ARQS_REL[$j]} não voltou ao pristino (sha256 $sha_volta_j)"
             exit 2
         fi
     done
@@ -177,7 +180,6 @@ restaurar_todos() {
 for i in "${!MUTANTES[@]}"; do
     mutante="${MUTANTES[$i]}"
     arq_rel="${ARQS_REL[$i]}"
-    arq="$TRAB/src/$arq_rel"
     alvo="${ALVOS[$i]}"
     slot="${SLOTS[$i]}"
     classe="${CLASSES[$i]}"
@@ -190,6 +192,14 @@ for i in "${!MUTANTES[@]}"; do
 
     # a. restaura todos os fontes ao pristino antes de cada par e confere o sha256 de cada um.
     restaurar_todos
+    # O arquivo deste par, por índice explícito, e a conferência de que ele é o pristino DAQUELE arquivo.
+    arq="$TRAB/src/${ARQS_REL[$i]}"
+    sha_do_par=$(sha256sum "$arq" | cut -d' ' -f1)
+    echo "par $((i + 1)): arquivo=${ARQS_REL[$i]} sha256 pristino=${SHAS_PRISTINOS[$i]} sha256 atual=$sha_do_par"
+    if [ "$sha_do_par" != "${SHAS_PRISTINOS[$i]}" ]; then
+        echo "PARADA: o arquivo do par $((i + 1)) (${ARQS_REL[$i]}) não é o pristino dele antes da sabotagem"
+        exit 2
+    fi
 
     # b. recompila o alvo sem sabotagem e grava o sha256 do executável de base.
     cmake --build "$TRAB/build" --target "$alvo" -j 4 > "$TRAB/build-base-$i.log" 2>&1
