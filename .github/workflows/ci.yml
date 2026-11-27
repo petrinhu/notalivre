@@ -97,7 +97,7 @@ jobs:
           "$RUNNER_TEMP/aqt-venv/bin/aqt" install-qt -O "$RUNNER_TEMP/qt" linux desktop 6.12.0 linux_gcc_64 \
             -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets
 
-      - name: Qt6Config.cmake presente e registro no resumo (NF-05)
+      - name: Qt6Config.cmake presente e resumo do cache
         env:
           NL_CACHE_HIT: ${{ steps.qt-cache.outputs.cache-hit }}
         run: |
@@ -107,11 +107,66 @@ jobs:
             echo "| Item | Valor |"
             echo "| --- | --- |"
             echo "| Cache hit | ${NL_CACHE_HIT:-false} |"
-            echo "| Instalado em miss | aqtinstall 3.3.0 em \$RUNNER_TEMP/aqt-venv; Qt 6.12.0 linux_gcc_64 e 5 módulos em \$RUNNER_TEMP/qt |"
-            echo "| Python do runner | $(python3 --version 2>&1) |"
             echo "| Tamanho do Qt | $(du -sh "$RUNNER_TEMP/qt" | cut -f1) |"
             echo "| Motivo | job banco no host (NL-3.1v): o cache do qt-cache, gravado em contêiner, não casa no host |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # NF-05 (decisão do líder de 09/11/2026): o que entrou no CI, onde, tamanho e motivo, só quando entrou (cache miss).
+      - name: Registro do que entrou no miss (pip freeze e tamanhos, NF-05)
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          {
+            echo "### Instalado neste run (cache miss)"
+            echo "| Item | Valor |"
+            echo "| --- | --- |"
+            echo "| Onde | venv em \$RUNNER_TEMP/aqt-venv; Qt 6.12.0 linux_gcc_64 e 5 módulos em \$RUNNER_TEMP/qt |"
+            echo "| Python do runner | $(python3 --version 2>&1) |"
+            echo "| Tamanho do venv | $(du -sh "$RUNNER_TEMP/aqt-venv" | cut -f1) |"
+            echo "| Tamanho do Qt | $(du -sh "$RUNNER_TEMP/qt" | cut -f1) |"
+            echo
+            echo "pip freeze do venv:"
+            echo '```'
+            "$RUNNER_TEMP/aqt-venv/bin/pip" freeze
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # NL-3.1v (run 45985663535): o job banco roda no host e não acha o cache do ZIP do XSD dos jobs nativos, gravado em
+  # contêiner (o actions/cache põe o caminho na versão do cache), e o gov.br caiu 5 vezes com "SSL connect error" a partir
+  # do runner. Este job, na mesma imagem do qt-cache e com o mesmo path e a mesma chave dos jobs nativos, só restaura o
+  # cache (miss reprova, sem gov.br), confere o SHA-256 contra o manifesto e entrega o ZIP ao job banco por artefato, 1 dia.
+  xsd-cache:
+    name: xsd-cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    container:
+      image: ubuntu@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Cache do ZIP do XSD (mesmo path e chave dos jobs nativos; falha se faltar, sem gov.br)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/xsd-cache
+          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
+          fail-on-cache-miss: true
+
+      - name: SHA-256 do ZIP do XSD contra o manifesto
+        run: bash tools/ci/zip_xsd.sh "$RUNNER_TEMP/xsd-cache"
+
+      - name: ZIP do XSD como artefato para o job banco (retenção de 1 dia)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: notalivre-xsd-zip
+          path: ${{ runner.temp }}/xsd-cache/esquemas_prod_restrita_20261020.zip
+          retention-days: 1
+          if-no-files-found: error
 
   nativo:
     name: nativo (${{ matrix.distro }})
@@ -451,30 +506,45 @@ jobs:
   # 0700), na trava do CI (tools/ci/pesado_ci.sh, pelo NL_PESADO). Nenhum script do caso local muda. Plano do CTO da NL-3.1v.
   banco:
     name: banco (${{ matrix.distro }})
-    needs: qt-cache-host
+    needs: [qt-cache-host, xsd-cache]
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # Tetos da trava: 15 (imagem) + 30 (build) + 50 (harness) = 95 min; os outros passos (caches, Qt no volume, servidores,
+    # imagem de higiene) somam cerca de 10 min; 120 deixa uns 15 min de folga. O primeiro run verde mede o real.
+    timeout-minutes: 120
     permissions:
       contents: read
     strategy:
       fail-fast: false
+      # Piso fixado aqui, fora de matriz_banco.txt e do CMake (revisão de segurança do 65952ef, achado 2): pares por distro e
+      # slots por par. Mudar a matriz ou os testes do banco exige mudar este piso no mesmo diff, à vista na revisão.
       matrix:
         include:
           - distro: fedora45
+            pares: 7
+            slots: 43
           - distro: ubuntu26.04
+            pares: 2
+            slots: 43
           - distro: manjaro
+            pares: 3
+            slots: 43
           - distro: mint22.3
+            pares: 4
+            slots: 43
     env:
       NL_SHA: ${{ github.sha }}
       NL_FATIA: ci-banco-${{ matrix.distro }}
       NL_CI_DISTRO: ${{ matrix.distro }}
+      NL_CI_PISO_PARES: ${{ matrix.pares }}
+      NL_CI_SLOTS: ${{ matrix.slots }}
       NL_PESADO: ${{ github.workspace }}/tools/ci/pesado_ci.sh
       # Variáveis que passam pelo sudo ao usuário de uid 1000 (o sudo zera o ambiente).
-      NL_SUDO_ENV: NL_PESADO,NL_PESADO_TETO,NL_SHA,NL_FATIA,NL_TMP_BASE,GITHUB_ACTIONS,RUNNER_TEMP
+      NL_SUDO_ENV: NL_PESADO,NL_PESADO_TETO,NL_SHA,NL_FATIA,NL_TMP_BASE,GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_TEMP
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0   # os portões estáticos do build_local.sh clonam o SHA com histórico (portoes_estaticos.sh)
+          persist-credentials: false   # nenhum passo fala com o GitHub; o token não fica no .git que o uid 1000 lê
 
       # Mede o que o plano não mediu: uid do runner, uid 1000 livre ou não, CPUs, memória e disco.
       - name: Ambiente do runner (começo)
@@ -501,14 +571,14 @@ jobs:
           fail-on-cache-miss: true
 
       # O build do banco roda com --network none e lê o ZIP de NL_TMP_BASE/notalivre-xsd-cache (padrão do build_local.sh).
-      - name: Cache do ZIP do XSD (chave pelo SHA-256)
-        id: xsd-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # O ZIP vem do job xsd-cache por artefato (run 45985663535: cache de host em miss e gov.br com "SSL connect error").
+      - name: ZIP do XSD do job xsd-cache (artefato; falha se faltar)
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
+          name: notalivre-xsd-zip
           path: ${{ env.NL_TMP_BASE }}/notalivre-xsd-cache
-          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
 
-      - name: ZIP do XSD (cache ou download com nova tentativa; SHA-256 conferido)
+      - name: ZIP do XSD conferido de novo antes do build (SHA-256 do manifesto; sem download)
         id: xsd
         run: bash tools/ci/zip_xsd.sh "$NL_TMP_BASE/notalivre-xsd-cache"
 
@@ -521,7 +591,7 @@ jobs:
       - name: Imagem de build da distro (build_local.sh imagem, como o uid 1000)
         id: imagem
         env:
-          NL_PESADO_TETO: "30"
+          NL_PESADO_TETO: "15"
         run: |
           set +e
           sudo -n -H -u "$NL_CI_USUARIO" --preserve-env="$NL_SUDO_ENV" bash tools/conteiner/build_local.sh imagem "$NL_CI_DISTRO"
@@ -565,10 +635,10 @@ jobs:
         if: ${{ always() && steps.harness.outcome == 'failure' }}
         run: bash tools/ci/banco/logs_dos_pares.sh "$RUNNER_TEMP/banco-$NL_CI_DISTRO.log" "$NL_CI_DISTRO" "$NL_SHA" "$NL_CI_USUARIO"
 
-      - name: Resumo do banco (reprova sem a linha NL-BANCO-RESUMO ou com pares a menos)
+      - name: Resumo do banco (reprova sem NL-BANCO-RESUMO, ou com pares ou slots abaixo do piso do ci.yml)
         id: resumo
         if: always()
-        run: bash tools/ci/banco/resumo.sh "$RUNNER_TEMP/banco-$NL_CI_DISTRO.log" "$NL_CI_DISTRO"
+        run: bash tools/ci/banco/resumo.sh "$RUNNER_TEMP/banco-$NL_CI_DISTRO.log" "$NL_CI_DISTRO" "$NL_CI_PISO_PARES" "$NL_CI_SLOTS"
 
       - name: Ambiente do runner (fim)
         if: always()

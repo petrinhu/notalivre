@@ -4,9 +4,11 @@
 # Resumo do job banco no $GITHUB_STEP_SUMMARY (NL-3.1v, seção 1.7 do plano do CTO), lido do log do harness da distro.
 # Só copia quatro formas de linha, e cada campo só com caracteres de uma lista fechada (o log do CI é público):
 #   NL-BANCO par=...  (uma linha da tabela por par)   NL-BANCO-RESUMO ...   funcoes_no_ctest: ...   NL-RC=N
-# Reprova (rc 1) se o log falta, se falta a linha NL-BANCO-RESUMO, ou se pares_esperados ou executados não são o número de
-# pares da distro em matriz_banco.txt: o job não fica verde sem ter rodado os pares.
-# Uso: resumo.sh LOG DISTRO
+# O piso de pares e o número de slots por par vêm do ci.yml (matrix.include do job banco), fora de matriz_banco.txt e do
+# CMake: um diff que tire um par da matriz, ou um teste e a linha dele no CMake, muda a contagem do harness, não o piso.
+# Reprova (rc 1) se o log falta; se matriz_banco.txt não tem PISO pares da distro; se falta a linha NL-BANCO-RESUMO; se
+# pares_esperados, executados ou verdes não são PISO; ou se n_por_par não é SLOTS. O job não fica verde com menos.
+# Uso: resumo.sh LOG DISTRO PISO SLOTS
 set -u
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 NL_BANCO_DIR="$RAIZ/tools/conteiner"
@@ -46,42 +48,84 @@ nl_resumo_linhas() {
     done < <(grep -E '^(NL-BANCO-RESUMO |funcoes_no_ctest: |NL-RC=[0-9]+$)' "$1")
 }
 
-# nl_resumo_confere LOG ESPERADOS: rc 0 só com a linha NL-BANCO-RESUMO e pares_esperados e executados iguais a ESPERADOS.
-nl_resumo_confere() {
-    local linha esperados executados
+# nl_resumo_inteiro VALOR: rc 0 só para inteiro positivo sem zero à esquerda, de até 4 dígitos.
+nl_resumo_inteiro() {
+    [[ "${1:-}" =~ ^[1-9][0-9]{0,3}$ ]]
+}
+
+# nl_resumo_linha_resumo LOG: imprime a última linha NL-BANCO-RESUMO do LOG; sem ela, imprime a REPROVA e sai 1.
+nl_resumo_linha_resumo() {
+    local linha
     linha="$(grep '^NL-BANCO-RESUMO ' "$1" | tail -n 1)"
     if [ -z "$linha" ]; then
         echo "REPROVA: linha NL-BANCO-RESUMO ausente"
         return 1
     fi
-    esperados="$(nl_resumo_campo "$linha" pares_esperados)"
-    executados="$(nl_resumo_campo "$linha" executados)"
-    if [ "$esperados" != "$2" ] || [ "$executados" != "$2" ]; then
-        echo "REPROVA: pares_esperados=$esperados executados=$executados, matriz_banco.txt tem $2 pares"
+    printf '%s\n' "$linha"
+}
+
+# nl_resumo_confere_matriz MATRIZ PISO: rc 0 só se matriz_banco.txt tem PISO pares da distro (a lista não andou sem o piso).
+nl_resumo_confere_matriz() {
+    if [ "$1" != "$2" ]; then
+        echo "REPROVA: matriz_banco.txt tem $1 pares da distro, o piso do ci.yml é $2"
         return 1
     fi
 }
 
+# nl_resumo_confere_pares LINHA PISO: rc 0 só com pares_esperados, executados e verdes iguais a PISO.
+nl_resumo_confere_pares() {
+    local esperados executados verdes
+    esperados="$(nl_resumo_campo "$1" pares_esperados)"
+    executados="$(nl_resumo_campo "$1" executados)"
+    verdes="$(nl_resumo_campo "$1" verdes)"
+    if [ "$esperados" != "$2" ] || [ "$executados" != "$2" ] || [ "$verdes" != "$2" ]; then
+        echo "REPROVA: pares_esperados=$esperados executados=$executados verdes=$verdes, piso do ci.yml $2"
+        return 1
+    fi
+}
+
+# nl_resumo_confere_slots LINHA SLOTS: rc 0 só com n_por_par igual a SLOTS (cada par rodou os slots do ci.yml).
+nl_resumo_confere_slots() {
+    local n
+    n="$(nl_resumo_campo "$1" n_por_par)"
+    if [ "$n" != "$2" ]; then
+        echo "REPROVA: n_por_par=$n, slots por par no ci.yml $2"
+        return 1
+    fi
+}
+
+# nl_resumo_veredito LOG MATRIZ PISO SLOTS: as quatro conferências, na ordem; imprime a primeira REPROVA e sai 1.
+nl_resumo_veredito() {
+    local linha
+    nl_resumo_confere_matriz "$2" "$3" || return 1
+    linha="$(nl_resumo_linha_resumo "$1")" || { printf '%s\n' "$linha"; return 1; }
+    nl_resumo_confere_pares "$linha" "$3" || return 1
+    nl_resumo_confere_slots "$linha" "$4"
+}
+
 LOG="${1:-}"
 DISTRO="${2:-}"
-[ -n "$LOG" ] && [ -n "$DISTRO" ] || { echo "PARADA: uso: resumo.sh LOG DISTRO"; exit 2; }
+PISO="${3:-}"
+SLOTS="${4:-}"
+[ -n "$LOG" ] && [ -n "$DISTRO" ] || { echo "PARADA: uso: resumo.sh LOG DISTRO PISO SLOTS"; exit 2; }
+nl_resumo_inteiro "$PISO" && nl_resumo_inteiro "$SLOTS" || { echo "PARADA: PISO e SLOTS têm de ser inteiros positivos (recebi '$PISO' e '$SLOTS')"; exit 2; }
 PARES="$(nl_banco_pares_de "$DISTRO" | grep -c . || true)"
 if [ ! -f "$LOG" ]; then
     echo "REPROVA: log do harness ausente ($LOG)" | tee -a "$SAIDA"
     exit 1
 fi
 {
-    echo "## Banco: $(nl_resumo_limpo "$DISTRO") ($PARES pares em matriz_banco.txt)"
+    echo "## Banco: $(nl_resumo_limpo "$DISTRO") (piso $PISO pares e $SLOTS slots por par no ci.yml; $PARES pares em matriz_banco.txt)"
     nl_resumo_tabela "$LOG"
     echo
     echo '```'
     nl_resumo_linhas "$LOG"
     echo '```'
 } >> "$SAIDA"
-veredito="$(nl_resumo_confere "$LOG" "$PARES")"
+veredito="$(nl_resumo_veredito "$LOG" "$PARES" "$PISO" "$SLOTS")"
 rc=$?
 if [ "$rc" -ne 0 ]; then
     printf '%s\n' "$veredito" | tee -a "$SAIDA"
     exit 1
 fi
-echo "PASSA: resumo do banco com $PARES pares ($DISTRO)"
+echo "PASSA: resumo do banco com $PISO pares e $SLOTS slots por par ($DISTRO)"
