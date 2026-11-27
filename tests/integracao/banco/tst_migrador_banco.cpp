@@ -298,7 +298,7 @@ void TesteMigradorBanco::segundaExecucaoNaoAplicaNada()
     QVERIFY(sql::migrar(*executor, kV1EV2).has_value());
     const auto segunda = sql::migrar(*executor, kV1EV2);
     QVERIFY2(segunda.has_value(), segunda ? "" : segunda.error().codigo().c_str());
-    QVERIFY(segunda->aplicadas.empty());
+    QCOMPARE(segunda->aplicadas, versoes({2}));
     QCOMPARE(registros(*executor, 1), qint64{2});
 }
 
