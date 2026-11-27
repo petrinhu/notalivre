@@ -64,6 +64,55 @@ jobs:
             -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets
           test -f "$RUNNER_TEMP/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake"
 
+  # NL-3.1v (plano B da seção 1.3 do plano do CTO, pela medição do run 45984901232): o actions/cache põe o caminho na versão
+  # do cache, e o runner.temp do qt-cache, que roda em contêiner, vale /__w/_temp; no host vale /home/runner/work/_temp. O job
+  # banco roda no host e não acha o cache do qt-cache: este job grava o Qt no host, com chave própria e o mesmo path literal
+  # do job banco. Em miss, o aqt vem num venv do Python do runner, com a versão fixada (aqtinstall 3.3.0, a última no PyPI,
+  # de 02/06/2025: a mesma que o pip sem versão dá ao qt-cache). NF-05, decisão do líder de 09/11/2026: no CI entra sem
+  # pergunta, registrado no resumo deste job (o quê, onde, tamanho e motivo).
+  qt-cache-host:
+    name: qt-cache-host
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Cache do Qt 6.12 no host (chave própria do host)
+        id: qt-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/qt
+          key: qt-6.12.0-linux_gcc_64-qtnetworkauth-qthttpserver-qtimageformats-qtshadertools-qtwebsockets-v1-host-v1
+
+      - name: aqtinstall 3.3.0 num venv do Python do runner (só em cache miss)
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/aqt-venv"
+          "$RUNNER_TEMP/aqt-venv/bin/pip" install --no-cache-dir aqtinstall==3.3.0
+
+      - name: Qt 6.12 com aqt (só em cache miss; mesmos módulos do qt-cache)
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/qt"
+          "$RUNNER_TEMP/aqt-venv/bin/aqt" install-qt -O "$RUNNER_TEMP/qt" linux desktop 6.12.0 linux_gcc_64 \
+            -m qtnetworkauth qthttpserver qtimageformats qtshadertools qtwebsockets
+
+      - name: Qt6Config.cmake presente e registro no resumo (NF-05)
+        env:
+          NL_CACHE_HIT: ${{ steps.qt-cache.outputs.cache-hit }}
+        run: |
+          test -f "$RUNNER_TEMP/qt/6.12.0/gcc_64/lib/cmake/Qt6/Qt6Config.cmake"
+          {
+            echo "## qt-cache-host (NL-3.1v, plano B do cache do Qt)"
+            echo "| Item | Valor |"
+            echo "| --- | --- |"
+            echo "| Cache hit | ${NL_CACHE_HIT:-false} |"
+            echo "| Instalado em miss | aqtinstall 3.3.0 em \$RUNNER_TEMP/aqt-venv; Qt 6.12.0 linux_gcc_64 e 5 módulos em \$RUNNER_TEMP/qt |"
+            echo "| Python do runner | $(python3 --version 2>&1) |"
+            echo "| Tamanho do Qt | $(du -sh "$RUNNER_TEMP/qt" | cut -f1) |"
+            echo "| Motivo | job banco no host (NL-3.1v): o cache do qt-cache, gravado em contêiner, não casa no host |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   nativo:
     name: nativo (${{ matrix.distro }})
     needs: qt-cache
@@ -402,7 +451,7 @@ jobs:
   # 0700), na trava do CI (tools/ci/pesado_ci.sh, pelo NL_PESADO). Nenhum script do caso local muda. Plano do CTO da NL-3.1v.
   banco:
     name: banco (${{ matrix.distro }})
-    needs: qt-cache
+    needs: qt-cache-host
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -442,12 +491,13 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Cache do Qt 6.12 (populado pelo job qt-cache; falha se faltar)
+      # Chave do host (job qt-cache-host): o cache do qt-cache, gravado em contêiner, não casa aqui (run 45984901232).
+      - name: Cache do Qt 6.12 (populado pelo job qt-cache-host; falha se faltar)
         id: qt-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/qt
-          key: qt-6.12.0-linux_gcc_64-qtnetworkauth-qthttpserver-qtimageformats-qtshadertools-qtwebsockets-v1
+          key: qt-6.12.0-linux_gcc_64-qtnetworkauth-qthttpserver-qtimageformats-qtshadertools-qtwebsockets-v1-host-v1
           fail-on-cache-miss: true
 
       # O build do banco roda com --network none e lê o ZIP de NL_TMP_BASE/notalivre-xsd-cache (padrão do build_local.sh).
