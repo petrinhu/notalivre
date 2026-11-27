@@ -100,6 +100,7 @@ void TstLeitorIndicadorDestinatario::raizDoisRecusadoComCodigoDoValor()
     // Assert
     QVERIFY(!indDest.has_value());
     QCOMPARE(codigoDe(indDest), QStringLiteral("indicadordestinatario.valor"));
+    QCOMPARE(QString::fromStdString(indDest.error().campo().value_or(std::string{})), QStringLiteral("indDest"));
 }
 
 void TstLeitorIndicadorDestinatario::tipoNaoTextoRecusadoComTipoInvalido()

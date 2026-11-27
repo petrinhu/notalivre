@@ -442,6 +442,7 @@ void TstDpsValidar::indDestDoisNaRaizRecusado()
     QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
     QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1, esperado 1 (reprovada). stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
     QVERIFY2(execucao.erro.contains(QStringLiteral("indicadordestinatario.valor")), qPrintable(execucao.erro));
+    QVERIFY2(execucao.erro.contains(QStringLiteral("(indDest)")), qPrintable(QStringLiteral("campo indDest ausente. stderr: %1").arg(execucao.erro)));
     QVERIFY2(execucao.erro.contains(QStringLiteral("valor fora do conjunto do XSD")), qPrintable(execucao.erro));
     QVERIFY2(!QFile::exists(saida), "entrada reprovada não pode deixar XML gravado");
 }
