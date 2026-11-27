@@ -10,7 +10,6 @@ ubuntu26.04 mysql84
 ubuntu26.04 mariadb118
 mint22.3 mysql80
 mint22.3 mysql84
-mint22.3 mariadb1011
 mint22.3 mariadb118
 manjaro mysql84
 manjaro mariadb118
