@@ -338,7 +338,9 @@ jobs:
       # emitir_teste.sh confere a DPS de teste no XSD de 24/11/2026 com a CLI que acabou de sair do build e com o XSD extraído
       # no build. Fica neste job, e não no autotestes, porque a CLI só roda na imagem ubuntu26.04 (Qt, Connector/C e glibc
       # de lá); o autotestes segue só com shell. Roda como uid 1000: o ensaio reprova dono diferente de quem o roda (caso p4,
-      # /etc/hosts), e como root o dono seria o próprio root. HOME descartável. Sem os três caminhos o ensaio reprova (código 11).
+      # /etc/hosts), e como root o dono seria o próprio root. HOME descartável. Os test -x/-d/-f abaixo fazem o passo reprovar
+      # cedo, com 1, se o build não tiver a CLI, o XSD ou o manifesto; o script reprova com 11 se faltar algum dos três
+      # caminhos (NL_ENSAIO_CLI, NL_ENSAIO_XSD_DIR, NL_ENSAIO_XSD_MANIFESTO).
       - name: "Ensaio do emitir_teste.sh no XSD de 24/11/2026 (NL-3.L, passo 11)"
         if: matrix.distro == 'ubuntu26.04'
         run: |
@@ -354,6 +356,50 @@ jobs:
           setpriv --reuid=1000 --regid=1000 --clear-groups env HOME="$RUNNER_TEMP/home-ensaio" \
             NL_ENSAIO_CLI="$cli" NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" \
             bash tools/producao_restrita/emitir_teste.sh --ensaio
+
+      # NL-3.L (revisão de QA de 27/11/2026, B1; NF-33 e L-36): o ensaio acima tem de REPROVAR nos dois casos, e não só sair verde.
+      # Roda logo depois dele, no mesmo job e com o mesmo if. Controle 1: sem NL_ENSAIO_CLI, o ensaio sai com 11 e diz que faltam
+      # caminhos. Controle 2: com uma CLI falsa que sai com 1 e imprime uma linha de erro no formato da CLI, o ensaio sai com 9 e
+      # diz que o programa reprovou a DPS de teste. Cada controle exige o rc e a linha; se algum não morder, o job cai com ::error::.
+      - name: "Controle negativo do ensaio xsd (NL-3.L, B1: o portão tem de reprovar)"
+        if: matrix.distro == 'ubuntu26.04'
+        run: |
+          set -u
+          cli="$NL_TMP_BASE/notalivre-build/debug/apps/cli/notalivre-cli"
+          xsd="$(sed -n 's/^NL_XSD_PRODREST_DIR:INTERNAL=//p' "$NL_TMP_BASE/notalivre-build/debug/CMakeCache.txt")"
+          manifesto="$GITHUB_WORKSPACE/third_party/nfse-xsd/prodrest-20261124/SHA256SUMS"
+          test -x "$cli" && test -d "$xsd" && test -f "$manifesto" || { echo "::error::controle negativo sem CLI, XSD ou manifesto no build"; exit 1; }
+          ctl="$RUNNER_TEMP/controle-xsd"
+          mkdir -p "$ctl" "$RUNNER_TEMP/home-ensaio"
+          printf '%s\n' '#!/bin/sh' 'echo "erro XSD_CONTROLE: cli falsa do controle negativo" >&2; exit 1' > "$ctl/cli-falsa"
+          chmod 755 "$ctl/cli-falsa"
+          falhas=""
+          rc1=0
+          setpriv --reuid=1000 --regid=1000 --clear-groups env -u NL_ENSAIO_CLI HOME="$RUNNER_TEMP/home-ensaio" \
+            NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" \
+            bash tools/producao_restrita/emitir_teste.sh --ensaio > "$ctl/saida-sem-cli.txt" 2>&1 || rc1=$?
+          echo "controle 1 (sem NL_ENSAIO_CLI): rc=$rc1 (esperado 11)"
+          grep -F 'xsd_24_11' "$ctl/saida-sem-cli.txt" || true
+          if [ "$rc1" -eq 11 ] && grep -qF 'FALHA xsd_24_11: não conferi a DPS de teste no modelo de 24/11/2026. Faltam caminhos' "$ctl/saida-sem-cli.txt"; then
+            echo "controle 1 mordeu"
+          else
+            falhas="$falhas controle 1 (sem NL_ENSAIO_CLI: esperado rc 11 e a linha FALHA xsd_24_11 dos caminhos, veio rc $rc1);"
+          fi
+          rc2=0
+          setpriv --reuid=1000 --regid=1000 --clear-groups env HOME="$RUNNER_TEMP/home-ensaio" \
+            NL_ENSAIO_CLI="$ctl/cli-falsa" NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" \
+            bash tools/producao_restrita/emitir_teste.sh --ensaio > "$ctl/saida-cli-falsa.txt" 2>&1 || rc2=$?
+          echo "controle 2 (CLI falsa que reprova): rc=$rc2 (esperado 9)"
+          grep -F 'xsd_24_11' "$ctl/saida-cli-falsa.txt" || true
+          if [ "$rc2" -eq 9 ] && grep -qF 'FALHA xsd_24_11: o programa reprovou a DPS de teste no modelo de 24/11/2026 (códigos: XSD_CONTROLE)' "$ctl/saida-cli-falsa.txt"; then
+            echo "controle 2 mordeu"
+          else
+            falhas="$falhas controle 2 (CLI falsa que reprova: esperado rc 9 e a linha de reprovação com o código XSD_CONTROLE, veio rc $rc2);"
+          fi
+          if [ -n "$falhas" ]; then
+            echo "::error::controle negativo do ensaio xsd NÃO mordeu:$falhas"
+            exit 1
+          fi
 
       - name: ctest (preset debug)
         id: ctest
@@ -425,7 +471,7 @@ jobs:
             decisao=true
             echo "git diff falhou entre $base e $GITHUB_SHA: o mutante do log do 4xx roda (fail-secure)."
           else
-            casados=$(printf '%s\n' "$lista" | grep -E '^(src/mid/sefin/cliente/registro_resposta_sem_codigo|src/mid/sefin/cliente/allowlist_log_sefin[.]cpp|src/mid/sefin/cliente/cliente_sefin[.]cpp|src/foundation/log/|tests/unit/mid/sefin/cliente/tst_registro_resposta_sem_codigo[.]cpp|tests/unit/mid/sefin/cliente/tst_cliente_sefin_falhas_envio[.]cpp|tools/mutacao/mutante_log_4xx[.]sh)' || true)
+            casados=$(printf '%s\n' "$lista" | grep -E '^(src/mid/sefin/cliente/registro_resposta_sem_codigo|src/mid/sefin/cliente/allowlist_log_sefin[.]cpp|src/mid/sefin/cliente/cliente_sefin[.]cpp|src/foundation/log/|tests/unit/mid/sefin/cliente/tst_registro_resposta_sem_codigo[.]cpp|tests/unit/mid/sefin/cliente/tst_cliente_sefin_falhas_envio[.]cpp|tools/mutacao/mutante_log_4xx[.]sh|src/mid/include/nl/mid/sefin/cliente/allowlist_log_sefin[.]h|src/mid/include/nl/mid/sefin/cliente/registro_resposta_sem_codigo[.]h|src/mid/composicao/registro_cli[.]cpp)' || true)
             if [ -n "$casados" ]; then decisao=true; else decisao=false; fi
             echo "Caminhos do log do 4xx casados no diff de $base..$GITHUB_SHA:"
             printf '%s\n' "${casados:-(nenhum)}"
