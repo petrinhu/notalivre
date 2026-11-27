@@ -394,6 +394,145 @@ jobs:
         if: ${{ always() && steps.ctest_asan.outcome != 'skipped' }}
         run: python3 -I tools/portoes/funcoes_no_ctest.py --raiz . --build "$NL_TMP_BASE/notalivre-build/asan-ubsan" --excecoes tests/funcoes_fora_do_ctest.txt
 
+  # NL-3.1v (decisões do líder de 27/11/2026: "Fazer o job de banco no CI (Recomendado)" e, na matriz, "16 pares em todo
+  # push (Recomendado)"). Um job por distro roda todos os pares dela em tools/conteiner/matriz_banco.txt pelo mesmo
+  # tools/conteiner/integracao_banco.sh do caso local, sem services (ordem do CTO de 04/11/2026, seção 4.2). Roda no host
+  # do runner, como higiene e mutacao: servidor e executor sobem por docker na rede do servidor, e o harness monta caminho
+  # de host. Build e harness rodam como o usuário de uid 1000 (os contêineres rodam como 1000:1000 e a credencial nasce
+  # 0700), na trava do CI (tools/ci/pesado_ci.sh, pelo NL_PESADO). Nenhum script do caso local muda. Plano do CTO da NL-3.1v.
+  banco:
+    name: banco (${{ matrix.distro }})
+    needs: qt-cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: fedora45
+          - distro: ubuntu26.04
+          - distro: manjaro
+          - distro: mint22.3
+    env:
+      NL_SHA: ${{ github.sha }}
+      NL_FATIA: ci-banco-${{ matrix.distro }}
+      NL_CI_DISTRO: ${{ matrix.distro }}
+      NL_PESADO: ${{ github.workspace }}/tools/ci/pesado_ci.sh
+      # Variáveis que passam pelo sudo ao usuário de uid 1000 (o sudo zera o ambiente).
+      NL_SUDO_ENV: NL_PESADO,NL_PESADO_TETO,NL_SHA,NL_FATIA,NL_TMP_BASE,GITHUB_ACTIONS,RUNNER_TEMP
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # os portões estáticos do build_local.sh clonam o SHA com histórico (portoes_estaticos.sh)
+
+      # Mede o que o plano não mediu: uid do runner, uid 1000 livre ou não, CPUs, memória e disco.
+      - name: Ambiente do runner (começo)
+        run: |
+          {
+            echo "### Ambiente do runner, começo ($NL_CI_DISTRO)"
+            echo '```'
+            id
+            getent passwd 1000 || echo "uid 1000: livre"
+            echo "nproc --all: $(nproc --all)"
+            free -m
+            df -h /
+            docker system df
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cache do Qt 6.12 (populado pelo job qt-cache; falha se faltar)
+        id: qt-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/qt
+          key: qt-6.12.0-linux_gcc_64-qtnetworkauth-qthttpserver-qtimageformats-qtshadertools-qtwebsockets-v1
+          fail-on-cache-miss: true
+
+      # O build do banco roda com --network none e lê o ZIP de NL_TMP_BASE/notalivre-xsd-cache (padrão do build_local.sh).
+      - name: Cache do ZIP do XSD (chave pelo SHA-256)
+        id: xsd-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.NL_TMP_BASE }}/notalivre-xsd-cache
+          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
+
+      - name: ZIP do XSD (cache ou download com nova tentativa; SHA-256 conferido)
+        id: xsd
+        run: bash tools/ci/zip_xsd.sh "$NL_TMP_BASE/notalivre-xsd-cache"
+
+      - name: Usuário de uid 1000 (os contêineres do build e do harness rodam como 1000:1000)
+        id: usuario
+        run: |
+          u="$(bash tools/ci/banco/usuario_1000.sh "$GITHUB_WORKSPACE")"
+          echo "NL_CI_USUARIO=$u" >> "$GITHUB_ENV"
+
+      - name: Imagem de build da distro (build_local.sh imagem, como o uid 1000)
+        id: imagem
+        env:
+          NL_PESADO_TETO: "30"
+        run: |
+          set +e
+          sudo -n -H -u "$NL_CI_USUARIO" --preserve-env="$NL_SUDO_ENV" bash tools/conteiner/build_local.sh imagem "$NL_CI_DISTRO"
+          rc=$?
+          sudo -n -u "$NL_CI_USUARIO" cat "$NL_TMP_BASE/notalivre-logs/NL-2.0-imagem-$NL_CI_DISTRO.log"
+          exit "$rc"
+
+      - name: Imagem de higiene (mesma do job higiene; os portões estáticos do build_local.sh a usam)
+        run: docker build -t notalivre-higiene:ci -f tools/portoes/higiene.Dockerfile tools/portoes
+
+      - name: Qt 6.12 do cache no volume notalivre-qt-6120
+        run: bash tools/ci/banco/volume_qt.sh "$NL_CI_DISTRO" "$RUNNER_TEMP/qt"
+
+      - name: Servidores de banco dos pares da distro, por digest (servidores_banco.txt)
+        run: bash tools/ci/banco/puxar_servidores.sh "$NL_CI_DISTRO"
+
+      - name: Build do preset banco (build_local.sh, como o uid 1000)
+        id: build
+        env:
+          NL_PESADO_TETO: "30"
+        run: |
+          set +e
+          sudo -n -H -u "$NL_CI_USUARIO" --preserve-env="$NL_SUDO_ENV" bash tools/conteiner/build_local.sh "$NL_CI_DISTRO" banco
+          rc=$?
+          sudo -n -u "$NL_CI_USUARIO" cat "$NL_TMP_BASE/notalivre-logs/NL-0.4-$NL_CI_DISTRO-banco.log"
+          exit "$rc"
+
+      # O rc do harness é o rc do passo (NL-RC). O log fica em RUNNER_TEMP para o resumo e o fim dos logs de par.
+      - name: Harness do banco, todos os pares da distro (integracao_banco.sh, como o uid 1000)
+        id: harness
+        env:
+          NL_PESADO_TETO: "50"
+        run: |
+          set +e
+          sudo -n -H -u "$NL_CI_USUARIO" --preserve-env="$NL_SUDO_ENV" bash tools/conteiner/integracao_banco.sh "$NL_CI_DISTRO" todos > "$RUNNER_TEMP/banco-$NL_CI_DISTRO.log" 2>&1
+          rc=$?
+          cat "$RUNNER_TEMP/banco-$NL_CI_DISTRO.log"
+          exit "$rc"
+
+      - name: Fim do log de cada par vermelho (nenhum, se o harness acusou senha em log)
+        if: ${{ always() && steps.harness.outcome == 'failure' }}
+        run: bash tools/ci/banco/logs_dos_pares.sh "$RUNNER_TEMP/banco-$NL_CI_DISTRO.log" "$NL_CI_DISTRO" "$NL_SHA" "$NL_CI_USUARIO"
+
+      - name: Resumo do banco (reprova sem a linha NL-BANCO-RESUMO ou com pares a menos)
+        id: resumo
+        if: always()
+        run: bash tools/ci/banco/resumo.sh "$RUNNER_TEMP/banco-$NL_CI_DISTRO.log" "$NL_CI_DISTRO"
+
+      - name: Ambiente do runner (fim)
+        if: always()
+        run: |
+          {
+            echo "### Ambiente do runner, fim ($NL_CI_DISTRO)"
+            echo '```'
+            id "${NL_CI_USUARIO:-1000}" || echo "uid 1000: não preparado"
+            free -m
+            df -h /
+            docker system df
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   higiene:
     name: higiene (segredos e travessão)
     runs-on: ubuntu-latest
