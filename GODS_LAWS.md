@@ -42,16 +42,16 @@ Escreva os identificadores em português sem acento, alinhados ao leiaute (Dps, 
 
 ## NF-04
 
-**Data:** decisão do líder, 25/10/2026, ponto L7. **Verbatim (na confirmação da exceção):** "autorizo containers locais" e "pode deixar tudo nas pastas padrao". Execução pelo piso de testes: decisão do líder, 21/11/2026, por AskUserQuestion: "Lei nova: CI decide (Recomendado)". Alinhada à lei global por AskUserQuestion, 23/11/2026: *"Alinhar ao global (Recomendado)"*.
+**Data:** decisão do líder, 25/10/2026, ponto L7. **Verbatim (na confirmação da exceção):** "autorizo containers locais" e "pode deixar tudo nas pastas padrao". Execução pelo piso de testes: decisão do líder, 21/11/2026, por AskUserQuestion: "Lei nova: CI decide (Recomendado)". Alinhada à lei global por AskUserQuestion, 23/11/2026: *"Alinhar ao global (Recomendado)"*. Conflito com o texto de 21/11/2026 decidido por AskUserQuestion, 27/11/2026: *"Vale o 23/11 (Recomendado)"*.
 
-Nunca rode na sessão viva do líder teste que abre janela ou mexe no foco, no teclado ou no mouse (L-50). Rode o teste sem janela no host, com os limites da L-11 item 2, e o QML só offscreen (`QT_QPA_PLATFORM=offscreen`), porque assim ele não toca a tela, o foco nem o teclado da sessão viva (L-50). Mande cada fatia commitada por push à branch da onda, onde o CI seletivo é o portão (L-35, L-36). O contêiner local antes do push é opcional. O espelho local e a exceção à L-50 para o `org.flatpak.Builder` estão na NF-20.
+Nunca rode na sessão viva do líder teste que abre janela ou mexe no foco, no teclado ou no mouse (L-50). Rode o teste sem janela no host, com os limites da L-11 item 2, e o QML só offscreen (`QT_QPA_PLATFORM=offscreen`), porque assim ele não toca a tela, o foco nem o teclado da sessão viva (L-50). Mande cada fatia commitada por push à branch da onda, onde o CI seletivo é o portão (L-35, L-36). O contêiner local antes do push é opcional em toda fatia, inclusive nas de segurança, privacidade e deploy irreversível (decisão de 27/11/2026). O espelho local e a exceção à L-50 para o `org.flatpak.Builder` estão na NF-20.
 
 **Base do seletivo** (decisão do líder, 23/11/2026, por AskUserQuestion: *"Último ponto verde (Recomendado)"*). Compare a mudança com o último SHA da mesma branch cujo run do CI terminou em `success`; sem esse SHA, com a main. Run cancelado ou vermelho não vira base. Esta leitura troca, no projeto, a base "a última versão publicada, ou o ramo principal" da L-35, porque, contra a main, a primeira fatia que muda o build manda rodar tudo até o fim da onda, e o seletivo não poupa nada.
 
-**Histórico (o texto de 23/11/2026, acima, é o que vale onde divergem).**
+**Histórico.** Pela decisão de 27/11/2026, vale o texto de 23/11/2026, acima: o contêiner local é opcional em toda fatia, inclusive nas de segurança, privacidade e deploy irreversível. Os textos abaixo ficam só como histórico, substituídos.
 
-- Texto de 25/10/2026 (ponto L7, "Execução: contêiner local primeiro, CI depois"): cada fatia roda primeiro em contêiner local, nunca na sessão do líder (L-50), e só então vai por push à branch da onda, onde o CI repete (L-36). QML roda só offscreen, dentro do contêiner.
-- Texto de 21/11/2026, "Execução pelo piso de testes", que substituiu o de 25/10/2026: o CI é o portão de cada fatia (L-35 e L-36 globais, piso de testes de 20/11/2026). O contêiner local fica para segurança, privacidade e deploy irreversível, e para depurar uma falha do CI. Fora desses casos, não há pré-CI obrigatório antes do push.
+- Texto de 25/10/2026 (ponto L7; título antigo: Execução: contêiner local primeiro, CI depois): cada fatia roda primeiro em contêiner local, nunca na sessão do líder (L-50), e só então vai por push à branch da onda, onde o CI repete (L-36). QML roda só offscreen, dentro do contêiner.
+- Texto de 21/11/2026 (título antigo: Execução pelo piso de testes), que substituiu o de 25/10/2026 e foi substituído pelo de 23/11/2026 (decisão de 27/11/2026): o CI é o portão de cada fatia (L-35 e L-36 globais, piso de testes de 20/11/2026). O contêiner local fica para segurança, privacidade e deploy irreversível, e para depurar uma falha do CI. Fora desses casos, não há pré-CI obrigatório antes do push.
 
 ## NF-05
 
@@ -123,7 +123,7 @@ Versione no formato vA.B.C.D, estilo GlintFx. Crie tag de marco a cada onda fech
 
 Rode o job `mutacao` só quando a mudança tocar segurança, privacidade ou deploy irreversível (L-35, L-27), num CI seletivo pelo que a mudança toca (L-35), porque fora desses casos a mutação custa mais do que confere.
 
-**Histórico.** Texto de 25/10/2026, "Mutação a cada push", substituído pelo alinhamento de 23/11/2026: o job `mutacao` roda em todo push, sem filtro de caminho.
+**Histórico.** Texto de 25/10/2026 (título antigo: Mutação a cada push): o job `mutacao` roda em todo push, sem filtro de caminho. Substituído pelo alinhamento de 23/11/2026.
 
 ## NF-13
 
@@ -186,7 +186,7 @@ Guarde valor monetário só em `nl::back::Valor`, em centavos `int64`, e faça-o
 **Data:** exceção à L-50: decisão do líder, 04/11/2026, pelo rito da LEI DAS LEIS. **Verbatim:** "Autorizar só o Builder (Recomendado)". Espelho local opcional: alinhado à lei global por AskUserQuestion, 23/11/2026: "Alinhar ao global (Recomendado)", que substitui a decisão de 01/11/2026 (N-01, "Adotar na Onda 3 (Recomendado)"). **Verbatim da L-50:** "nenhum teste dinamico toca minha sessao, sempre fazer em docker".
 
 - Rode o espelho local (`tools/espelho/rodar_espelho.sh`) só quando o executor quiser, na trava única `~/.claude/bin/pesado` (L-11, item 2). O CI seletivo é o portão de cada fatia (NF-04).
-- Exceção à L-50: rode no host só `org.flatpak.Builder`, pelo espelho (`tools/espelho`), sem janela, certificado ou privilégio. O build Flatpak do espelho roda `org.flatpak.Builder` sob esta exceção. Qualquer outro `flatpak run` no host segue proibido.
+- Exceção à L-50, sobre `flatpak run`: dos `flatpak run` no host, só o `org.flatpak.Builder`, pelo espelho (`tools/espelho`), sem janela, certificado ou privilégio. O build Flatpak do espelho roda `org.flatpak.Builder` sob esta exceção. Qualquer outro `flatpak run` no host segue proibido. O alcance da L-50 no projeto (teste sem janela no host, QML só offscreen) está na NF-04.
 - A L-50 protege a sessão de trabalho do líder. O que se perde, como foi dito a ele na pergunta: esse build e esse teste invisível rodam sempre sob a sessão dele, sem contêiner.
 - Faça merge na branch da onda só com APROVA no registro, com hora, citando o SHA igual ao `<merge>^2` (N-11).
 

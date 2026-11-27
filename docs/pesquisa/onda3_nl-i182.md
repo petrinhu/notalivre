@@ -71,7 +71,7 @@ FATO, medido nos dois servidores, tirando um privilégio por vez de m2 e rodando
 - GET_LOCK e RELEASE_LOCK passam sem privilégio. A troca da própria senha passa com m2.
 - CREATE global no lugar do CREATE no prefixo libera CREATE DATABASE para qualquer nome (o controle O21, banco fora do prefixo, passou a ser aceito).
 
-Lista de operações e origem (FATO de leitura do código; INFERÊNCIA onde o SQL ainda não existe): conexão e opções de sessão (`src/foundation/sql/conexao.cpp`, `opcoes_sessao.cpp`); trava, tabela de migrações, ALTER, CREATE e DROP INDEX, DROP TABLE (plano, NL-3.1b, parte b2 ainda não escrita); CREATE DATABASE no prefixo, cópia entre bancos, conferência de contagem, RENAME entre bancos, listagem e DROP DATABASE (plano, NL-3.1c e NL-3.1d; CLAUDE.md, Fases 3 e 5). O executor prepara todo SQL por `mysql_stmt_prepare` e recusa texto com aspas, ponto e vírgula ou comentário (`include/nl/foundation/sql/consulta.h`), então o nome da trava vai como parâmetro.
+Lista de operações e origem (FATO de leitura do código; INFERÊNCIA onde o SQL ainda não existe): conexão e opções de sessão (`src/foundation/sql/conexao.cpp`, `opcoes_sessao.cpp`); trava, tabela de migrações, ALTER, CREATE e DROP INDEX, DROP TABLE (plano, NL-3.1b, parte b2 ainda não escrita); CREATE DATABASE no prefixo, cópia entre bancos, conferência de contagem, RENAME entre bancos, listagem e DROP DATABASE (plano, NL-3.1c e NL-3.1d; GODS_LAWS.md, NF-17, Fases 3 e 5). O executor prepara todo SQL por `mysql_stmt_prepare` e recusa texto com aspas, ponto e vírgula ou comentário (`include/nl/foundation/sql/consulta.h`), então o nome da trava vai como parâmetro.
 
 Fora da lista, se o app passar a usar (FATO):
 

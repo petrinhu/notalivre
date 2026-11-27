@@ -39,7 +39,7 @@ Leia [`GODS_LAWS.md`](GODS_LAWS.md) antes de agir. `L-NN` sem prefixo é lei glo
 | [NF-04](GODS_LAWS.md#nf-04) | rodar uma fatia, teste ou QML, ou fazer push |
 | [NF-05](GODS_LAWS.md#nf-05) | baixar ou instalar imagem, pacote, fonte, certificado ou biblioteca |
 | [NF-06](GODS_LAWS.md#nf-06) | mexer em validação de certificado ou revogação |
-| [NF-07](GODS_LAWS.md#nf-07) | rodar trabalho pesado, escolher pasta de build ou temporário, ou despachar agentes |
+| [NF-07](GODS_LAWS.md#nf-07) | rodar trabalho pesado, escolher pasta de build ou temporário, ou despachar agentes, ou guardar log citado, registro de decisões ou contador de DPS, ou fechar fatia |
 | [NF-08](GODS_LAWS.md#nf-08) | criar branch, commitar, fazer push ou pedir merge |
 | [NF-09](GODS_LAWS.md#nf-09) | entregar uma fatia ou conferir a entrega de um executor |
 | [NF-10](GODS_LAWS.md#nf-10) | escrever cabeçalho SPDX ou configurar a autoria de commit |
@@ -49,7 +49,7 @@ Leia [`GODS_LAWS.md`](GODS_LAWS.md) antes de agir. `L-NN` sem prefixo é lei glo
 | [NF-14](GODS_LAWS.md#nf-14) | mexer em workflow disparado por PR |
 | [NF-15](GODS_LAWS.md#nf-15) | ligar a GUI ao núcleo ou à CLI |
 | [NF-16](GODS_LAWS.md#nf-16) | mexer no manifesto Flatpak ou no suporte a Wayland e X11 |
-| [NF-17](GODS_LAWS.md#nf-17) | planejar emissão real a terceiros, ou versão que toque login, permissão, token, segredo, apagar dado, schema ou chave |
+| [NF-17](GODS_LAWS.md#nf-17) | planejar emissão real a terceiros, ou versão que toque login, permissão, token, segredo, apagar dado, schema ou chave, ou publicar qualquer versão |
 | [NF-18](GODS_LAWS.md#nf-18) | escrever texto de interface ou de documento |
 | [NF-19](GODS_LAWS.md#nf-19) | escrever código que guarda, calcula ou mostra dinheiro |
 | [NF-20](GODS_LAWS.md#nf-20) | rodar o espelho local, um build Flatpak ou `flatpak run` no host, ou fazer merge na branch da onda |
