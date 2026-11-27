@@ -18,3 +18,7 @@ aqtinstall.log
 
 # estado local de ferramentas do Claude Code (A0-11)
 .claude/
+
+# Cache do Python, gerado ao rodar os portões e as ferramentas de tools/
+__pycache__/
+*.pyc
