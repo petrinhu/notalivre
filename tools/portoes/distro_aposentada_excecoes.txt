@@ -1,7 +1,7 @@
 # Exceções do portão distro_base.py (NL-3.0g). Formato: caminho contagem.
 # A contagem é o número de ocorrências do padrão de distro_aposentada.txt no conteúdo do arquivo (medida em 05/11/2026).
 # Histórico datado (docs, auditorias, fixtures com medição antiga) fica aqui, com contagem exata; qualquer mudança na contagem reprova.
-CLAUDE.md 2
+GODS_LAWS.md 2
 docs/adr/0006-parametros-argon2id.md 2
 docs/adr/0007-sha1-no-fedora44-desvio-de-risco.md 11
 docs/auditoria/onda-0.md 2
