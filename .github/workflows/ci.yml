@@ -46,7 +46,10 @@ jobs:
         shell: bash
     steps:
       # A imagem ubuntu26.04 não traz git: o checkout sai sem histórico e o script de instalação traz o git e o aqt.
+      # NL-3.L (achado BAIXO da revisão de segurança): nenhum passo fala com o GitHub; o token não fica no .git.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Git e aqt (script de instalação da imagem ubuntu26.04)
         run: |
@@ -230,6 +233,8 @@ jobs:
       # no script de tools/conteiner/instalar, uma só fonte de pacotes (L-51). As outras três distros seguem com um checkout só.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: matrix.distro == 'ubuntu26.04'
+        with:
+          persist-credentials: false   # NL-3.L (achado BAIXO de segurança): os passos só leem o git local
 
       - name: "Git e ferramentas de build (só ubuntu26.04: script de instalação, antes do checkout com histórico)"
         if: matrix.distro == 'ubuntu26.04'
@@ -240,6 +245,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0   # NL-2.14 (DA-2.63, R5-3): histórico inteiro para o merge-base com a onda-2 no resumo do job
+          persist-credentials: false   # NL-3.L (achado BAIXO de segurança): git diff, cat-file e archive são locais
 
       - name: Ferramentas de build (mesmo script do Dockerfile)
         if: matrix.distro != 'ubuntu26.04'
@@ -327,6 +333,27 @@ jobs:
       - name: Build (preset debug)
         id: build
         run: cmake --build --preset debug
+
+      # NL-3.L (passo 11; decisão do líder de 27/11/2026, "Ligar no CI e tornar obrigatório (Recomendado)"): o ensaio do
+      # emitir_teste.sh confere a DPS de teste no XSD de 24/11/2026 com a CLI que acabou de sair do build e com o XSD extraído
+      # no build. Fica neste job, e não no autotestes, porque a CLI só roda na imagem ubuntu26.04 (Qt, Connector/C e glibc
+      # de lá); o autotestes segue só com shell. Roda como uid 1000: o ensaio reprova dono diferente de quem o roda (caso p4,
+      # /etc/hosts), e como root o dono seria o próprio root. HOME descartável. Sem os três caminhos o ensaio reprova (código 11).
+      - name: "Ensaio do emitir_teste.sh no XSD de 24/11/2026 (NL-3.L, passo 11)"
+        if: matrix.distro == 'ubuntu26.04'
+        run: |
+          set -eu
+          cli="$NL_TMP_BASE/notalivre-build/debug/apps/cli/notalivre-cli"
+          test -x "$cli" || { echo "::error::CLI compilada ausente em $cli"; exit 1; }
+          xsd="$(sed -n 's/^NL_XSD_PRODREST_DIR:INTERNAL=//p' "$NL_TMP_BASE/notalivre-build/debug/CMakeCache.txt")"
+          test -d "$xsd" || { echo "::error::XSD do build ausente (NL_XSD_PRODREST_DIR vazio ou inexistente)"; exit 1; }
+          manifesto="$GITHUB_WORKSPACE/third_party/nfse-xsd/prodrest-20261124/SHA256SUMS"
+          test -f "$manifesto"
+          mkdir -p "$RUNNER_TEMP/home-ensaio"
+          chown 1000:1000 "$RUNNER_TEMP/home-ensaio"
+          setpriv --reuid=1000 --regid=1000 --clear-groups env HOME="$RUNNER_TEMP/home-ensaio" \
+            NL_ENSAIO_CLI="$cli" NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" \
+            bash tools/producao_restrita/emitir_teste.sh --ensaio
 
       - name: ctest (preset debug)
         id: ctest
@@ -978,12 +1005,8 @@ jobs:
       - name: "Teto de processos em todo docker run, casos e varredura (NL-3.1h, v3.11)"
         run: bash tools/portoes/autoteste_pids_em_docker_run.sh "$GITHUB_WORKSPACE"
 
-      # NL-3.0i (revisão de edc4cde): o --ensaio do emitir_teste.sh roda no CI, com HOME descartável. Depende de bash,
-      # python3 (já usado por este job em outros passos), sha256sum, stat e coreutils, todos no runner ubuntu-latest.
-      - name: "Ensaio do emitir_teste.sh, contador durável e casos de revisão (NL-3.0i)"
-        run: |
-          mkdir -p "$RUNNER_TEMP/home-ensaio"
-          HOME="$RUNNER_TEMP/home-ensaio" bash tools/producao_restrita/emitir_teste.sh --ensaio
+      # NL-3.0i (revisão de edc4cde) e NL-3.L (passo 11): o --ensaio do emitir_teste.sh não roda mais aqui. Ele precisa da CLI
+      # compilada e do XSD de 24/11/2026 do build, e roda no job nativo (ubuntu26.04), depois do build (ver o passo lá).
 
   # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
   # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.

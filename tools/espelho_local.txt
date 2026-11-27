@@ -8,7 +8,7 @@ qt-cache | bash tools/conteiner/build_local.sh qt
 qt-cache-host | bash tools/conteiner/build_local.sh qt
 xsd-cache | NL_XSD_ZIP_SHA256=1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0 bash tools/ci/zip_xsd.sh "${NL_TMP_BASE:-/var/tmp}/notalivre-xsd-cache"
 nativo (fedora45) | NL_FATIA=espelho-fedora45 bash tools/conteiner/build_local.sh fedora45 debug && NL_FATIA=espelho-fedora45 bash tools/conteiner/build_local.sh fedora45 sabotagem-sanidade
-nativo (ubuntu26.04) | NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 debug && NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 sabotagem-sanidade
+nativo (ubuntu26.04) | NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 debug && NL_FATIA=espelho-ubuntu26.04 bash tools/espelho/ensaio_xsd_nativo.sh && NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 sabotagem-sanidade
 nativo (manjaro) | NL_FATIA=espelho-manjaro bash tools/conteiner/build_local.sh manjaro debug && NL_FATIA=espelho-manjaro bash tools/conteiner/build_local.sh manjaro sabotagem-sanidade
 nativo (mint22.3) | NL_FATIA=espelho-mint22.3 bash tools/conteiner/build_local.sh mint22.3 debug && NL_FATIA=espelho-mint22.3 bash tools/conteiner/build_local.sh mint22.3 sabotagem-sanidade
 asan (fedora45) | NL_FATIA=espelho-asan-fedora45 bash tools/conteiner/build_local.sh fedora45 asan-ubsan

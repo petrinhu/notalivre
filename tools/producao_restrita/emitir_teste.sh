@@ -1929,8 +1929,8 @@ ensaio_duravel_primeira_gravacao_0600() {
 
 # NL-3.L (passo 11): a DPS do caso "aceita" tem de valer no XSD de 24/11/2026. A conferência usa o mesmo comando que a suíte e2e
 # já usa (notalivre dps validar), que precisa do programa compilado, da pasta do XSD e do manifesto de SHA-256. Esses três
-# caminhos vêm de fora (NL_ENSAIO_CLI, NL_ENSAIO_XSD_DIR, NL_ENSAIO_XSD_MANIFESTO): sem eles o ensaio avisa que não conferiu,
-# e não finge que conferiu. Códigos de saída próprios: 9 = o programa reprovou a DPS de teste (o motivo sai nos códigos de erro);
+# caminhos vêm de fora (NL_ENSAIO_CLI, NL_ENSAIO_XSD_DIR, NL_ENSAIO_XSD_MANIFESTO): sem os três o ensaio reprova (código 11) e não
+# finge que conferiu. Códigos de saída próprios: 9 = o programa reprovou a DPS de teste (o motivo sai nos códigos de erro);
 # 11 = a conferência não pôde rodar (caminho errado, programa quebrado ou falha de ambiente). O código 1 do programa é toda
 # reprovação, não só o XSD; por isso a mensagem diz "reprovou", e os códigos de erro dizem o motivo.
 XSD_ESTADO="não conferido"
@@ -1944,14 +1944,9 @@ ensaio_xsd_falhou() {
 ensaio_xsd_aceita() {
     local json="$RAIZ/aceita/dps-emitida.json" dir_xsd="${NL_ENSAIO_XSD_DIR:-}" manifesto="${NL_ENSAIO_XSD_MANIFESTO:-}"
     local cli="${NL_ENSAIO_CLI:-}" pasta="$RAIZ/xsd" rc codigos
-    if [ -z "$dir_xsd$manifesto$cli" ]; then
-        printf 'AVISO xsd_24_11: não conferido. Faltam NL_ENSAIO_CLI, NL_ENSAIO_XSD_DIR e NL_ENSAIO_XSD_MANIFESTO; sem eles a DPS de teste não foi validada contra o modelo de 24/11/2026.\n'
-        XSD_ESTADO="não conferido (faltam os caminhos do programa e do modelo)"
-        return 0
-    fi
     if [ -z "$dir_xsd" ] || [ -z "$manifesto" ] || [ -z "$cli" ]; then
-        printf 'FALHA xsd_24_11: caminhos incompletos. Informe os três juntos: NL_ENSAIO_CLI, NL_ENSAIO_XSD_DIR e NL_ENSAIO_XSD_MANIFESTO.\n'
-        ensaio_xsd_falhou 11 "falhou (caminhos incompletos)"
+        printf 'FALHA xsd_24_11: não conferi a DPS de teste no modelo de 24/11/2026. Faltam caminhos: informe os três juntos, NL_ENSAIO_CLI (programa compilado), NL_ENSAIO_XSD_DIR (pasta do XSD) e NL_ENSAIO_XSD_MANIFESTO (SHA256SUMS). Sem eles o ensaio reprova.\n'
+        ensaio_xsd_falhou 11 "falhou (faltam caminhos do programa ou do modelo)"
         return 0
     fi
     if [ ! -f "$json" ]; then
