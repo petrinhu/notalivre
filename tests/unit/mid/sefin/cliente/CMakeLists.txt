@@ -18,7 +18,7 @@ endforeach()
 # Evento sefin.resposta_sem_codigo (NL-3.L, passo 15): átomo puro, sem rede; roda também no build Flatpak.
 add_executable(tst_registro_resposta_sem_codigo tst_registro_resposta_sem_codigo.cpp)
 target_link_libraries(tst_registro_resposta_sem_codigo PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_warnings)
-foreach(nome IN ITEMS eventoTemStatusTipoETamanho tipoConteudoSaiDoConjuntoFechado tipoConteudoForaDoConjuntoViraOutro semTipoConteudoViraAusente)
+foreach(nome IN ITEMS eventoTemStatusTipoETamanho tipoConteudoSaiDoConjuntoFechado tipoConteudoForaDoConjuntoViraOutro semTipoConteudoViraAusente camposDoEventoNaoSaoProibidos)
   nl_registra_teste_qt(NAME mid.sefin.respostaSemCodigo.${nome} COMMAND tst_registro_resposta_sem_codigo ${nome})
   set_tests_properties(mid.sefin.respostaSemCodigo.${nome} PROPERTIES
                        FAIL_REGULAR_EXPRESSION "FAIL!"

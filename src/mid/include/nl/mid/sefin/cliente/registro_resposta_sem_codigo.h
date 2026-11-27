@@ -18,10 +18,10 @@ namespace nl::mid::sefin::cliente {
 
 /// Tipo de conteúdo do Content-Type num conjunto fechado: "json", "html", "xml", "texto", "ausente" (cabeçalho vazio) ou "outro".
 /// Só o tipo de mídia antes do ";" conta, sem diferença de maiúscula; nada do texto do cabeçalho passa adiante.
-std::string tipoConteudoParaLog(QByteArrayView tipoConteudo);
+std::string tipoMidiaParaLog(QByteArrayView tipoConteudo);
 
-/// Registra o 4xx sem código E: status, tipoConteudo (tipoConteudoParaLog) e bytesCorpo (inteiro, negativo vira 0).
-void registrarRespostaSemCodigo(nl::foundation::log::Log& registro, int status, QByteArrayView tipoConteudo, qsizetype bytesCorpo);
+/// Registra o 4xx sem código E: status, tipoMidia (tipoMidiaParaLog) e bytesResposta (inteiro, negativo vira 0).
+void registrarRespostaSemCodigo(nl::foundation::log::Log& registro, int status, QByteArrayView tipoConteudo, qsizetype bytesResposta);
 
 } // namespace nl::mid::sefin::cliente
 

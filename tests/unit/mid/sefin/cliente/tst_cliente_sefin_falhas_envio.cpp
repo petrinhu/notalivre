@@ -468,8 +468,8 @@ private slots:
         QVERIFY2(postsNoServidor(srv.porta(), *cred) == 1, "o servidor recebeu o POST uma vez");
         const std::string saida = m->destino.str();
         QVERIFY2(saida.find("sefin.resposta_sem_codigo") != std::string::npos, "o 403 sem código tem de ir ao log");
-        QVERIFY2(saida.find("\"tipoConteudo\":\"html\"") != std::string::npos, "o log tem de dizer que o corpo era HTML");
-        QVERIFY2(saida.find("\"bytesCorpo\":\"139\"") != std::string::npos, "o log tem de trazer o tamanho do corpo");
+        QVERIFY2(saida.find("\"tipoMidia\":\"html\"") != std::string::npos, "o log tem de dizer que o corpo era HTML");
+        QVERIFY2(saida.find("\"bytesResposta\":\"139\"") != std::string::npos, "o log tem de trazer o tamanho do corpo");
         QVERIFY2(saida.find("12345678909") == std::string::npos, "o CPF do corpo não pode aparecer no log");
         QVERIFY2(saida.find("Forbidden") == std::string::npos, "o texto do corpo não pode aparecer no log");
     }

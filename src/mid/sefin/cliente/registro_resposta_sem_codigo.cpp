@@ -12,7 +12,7 @@ namespace nl::mid::sefin::cliente {
 
 namespace fl = nl::foundation::log;
 
-std::string tipoConteudoParaLog(QByteArrayView tipoConteudo)
+std::string tipoMidiaParaLog(QByteArrayView tipoConteudo)
 {
     const qsizetype fim = tipoConteudo.indexOf(';');
     const QByteArray midia = (fim < 0 ? tipoConteudo : tipoConteudo.first(fim)).trimmed().toByteArray().toLower();
@@ -34,12 +34,12 @@ std::string tipoConteudoParaLog(QByteArrayView tipoConteudo)
     return "outro";
 }
 
-void registrarRespostaSemCodigo(fl::Log& registro, int status, QByteArrayView tipoConteudo, qsizetype bytesCorpo)
+void registrarRespostaSemCodigo(fl::Log& registro, int status, QByteArrayView tipoConteudo, qsizetype bytesResposta)
 {
     const std::vector<fl::Campo> campos{
         fl::Campo{"status", std::to_string(status)},
-        fl::Campo{"tipoConteudo", tipoConteudoParaLog(tipoConteudo)},
-        fl::Campo{"bytesCorpo", std::to_string(bytesCorpo < 0 ? 0 : bytesCorpo)},
+        fl::Campo{"tipoMidia", tipoMidiaParaLog(tipoConteudo)},
+        fl::Campo{"bytesResposta", std::to_string(bytesResposta < 0 ? 0 : bytesResposta)},
     };
     (void)registro.registrar(fl::Nivel::Erro, "sefin.resposta_sem_codigo", campos);
 }

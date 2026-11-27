@@ -28,8 +28,8 @@ std::vector<fl::DeclaracaoCampo> allowlistLogSefin()
         // NL-2.10e (DA-2.82): categoria do Qt num conjunto fechado (qt.network.ssl, qt.network.http2, qt.network.access, outro).
         fl::DeclaracaoCampo{"categoria", fl::Regra::Cru},
         // NL-3.L (passo 15): 4xx do envio sem código E. Tipo de conteúdo num conjunto fechado e tamanho do corpo; o corpo nunca entra.
-        fl::DeclaracaoCampo{"tipoConteudo", fl::Regra::Cru},
-        fl::DeclaracaoCampo{"bytesCorpo", fl::Regra::Cru},
+        fl::DeclaracaoCampo{"tipoMidia", fl::Regra::Cru},
+        fl::DeclaracaoCampo{"bytesResposta", fl::Regra::Cru},
     };
 }
 
