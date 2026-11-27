@@ -5,6 +5,8 @@
 # do ci.yml e contra os nomes do último run empurrado. Executar tudo: tools/espelho/rodar_espelho.sh.
 # Cada comando roda o próprio trabalho dentro de contêiner (L-50) e roda na trava única ~/.claude/bin/pesado (L-11, item 2).
 qt-cache | bash tools/conteiner/build_local.sh qt
+qt-cache-host | bash tools/conteiner/build_local.sh qt
+xsd-cache | NL_XSD_ZIP_SHA256=25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267 bash tools/ci/zip_xsd.sh "${NL_TMP_BASE:-/var/tmp}/notalivre-xsd-cache"
 nativo (fedora45) | NL_FATIA=espelho-fedora45 bash tools/conteiner/build_local.sh fedora45 debug && NL_FATIA=espelho-fedora45 bash tools/conteiner/build_local.sh fedora45 sabotagem-sanidade
 nativo (ubuntu26.04) | NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 debug && NL_FATIA=espelho-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 sabotagem-sanidade
 nativo (manjaro) | NL_FATIA=espelho-manjaro bash tools/conteiner/build_local.sh manjaro debug && NL_FATIA=espelho-manjaro bash tools/conteiner/build_local.sh manjaro sabotagem-sanidade
@@ -12,6 +14,10 @@ nativo (mint22.3) | NL_FATIA=espelho-mint22.3 bash tools/conteiner/build_local.s
 asan (fedora45) | NL_FATIA=espelho-asan-fedora45 bash tools/conteiner/build_local.sh fedora45 asan-ubsan
 asan (manjaro) | NL_FATIA=espelho-asan-manjaro bash tools/conteiner/build_local.sh manjaro asan-ubsan
 asan (mint22.3) | NL_FATIA=espelho-asan-mint22.3 bash tools/conteiner/build_local.sh mint22.3 asan-ubsan
+banco (fedora45) | NL_FATIA=espelho-banco-fedora45 bash tools/conteiner/build_local.sh fedora45 banco && NL_SHA=$(git rev-parse HEAD) NL_FATIA=espelho-banco-fedora45 bash tools/conteiner/integracao_banco.sh fedora45 todos
+banco (ubuntu26.04) | NL_FATIA=espelho-banco-ubuntu26.04 bash tools/conteiner/build_local.sh ubuntu26.04 banco && NL_SHA=$(git rev-parse HEAD) NL_FATIA=espelho-banco-ubuntu26.04 bash tools/conteiner/integracao_banco.sh ubuntu26.04 todos
+banco (manjaro) | NL_FATIA=espelho-banco-manjaro bash tools/conteiner/build_local.sh manjaro banco && NL_SHA=$(git rev-parse HEAD) NL_FATIA=espelho-banco-manjaro bash tools/conteiner/integracao_banco.sh manjaro todos
+banco (mint22.3) | NL_FATIA=espelho-banco-mint22.3 bash tools/conteiner/build_local.sh mint22.3 banco && NL_SHA=$(git rev-parse HEAD) NL_FATIA=espelho-banco-mint22.3 bash tools/conteiner/integracao_banco.sh mint22.3 todos
 higiene (segredos e travessão) | bash tools/espelho/job_higiene.sh
 camadas (portão A2 e autoteste) | bash tools/espelho/job_camadas.sh
 autotestes (piso dos portões, suíte Flatpak, limites de contêiner) | bash tools/espelho/job_autotestes.sh
