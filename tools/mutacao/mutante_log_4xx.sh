@@ -3,38 +3,44 @@
 # SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 # Mutantes do log do 4xx sem código E (NL-3.L, passo 15; NF-12, NF-33, L-27, L-35, L-36, L-49). Privacidade: o corpo da
 # resposta da Sefin nunca pode ir ao log. Roda no job nativo ubuntu26.04, a cada PR ou push em onda-* e main, e só quando o
-# diff toca o log do 4xx (passo `caminhos` do ci.yml; fail-secure: sem base confiável, roda).
+# diff toca o log do 4xx (passo `caminhos_log_4xx` do ci.yml; fail-secure: sem base confiável, roda).
 #
-# Sabota só uma CÓPIA extraída do SHA (git archive), fora do workspace: uma linha do fonte do evento
-# src/mid/sefin/cliente/registro_resposta_sem_codigo.cpp recebe, em cada par, um mutante. Diferente do mTLS (servidor em
-# Python, lido em tempo de execução), o alvo é C++: cada par recompila só o executável do slot (o mesmo alvo que o
-# tst_* do preset debug constrói), com -Werror do nl_warnings. Erro de compilação do mutante é PARADA, nunca morte.
+# Sabota só uma CÓPIA extraída do SHA (git archive), fora do workspace. Cada par tem o seu arquivo de fonte (ARQS): uma
+# linha desse arquivo recebe, em cada par, um mutante. Diferente do mTLS (servidor em Python, lido em tempo de execução),
+# o alvo é C++: cada par recompila só o executável do slot (o mesmo alvo que o tst_* do preset debug constrói), com -Werror
+# do nl_warnings. Erro de compilação do mutante é PARADA, nunca morte.
 #
 # Escolha dos mutantes (um por par, cada um com slot que o mata pela asserção do próprio arquivo de teste):
-#   1. MIDIA_CRUA: tipoMidiaParaLog devolve o Content-Type cru no lugar de "outro". Entra no log o cabeçalho que o servidor
-#      mandou (aqui, um CPF no Content-Type). Morre em tst_registro_resposta_sem_codigo tipoConteudoForaDoConjuntoViraOutro.
-#      Escolhido porque é o vazamento de privacidade do conjunto fechado: o conjunto existe para isso.
-#   2. CABECALHO_NO_CAMPO: o campo tipoMidia da função registrarRespostaSemCodigo grava o cabeçalho cru, em vez do valor
-#      do conjunto fechado. Fica na função, e não na chamada de cliente_sefin.cpp, de propósito: pela chamada, o valor
-#      sempre passa por registrarRespostaSemCodigo, e o mutante na função cobre os dois caminhos. Morre em
+#   1. MIDIA_CRUA (registro_resposta_sem_codigo.cpp): tipoMidiaParaLog devolve o Content-Type cru no lugar de "outro". Entra
+#      no log o cabeçalho que o servidor mandou (aqui, um CPF no Content-Type). Morre em tst_registro_resposta_sem_codigo
+#      tipoConteudoForaDoConjuntoViraOutro, pela asserção de privacidade (a que vem primeiro no slot).
+#   2. CABECALHO_NO_CAMPO (registro_resposta_sem_codigo.cpp): o campo tipoMidia da função registrarRespostaSemCodigo grava o
+#      cabeçalho cru, em vez do valor do conjunto fechado. Fica na função, e não na chamada de cliente_sefin.cpp, de propósito:
+#      pela chamada, o valor sempre passa por registrarRespostaSemCodigo, e o mutante na função cobre os dois caminhos. Morre em
 #      mid.sefin.cliente status403HtmlSemCodigoDefinitivoSemNovaTentativa (o servidor falso devolve
 #      "text/html; charset=utf-8" e o log tem de trazer "html").
-#   3. BYTES_NEGATIVOS: bytesResposta negativo deixa de virar 0. Viola a asserção real de semTipoConteudoViraAusente
-#      ("tamanho negativo tem de virar 0"). Morre em tst_registro_resposta_sem_codigo semTipoConteudoViraAusente.
+#   3. BYTES_NEGATIVOS (registro_resposta_sem_codigo.cpp): bytesResposta negativo deixa de virar 0. Viola a asserção real de
+#      semTipoConteudoViraAusente ("tamanho negativo tem de virar 0"). Morre em tst_registro_resposta_sem_codigo
+#      semTipoConteudoViraAusente.
+#   4. CORPO_NO_LOG (cliente_sefin.cpp): logo depois da chamada registrarRespostaSemCodigo, um evento a mais leva o corpo
+#      inteiro da resposta no campo tipoMidia (a regra dele é Cru, então o valor passa). Morre em
+#      mid.sefin.cliente status403HtmlSemCodigoDefinitivoSemNovaTentativa, pela asserção de privacidade do CPF do corpo.
+#      Este par insere, e não troca: o trecho antigo (a chamada) continua na linha, dentro do trecho novo. Por isso a
+#      conferência do passo d exige que o trecho antigo continue existindo exatamente uma vez.
 #
 # Ordem por par (cada passo exige o anterior):
-#   a. restaura o fonte pristino da cópia e confere o sha256;
+#   a. restaura todos os fontes da cópia ao pristino e confere o sha256 de cada um;
 #   b. recompila o alvo do par (sem sabotagem) e grava o sha256 do executável de base;
 #   c. LINHA DE BASE: o slot passa na cópia (ctest rc 0). Sem isso, PARADA: não há o que matar;
 #   d. confere a troca antes (1 ocorrência do trecho antigo, 0 do novo) e troca pelo trecho do mutante; confere depois
-#      (0 do antigo, 1 do novo) e imprime o sha256 do fonte antes e depois;
+#      (0 do antigo, 1 do novo; num par de inserção, o antigo fica 1 vez) e imprime o sha256 do fonte antes e depois;
 #   e. recompila o alvo mutado e confere que o executável mudou (sha256 diferente da base). Igual é PARADA: o mutante não
 #      entrou no binário;
 #   f. MORTE: o slot falha (rc diferente de 0) E a saída tem a asserção exata do slot, na forma do QTest
 #      "FAIL!  : Classe::slot() 'expr' returned FALSE. (mensagem)", com o nome e a mensagem do par. Falha sem essa linha
 #      (ambiente, timeout, crash, outra asserção) NÃO é morte: é PARADA. Com rc 0, é VIVO: o mutante sobreviveu;
 #   g. a linha FAIL da asserção sai na saída padrão deste script (o log do contêiner a leva);
-#   h. restaura o fonte pristino e confere o sha256 de volta.
+#   h. restaura todos os fontes ao pristino e confere o sha256 de cada um.
 #
 # Contagem: encontradas (tamanho da lista de pares), aplicadas, mortas, sobreviventes. Sai por trap EXIT em todo caminho,
 # inclusive zero. Sobrevivente ou par não aplicado sai com 1; PARADA sai com 2.
@@ -54,31 +60,38 @@ QT="${QT_PREFIXO:-${CMAKE_PREFIX_PATH:?defina QT_PREFIXO ou CMAKE_PREFIX_PATH}}"
 ZIP_CACHE="${NL_XSD_ZIP_CACHE:?defina NL_XSD_ZIP_CACHE (diretório com o ZIP do XSD)}"
 export TMPDIR="${NL_TMP_BASE:-/var/tmp}"
 
-ARQ_REL="src/mid/sefin/cliente/registro_resposta_sem_codigo.cpp"
-
-# Vetores paralelos: o índice i descreve o par i.
-MUTANTES=(MIDIA_CRUA CABECALHO_NO_CAMPO BYTES_NEGATIVOS)
-# Trecho antigo e trecho do mutante, literais (troca por Python com contagem exata, sem escape de sed).
+# Vetores paralelos: o índice i descreve o par i (mutante, arquivo de fonte, alvo, slot, classe, mensagem e trechos).
+MUTANTES=(MIDIA_CRUA CABECALHO_NO_CAMPO BYTES_NEGATIVOS CORPO_NO_LOG)
+ARQS_REL=(
+    src/mid/sefin/cliente/registro_resposta_sem_codigo.cpp
+    src/mid/sefin/cliente/registro_resposta_sem_codigo.cpp
+    src/mid/sefin/cliente/registro_resposta_sem_codigo.cpp
+    src/mid/sefin/cliente/cliente_sefin.cpp
+)
+# Trecho antigo e trecho do mutante, literais de UMA linha cada (grep -c conta linhas; troca por Python com contagem exata).
 ANTIGOS=(
     'return "outro";'
     'fl::Campo{"tipoMidia", tipoMidiaParaLog(tipoConteudo)},'
     'std::to_string(bytesResposta < 0 ? 0 : bytesResposta)'
+    'registrarRespostaSemCodigo(registro_, status, resposta->tipoConteudo, resposta->corpo.size());'
 )
 NOVOS=(
     'return midia.toStdString();'
     'fl::Campo{"tipoMidia", tipoConteudo.toByteArray().toStdString()},'
     'std::to_string(bytesResposta)'
+    'registrarRespostaSemCodigo(registro_, status, resposta->tipoConteudo, resposta->corpo.size()); (void)registro_.registrar(fl::Nivel::Erro, "sefin.resposta_sem_codigo", {fl::Campo{"tipoMidia", resposta->corpo.toStdString()}});'
 )
-ALVOS=(tst_registro_resposta_sem_codigo tst_cliente_sefin_falhas_envio tst_registro_resposta_sem_codigo)
+ALVOS=(tst_registro_resposta_sem_codigo tst_cliente_sefin_falhas_envio tst_registro_resposta_sem_codigo tst_cliente_sefin_falhas_envio)
 # Nome do teste no CTest: mid.sefin.respostaSemCodigo.<slot> (unitário) ou mid.sefin.cliente.<slot> (cliente).
-CTEST_PREFIXOS=(mid.sefin.respostaSemCodigo mid.sefin.cliente mid.sefin.respostaSemCodigo)
-SLOTS=(tipoConteudoForaDoConjuntoViraOutro status403HtmlSemCodigoDefinitivoSemNovaTentativa semTipoConteudoViraAusente)
+CTEST_PREFIXOS=(mid.sefin.respostaSemCodigo mid.sefin.cliente mid.sefin.respostaSemCodigo mid.sefin.cliente)
+SLOTS=(tipoConteudoForaDoConjuntoViraOutro status403HtmlSemCodigoDefinitivoSemNovaTentativa semTipoConteudoViraAusente status403HtmlSemCodigoDefinitivoSemNovaTentativa)
 # Classe do QTest (sai no "FAIL!  : Classe::slot()") e mensagem da QVERIFY2 do slot (sai entre parênteses no fim da linha).
-CLASSES=(TstRegistroRespostaSemCodigo TesteClienteSefinFalhasEnvio TstRegistroRespostaSemCodigo)
+CLASSES=(TstRegistroRespostaSemCodigo TesteClienteSefinFalhasEnvio TstRegistroRespostaSemCodigo TesteClienteSefinFalhasEnvio)
 MENSAGENS=(
-    "tipo fora do conjunto tem de virar outro"
+    "nada do texto do cabeçalho pode sair no log"
     "o log tem de dizer que o corpo era HTML"
     "tamanho negativo tem de virar 0"
+    "o CPF do corpo não pode aparecer no log"
 )
 
 encontradas=${#MUTANTES[@]}
@@ -130,19 +143,41 @@ if [ "$rc_cfg" -ne 0 ]; then
     exit 2
 fi
 
-ARQ="$TRAB/src/$ARQ_REL"
-PRISTINO="$TRAB/pristino.cpp"
-cp -- "$ARQ" "$PRISTINO" || { echo "PARADA: cópia pristina do fonte falhou"; exit 2; }
-sha_pristino=$(sha256sum "$ARQ" | cut -d' ' -f1)
-echo "fonte pristino: $ARQ_REL sha256=$sha_pristino"
+# Pristino e sha256 de cada fonte que algum par sabota. Tirados antes de qualquer sabotagem.
+PRISTINOS=()
+SHAS_PRISTINOS=()
+for i in "${!MUTANTES[@]}"; do
+    arq="$TRAB/src/${ARQS_REL[$i]}"
+    pristino="$TRAB/pristino-$i.cpp"
+    cp -- "$arq" "$pristino" || { echo "PARADA: cópia pristina de ${ARQS_REL[$i]} falhou"; exit 2; }
+    PRISTINOS+=("$pristino")
+    sha_p=$(sha256sum "$arq" | cut -d' ' -f1)
+    SHAS_PRISTINOS+=("$sha_p")
+    echo "fonte pristino: ${ARQS_REL[$i]} sha256=$sha_p (par $((i + 1)))"
+done
 
 # Caminho do executável de um alvo dentro da árvore de build da cópia.
 executavel_do_alvo() {
     find "$TRAB/build" -type f -name "$1" -perm -100 2>/dev/null | head -n 1
 }
 
+# Restaura TODOS os fontes da cópia ao pristino e confere o sha256 de cada um. Qualquer diferença é PARADA (exit 2).
+restaurar_todos() {
+    for i in "${!MUTANTES[@]}"; do
+        arq="$TRAB/src/${ARQS_REL[$i]}"
+        cp -- "${PRISTINOS[$i]}" "$arq" || { echo "PARADA: restauração de ${ARQS_REL[$i]} falhou"; exit 2; }
+        sha_volta=$(sha256sum "$arq" | cut -d' ' -f1)
+        if [ "$sha_volta" != "${SHAS_PRISTINOS[$i]}" ]; then
+            echo "PARADA: ${ARQS_REL[$i]} não voltou ao pristino (sha256 $sha_volta)"
+            exit 2
+        fi
+    done
+}
+
 for i in "${!MUTANTES[@]}"; do
     mutante="${MUTANTES[$i]}"
+    arq_rel="${ARQS_REL[$i]}"
+    arq="$TRAB/src/$arq_rel"
     alvo="${ALVOS[$i]}"
     slot="${SLOTS[$i]}"
     classe="${CLASSES[$i]}"
@@ -151,15 +186,10 @@ for i in "${!MUTANTES[@]}"; do
     regex_slot="^${CTEST_PREFIXOS[$i]//./[.]}[.]${slot}\$"
     # Linha FAIL exata do QTest: "FAIL!  : Classe::slot() 'expr' returned FALSE. (mensagem)". Sem a expressão no padrão.
     padrao_fail="FAIL!  : ${classe}::${slot}[(][)] .*[(]${mensagem}[)]"
-    echo "--- par $((i + 1))/$encontradas: mutante=$mutante alvo=$alvo slot=$ctest_nome"
+    echo "--- par $((i + 1))/$encontradas: mutante=$mutante arquivo=$arq_rel alvo=$alvo slot=$ctest_nome"
 
-    # a. restaura o fonte pristino antes de cada par e confere o sha256.
-    cp -- "$PRISTINO" "$ARQ" || { echo "PARADA: restauração do fonte falhou"; exit 2; }
-    sha_volta=$(sha256sum "$ARQ" | cut -d' ' -f1)
-    if [ "$sha_volta" != "$sha_pristino" ]; then
-        echo "PARADA: o fonte da cópia não voltou ao pristino (sha256 $sha_volta)"
-        exit 2
-    fi
+    # a. restaura todos os fontes ao pristino antes de cada par e confere o sha256 de cada um.
+    restaurar_todos
 
     # b. recompila o alvo sem sabotagem e grava o sha256 do executável de base.
     cmake --build "$TRAB/build" --target "$alvo" -j 4 > "$TRAB/build-base-$i.log" 2>&1
@@ -184,25 +214,31 @@ for i in "${!MUTANTES[@]}"; do
     fi
     echo "linha de base: $ctest_nome passa na cópia (rc 0)"
 
-    # d. sabotagem: só o trecho escolhido, no fonte da cópia (nunca o arquivo rastreado do workspace).
+    # d. sabotagem: só o trecho escolhido, no fonte do par, na cópia (nunca o arquivo rastreado do workspace).
     antigo="${ANTIGOS[$i]}"
     novo="${NOVOS[$i]}"
-    antes=$(grep -c -F -- "$antigo" "$ARQ" || true)
-    novo_antes=$(grep -c -F -- "$novo" "$ARQ" || true)
+    # Num par de inserção, o trecho novo contém o antigo: o antigo tem de continuar 1 vez depois da troca.
+    if [[ "$novo" == *"$antigo"* ]]; then
+        antigo_esperado_depois=1
+    else
+        antigo_esperado_depois=0
+    fi
+    antes=$(grep -c -F -- "$antigo" "$arq" || true)
+    novo_antes=$(grep -c -F -- "$novo" "$arq" || true)
     if [ "$antes" != 1 ] || [ "$novo_antes" != 0 ]; then
         echo "PARADA: o trecho antigo não existia 1 vez antes da sabotagem (antigo=$antes novo=$novo_antes)"
         exit 1
     fi
-    sha_antes=$(sha256sum "$ARQ" | cut -d' ' -f1)
-    if ! trocar_trecho "$ARQ" "$antigo" "$novo"; then
+    sha_antes=$(sha256sum "$arq" | cut -d' ' -f1)
+    if ! trocar_trecho "$arq" "$antigo" "$novo"; then
         echo "PARADA: a troca do mutante $mutante não aplicou exatamente uma vez"
         exit 1
     fi
-    antigo_depois=$(grep -c -F -- "$antigo" "$ARQ" || true)
-    novo_depois=$(grep -c -F -- "$novo" "$ARQ" || true)
-    sha_depois=$(sha256sum "$ARQ" | cut -d' ' -f1)
+    antigo_depois=$(grep -c -F -- "$antigo" "$arq" || true)
+    novo_depois=$(grep -c -F -- "$novo" "$arq" || true)
+    sha_depois=$(sha256sum "$arq" | cut -d' ' -f1)
     echo "fonte: trecho antigo antes=$antes depois=$antigo_depois; trecho do $mutante depois=$novo_depois; sha256 antes=$sha_antes depois=$sha_depois"
-    if [ "$antigo_depois" != 0 ] || [ "$novo_depois" != 1 ] || [ "$sha_antes" = "$sha_depois" ]; then
+    if [ "$antigo_depois" != "$antigo_esperado_depois" ] || [ "$novo_depois" != 1 ] || [ "$sha_antes" = "$sha_depois" ]; then
         echo "PARADA: a sabotagem não chegou ao fonte da cópia (antigo depois=$antigo_depois, novo depois=$novo_depois)"
         exit 1
     fi
@@ -239,13 +275,8 @@ for i in "${!MUTANTES[@]}"; do
         echo "mutante=$mutante slot=$ctest_nome rc=$rc veredito=MORTO (asserção do slot) sha=$SHA"
     fi
 
-    # h. restaura o fonte pristino e confere o sha256 de volta.
-    cp -- "$PRISTINO" "$ARQ" || { echo "PARADA: restauração do fonte falhou"; exit 2; }
-    sha_volta=$(sha256sum "$ARQ" | cut -d' ' -f1)
-    if [ "$sha_volta" != "$sha_pristino" ]; then
-        echo "PARADA: o fonte da cópia não voltou ao pristino (sha256 $sha_volta)"
-        exit 2
-    fi
+    # h. restaura todos os fontes ao pristino e confere o sha256 de cada um.
+    restaurar_todos
 done
 
 if [ "$mortas" -ne "$encontradas" ]; then

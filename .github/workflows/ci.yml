@@ -471,7 +471,7 @@ jobs:
             decisao=true
             echo "git diff falhou entre $base e $GITHUB_SHA: o mutante do log do 4xx roda (fail-secure)."
           else
-            casados=$(printf '%s\n' "$lista" | grep -E '^(src/mid/sefin/cliente/registro_resposta_sem_codigo|src/mid/sefin/cliente/allowlist_log_sefin[.]cpp|src/mid/sefin/cliente/cliente_sefin[.]cpp|src/foundation/log/|tests/unit/mid/sefin/cliente/tst_registro_resposta_sem_codigo[.]cpp|tests/unit/mid/sefin/cliente/tst_cliente_sefin_falhas_envio[.]cpp|tools/mutacao/mutante_log_4xx[.]sh|src/mid/include/nl/mid/sefin/cliente/allowlist_log_sefin[.]h|src/mid/include/nl/mid/sefin/cliente/registro_resposta_sem_codigo[.]h|src/mid/composicao/registro_cli[.]cpp)' || true)
+            casados=$(printf '%s\n' "$lista" | grep -E '^(src/mid/sefin/cliente/registro_resposta_sem_codigo|src/mid/sefin/cliente/allowlist_log_sefin[.]cpp|src/mid/sefin/cliente/cliente_sefin[.]cpp|src/foundation/log/|tests/unit/mid/sefin/cliente/tst_registro_resposta_sem_codigo[.]cpp|tests/unit/mid/sefin/cliente/tst_cliente_sefin_falhas_envio[.]cpp|tools/mutacao/mutante_log_4xx[.]sh|src/mid/include/nl/mid/sefin/cliente/allowlist_log_sefin[.]h|src/mid/include/nl/mid/sefin/cliente/registro_resposta_sem_codigo[.]h|src/mid/composicao/registro_cli[.]cpp|tools/servidor_falso/|src/foundation/transporte/)' || true)
             if [ -n "$casados" ]; then decisao=true; else decisao=false; fi
             echo "Caminhos do log do 4xx casados no diff de $base..$GITHUB_SHA:"
             printf '%s\n' "${casados:-(nenhum)}"

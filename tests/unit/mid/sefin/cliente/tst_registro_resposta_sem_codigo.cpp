@@ -87,8 +87,8 @@ void TstRegistroRespostaSemCodigo::tipoConteudoSaiDoConjuntoFechado()
 void TstRegistroRespostaSemCodigo::tipoConteudoForaDoConjuntoViraOutro()
 {
     const std::string saida = saidaDoEvento(400, "application/x-cpf-12345678909", 10);
-    QVERIFY2(saida.find("\"tipoMidia\":\"outro\"") != std::string::npos, "tipo fora do conjunto tem de virar outro");
     QVERIFY2(saida.find("12345678909") == std::string::npos, "nada do texto do cabeçalho pode sair no log");
+    QVERIFY2(saida.find("\"tipoMidia\":\"outro\"") != std::string::npos, "tipo fora do conjunto tem de virar outro");
 }
 
 void TstRegistroRespostaSemCodigo::semTipoConteudoViraAusente()
