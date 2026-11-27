@@ -20,6 +20,7 @@ target_sources(nl_mid PRIVATE
     ler_endereco.cpp
     ler_identificacao.cpp
     ler_ibscbs.cpp
+    ler_indicador_destinatario.cpp
     ler_inscricao.cpp
     ler_prestador.cpp
     ler_regime.cpp

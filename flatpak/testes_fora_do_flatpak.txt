@@ -134,3 +134,6 @@ sql.naoCompila.ddlNoLugarDeConsulta | teste de compilação do compilador das 4 
 sql.naoCompila.parametroQString | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
 sql.naoCompila.dadosSemModo | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
 dinheiro.naoCompila.valorDeDouble | teste de compilação do compilador das 4 distros, não do pacote | coberto no build nativo
+mid.sefin.cliente.rejeicaoE0244NaoRepeteNemConsulta | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+mid.sefin.cliente.status403HtmlSemCodigoDefinitivoSemNovaTentativa | xmlsec1 ausente no SDK KDE 6.11 e servidor falso em Python com oráculo ausente no SDK | coberto no build nativo
+servidor_falso.status403HtmlSemCodigo | servidor falso em Python com oráculo ausente no SDK (setUp usa xmlsec1) | coberto no build nativo

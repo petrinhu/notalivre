@@ -28,12 +28,12 @@ std::optional<nl::base::Erro> RegraE0246::verificar(const Dps& dps) const
     if (exterior == nullptr) {
         return std::nullopt;
     }
-    // ZZ é recusado sem checar ambGer (Obs 2 da linha Excel 284): ambGer é campo da NFS-e gerada (LEIAUTE, linha Excel 15),
+    // ZZ é recusado sem checar ambGer (Obs 2 da linha Excel 288 do Anexo I de 24/11/2026): ambGer é campo da NFS-e gerada (LEIAUTE, linha Excel 15),
     // não da DPS. O app só envia à Sefin Nacional, que emite com ambGer = 2 (RN, linha Excel 25), então a condição é sempre verdadeira (DA-1.28).
     const QString pais = exterior->cPais().texto();
     if (pais == QStringLiteral("BR") || pais == QStringLiteral("ZZ") || !catalogo_.paisExiste(exterior->cPais())) {
         return nl::base::Erro{"E0246", std::string{"Dps.infDPS.toma.end.endExt.cPais"},
-                              "cPais do tomador no exterior não existe na ISO2, é BR ou é ZZ (regra E0246, linha Excel 284)"};
+                              "cPais do tomador no exterior não existe na ISO2, é BR ou é ZZ (regra E0246, linha Excel 288)"};
     }
     return std::nullopt;
 }

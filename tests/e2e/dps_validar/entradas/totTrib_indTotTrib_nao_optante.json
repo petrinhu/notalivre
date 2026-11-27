@@ -22,6 +22,7 @@
       "regEspTrib": "0"
     }
   },
+  "indDest": "0",
   "servico": {
     "cLocPrestacao": "2611606",
     "cTribNac": "040101",
@@ -43,7 +44,6 @@
   "ibscbs": {
     "cIndOp": "000001",
     "tpOper": "1",
-    "indDest": "0",
     "cst": "000",
     "cClassTrib": "000001"
   }

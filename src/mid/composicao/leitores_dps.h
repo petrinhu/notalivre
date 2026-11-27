@@ -8,6 +8,7 @@
 
 #include <nl/back/dps/dados_dps.h>
 #include <nl/back/dps/ibscbs.h>
+#include <nl/back/dps/indicador_destinatario.h>
 #include <nl/back/dps/prestador.h>
 #include <nl/back/dps/servico.h>
 #include <nl/back/dps/tomador.h>
@@ -50,7 +51,10 @@ std::expected<nl::back::Servico, nl::base::Erro> lerServico(const QJsonObject& r
 /// Valores do serviço: vServ, tribMun e totTrib.
 std::expected<nl::back::ValoresServico, nl::base::Erro> lerValores(const QJsonObject& raiz);
 
-/// Grupo IBS/CBS é opcional na DPS: ausente vira std::nullopt.
+/// indDest da raiz da entrada (NL-3.L): opcional, padrão "0".
+std::expected<nl::back::IndicadorDestinatario, nl::base::Erro> lerIndicadorDestinatario(const QJsonObject& raiz);
+
+/// Grupo IBS/CBS é opcional na DPS: ausente vira std::nullopt. ibscbs.indDest é recusado ("entrada.campo_fora_do_lugar").
 std::expected<std::optional<nl::back::Ibscbs>, nl::base::Erro> lerIbscbs(const QJsonObject& raiz);
 
 } // namespace nl::mid::composicao::leitores

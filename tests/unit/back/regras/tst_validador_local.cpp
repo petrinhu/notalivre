@@ -100,6 +100,18 @@ std::vector<CasoDeViolacao> casosDeViolacao()
         o.cTribMun = std::string{"501"};
         casos.push_back({"E0313", o});
     }
+    {
+        // NL-3.L: município do tomador fora da tabela do IBGE (E0238, linha Excel 283 do Anexo I de 24/11/2026).
+        teste::Opcoes o;
+        o.cMunTomador = "9999999";
+        casos.push_back({"E0238", o});
+    }
+    {
+        // NL-3.L: indDest 1 sem o grupo dest (E0910, linha Excel 300 do Anexo I de 24/11/2026).
+        teste::Opcoes o;
+        o.indDest = "1";
+        casos.push_back({"E0910", o});
+    }
     return casos;
 }
 
@@ -129,6 +141,7 @@ private slots:
     void avisoSozinhoNaoBloqueia();
     void retencaoSemTomadorDisparaTresRegrasJuntas();
     void padraoDetectaCadaCodigoDoConjunto();
+    void validadorPadraoAplicaE0238EE0910();
 };
 
 void TstValidadorLocal::dpsLimpaNaoTemErroNemAviso()
@@ -192,13 +205,28 @@ void TstValidadorLocal::padraoDetectaCadaCodigoDoConjunto()
     const teste::CatalogoFalso catalogo;
     const auto validador = ValidadorLocal::padrao(catalogo);
     const auto casos = casosDeViolacao();
-    QCOMPARE(casos.size(), std::size_t{12});
+    QCOMPARE(casos.size(), std::size_t{14});
     for (const auto& caso : casos) {
         const auto dps = teste::dpsCom(caso.opcoes);
         QVERIFY2(dps.has_value(), caso.codigo);
         const auto codigos = codigosDoResultado(validador.validar(*dps));
         QVERIFY2(contem(codigos, caso.codigo), caso.codigo);
     }
+}
+
+void TstValidadorLocal::validadorPadraoAplicaE0238EE0910()
+{
+    // NL-3.L: uma DPS que viola as duas regras novas sai com os dois códigos, sem parar na primeira.
+    teste::Opcoes opcoes;
+    opcoes.cMunTomador = "9999999";
+    opcoes.indDest = "1";
+    const auto dps = teste::dpsCom(opcoes);
+    QVERIFY(dps.has_value());
+    const teste::CatalogoFalso catalogo;
+    const auto codigos = codigosDoResultado(ValidadorLocal::padrao(catalogo).validar(*dps));
+    QCOMPARE(codigos.size(), std::size_t{2});
+    QVERIFY(contem(codigos, "E0238"));
+    QVERIFY(contem(codigos, "E0910"));
 }
 
 QTEST_GUILESS_MAIN(TstValidadorLocal)

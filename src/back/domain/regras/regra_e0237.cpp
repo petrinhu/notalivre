@@ -30,7 +30,7 @@ std::optional<nl::base::Erro> RegraE0237::verificar(const Dps& dps) const
         return std::nullopt;
     }
     return nl::base::Erro{"E0237", std::string{"Dps.infDPS.toma.end.endNac"},
-                          "retenção do ISSQN pelo tomador exige o endereço nacional do tomador (regra E0237, linha Excel 277)"};
+                          "retenção do ISSQN pelo tomador exige o endereço nacional do tomador (regra E0237, linha Excel 279)"};
 }
 
 } // namespace nl::back

@@ -12,6 +12,7 @@
 
 #include <nl/back/dps/endereco.h>
 #include <nl/back/dps/ibscbs.h>
+#include <nl/back/dps/indicador_destinatario.h>
 #include <nl/back/dps/numero_dps.h>
 #include <nl/back/dps/prestador.h>
 #include <nl/back/dps/serie.h>
@@ -30,6 +31,8 @@ namespace nl::back {
 using VerAplic = TextoLimitado<1, 20, Alfabeto::tsString>;
 
 /// Campos de infDPS. tpEmit (sempre 1) e finNFSe (sempre 0) não entram aqui: são constantes de Dps (DA-1.3).
+/// indDest fica na raiz, entre toma e serv, e é obrigatório em toda DPS desde o leiaute de 24/11/2026
+/// (TCInfDPS, tiposComplexos_v1.01.xsd:845; NL-3.L). Antes ficava dentro do grupo IBSCBS.
 struct DadosDps
 {
     TipoAmbiente tpAmb;
@@ -42,6 +45,7 @@ struct DadosDps
     std::optional<Substituicao> subst;
     Prestador prest;
     std::optional<Tomador> toma;
+    IndicadorDestinatario indDest;
     Servico serv;
     ValoresServico valores;
     std::optional<Ibscbs> ibscbs;

@@ -81,6 +81,11 @@ ROTA_NFSE = "/nfse/"
 PREFIXO_NAO_IMPLEMENTADO = ("/DFe/",)
 
 
+# NL-3.L: página da recusa 403 da porta de entrada (status403_html). O CPF prova que o corpo nunca vai ao log do cliente.
+PAGINA_403 = (b"<!DOCTYPE html><html><head><title>403 Forbidden</title></head>"
+              b"<body><h1>Forbidden</h1><p>acesso negado ao CPF 12345678909</p></body></html>")
+
+
 def chave_de_teste(id_dps):
     """INFERÊNCIA: 50 dígitos derivados do Id da DPS. Não é o layout oficial da chave de acesso."""
     digest = hashlib.sha256(id_dps.encode("ascii")).hexdigest()
@@ -286,6 +291,9 @@ class ManipuladorApi(http.server.BaseHTTPRequestHandler):
             return self._json(504, {"Codigo": "TIMEOUT", "Descricao": "falha roteirizada"})
         if falha == "conflito409":
             return self._json(409, {"Codigo": "DPS_DUPLICADA", "Descricao": "falha roteirizada"})
+        if falha == "status403_html":
+            # NL-3.L: 403 da porta de entrada, em HTML e sem código E; o corpo traz um CPF para provar que ele não vai ao log.
+            return self._corpo_bruto(403, "text/html; charset=utf-8", PAGINA_403)
         if falha is not None and falha.startswith("rejeicao:"):
             # NL-2.8: código E da recusa, e um texto livre que traz um CPF, para provar que o cliente não o leva ao log.
             codigo = falha.split(":", 1)[1]

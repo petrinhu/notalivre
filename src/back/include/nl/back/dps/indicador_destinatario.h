@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// A respeito do destinatário dos serviços (indDest), obrigatório quando o grupo IBS/CBS existe. (NL-1.4). Fonte: tiposSimples_v1.01.xsd:1758-1768 (TSRTCIndDest). Regra pura: sem I/O.
+// A respeito do destinatário dos serviços (indDest), obrigatório em toda DPS, na raiz de infDPS (NL-1.4; posição do leiaute de
+// 24/11/2026, NL-3.L). Fonte: tiposSimples_v1.01.xsd:1793-1806 (TSRTCIndDest). Regra pura: sem I/O.
 
 #ifndef NL_BACK_DPS_INDICADOR_DESTINATARIO_H
 #define NL_BACK_DPS_INDICADOR_DESTINATARIO_H
@@ -13,7 +14,8 @@
 
 namespace nl::back {
 
-/// A respeito do destinatário dos serviços (indDest), obrigatório quando o grupo IBS/CBS existe.
+/// A respeito do destinatário dos serviços (indDest), obrigatório em toda DPS. O valor 1 exige o grupo dest (E0910),
+/// que o app ainda não tem: a regra local E0910 recusa 1 (NL-3.L). O tipo aceita os dois valores do XSD.
 /// Só se constrói por IndicadorDestinatario::de, que aceita somente os valores do XSD. O construtor é privado.
 class IndicadorDestinatario
 {

@@ -15,6 +15,7 @@ target_sources(nl_mid PRIVATE
     cliente/cliente_sefin.cpp
     cliente/falhas_do_envio.cpp
     cliente/registro_transporte.cpp
+    cliente/registro_resposta_sem_codigo.cpp
     cliente/comparador_infdps_c14n.cpp
     cliente/allowlist_log_sefin.cpp
     assinatura/assinador_dps_sefin.cpp)

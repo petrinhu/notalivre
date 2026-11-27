@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Regra E0583 (NL-1.5): MEI (opSimpNac 2) não admite retenção do ISSQN: tpRetISSQN tem que ser 1. Linha Excel 513 da aba RN DPS_NFS-e 1.01 do Anexo I de 20/10/2026.
+// Regra E0583 (NL-1.5): MEI (opSimpNac 2) não admite retenção do ISSQN: tpRetISSQN tem que ser 1. Linha Excel 550 da aba RN DPS_NFS-e 1.01 do Anexo I de 24/11/2026 (era 513 no de 20/10).
 #ifndef NL_BACK_REGRAS_REGRA_E0583_H
 #define NL_BACK_REGRAS_REGRA_E0583_H
 

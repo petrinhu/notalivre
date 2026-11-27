@@ -82,6 +82,9 @@ struct Opcoes
     std::string cnpjTomador = "11444777000161";
     TipoTomador tomador = TipoTomador::cnpjComEndereco;
     std::string cPais = "US";
+    /// NL-3.L: cMun do endereço nacional do tomador (E0238) e indDest da raiz de infDPS (E0910).
+    std::string cMunTomador = "4305108";
+    std::string indDest = "0";
     /// NL-2.10j (J1): forma do totTrib e os valores de cada forma (centavos para vTotTrib; texto com ponto para os percentuais).
     FormaTotTrib totTrib = FormaTotTrib::padrao;
     std::int64_t vTotTribFedCentavos = 0;
@@ -136,10 +139,10 @@ inline std::optional<nl::back::Prestador> prestadorCom(const Opcoes& o)
     return Prestador::montar(Inscricao{*cnpj}, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, *regime);
 }
 
-inline std::optional<nl::back::Endereco> enderecoNacional()
+inline std::optional<nl::back::Endereco> enderecoNacional(const std::string& codigoMunicipio = "4305108")
 {
     using namespace nl::back;
-    const auto cMun = valor(CodigoMunicipio::de(u"4305108"));
+    const auto cMun = valor(CodigoMunicipio::de(QString::fromStdString(codigoMunicipio)));
     const auto cep = valor(Cep::de(u"95010000"));
     const auto xLgr = valor(Logradouro::de(u"Rua das Flores", "xLgr"));
     const auto nro = valor(NumeroEndereco::de(u"100", "nro"));
@@ -204,7 +207,7 @@ inline std::optional<nl::back::Endereco> enderecoDoTomador(const Opcoes& o)
     case TipoTomador::cnpjComEndereco:
     case TipoTomador::cpfComEndereco:
     case TipoTomador::nifComEndereco:
-        return enderecoNacional();
+        return enderecoNacional(o.cMunTomador);
     case TipoTomador::exteriorComPais:
         return enderecoExterior(o.cPais);
     case TipoTomador::cnpjSemEndereco:
@@ -321,8 +324,7 @@ inline std::optional<std::optional<nl::back::Ibscbs>> ibscbsCom(const Opcoes& o)
     }
     const auto cst = valor(CodigoSituacaoTributaria::de(u"000"));
     const auto cClassTrib = valor(CodigoClassificacaoTributaria::de(u"000001"));
-    const auto indDest = valor(IndicadorDestinatario::de(u"0"));
-    if (!cst || !cClassTrib || !indDest) {
+    if (!cst || !cClassTrib) {
         return std::nullopt;
     }
     std::optional<TipoOperacao> tpOper;
@@ -333,7 +335,7 @@ inline std::optional<std::optional<nl::back::Ibscbs>> ibscbsCom(const Opcoes& o)
         }
     }
     const auto trib = TributacaoIbscbs::montar(*cst, *cClassTrib);
-    const auto ibs = valor(Ibscbs::montar(std::nullopt, tpOper, std::nullopt, *indDest, trib));
+    const auto ibs = valor(Ibscbs::montar(std::nullopt, tpOper, std::nullopt, trib));
     if (!ibs) {
         return std::nullopt;
     }
@@ -358,8 +360,9 @@ inline std::optional<nl::back::DadosDps> dadosCom(const Opcoes& o)
     const auto toma = tomadorCom(o);
     const auto tributacao = tributacaoCom(o);
     const auto ibs = ibscbsCom(o);
+    const auto indDest = valor(IndicadorDestinatario::de(QString::fromStdString(o.indDest)));
     if (!tpAmb || !verAplic || !serie || !nDps || !cLocEmi || !cLocPrestacao || !cTribNac || !xDescServ || !vServ || !prest
-        || !toma || !tributacao || !ibs) {
+        || !toma || !tributacao || !ibs || !indDest) {
         return std::nullopt;
     }
     std::optional<CodigoTribMunicipal> cTribMun;
@@ -383,6 +386,7 @@ inline std::optional<nl::back::DadosDps> dadosCom(const Opcoes& o)
         .subst = std::nullopt,
         .prest = *prest,
         .toma = *toma,
+        .indDest = *indDest,
         .serv = servico,
         .valores = valores,
         .ibscbs = *ibs,

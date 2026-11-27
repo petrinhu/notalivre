@@ -233,6 +233,29 @@ private slots:
         QVERIFY2(sequencia(m->destino.str()) == esperado, "E0014 consulta e não repete o POST");
     }
 
+    void rejeicaoE0244NaoRepeteNemConsulta()
+    {
+        // NL-3.L (ponto 5 ratificado, rejeição ativa): 400 com E0244 é Rejeitada com a mensagem própria do catálogo, sem
+        // nova tentativa e sem consulta: um POST e nenhum GET.
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse rejeicao:E0244")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        auto m = montar(srv.porta(), *cred);
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "E0244 não pode emitir");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Rejeitada, "E0244 é recusa definitiva com código");
+        QCOMPARE(QString::fromStdString(resultado.error().codigoE), QStringLiteral("E0244"));
+        QVERIFY2(mc::CatalogoErrosSefin::conhece("E0244"), "E0244 tem de estar no catálogo");
+        QCOMPARE(QString::fromStdString(resultado.error().mensagem),
+                 QString::fromUtf8(mc::CatalogoErrosSefin::mensagem("E0244").data()));
+        const std::vector<std::string> esperado{"POST:400"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "E0244 não repete o POST nem consulta");
+        QVERIFY2(postsNoServidor(srv.porta(), *cred) == 1, "o servidor recebeu o POST uma vez");
+    }
+
     void observadorRecebeCadaRespostaDaEmissao()
     {
         // NL-2.10c (DA-2.66, passo 1): o observador vê cada resposta HTTP da emissão, com método, modelo da rota (sem o Id),

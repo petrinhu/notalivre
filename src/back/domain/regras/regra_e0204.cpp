@@ -34,7 +34,7 @@ std::optional<nl::base::Erro> RegraE0204::verificar(const Dps& dps) const
         }
     }
     return nl::base::Erro{"E0204", std::string{"Dps.infDPS.toma"},
-                          "retenção do ISSQN pelo tomador exige o tomador identificado por CNPJ ou CPF (regra E0204, linha Excel 258)"};
+                          "retenção do ISSQN pelo tomador exige o tomador identificado por CNPJ ou CPF (regra E0204, linha Excel 260)"};
 }
 
 } // namespace nl::back

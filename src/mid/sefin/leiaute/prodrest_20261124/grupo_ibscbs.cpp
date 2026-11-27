@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Grupo IBSCBS do TCDPS (infDPS/IBSCBS, NL-1.6b): cIndOp, tpOper, gRefNFSe, indDest e valores/trib.
+// Grupo IBSCBS do TCDPS (infDPS/IBSCBS, NL-1.6b): cIndOp, tpOper, gRefNFSe e valores/trib. indDest saiu do grupo no leiaute de
+// 24/11/2026 e vai na raiz de infDPS (codec_dps.cpp, NL-3.L).
 #include "codigos.h"
 #include "grupos.h"
 
@@ -28,7 +29,6 @@ void escreveIbscbs(QXmlStreamWriter& w, const nb::Ibscbs& ibscbs)
         }
         w.writeEndElement();
     }
-    w.writeTextElement(QStringLiteral("indDest"), codigos::indDestinatario(ibscbs.indDest().valor()));
     w.writeStartElement(QStringLiteral("valores"));
     w.writeStartElement(QStringLiteral("trib"));
     w.writeTextElement(QStringLiteral("CST"), ibscbs.trib().cst().texto());

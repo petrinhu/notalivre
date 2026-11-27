@@ -124,7 +124,8 @@ inline std::optional<nb::Endereco> enderecoExterior()
                                 std::nullopt, *bairro);
 }
 
-/// Dados de um MEI (opSimpNac 2), prestador com CNPJ informado e serviço com a descrição dada. Sem tomador e sem IBS/CBS.
+/// Dados de um MEI (opSimpNac 2), prestador com CNPJ informado e serviço com a descrição dada. Sem tomador e sem IBS/CBS;
+/// indDest 0 na raiz de infDPS (leiaute de 24/11/2026, NL-3.L).
 inline std::optional<nb::DadosDps> dadosMei(const QString& cnpj, const QString& xDescServ)
 {
     const auto tpAmb = ok(nb::TipoAmbiente::de(u"2"));
@@ -142,8 +143,9 @@ inline std::optional<nb::DadosDps> dadosMei(const QString& cnpj, const QString& 
     const auto issqn = ok(nb::TribIssqn::de(u"1"));
     const auto retencao = ok(nb::RetencaoIssqn::de(u"1"));
     const auto indTot = ok(nb::IndicadorTotalTributos::de(u"0"));
+    const auto indDest = ok(nb::IndicadorDestinatario::de(u"0"));
     if (!tpAmb || !verAplic || !serie || !nDps || !cLocEmi || !cnpjPrest || !opSimpNac || !regEspTrib || !cLocPrestacao || !cTribNac
-        || !descricao || !vServ || !issqn || !retencao || !indTot) {
+        || !descricao || !vServ || !issqn || !retencao || !indTot || !indDest) {
         return std::nullopt;
     }
     const auto regime = ok(nb::RegimeTributacao::montar(*opSimpNac, std::nullopt, *regEspTrib));
@@ -162,6 +164,7 @@ inline std::optional<nb::DadosDps> dadosMei(const QString& cnpj, const QString& 
         .subst = std::nullopt,
         .prest = nb::Prestador::montar(nb::Inscricao{*cnpjPrest}, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, *regime),
         .toma = std::nullopt,
+        .indDest = *indDest,
         .serv = nb::Servico::montar(*cLocPrestacao, *cTribNac, std::nullopt, *descricao, std::nullopt),
         .valores = nb::ValoresServico::montar(*vServ, nb::Tributacao::montar(*municipal, nb::TotalTributos{*indTot})),
         .ibscbs = std::nullopt,
@@ -198,20 +201,19 @@ inline std::optional<nb::DadosDps> dadosSimplesIbsCbs()
     const auto vServ = ok(nb::Valor::de(10000));
     const auto indOp = ok(nb::CodigoIndicadorOperacao::de(u"000001"));
     const auto tpOper = ok(nb::TipoOperacao::de(u"1"));
-    const auto indDest = ok(nb::IndicadorDestinatario::de(u"0"));
     const auto cst = ok(nb::CodigoSituacaoTributaria::de(u"000"));
     const auto cClassTrib = ok(nb::CodigoClassificacaoTributaria::de(u"000001"));
     const auto im = ok(nb::InscricaoMunicipal::de(u"123456", "IM"));
     const auto xNome = ok(nb::NomeRazaoSocial::de(u"Empresa Simples Teste", "xNome"));
     const auto endereco = enderecoNacional(QStringLiteral("01001-000"));
     if (!dados || !opSimpNac || !regApTribSN || !regEspTrib || !issqn || !retencao || !aliquota || !cNbs || !zero || !vServ || !indOp
-        || !tpOper || !indDest || !cst || !cClassTrib || !im || !xNome || !endereco) {
+        || !tpOper || !cst || !cClassTrib || !im || !xNome || !endereco) {
         return std::nullopt;
     }
     const auto regime = ok(nb::RegimeTributacao::montar(*opSimpNac, *regApTribSN, *regEspTrib));
     const auto municipal = ok(nb::TributacaoMunicipal::montar(*issqn, *retencao, *aliquota));
     const auto trib = nb::TributacaoIbscbs::montar(*cst, *cClassTrib);
-    const auto ibs = ok(nb::Ibscbs::montar(*indOp, *tpOper, std::nullopt, *indDest, trib));
+    const auto ibs = ok(nb::Ibscbs::montar(*indOp, *tpOper, std::nullopt, trib));
     const auto monetarios = nb::TributosMonetarios::montar(*zero, *zero, *zero);
     if (!regime || !municipal || !ibs) {
         return std::nullopt;
@@ -328,7 +330,8 @@ inline std::optional<nb::Dps> dpsCepComZeroAEsquerda()
 }
 
 /// Caso com todos os grupos opcionais que o leiaute da v1 usa: substituição, tomador com NIF, endereço no exterior,
-/// telefone e e-mail, IM e xNome do prestador, endereço, cNBS, IBS/CBS com gRefNFSe e tributos percentuais.
+/// telefone e e-mail, IM e xNome do prestador, endereço, cNBS, IBS/CBS com gRefNFSe e tributos percentuais. indDest fica 0:
+/// desde a NL-3.L o 1 sem o grupo dest é recusado pela regra local E0910, e o app ainda não tem o grupo dest.
 inline std::optional<nb::Dps> dpsCompletaComOpcionais()
 {
     auto dados = dadosSimplesIbsCbs();
@@ -343,9 +346,8 @@ inline std::optional<nb::Dps> dpsCompletaComOpcionais()
     const auto percentual = ok(nb::PercentualTributo::de(u"1.00"));
     const auto chaveRef = ok(nb::ChaveNfse::de(u"123456" u"12ABC34501DE35" u"123456789012345678901234567890"));
     const auto tpOperRef = ok(nb::TipoOperacao::de(u"2"));
-    const auto indDestRef = ok(nb::IndicadorDestinatario::de(u"1"));
     if (!dados || !chaveSubstituida || !cMotivo || !xMotivo || !nif || !xNomeToma || !enderecoToma || !emailToma
-        || !foneTomaNif || !percentual || !chaveRef || !tpOperRef || !indDestRef || !dados->ibscbs) {
+        || !foneTomaNif || !percentual || !chaveRef || !tpOperRef || !dados->ibscbs) {
         return std::nullopt;
     }
     const auto substituicao = nb::Substituicao::montar(*chaveSubstituida, *cMotivo, *xMotivo);
@@ -353,7 +355,7 @@ inline std::optional<nb::Dps> dpsCompletaComOpcionais()
     if (!referencias) {
         return std::nullopt;
     }
-    const auto ibs = ok(nb::Ibscbs::montar(dados->ibscbs->cIndOp(), *tpOperRef, *referencias, *indDestRef, dados->ibscbs->trib()));
+    const auto ibs = ok(nb::Ibscbs::montar(dados->ibscbs->cIndOp(), *tpOperRef, *referencias, dados->ibscbs->trib()));
     if (!ibs) {
         return std::nullopt;
     }

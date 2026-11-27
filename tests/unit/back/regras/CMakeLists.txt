@@ -15,6 +15,10 @@ add_executable(tst_regra_e0237 tst_regra_e0237.cpp)
 target_link_libraries(tst_regra_e0237 PRIVATE Qt6::Test nl_back nl_warnings)
 nl_registra_teste_qt(NAME tst_regra_e0237 COMMAND tst_regra_e0237)
 
+add_executable(tst_regra_e0238 tst_regra_e0238.cpp)
+target_link_libraries(tst_regra_e0238 PRIVATE Qt6::Test nl_back nl_warnings)
+nl_registra_teste_qt(NAME tst_regra_e0238 COMMAND tst_regra_e0238)
+
 add_executable(tst_regra_e0241 tst_regra_e0241.cpp)
 target_link_libraries(tst_regra_e0241 PRIVATE Qt6::Test nl_back nl_warnings)
 nl_registra_teste_qt(NAME tst_regra_e0241 COMMAND tst_regra_e0241)
@@ -54,6 +58,10 @@ nl_registra_teste_qt(NAME tst_regra_e0850 COMMAND tst_regra_e0850)
 add_executable(tst_regra_e0903 tst_regra_e0903.cpp)
 target_link_libraries(tst_regra_e0903 PRIVATE Qt6::Test nl_back nl_warnings)
 nl_registra_teste_qt(NAME tst_regra_e0903 COMMAND tst_regra_e0903)
+
+add_executable(tst_regra_e0910 tst_regra_e0910.cpp)
+target_link_libraries(tst_regra_e0910 PRIVATE Qt6::Test nl_back nl_warnings)
+nl_registra_teste_qt(NAME tst_regra_e0910 COMMAND tst_regra_e0910)
 
 add_executable(tst_aviso_d1 tst_aviso_d1.cpp)
 target_link_libraries(tst_aviso_d1 PRIVATE Qt6::Test nl_back nl_warnings)

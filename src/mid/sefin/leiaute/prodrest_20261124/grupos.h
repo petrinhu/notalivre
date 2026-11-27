@@ -35,7 +35,7 @@ void escreveServico(QXmlStreamWriter& w, const nl::back::Servico& servico);
 /// valores (TCInfoValores): vServPrest e trib (tribMun e totTrib).
 void escreveValores(QXmlStreamWriter& w, const nl::back::ValoresServico& valores);
 
-/// IBSCBS (TCRTCInfoIBSCBS): cIndOp, tpOper, gRefNFSe, indDest e valores/trib (CST e cClassTrib).
+/// IBSCBS (TCRTCInfoIBSCBS): cIndOp, tpOper, gRefNFSe e valores/trib (CST e cClassTrib). indDest fica na raiz (NL-3.L).
 void escreveIbscbs(QXmlStreamWriter& w, const nl::back::Ibscbs& ibscbs);
 
 } // namespace nl::mid::sefin::prodrest_20261124::grupos

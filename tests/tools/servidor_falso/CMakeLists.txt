@@ -51,6 +51,7 @@ foreach(nome IN ITEMS
     rotasDeEventoEDfeRespondem501
     verificacaoPadraoSemLax
     rejeicaoRoteirizadaDevolveCodigoE
+    status403HtmlSemCodigo
     corpoTruncadoFechaNoMeio
     ecoAcceptEncodingDaFalha
     contentEncodingGzipDaFalha

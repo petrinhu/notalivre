@@ -8,13 +8,14 @@ corpo_truncado (GET responde 200 com Content-Length e fecha a conexão no meio d
 devolve no corpo o Accept-Encoding recebido) e content_encoding_gzip (GET responde 200 com Content-Encoding gzip).
 NFS-e defeituosa no sucesso do POST /nfse (NL-2.8, DA-2.39): nfse_base64_invalido (caractere fora do Base64),
 nfse_gzip_invalido (Base64 válido de um conteúdo que não é gzip) e nfse_acima_do_teto (gzip válido, acima do teto).
+status403_html (NL-3.L): POST /nfse responde 403 com uma página HTML sem código E, como a porta de entrada da Sefin.
 """
 
 import re
 
 FALHAS = ("erro5xx", "timeout", "conexao_cortada_apos_aceite", "conflito409", "corpo_truncado",
           "eco_accept_encoding", "content_encoding_gzip", "redireciona", "corpo_sem_tamanho",
-          "nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto", "post_sem_chave", "status202", "redireciona_post", "post_ce_gzip", "consulta_404_outro", "consulta_200_sem_chave", "consulta_200_nao_objeto", "consulta_404_sem_codigo", "nfse_200_nao_objeto", "nfse_base64_caractere_invalido", "nfse_gzip_dois_membros", "nfse_base64_igual_no_meio", "conflito409_gravado", "corte_rst_apos_leitura", "corte_rst_apos_gravacao")
+          "nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto", "post_sem_chave", "status202", "redireciona_post", "post_ce_gzip", "consulta_404_outro", "consulta_200_sem_chave", "consulta_200_nao_objeto", "consulta_404_sem_codigo", "nfse_200_nao_objeto", "nfse_base64_caractere_invalido", "nfse_gzip_dois_membros", "nfse_base64_igual_no_meio", "conflito409_gravado", "corte_rst_apos_leitura", "corte_rst_apos_gravacao", "status403_html")
 SO_GET = ("corpo_truncado", "eco_accept_encoding", "content_encoding_gzip", "redireciona", "corpo_sem_tamanho", "consulta_404_outro", "consulta_200_sem_chave", "consulta_200_nao_objeto", "consulta_404_sem_codigo", "nfse_200_nao_objeto")
 SO_POST_NFSE = ("nfse_base64_invalido", "nfse_gzip_invalido", "nfse_acima_do_teto", "nfse_base64_caractere_invalido", "nfse_gzip_dois_membros", "nfse_base64_igual_no_meio")  # sucesso do POST com NFS-e defeituosa
 
@@ -42,6 +43,8 @@ class Roteiro:
             raise ValueError("corte_rst_apos_leitura só vale para POST /nfse")
         if falha == "corte_rst_apos_gravacao" and (metodo, caminho) != ("POST", "/nfse"):
             raise ValueError("corte_rst_apos_gravacao só vale para POST /nfse")
+        if falha == "status403_html" and (metodo, caminho) != ("POST", "/nfse"):
+            raise ValueError("status403_html só vale para POST /nfse")
         if falha == "conexao_cortada_apos_aceite" and (metodo, caminho) != ("POST", "/nfse"):
             raise ValueError("conexao_cortada_apos_aceite só vale para POST /nfse")
         if falha in SO_GET and metodo != "GET":

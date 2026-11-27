@@ -8,6 +8,7 @@
 #include "limites_leiaute.h"
 
 #include <nl/back/dps/dps.h>
+#include <nl/back/dps/indicador_destinatario.h>
 #include <nl/back/dps/substituicao.h>
 
 #include <QDate>
@@ -47,6 +48,13 @@ void escreveSubstituicao(QXmlStreamWriter& w, const nb::Substituicao& substituic
     w.writeEndElement();
 }
 
+/// indDest (TSRTCIndDest) na raiz de infDPS, entre toma e serv, em toda DPS (leiaute de 24/11/2026,
+/// tiposComplexos_v1.01.xsd:845; NL-3.L). Sem tomador, vem logo depois de prest.
+void escreveIndicadorDestinatario(QXmlStreamWriter& w, const nb::IndicadorDestinatario& indDest)
+{
+    w.writeTextElement(QStringLiteral("indDest"), codigos::indDestinatario(indDest.valor()));
+}
+
 /// infDPS (TCInfDPS), na ordem da xs:sequence do XSD. tpEmit e finNFSe vêm das constantes da Dps (DA-1.3).
 void escreveInfDps(QXmlStreamWriter& w, const nb::Dps& dps)
 {
@@ -69,6 +77,7 @@ void escreveInfDps(QXmlStreamWriter& w, const nb::Dps& dps)
     if (dados.toma) {
         grupos::escreveTomador(w, *dados.toma);
     }
+    escreveIndicadorDestinatario(w, dados.indDest);
     grupos::escreveServico(w, dados.serv);
     grupos::escreveValores(w, dados.valores);
     if (dados.ibscbs) {

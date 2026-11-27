@@ -23,7 +23,7 @@ std::optional<nl::base::Erro> RegraE0302::verificar(const Dps& dps) const
         return std::nullopt;
     }
     return nl::base::Erro{"E0302", std::string{"Dps.infDPS.serv.locPrest.cLocPrestacao"},
-                          "cLocPrestacao não existe na tabela de municípios do IBGE (regra E0302, linha Excel 333)"};
+                          "cLocPrestacao não existe na tabela de municípios do IBGE (regra E0302, linha Excel 365)"};
 }
 
 } // namespace nl::back

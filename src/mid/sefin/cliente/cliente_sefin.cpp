@@ -19,6 +19,7 @@
 #include <nl/foundation/gzip/gzip.h>
 #include <nl/foundation/log/log.h>
 #include <nl/foundation/transporte/transporte_https.h>
+#include <nl/mid/sefin/cliente/registro_resposta_sem_codigo.h>
 #include <nl/mid/sefin/cliente/registro_transporte.h>
 
 #include <QByteArray>
@@ -405,6 +406,8 @@ std::expected<bk::NotaSefin, bk::FalhaSefin> ClienteSefin::emitir(const bk::DpsA
             if (!codigo.empty()) {
                 return std::unexpected(falha(bk::MotivoFalhaSefin::Rejeitada, codigo));
             }
+            // NL-3.L (passo 15): sem código E, o log leva só o tipo de conteúdo e o tamanho do corpo, nunca o texto.
+            registrarRespostaSemCodigo(registro_, status, resposta->tipoConteudo, resposta->corpo.size());
             return std::unexpected(falha(bk::MotivoFalhaSefin::Definitiva, {}, bk::CausaFalhaSefin::RespostaSemCodigoValido));
         }
 
