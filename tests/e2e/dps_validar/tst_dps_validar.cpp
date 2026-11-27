@@ -338,7 +338,7 @@ QByteArray xmlValidadoDe(const QString& nome)
     const QString saida = caminhoSaida(nome);
     QFile::remove(saida);
     const Execucao execucao = executarCli(argumentosValidar(caminhoEntrada(nome), saida));
-    if (!execucao.terminou || execucao.codigo != 0) {
+    if (!(execucao.terminou && execucao.codigo == 0)) {
         qWarning("rc=%d stderr=%s", execucao.codigo, qPrintable(execucao.erro));
         return {};
     }
