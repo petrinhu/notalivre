@@ -16,9 +16,9 @@ endif()
 # URL do ZIP: o padrão é o gov.br; o teste de hash (tests/unit/foundation/xml/hash_zip) aponta file:// para ficar sem rede.
 set(NL_XSD_URL "https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas-xsd-producao-restrita-20261124.zip" CACHE STRING "URL do ZIP do XSD de Produção Restrita")
 set(_nl_xsd_url "${NL_XSD_URL}")
-# Espelho (decisão do líder, 27/11/2026, "Release do GitHub como espelho (Recomendado)"): tentado só se o gov.br falhar no
+# Espelho, branch de dados espelho-xsd fixada pelo commit 4e2ced7 (decisão do líder, 27/11/2026, "Branch de dados, sem release (Recomendado)"): tentado só se o gov.br falhar no
 # transporte; o SHA-256 é conferido nos dois. Vazio desliga o espelho.
-set(NL_XSD_ESPELHO_URL "https://github.com/petrinhu/notalivre/releases/download/espelho-xsd-prodrest-20261124/esquemas-xsd-producao-restrita-20261124.zip" CACHE STRING "Espelho do ZIP do XSD (release do próprio repositório), tentado se a URL principal falhar no transporte. Vazio desliga.")
+set(NL_XSD_ESPELHO_URL "https://raw.githubusercontent.com/petrinhu/notalivre/4e2ced77726878fbbb2af83de82854ef84189533/esquemas-xsd-producao-restrita-20261124.zip" CACHE STRING "Espelho do ZIP do XSD (branch de dados espelho-xsd do próprio repositório, fixada pelo commit), tentado se a URL principal falhar no transporte. Vazio desliga.")
 set(_nl_xsd_urls "${_nl_xsd_url}")
 if(NOT NL_XSD_ESPELHO_URL STREQUAL "")
     list(APPEND _nl_xsd_urls "${NL_XSD_ESPELHO_URL}")

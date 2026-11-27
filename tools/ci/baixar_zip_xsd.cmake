@@ -4,7 +4,7 @@
 # de build. O cliente é o do CMake (file(DOWNLOAD)): o gov.br recusou o urllib do Python com 403 (run 40268530187).
 # Uso: cmake -DNL_URLS=<url1;url2> -DNL_DESTINO=<arquivo> -DNL_SHA256=<64 hex minúsculos> -P tools/ci/baixar_zip_xsd.cmake
 # NL_URLS é uma lista ordenada: a primeira é a origem (gov.br), a seguinte é o espelho (decisão do líder, 27/11/2026,
-# "Release do GitHub como espelho (Recomendado)"; run 46007980323, o gov.br recusou os runners com SSL connect error).
+# "Branch de dados, sem release (Recomendado)"; run 46007980323, o gov.br recusou os runners com SSL connect error).
 # Para cada URL: até 5 tentativas em qualquer falha de download (transporte ou HTTP). Passa à URL seguinte só se as 5
 # falharem. O download é feito sem EXPECTED_HASH: com ele, o CMake aborta na hora em resposta HTTP de erro, sem tentar
 # a seguinte. O SHA-256 é conferido depois, com file(SHA256). Divergência é fatal na hora, sem cair para o espelho.

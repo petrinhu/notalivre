@@ -23,10 +23,10 @@ env:
   NL_TMP_BASE: /var/tmp
   NL_XSD_ZIP_SHA256: 1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
   NL_XSD_ZIP_URL: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas-xsd-producao-restrita-20261124.zip
-  # Espelho do mesmo ZIP (decisão do líder, 27/11/2026, "Release do GitHub como espelho (Recomendado)"): o gov.br recusa os
+  # Espelho do mesmo ZIP, branch de dados espelho-xsd fixada pelo commit 4e2ced7 (decisão do líder, 27/11/2026, "Branch de dados, sem release (Recomendado)"): o gov.br recusa os
   # runners do GitHub (run 46007980323, SSL connect error em todas as tentativas). O download tenta primeiro NL_XSD_ZIP_URL
   # e, só se falhar no transporte, esta URL. O SHA-256 é conferido nas duas; divergência é fatal na hora.
-  NL_XSD_ZIP_ESPELHO: https://github.com/petrinhu/notalivre/releases/download/espelho-xsd-prodrest-20261124/esquemas-xsd-producao-restrita-20261124.zip
+  NL_XSD_ZIP_ESPELHO: https://raw.githubusercontent.com/petrinhu/notalivre/4e2ced77726878fbbb2af83de82854ef84189533/esquemas-xsd-producao-restrita-20261124.zip
 
 concurrency:
   group: ci-${{ github.ref }}
