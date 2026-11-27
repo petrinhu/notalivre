@@ -21,7 +21,7 @@ Schema, EXPLAIN das consultas críticas, índices, migrations versionadas (NL-3.
 
 ## AUD-DEPS Dependências e acoplamento
 Grafo de dependências entre bibliotecas e entre camadas, ciclos e acoplamento. O SBOM de NL-9.3 cobre licença e CVE, mas não o grafo. Pré-requisito: TST-T3 e TST-T7, NL-10.1 e NL-9.3.
-**Ferramentas:** dependency-cruiser ou equivalente para C++ (ex.: graficar com cmake --graphviz), revisão do grafo de dependências.
+**Ferramentas:** `cmake --graphviz` e revisão do grafo de dependências.
 
 ## AUD-FRAMEWORK Padrões Qt
 Connect com ponteiro de função tipado, QPointer em objetos de vida curta, sinais e slots, model e view, uso correto da fachada QML. Pré-requisito: TST-T3 e TST-T7, NL-10.1 e NL-8.11.
@@ -37,4 +37,4 @@ Complexidade ciclomática, god classes, código morto, duplicação (regra de tr
 
 ## Não aplicadas
 
-- **AUD-COV Cobertura de testes**: não aplicada como meta. A L-35 proíbe meta numérica de cobertura; cobertura é consequência de TDD. O 70% do TESTES T1 foi registrado como desvio em NL-P.3 do TODO.md.
+- **AUD-COV Cobertura de testes**: não aplicada como meta. A L-35 proíbe meta numérica de cobertura; cobertura é consequência de TDD. O 70% do TESTES T1 foi registrado como desvio na NF-34 (b) do `GODS_LAWS.md`.

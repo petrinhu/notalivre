@@ -210,3 +210,49 @@ Nenhum.
 ### Veredito
 
 **A Onda 0 pode fechar: SIM** para os itens 1 a 7. O item 8 (merge em `main`) é o último passo e depende de autorização explícita do líder, que ainda não foi dada. Nada foi mesclado.
+
+## Auditoria complementar dos itens de pré-voo (27/11/2026)
+
+**Objeto:** NL-P.1 a NL-P.4 (W0) e a linha NL-P.5, no HEAD `774b4ab` da branch `onda-3`. **Auditor:** internal-auditor. Leitura apenas: `git`, leitura de arquivos, `tools/portoes/sql_seguro.py` e `todo_audit.py`, com `python3 -B`. Os números de linha abaixo valem em `774b4ab`.
+
+**Veredito:** os quatro itens da W0 podem ser marcados "✅ Concluído", todos com Estado Auditado "⚠". Nenhum achado CRÍTICO. Os três IMPORTANTES ficam fora das quatro linhas da W0 (dois na NL-P.5 e um na Onda 3). Critério de "⚠": `docs/auditoria/onda-2.md:119` (COSMÉTICO ligado ao item).
+
+### Veredito item a item
+
+| Item | Veredito | Evidência |
+|---|---|---|
+| NL-P.1 | APROVA com ressalvas (⚠) | `TODO.md:3` (gerado pela skill) e `:156-157` (9 colunas); os 41 títulos `#### NL-*` das Ondas 0 a 2 têm linha, NL-3.1 e NL-3.2 em subfatias (`TODO.md:220-241`); stack C++/Qt/MySQL/MariaDB em `AUDITORIAS.md:3` e `TESTES.md:3`. COSMÉTICOS ligados: A-04, A-05, A-06, A-11 e A-12. |
+| NL-P.2 | APROVA com ressalvas (⚠) | ADRs da NL-1.9 em `ddcb2f5` (25/10); L4 respondido em 04/11 (`plano:966`, `plano:994-997`; `docs/adr/0003-envelope-e-hierarquia-de-chaves.md:3` para a P1; `docs/adr/0004-indice-cego.md:3` para a P2); Onda 3 aberta depois do merge da Onda 2 (`e9866ba`, 03/11; `9693eca` e `eea6037`, 04/11). L8 movido: `plano:72`, `:968`, `:1012`; `TODO.md:159` e `:437`. Downloads por amostra, nenhum fora das listas (NF-05): `tools/conteiner/modulo_mariadb.sh:11-12,30`; `flatpak/io.github.petrinhu.notalivre.yml:29,93`; `ci.yml:63`, `:777-778`; `build_local.sh:167`; `emitir_teste.sh:38,933`; `GODS_LAWS.md:62,69-72,75`. COSMÉTICOS ligados: A-08 e A-10. |
+| NL-P.3 | APROVA com ressalvas (⚠) | Desvios (a) e (b) em `GODS_LAWS.md:291-292`; citações conferidas no plugin, `CONTRACT.md:344` e `:356`; matriz da NF-02 (`GODS_LAWS.md:26-31`) idêntica à de `plano:82-87`; `TESTES.md:3` aponta a NF-34 (b). COSMÉTICOS ligados: A-05 e A-07. |
+| NL-P.4 | APROVA com ressalva (⚠) | `GODS_LAWS.md:293`; verbatim "Ratifico a emenda (Recomendado)" em `plano:71`, `plano:1011` e `TODO.md:161`; frase do manual hoje no plugin `CONTRACT.md:814`. `git grep QSql` vazio em `src` e `apps`. `sql_seguro: arquivos=408 s1=0 s2_ok=6/6 s3_ok=1 s4_ok=1 s5_ok=1 s6_ok=1 s7=0 s8=0 resultado=PASSA`, no CI em `ci.yml:503-513`. Um só `mysql_stmt_prepare` (`preparado.cpp:22`), alimentado só por `Consulta` ou `Ddl` (`executor.cpp:42,57,72`), nascidos de literal em `consteval` (`consulta.h:19,32,42`); cabeçalho privado (`src/foundation/sql/CMakeLists.txt:25`); migrações pelo literal embutido (`migracao_aplicacao.cpp:109,129`); par de não compilação `sql.naoCompila.consultaConcatenada` (`tests/testes_sem_saida_por_funcao.txt:490`). COSMÉTICO ligado: A-09. |
+| NL-P.5 | APROVA a linha, com A-01 e A-02 | Na W7, logo antes da NL-7.5 (`TODO.md:437-438`); as ações batem com o L8 (`plano:968`); pré-requisito da NL-7.5 (`:438`) e da NL-11.1 (`:506`). |
+
+Estrutura (`todo_audit.py`): 179 achados (0 CRÍTICO, 177 IMPORTANTES, 2 COSMÉTICOS); nas linhas W0 só aparece o CHK-07 de NL-0.3 e NL-0.4, sem defeito; o CHK-05 sobre "NL-P.2 (P1/P2/P3/P5)" é o leitor tropeçando no parêntese.
+
+### Achados e o que foi feito
+
+| ID | Severidade | Achado | Feito neste commit |
+|---|---|---|---|
+| A-01 | IMPORTANTE | Ciclo: a ação (6) da NL-P.5 é a própria NL-11.1, e a NL-11.1 depende da NL-P.5 (`TODO.md:437`, `:506`). | A ação sai da NL-P.5, com a nota de que ela é a NL-11.1. Pela resposta do líder sobre o A1 (abaixo), a NL-11.1 deixa de depender da NL-P.5: pré-requisito só NL-9.2. |
+| A-02 | IMPORTANTE | A NL-7.5 depende da NL-P.5 inteira (`TODO.md:438`), contra "L8 não trava onda" (`plano:966`). | Pré-requisito da NL-7.5: "NL-P.5 (2) e (3), só para o teste real". |
+| A-03 | IMPORTANTE | NL-3.A, NL-3.C, NL-3.K, NL-3.1q e NL-3.1t sem linha (`plano:695,709-711`). | Cinco linhas na W3, na ordem dos merges: NL-3.K (merge `d25d971`), NL-3.A (`f29f925`) e NL-3.C (`04dce78`) com "🔍 Pendente verificação"; NL-3.1q "🚫 Cancelado" (diagnóstico mergeado em `ddb980f` e retirado pela NL-3.1s, revert `e574402`, merge `2f70c49`); NL-3.1t (`da9d78d`) com "🔍 Pendente verificação". |
+| A-04 | COSMÉTICO | `TESTES.md:7` ("contêiner local primeiro") e `:21` ("espelho antes de todo push") contra a NF-04 e a NF-20. | As duas frases apontam a NF-04 e a NF-20, com o texto antigo dado como substituído. |
+| A-05 | COSMÉTICO | `AUDITORIAS.md:40` aponta o desvio do 70% na NL-P.3. | Aponta a NF-34 (b). |
+| A-06 | COSMÉTICO | `AUDITORIAS.md:24` cita o dependency-cruiser (JS/TS). | Ficam `cmake --graphviz` e a revisão do grafo. |
+| A-07 | COSMÉTICO | NF-34 (b) e `TODO.md:160` citam o 70% no presente; o T1 do plugin lido hoje (`TESTES.md:67-73`) diz só "0 falhas". | Nota de versão nas duas, como no desvio (c). |
+| A-08 | COSMÉTICO | Rastreio do L4 incompleto: P2 só na ADR-0004, P4 sem verbatim próprio, `plano:13` com L4, L8 e L11 pendentes, tabela 1.4 sem marca. | `plano:13` dá L4 e L11 como respondidos e o L8 na NL-P.5; a tabela 1.4 marca P1 a P5 com a resposta e a fonte; a 6.2 ganha as linhas da P2 (`docs/adr/0004-indice-cego.md:3`) e da P4 (sem verbatim próprio, apoiada na Fase 0). A ligação da pergunta "E-mail" à P5 fica como leitura registrada (L-07). |
+| A-09 | COSMÉTICO | `TODO.md:161` cita "Emenda do CTO, seção 1.2" sem documento. | Passa a "plano, seção 0, NL-P.4; NF-34 (c)". |
+| A-10 | COSMÉTICO | `TODO.md:159` sem a metade dos downloads e sem ponto final. | Ganha "Downloads: NF-05." |
+| A-11 | COSMÉTICO | `plano:65` pede o ponteiro do spec em cada linha; só 30 de 173 o têm. | O cabeçalho do `TODO.md` (linha 5) registra que o ponteiro para o spec é geral, pelo cabeçalho, e não por linha. |
+| A-12 | COSMÉTICO | `TODO.md:3` chama as 9 colunas de "formato canônico"; o schema atual da skill tem 10. | Passa a "formato da skill tab_pendencias na geração (9 colunas)". |
+
+### NL-P.5 depois das respostas do líder (27/11/2026, por escrito)
+
+- Ação (1), comprar o A1: cumprida. Verbatim: "eu tenho certificado! Já falei ao claude code e disse onde está no computador". A emissão de teste da Onda 2 em Produção Restrita foi feita com o A1 do líder (`plano:650`). O caminho do arquivo não entra no repositório. Com isso, a NL-11.1 deixa de depender da NL-P.5, e o pré-requisito da Onda 11 no plano diz que o A1 já existe.
+- Ação (5), consultar o INPI: retirada. Verbatim: "é app FOSS, não importa o nome, se precisar mudo depois". Registrada no plano, 6.1 (L8) e 6.2.
+- Ações (2) OAuth Google, (3) Entra e (4) contador: sem mudança, à espera da resposta do líder.
+- Ação (6): saiu pelo A-01; é a NL-11.1.
+
+### Status no TODO.md
+
+NL-P.1 a NL-P.4: "✅ Concluído", Estado Auditado "⚠". NL-P.5: "⏳ Pendente". NL-0.1 não muda (já ✅ com o marcador de não auditado, explicado em `docs/auditoria/onda-0.md:120`).

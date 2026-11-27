@@ -4,7 +4,7 @@
 >
 > Política - ferramenta ausente (agnóstica de SO): ao rodar um TST-* cuja ferramenta falta, NÃO falhar em silêncio nem instalar sozinho: detectar conforme o SO (`command -v` no Unix/WSL; `Get-Command` ou `where` no Windows), OFERECER instalar via AskUserQuestion com o comando adequado ao SO e ao gerenciador disponível (apt, dnf, brew, winget, choco, scoop), preferindo gerenciadores cross-platform (pip ou uv, cargo, npm) quando a ferramenta os suporta e, sem confirmação, deixar o item pendente com nota.
 >
-> Regra de rede e de execução (decisões do líder de 25/10/2026, ponto L7): testes rodam primeiro em contêiner local, nunca na sessão do líder (L-50), com a lista fechada de imagens do plano; um trabalho pesado por vez, com flock. Fonte completa: docs/superpowers/plans/2026-10-25-notalivre-plano.md, seção 5.
+> Regra de rede e de execução: o CI seletivo é o portão de cada fatia e o contêiner local antes do push é opcional (`GODS_LAWS.md`, NF-04); teste que abre janela nunca roda na sessão do líder (L-50), e o QML roda só offscreen; imagens e pacotes só das listas autorizadas (NF-05); um trabalho pesado por vez, com flock (NF-07). O texto de 25/10/2026 (ponto L7), em que os testes rodavam primeiro em contêiner local, foi substituído pela NF-04. Fonte completa: docs/superpowers/plans/2026-10-25-notalivre-plano.md, seção 5.
 
 ## Cobertos pelo plano (sem item próprio)
 
@@ -18,7 +18,7 @@
 - **T10 SQL injection**: NL-3.1 (consulta sem concatenação não compila) e NL-10.1 adaptado a MySQL e MariaDB.
 - **T12 Busca de CVEs**: NL-10.1 sobre o SBOM de NL-9.3.
 - **T14 Integração fim a fim**: plano, seção 5 (MySQL 8.4 e MariaDB 11.8 em contêiner e como services do CI; servidor falso; CLI ponta a ponta a partir da Onda 1).
-- **T15 Pré-CI (espelhar o CI local)**: plano, seção 4 (espelho local antes de todo push, com a mesma lista de jobs do CI).
+- **T15 Pré-CI (espelhar o CI local)**: espelho local opcional, só quando o executor quiser, com a mesma lista de jobs do CI (`GODS_LAWS.md`, NF-20). O espelho antes de todo push (plano, seção 4; N-01) foi substituído em 23/11/2026 pela NF-20.
 - **Injeção de falha, propriedade, mutação e interface offscreen**: plano, seção 5 (NL-3.7, NL-6.6, NL-1.1, NL-1.6, NL-6.5, protocolo da L-27, NL-1.8).
 
 ## Injetados na tabela (o plano não cobre)
