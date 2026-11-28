@@ -45,6 +45,8 @@ done
 printf 'project(x)\n' > "$F/CMakeLists.txt"
 printf '{}\n' > "$F/CMakePresets.json"
 printf "name: ci\n" > "$F/.github/workflows/ci.yml"
+mkdir -p "$F/tools/ci"
+printf 'x\n' > "$F/tools/ci/baixar_zip_xsd.cmake"
 for arq in portoes_estaticos.sh piso_portoes.txt lista_portoes.txt; do
     cp "$RAIZ/tools/conteiner/$arq" "$F/tools/conteiner/$arq" || { echo "ABORTA: falta $arq na árvore"; exit 1; }
 done

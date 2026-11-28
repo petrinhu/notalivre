@@ -104,6 +104,9 @@ done
 # para com "pathspec did not match" e todo caso de build reprova com rc 1, antes de qualquer portão (medido no contêiner).
 mkdir -p "$REPO/.github/workflows"
 printf 'fixture\n' > "$REPO/.github/workflows/ci.yml"
+# NL-3.M: arquivo único de tools/ci na LISTA_FONTE (evidencia_sha.sh:22); sem ele o git archive reprova todo caso.
+mkdir -p "$REPO/tools/ci"
+printf 'fixture\n' > "$REPO/tools/ci/baixar_zip_xsd.cmake"
 # NL-3.0g (CISO, 05/11/2026): o portão estático e o piso vêm do próprio commit do SHA; a fixture os leva.
 for arq in portoes_estaticos.sh piso_portoes.txt lista_portoes.txt; do cp "$RAIZ/tools/conteiner/$arq" "$REPO/tools/conteiner/$arq"; done
 git -C "$REPO" init || { echo "ABORTA: git init da fixture"; exit 1; }

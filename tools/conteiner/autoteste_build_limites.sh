@@ -41,6 +41,8 @@ for d in src apps tests third_party tools/conteiner tools/tabelas tools/servidor
 done
 printf 'project(x)\n' > "$F/CMakeLists.txt"
 printf "name: ci\n" > "$F/.github/workflows/ci.yml"
+mkdir -p "$F/tools/ci"
+printf 'x\n' > "$F/tools/ci/baixar_zip_xsd.cmake"
 printf '{}\n' > "$F/CMakePresets.json"
 git -C "$F" init -q
 git -C "$F" add -A
