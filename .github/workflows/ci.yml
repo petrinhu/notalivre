@@ -238,13 +238,36 @@ jobs:
           fi
 
 
-      - name: ZIP do XSD como artefato para o job banco (retenção de 1 dia)
+      # NL-3.M (run 46150483327, medido no artefato baixado): o path do upload tinha duas linhas com ${{ runner.temp }}
+      # (caminho do host). Só a 1ª linha virou caminho do contêiner: o artefato trouxe só __w/_temp/xsd-cache/<ZIP>, o XLSX
+      # ficou com o caminho do host (inexistente no contêiner) e if-no-files-found não viu, porque o ZIP bastou. Agora o
+      # passo abaixo confere os dois com SHA-256 e copia para uma pasta RELATIVA ao workspace; o upload só recebe essa pasta.
+      # Escolha (pedida no relatório): conferência antes do upload + pasta única + if-no-files-found, sem dois uploads.
+      - name: Artefato do XSD e do XLSX (conferidos com SHA-256 e copiados para o workspace; falha se faltar um)
+        run: |
+          set -eu
+          origem="$RUNNER_TEMP/xsd-cache"
+          destino="$GITHUB_WORKSPACE/artefato-xsd"
+          zip_nome=esquemas-xsd-producao-restrita-20261124.zip
+          rm -rf -- "$destino"
+          mkdir -p -- "$destino"
+          for f in "$zip_nome" anexo_a.xlsx; do
+              test -f "$origem/$f" || { echo "::error::$f ausente em $origem: o artefato não sai"; exit 1; }
+              cp -- "$origem/$f" "$destino/$f"
+          done
+          if ! (cd "$destino" && echo "$NL_XSD_ZIP_SHA256  $zip_nome" | sha256sum -c - && echo "$NL_TABELAS_XLSX_SHA256  anexo_a.xlsx" | sha256sum -c -); then
+              echo "::error::SHA-256 do artefato divergente (ZIP do XSD ou XLSX do anexo A)"
+              exit 1
+          fi
+          n=$(find "$destino" -mindepth 1 -maxdepth 1 -type f | wc -l)
+          test "$n" -eq 2 || { echo "::error::o artefato tem $n arquivos; esperado 2"; exit 1; }
+          echo "Artefato do xsd-cache: $n arquivos em $destino"
+
+      - name: ZIP do XSD e XLSX como artefato para o job banco (retenção de 1 dia)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: notalivre-xsd-zip
-          path: |
-            ${{ runner.temp }}/xsd-cache/esquemas-xsd-producao-restrita-20261124.zip
-            ${{ runner.temp }}/xsd-cache/anexo_a.xlsx
+          path: artefato-xsd/
           retention-days: 1
           if-no-files-found: error
 
