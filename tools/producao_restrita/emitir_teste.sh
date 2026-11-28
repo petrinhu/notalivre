@@ -1082,7 +1082,14 @@ fluxo() {
     elif [ "$RESULTADO" = incerta ]; then
         printf 'Não foi possível confirmar se a nota chegou à Sefin; avise o Claude antes de tentar de novo.\n'
     elif [ "$RESULTADO" = local ]; then
-        printf 'A emissão parou antes de chegar à Sefin (saída %s). Avise o Claude.\n' "$EMITIU_RC"
+        # NL-3.M (seção 5): a recusa local por regra mostra só os códigos (E seguido de 4 dígitos), nunca o texto nem o campo.
+        local regras_locais
+        regras_locais=$(sed -n 's/^erro \(E[0-9][0-9][0-9][0-9]\)[ :].*/\1/p' "$SAIDA_ATUAL" 2>/dev/null | paste -sd, -)
+        if [ -n "$regras_locais" ]; then
+            printf 'A emissão parou antes de chegar à Sefin, nas regras locais (códigos: %s; saída %s). Avise o Claude.\n' "$regras_locais" "$EMITIU_RC"
+        else
+            printf 'A emissão parou antes de chegar à Sefin (saída %s). Avise o Claude.\n' "$EMITIU_RC"
+        fi
     else
         printf 'A Sefin recusou; avise o Claude\n'
     fi
@@ -1928,13 +1935,15 @@ ensaio_duravel_primeira_gravacao_0600() {
 }
 
 # NL-3.L (passo 11): a DPS do caso "aceita" tem de valer no XSD de 24/11/2026. A conferência usa o mesmo comando que a suíte e2e
-# já usa (notalivre dps validar), que precisa do programa compilado, da pasta do XSD e do manifesto de SHA-256. Esses três
-# caminhos vêm de fora (NL_ENSAIO_CLI, NL_ENSAIO_XSD_DIR, NL_ENSAIO_XSD_MANIFESTO): sem os três o ensaio reprova (código 11) e não
-# finge que conferiu. Códigos de saída próprios: 9 = o programa reprovou a DPS de teste (o motivo sai nos códigos de erro);
+# já usa (notalivre dps validar), que precisa do programa compilado, da pasta do XSD, do manifesto de SHA-256 e, desde a NL-3.M
+# (passo 4), da pasta das tabelas (--tabelas). Esses quatro caminhos vêm de fora (NL_ENSAIO_CLI, NL_ENSAIO_XSD_DIR,
+# NL_ENSAIO_XSD_MANIFESTO, NL_ENSAIO_TABELAS_DIR): sem os quatro o ensaio reprova (código 11) e não finge que conferiu.
+# Códigos de saída próprios: 9 = o programa reprovou a DPS de teste (o motivo sai nos códigos de erro);
 # 11 = a conferência não pôde rodar (caminho errado, programa quebrado ou falha de ambiente). O código 1 do programa é toda
 # reprovação, não só o XSD; por isso a mensagem diz "reprovou", e os códigos de erro dizem o motivo.
 XSD_ESTADO="não conferido"
 XSD_SAIDA=""
+XSD_RODOU=""
 # Marca uma falha da conferência: conta na FALHAS, guarda o código de saída e o estado para o resumo.
 ensaio_xsd_falhou() {
     FALHAS=$(( FALHAS + 1 ))
@@ -1943,9 +1952,9 @@ ensaio_xsd_falhou() {
 }
 ensaio_xsd_aceita() {
     local json="$RAIZ/aceita/dps-emitida.json" dir_xsd="${NL_ENSAIO_XSD_DIR:-}" manifesto="${NL_ENSAIO_XSD_MANIFESTO:-}"
-    local cli="${NL_ENSAIO_CLI:-}" pasta="$RAIZ/xsd" rc codigos
-    if [ -z "$dir_xsd" ] || [ -z "$manifesto" ] || [ -z "$cli" ]; then
-        printf 'FALHA xsd_24_11: não conferi a DPS de teste no modelo de 24/11/2026. Faltam caminhos: informe os três juntos, NL_ENSAIO_CLI (programa compilado), NL_ENSAIO_XSD_DIR (pasta do XSD) e NL_ENSAIO_XSD_MANIFESTO (SHA256SUMS). Sem eles o ensaio reprova.\n'
+    local tabelas="${NL_ENSAIO_TABELAS_DIR:-}" cli="${NL_ENSAIO_CLI:-}" pasta="$RAIZ/xsd" rc codigos
+    if [ -z "$dir_xsd" ] || [ -z "$manifesto" ] || [ -z "$cli" ] || [ -z "$tabelas" ]; then
+        printf 'FALHA xsd_24_11: não conferi a DPS de teste no modelo de 24/11/2026. Faltam caminhos: informe os quatro juntos, NL_ENSAIO_CLI (programa compilado), NL_ENSAIO_XSD_DIR (pasta do XSD), NL_ENSAIO_XSD_MANIFESTO (SHA256SUMS) e NL_ENSAIO_TABELAS_DIR (pasta das tabelas). Sem eles o ensaio reprova.\n'
         ensaio_xsd_falhou 11 "falhou (faltam caminhos do programa ou do modelo)"
         return 0
     fi
@@ -1959,7 +1968,8 @@ ensaio_xsd_aceita() {
         ensaio_xsd_falhou 11 "falhou (pasta da conferência)"
         return 0
     fi
-    "$cli" dps validar "$json" "$pasta/dps-validada.xml" --xsd "$dir_xsd" --manifesto "$manifesto" > /dev/null 2> "$pasta/saida-validacao.txt"
+    XSD_RODOU=1
+    "$cli" dps validar "$json" "$pasta/dps-validada.xml" --xsd "$dir_xsd" --manifesto "$manifesto" --tabelas "$tabelas" > /dev/null 2> "$pasta/saida-validacao.txt"
     rc=$?
     case "$rc" in
         0)
@@ -1977,6 +1987,52 @@ ensaio_xsd_aceita() {
     return 0
 }
 
+# NL-3.M (passo 6): caso de recusa local por regra. A DPS do caso aceita, com indDest "1" na raiz, tem de ser reprovada pelo
+# programa com E0910 entre os códigos (regra local do ValidadorLocal, que o validar aplica pelo --tabelas). O caso é positivo:
+# passa quando o programa reprova (rc 1) e E0910 aparece; só os códigos saem na tela. Outras regras podem aparecer junto
+# e não reprovam o caso. Rodar sem a conferência da DPS aceita (XSD_RODOU vazio) não faz nada: a falta de caminhos já reprovou.
+# Falha daqui só vira código de saída se for a primeira: XSD_SAIDA não é sobrescrito (o controle com CLI falsa segue dando 9).
+ensaio_xsd_recusa_regra() {
+    [ -n "$XSD_RODOU" ] || return 0
+    local json="$RAIZ/aceita/dps-emitida.json" pasta="$RAIZ/xsd-recusa" rc codigos
+    local dir_xsd="$NL_ENSAIO_XSD_DIR" manifesto="$NL_ENSAIO_XSD_MANIFESTO" tabelas="$NL_ENSAIO_TABELAS_DIR" cli="$NL_ENSAIO_CLI"
+    if ! mkdir -p "$pasta"; then
+        printf 'FALHA xsd_recusa_regra: não consegui criar a pasta do caso de recusa.\n'
+        ensaio_xsd_recusa_falhou 11 "falhou (pasta do caso de recusa)"
+        return 0
+    fi
+    sed 's/"indDest": "0"/"indDest": "1"/' "$json" > "$pasta/dps-recusa.json"
+    if ! grep -q '"indDest": "1"' "$pasta/dps-recusa.json"; then
+        printf 'FALHA xsd_recusa_regra: não consegui montar a DPS com indDest "1" (o caso não pôde rodar).\n'
+        ensaio_xsd_recusa_falhou 11 "falhou (caso de recusa não montado)"
+        return 0
+    fi
+    "$cli" dps validar "$pasta/dps-recusa.json" "$pasta/dps-recusada.xml" --xsd "$dir_xsd" --manifesto "$manifesto" --tabelas "$tabelas" > /dev/null 2> "$pasta/saida-validacao.txt"
+    rc=$?
+    codigos=$(sed -n 's/^erro \(E[0-9][0-9][0-9][0-9]\)[ :].*/\1/p' "$pasta/saida-validacao.txt" | paste -sd, -)
+    if [ "$rc" -eq 1 ] && printf '%s\n' "$codigos" | grep -q -w 'E0910'; then
+        printf 'ok xsd_recusa_regra: o programa reprovou a DPS com indDest "1" pela regra local (códigos: %s), como o esperado\n' "$codigos"
+    elif [ "$rc" -eq 1 ]; then
+        printf 'FALHA xsd_recusa_regra: o programa reprovou, mas sem E0910 (códigos: %s); a regra local não mordeu como o esperado\n' "${codigos:-sem código}"
+        ensaio_xsd_recusa_falhou 9 "falhou (recusa sem E0910)"
+    elif [ "$rc" -eq 0 ]; then
+        printf 'FALHA xsd_recusa_regra: o programa aceitou a DPS com indDest "1"; a regra local E0910 não reprovou\n'
+        ensaio_xsd_recusa_falhou 11 "falhou (regra local não reprovou)"
+    else
+        printf 'FALHA xsd_recusa_regra: não consegui conferir a DPS da recusa (o programa parou antes de validar, código %s)\n' "$rc"
+        ensaio_xsd_recusa_falhou 11 "falhou (conferência da recusa não pôde rodar)"
+    fi
+    return 0
+}
+# Falha do caso de recusa: conta na FALHAS; o código de saída e o estado só entram se a primeira falha ainda não estiver marcada.
+ensaio_xsd_recusa_falhou() {
+    FALHAS=$(( FALHAS + 1 ))
+    if [ -z "$XSD_SAIDA" ]; then
+        XSD_SAIDA="$1"
+        XSD_ESTADO="$2"
+    fi
+}
+
 ensaio() {
     # Coordenação (G1c, item 3): o ensaio exige python3 (o parser da consulta à BrasilAPI). Sem ele, para no começo, sem pular caso.
     if ! command -v python3 >/dev/null 2>&1; then
@@ -1990,6 +2046,7 @@ ensaio() {
     FALHAS=0
     ensaio_caso aceita 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"indDest": "0"'
     ensaio_xsd_aceita
+    ensaio_xsd_recusa_regra
     ensaio_dois_envios
     ensaio_caso rota_404_preserva_certificado 0 "Nota de teste aceita" 2 2 "[certificado]" NL_ENSAIO_SEQ=404,aceita NL_ENSAIO_NDPS_ESPERADO=2
     ensaio_caso rota_404_depois_aceita 0 "Nota de teste aceita" 2 2 "prefixo = /API/SefinNacional" NL_ENSAIO_SEQ=404,aceita NL_ENSAIO_NDPS_ESPERADO=2

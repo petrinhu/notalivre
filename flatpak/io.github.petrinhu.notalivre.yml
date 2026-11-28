@@ -69,6 +69,10 @@ modules:
     # exatamente 1 slot (piso, L-36) ou se o slot não passar exatamente 1 vez.
     run-tests: true
     test-commands:
+      # NL-3.M (passo 6, seção 4.2): o pacote instalado em /app valida uma DPS válida pelo XSD e pelas regras locais (--tabelas
+      # de /app/share/notalivre/tabelas). A entrada é a base do e2e (mei_minima.json) e o rc tem de ser 0. A saída vai para _build.
+      - |
+        sh -c '/app/bin/notalivre-cli dps validar tests/e2e/dps_validar/entradas/mei_minima.json _build/nl-validar-pacote.xml --xsd /app/share/notalivre/xsd --manifesto /app/share/notalivre/xsd/SHA256SUMS --tabelas /app/share/notalivre/tabelas > _build/nl-validar-pacote.txt 2>&1; rc=$?; cat _build/nl-validar-pacote.txt; echo "dps validar do pacote: rc=$rc"; [ "$rc" = 0 ] || { echo "PARADA: dps validar do pacote saiu com $rc, esperado 0"; exit 1; }'
       - |
         sh -c 'ctest --test-dir _build -N -R "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" > _build/nl-slot-listado.txt 2>&1; n=$(grep -c "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" _build/nl-slot-listado.txt || true); echo "slot listado pelo ctest: $n"; [ "$n" = 1 ] || { echo "PARADA: o ctest tem de listar exatamente 1 slot assinaSha1NoSdkKdeSemVariavel, achei $n"; exit 1; }'
       - |

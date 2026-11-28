@@ -441,8 +441,8 @@ jobs:
       # no build. Fica neste job, e não no autotestes, porque a CLI só roda na imagem ubuntu26.04 (Qt, Connector/C e glibc
       # de lá); o autotestes segue só com shell. Roda como uid 1000: o ensaio reprova dono diferente de quem o roda (caso p4,
       # /etc/hosts), e como root o dono seria o próprio root. HOME descartável. Os test -x/-d/-f abaixo fazem o passo reprovar
-      # cedo, com 1, se o build não tiver a CLI, o XSD ou o manifesto; o script reprova com 11 se faltar algum dos três
-      # caminhos (NL_ENSAIO_CLI, NL_ENSAIO_XSD_DIR, NL_ENSAIO_XSD_MANIFESTO).
+      # cedo, com 1, se o build não tiver a CLI, o XSD, as tabelas ou o manifesto; o script reprova com 11 se faltar algum dos quatro
+      # caminhos (NL_ENSAIO_CLI, NL_ENSAIO_XSD_DIR, NL_ENSAIO_XSD_MANIFESTO, NL_ENSAIO_TABELAS_DIR).
       - name: "Ensaio do emitir_teste.sh no XSD de 24/11/2026 (NL-3.L, passo 11)"
         if: matrix.distro == 'ubuntu26.04'
         run: |
@@ -451,12 +451,15 @@ jobs:
           test -x "$cli" || { echo "::error::CLI compilada ausente em $cli"; exit 1; }
           xsd="$(sed -n 's/^NL_XSD_PRODREST_DIR:INTERNAL=//p' "$NL_TMP_BASE/notalivre-build/debug/CMakeCache.txt")"
           test -d "$xsd" || { echo "::error::XSD do build ausente (NL_XSD_PRODREST_DIR vazio ou inexistente)"; exit 1; }
+          # NL-3.M (passo 6): as tabelas do anexo A do build (NL_TABELAS_DIR) entram no validar com --tabelas.
+          tabelas="$(sed -n 's/^NL_TABELAS_DIR:INTERNAL=//p' "$NL_TMP_BASE/notalivre-build/debug/CMakeCache.txt")"
+          test -d "$tabelas" || { echo "::error::tabelas do build ausentes (NL_TABELAS_DIR vazio ou inexistente)"; exit 1; }
           manifesto="$GITHUB_WORKSPACE/third_party/nfse-xsd/prodrest-20261124/SHA256SUMS"
           test -f "$manifesto"
           mkdir -p "$RUNNER_TEMP/home-ensaio"
           chown 1000:1000 "$RUNNER_TEMP/home-ensaio"
           setpriv --reuid=1000 --regid=1000 --clear-groups env HOME="$RUNNER_TEMP/home-ensaio" \
-            NL_ENSAIO_CLI="$cli" NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" \
+            NL_ENSAIO_CLI="$cli" NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" NL_ENSAIO_TABELAS_DIR="$tabelas" \
             bash tools/producao_restrita/emitir_teste.sh --ensaio
 
       # NL-3.L (revisão de QA de 27/11/2026, B1; NF-33 e L-36): o ensaio acima tem de REPROVAR nos dois casos, e não só sair verde.
@@ -469,8 +472,9 @@ jobs:
           set -u
           cli="$NL_TMP_BASE/notalivre-build/debug/apps/cli/notalivre-cli"
           xsd="$(sed -n 's/^NL_XSD_PRODREST_DIR:INTERNAL=//p' "$NL_TMP_BASE/notalivre-build/debug/CMakeCache.txt")"
+          tabelas="$(sed -n 's/^NL_TABELAS_DIR:INTERNAL=//p' "$NL_TMP_BASE/notalivre-build/debug/CMakeCache.txt")"
           manifesto="$GITHUB_WORKSPACE/third_party/nfse-xsd/prodrest-20261124/SHA256SUMS"
-          test -x "$cli" && test -d "$xsd" && test -f "$manifesto" || { echo "::error::controle negativo sem CLI, XSD ou manifesto no build"; exit 1; }
+          test -x "$cli" && test -d "$xsd" && test -d "$tabelas" && test -f "$manifesto" || { echo "::error::controle negativo sem CLI, XSD, tabelas ou manifesto no build"; exit 1; }
           ctl="$RUNNER_TEMP/controle-xsd"
           mkdir -p "$ctl" "$RUNNER_TEMP/home-ensaio"
           printf '%s\n' '#!/bin/sh' 'echo "erro XSD_CONTROLE: cli falsa do controle negativo" >&2; exit 1' > "$ctl/cli-falsa"
@@ -478,7 +482,7 @@ jobs:
           falhas=""
           rc1=0
           setpriv --reuid=1000 --regid=1000 --clear-groups env -u NL_ENSAIO_CLI HOME="$RUNNER_TEMP/home-ensaio" \
-            NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" \
+            NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" NL_ENSAIO_TABELAS_DIR="$tabelas" \
             bash tools/producao_restrita/emitir_teste.sh --ensaio > "$ctl/saida-sem-cli.txt" 2>&1 || rc1=$?
           echo "controle 1 (sem NL_ENSAIO_CLI): rc=$rc1 (esperado 11)"
           grep -F 'xsd_24_11' "$ctl/saida-sem-cli.txt" || true
@@ -489,7 +493,7 @@ jobs:
           fi
           rc2=0
           setpriv --reuid=1000 --regid=1000 --clear-groups env HOME="$RUNNER_TEMP/home-ensaio" \
-            NL_ENSAIO_CLI="$ctl/cli-falsa" NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" \
+            NL_ENSAIO_CLI="$ctl/cli-falsa" NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" NL_ENSAIO_TABELAS_DIR="$tabelas" \
             bash tools/producao_restrita/emitir_teste.sh --ensaio > "$ctl/saida-cli-falsa.txt" 2>&1 || rc2=$?
           echo "controle 2 (CLI falsa que reprova): rc=$rc2 (esperado 9)"
           grep -F 'xsd_24_11' "$ctl/saida-cli-falsa.txt" || true
