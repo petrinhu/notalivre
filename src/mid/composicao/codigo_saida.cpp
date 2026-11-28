@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Código de saída da emissão (NL-2.9, DA-2.57c). Ver codigo_saida.h. Listas exatas primeiro; prefixos depois; o resto é 70.
+// Código de saída da emissão (NL-2.9, DA-2.57c). Ver codigo_saida.h. Listas exatas primeiro; prefixos depois; regra local (E + 4
+// dígitos) com 4; o resto é 70.
 #include <nl/mid/composicao/codigo_saida.h>
 
 #include <nl/mid/composicao/codigos_falha_envio.h>
@@ -31,6 +32,21 @@ bool comecaCom(std::string_view texto, std::string_view prefixo)
     return texto.substr(0, prefixo.size()) == prefixo;
 }
 
+// Regra local (NL-3.M, DA-3M.8): código E seguido de exatamente 4 dígitos e sem prefixo (ex.: "E0910"). O código E da Sefin chega
+// com o prefixo "sefin." (emissao_cli.cpp), por isso não casa aqui e segue com 1.
+bool ehRegraLocal(std::string_view codigo)
+{
+    if (codigo.size() != 5 || codigo[0] != 'E') {
+        return false;
+    }
+    for (char digito : codigo.substr(1)) {
+        if (digito < '0' || digito > '9') {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 int codigoDeSaidaDaEmissao(std::string_view codigo)
@@ -45,6 +61,9 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
         "cnbs.", "cod_trib_municipal.", "cod_trib_nacional.", "cst.", "dhemi.", "indicadordestinatario.", "indtottrib.", "municipio.",
         "nif.", "numero.", "pais.", "percentual.", "percentual_sn.", "ref_nfse.", "regime.", "retencao.", "serie.", "servico.",
         "substituicao.", "telefone.", "tipooperacao.", "tribissqn."};
+    if (ehRegraLocal(codigo)) {
+        return kSaidaDocumento;
+    }
     constexpr std::array<std::string_view, 2> ambienteXsd{"xsd.esquema", "xsd.interno"};
     constexpr std::array<std::string_view, 5> recusaPrefixo{"credencial.", "assinatura.", "confirmacao.", "cofre.", "sefin."};
     // Falha do envio sem código E (NL-3.C, plano 1.6): lista exata por código estável do catálogo, antes dos prefixos.
