@@ -2033,6 +2033,40 @@ ensaio_xsd_recusa_falhou() {
     fi
 }
 
+# NL-3.M (revisão de QA, M3; L-36): controle negativo do caso de recusa. Com uma CLI falsa que ACEITA a DPS (sai 0), o caso tem
+# de contar a falha. Roda numa subshell, numa pasta própria dentro da RAIZ do ensaio: não envia nada, não usa certificado e não
+# mexe nos contadores do ensaio. Os caminhos do XSD são marcas de texto, porque a CLI falsa não os lê.
+ensaio_controle_recusa_aceita() {
+    local pasta="$RAIZ/controle-recusa" saida contadas
+    if ! mkdir -p "$pasta/aceita"; then
+        printf 'FALHA controle_recusa_aceita: não consegui criar a pasta do controle.\n'
+        FALHAS=$(( FALHAS + 1 ))
+        return 0
+    fi
+    printf '%s\n' '{"indDest": "0"}' > "$pasta/aceita/dps-emitida.json"
+    printf '%s\n' '#!/bin/sh' 'exit 0' > "$pasta/cli-falsa"
+    chmod 755 "$pasta/cli-falsa"
+    saida=$(
+        RAIZ="$pasta"
+        XSD_RODOU=1
+        NL_ENSAIO_CLI="$pasta/cli-falsa"
+        NL_ENSAIO_XSD_DIR=controle
+        NL_ENSAIO_XSD_MANIFESTO=controle
+        NL_ENSAIO_TABELAS_DIR=controle
+        FALHAS=0
+        ensaio_xsd_recusa_regra
+        printf 'CONTADAS=%s\n' "$FALHAS"
+    )
+    contadas="${saida##*CONTADAS=}"
+    if printf '%s\n' "$saida" | grep -q 'FALHA xsd_recusa_regra: o programa aceitou a DPS com indDest' && [ "${contadas:-0}" -ge 1 ] 2>/dev/null; then
+        printf 'ok controle_recusa_aceita: com uma CLI que aceita a DPS, o caso de recusa conta a falha\n'
+    else
+        printf 'FALHA controle_recusa_aceita: com uma CLI que aceita a DPS, o caso de recusa NÃO contou a falha (contadas=%s)\n' "${contadas:-vazio}"
+        FALHAS=$(( FALHAS + 1 ))
+    fi
+    return 0
+}
+
 ensaio() {
     # Coordenação (G1c, item 3): o ensaio exige python3 (o parser da consulta à BrasilAPI). Sem ele, para no começo, sem pular caso.
     if ! command -v python3 >/dev/null 2>&1; then
@@ -2047,6 +2081,7 @@ ensaio() {
     ensaio_caso aceita 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"indDest": "0"'
     ensaio_xsd_aceita
     ensaio_xsd_recusa_regra
+    ensaio_controle_recusa_aceita
     ensaio_dois_envios
     ensaio_caso rota_404_preserva_certificado 0 "Nota de teste aceita" 2 2 "[certificado]" NL_ENSAIO_SEQ=404,aceita NL_ENSAIO_NDPS_ESPERADO=2
     ensaio_caso rota_404_depois_aceita 0 "Nota de teste aceita" 2 2 "prefixo = /API/SefinNacional" NL_ENSAIO_SEQ=404,aceita NL_ENSAIO_NDPS_ESPERADO=2

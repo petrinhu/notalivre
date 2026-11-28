@@ -572,6 +572,8 @@ private slots:
     // NL-3.M (DA-3M.6, DA-3M.3): regra local reprova antes da senha; aviso sai antes da senha e o fluxo segue.
     void cliRecusaRegraLocalAntesDaSenha();
     void cliMostraAvisoAntesDaSenha();
+    // NL-3.M (revisão de QA, M1; DA-3M.7): a recusa que vem do XSD não mostra o valor da DPS, de nenhuma fonte da saída.
+    void cliRecusaXsdNaoMostraOValorDaDps();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -1609,6 +1611,38 @@ void TstCliEmitir::cliMostraAvisoAntesDaSenha()
     QVERIFY2(execucao.saida.contains("(envio.rede_antes_do_envio)"), "a falha de conexão tem de sair com o código da classe");
     QVERIFY2(!execucao.saida.contains("emissão recusada"), "aviso não pode virar recusa");
     QVERIFY2(!execucao.saida.contains("11444777000161"), "o CNPJ do tomador não pode aparecer na saída");
+    QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+}
+
+void TstCliEmitir::cliRecusaXsdNaoMostraOValorDaDps()
+{
+    // NL-3.M (revisão de QA, M1; DA-3M.7): a DPS passa na montagem e nas regras locais e só reprova no XSD. xDescServ com 2001
+    // caracteres (maxLength 2000 de TSDesc2000, como xdescserv_2001). A marca fica no começo do texto. O pseudo-terminal junta
+    // stdout e stderr, então a busca na saída cobre as duas fontes. Sem servidor: a recusa sai antes de qualquer envio.
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    QTemporaryDir entradas;
+    QVERIFY(entradas.isValid());
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:9443"));
+    const QString marca = QStringLiteral("MARCA-PRIVADA-7Q");
+    const QByteArray marcaBytes = marca.toUtf8();
+    const QString entrada = gravarVarianteDaEntrada(entradas, QStringLiteral("xsd_marca.json"), [marca](QJsonObject& dps) {
+        QJsonObject servico = dps.value(QStringLiteral("servico")).toObject();
+        servico.insert(QStringLiteral("xDescServ"), marca + QString(2001 - marca.size(), QChar(u'a')));
+        dps.insert(QStringLiteral("servico"), servico);
+    });
+    QVERIFY2(!entrada.isEmpty(), "a variante da entrada tem de ser gravada na pasta do caso");
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), entrada, QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo != -3, "a escrita da senha no terminal falhou: o caso não pode passar em silêncio");
+    QVERIFY2(gravarSaidaParaPii(execucao.saida, QStringLiteral("emitir_e2e_xsd_sem_valor.log")),
+             "a saída do e2e tem de ir para a pasta de logs da CLI (portão de PII)");
+    QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("rc=%1").arg(execucao.codigo)));
+    QVERIFY2(execucao.saida.contains("emissão recusada (xsd.invalido)"), "a linha final tem de trazer o código, sem o valor");
+    QVERIFY2(!execucao.saida.contains(marcaBytes), "o valor da DPS não pode aparecer na saída, nem no stdout nem no stderr");
+    QVERIFY2(!execucao.saida.contains("senha do certificado"), "a senha não pode ser pedida antes da recusa do XSD");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
 }
 
