@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Carga do catálogo de localidades (NL-3.M, DA-3M.4). Ordem fixa, e cada passo é uma função própria (NF-32):
 //   1. o SHA256SUMS existe e o SHA-256 dele é o pino recebido;
-//   2. o manifesto tem as três linhas no formato sha256sum;
+//   2. o manifesto tem as três linhas no formato sha256sum (linhas `#` de comentário são ignoradas; o pino do passo 1 já
+//      cobre o arquivo inteiro, comentários inclusive);
 //   3. o SHA-256 de cada JSON confere com o manifesto (todos os três, antes de qualquer parse);
 //   4. só então o parse, com os códigos validados pelo domínio (CodigoMunicipio, CodigoPais).
 // As mensagens de erro trazem o rótulo da tabela, nunca caminho de arquivo nem conteúdo do JSON.
@@ -111,12 +112,14 @@ Erro manifestoInvalido()
 }
 
 // Formato sha256sum: 64 hex minúsculos, dois espaços e o nome do arquivo. Cada uma das três tabelas aparece uma vez.
+// Linha vazia e linha que começa com `#` (comentário, como no SHA256SUMS da árvore) são ignoradas. O pino do arquivo
+// inteiro (passo 1) já cobre os comentários: qualquer byte alterado neles muda o SHA-256 e o manifesto não carrega.
 std::expected<std::array<std::string, 3>, Erro> lerManifesto(const QByteArray& bytes)
 {
     std::array<std::string, 3> hashes{};
     std::array<bool, 3> vistos{};
     for (const QByteArray& linha : bytes.split('\n')) {
-        if (linha.isEmpty()) {
+        if (linha.isEmpty() || linha.startsWith('#')) {
             continue;
         }
         const std::string_view texto(linha.constData(), static_cast<std::size_t>(linha.size()));

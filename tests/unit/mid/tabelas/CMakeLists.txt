@@ -16,6 +16,7 @@ foreach(nome IN ITEMS
     tabelaAusenteRecusada
     jsonMalformadoRecusado
     manifestoMalformadoRecusado
+    manifestoComComentarioCarrega
     tabelasDoBuildCarregam)
     nl_registra_teste_qt(NAME mid.tabelas.${nome} COMMAND tst_catalogo_localidades ${nome})
     set_tests_properties(mid.tabelas.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")

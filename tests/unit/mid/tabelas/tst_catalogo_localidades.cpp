@@ -132,6 +132,10 @@ private slots:
     // SHA256SUMS fora do formato sha256sum, ou com tabela repetida, é recusado como manifesto inválido (pino batendo).
     void manifestoMalformadoRecusado();
 
+    // SHA256SUMS com linhas `#` de comentário (como o da árvore) carrega: o pino cobre o arquivo inteiro, e a linha de
+    // comentário não é hash nem recusa o manifesto (NL-3.M, conserto do leitor).
+    void manifestoComComentarioCarrega();
+
     // NL-3.M: as tabelas reais do build (NL_TABELAS_DIR) carregam com o pino do configure. Contagens 5.570, 250 e 1 (converter.py:30-37),
     // conferidas nos JSON à parte; existência dos códigos que a CLI e as regras consultam.
     void tabelasDoBuildCarregam();
@@ -273,6 +277,27 @@ void TstCatalogoLocalidades::manifestoMalformadoRecusado()
         QVERIFY2(!QString::fromStdString(resultado.error().mensagem()).contains(QString::fromLatin1(hashMunicipios)),
                  "a mensagem não pode ecoar o conteúdo do manifesto");
     }
+}
+
+void TstCatalogoLocalidades::manifestoComComentarioCarrega()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString dir = temp.path() + QStringLiteral("/tabelas");
+    QVERIFY(!gravaTabelas(dir).isEmpty());
+
+    // Comentários antes das linhas de hash e um no meio delas, como o SHA256SUMS da árvore.
+    const QByteArray manifesto = QByteArray("# SPDX-License-Identifier: GPL-3.0-or-later\n"
+                                            "# Tabelas de exemplo, com comentário no meio\n")
+                                 + sha256Hex(kMunicipiosJson) + "  municipios.json\n" + "#\n"
+                                 + sha256Hex(kPaisesJson) + "  paises.json\n" + sha256Hex(kLocalidadesJson)
+                                 + "  localidades.json\n";
+    QVERIFY(gravaArquivo(QDir(dir).filePath(QStringLiteral("SHA256SUMS")), manifesto));
+
+    const QByteArray pino = sha256Hex(manifesto);
+    const auto resultado = CatalogoLocalidadesEmbutido::carregar(dir, vista(pino));
+    QVERIFY2(resultado.has_value(), "manifesto com linhas # de comentário e as três tabelas tem de carregar");
+    QVERIFY(resultado.value().municipioExiste(CodigoMunicipio::de(QStringLiteral("4305108")).value()));
 }
 
 void TstCatalogoLocalidades::tabelasDoBuildCarregam()

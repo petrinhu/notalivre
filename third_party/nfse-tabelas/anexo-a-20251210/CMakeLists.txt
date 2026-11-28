@@ -106,6 +106,10 @@ foreach(_nl_tab_linha IN LISTS _nl_tab_linhas)
     list(APPEND _nl_tab_instalar "${_nl_tab_arq}")
 endforeach()
 
+# 3b. O SHA256SUMS da árvore vai para a pasta de saída, byte a byte, ao lado dos JSON: NL_TABELAS_DIR fica com os quatro
+# arquivos, como o pacote instalado. O pino abaixo continua sendo o do arquivo da árvore (igual à cópia).
+file(COPY_FILE "${_nl_tab_manifesto}" "${_nl_tab_saida}/SHA256SUMS")
+
 # 4. Instalação: dados, não código (K2). O SHA256SUMS vai junto, para o adaptador conferir de novo na execução.
 install(FILES ${_nl_tab_instalar} "${_nl_tab_manifesto}"
         DESTINATION share/notalivre/tabelas)
