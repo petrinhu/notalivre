@@ -27,7 +27,7 @@ std::optional<nl::base::Erro> RegraE0202::verificar(const Dps& dps) const
     const auto* cnpjTomador = std::get_if<Cnpj>(&dados.toma->identificacao());
     if (cnpjTomador != nullptr && *cnpjTomador == *cnpjPrestador) {
         return nl::base::Erro{"E0202", std::string{"Dps.infDPS.toma.CNPJ"},
-                              "CNPJ do tomador é igual ao CNPJ do prestador (regra E0202, linha Excel 257)"};
+                              "CNPJ do tomador é igual ao CNPJ do prestador (regra E0202, linha Excel 259)"};
     }
     return std::nullopt;
 }

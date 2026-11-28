@@ -129,3 +129,11 @@ foreach(nome IN ITEMS
   nl_registra_teste_qt(NAME mid.composicao.catalogoFalhaEnvio.${nome} COMMAND tst_catalogo_falha_envio ${nome})
   set_tests_properties(mid.composicao.catalogoFalhaEnvio.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()
+
+# Leitor do indDest da raiz (NL-3.L, leiaute de 24/11/2026): "1" e "0" lidos, ausente vira 0, "2" e tipo não texto recusados,
+# ibscbs.indDest (lugar antigo) recusado pelo leitor do grupo IBS/CBS. Slots sem vírgula (L-45).
+add_executable(tst_leitor_indicador_destinatario tst_leitor_indicador_destinatario.cpp)
+target_include_directories(tst_leitor_indicador_destinatario PRIVATE ${CMAKE_SOURCE_DIR}/src/mid/composicao)
+target_link_libraries(tst_leitor_indicador_destinatario PRIVATE Qt6::Core Qt6::Test nl_mid nl_back nl_foundation_base nl_warnings)
+nl_registra_teste_qt(NAME mid.composicao.leitorIndicadorDestinatario COMMAND tst_leitor_indicador_destinatario)
+set_tests_properties(mid.composicao.leitorIndicadorDestinatario PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")

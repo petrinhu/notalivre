@@ -37,10 +37,10 @@ umask 077
 APP=io.github.petrinhu.notalivre
 RUNTIME=org.kde.Platform//6.11
 # Pacote do CI: único lugar do script com o run e o SHA-256 do notalivre.flatpak. Fonte: artefato notalivre-bundle do run
-# 41575930687 (commit 073bd62, branch onda-2, com o total de tributos J1 e J2), baixado com gh run download (digest do zip d43056d8da4f94e74a91dd12badcbb7637bd7a9451b0710928f5da1fa21b28fc,
+# 46018747106 (commit 93f3c3f, branch fatia/NL-3.L, leiaute de 24/11 com o indDest na raiz), baixado com gh run download (digest do zip aa184e2b5fdfd36c12d8e6c24e9d974548608f9d278bff6672740fb0aefdb35a,
 # conferido na API do GitHub). O main troca estas duas linhas quando o pacote do CI muda (NL-2.10j J3).
-BUNDLE_RUN=41575930687
-BUNDLE_SHA=05e7e73cf04e16b6ade13813e821bc9cf195a0f86dc9082787a4e69f12e15f93
+BUNDLE_RUN=46018747106
+BUNDLE_SHA=7eb6bbe5bd45b6d3f2bbd02da3efcb23e93571fe7ce5ddc8cbbc645537d5bdeb
 BASE=/var/tmp/notalivre-nl210
 BUNDLE="$BASE/bundle/run-$BUNDLE_RUN/notalivre.flatpak"
 MUNICIPIO=2611606
@@ -264,6 +264,9 @@ montar_dps() {
     if [ -n "$CTRIBMUN" ]; then ctribmun_linha="\"cTribMun\": \"$CTRIBMUN\", "; fi
     dh="$(date -u -d '-3 hours' '+%Y-%m-%dT%H:%M:%S')-03:00"
     dc="$(date -u -d '-3 hours' '+%Y-%m-01')"
+    # NL-3.L (passo 11): indDest vai na raiz da DPS, no leiaute de 24/11/2026, e não dentro de IBSCBS. Vale 0 (o destinatário
+    # é o próprio tomador). A pergunta 2 ficou no padrão 0 (decisão do líder, 27/11/2026: "Raiz, padrão 0 (Recomendado)"); a chave
+    # fica escrita mesmo assim, para a intenção ficar legível e não depender do padrão do programa.
     case "$dh" in
         *-03:00) ;;
         *) falha "o relógio não deu o fuso de Recife (-03:00). Nada foi emitido." ;;
@@ -278,6 +281,7 @@ montar_dps() {
   "serie": $SERIE,
   "nDps": $n,
   "dCompet": "$dc",
+  "indDest": "0",
   "cLocEmi": "$MUN_EMI",
   "prestador": {
     $prest_chave
@@ -1923,6 +1927,56 @@ ensaio_duravel_primeira_gravacao_0600() {
     ensaio_duravel_fecha primeira_gravacao_0600 "$problema"
 }
 
+# NL-3.L (passo 11): a DPS do caso "aceita" tem de valer no XSD de 24/11/2026. A conferência usa o mesmo comando que a suíte e2e
+# já usa (notalivre dps validar), que precisa do programa compilado, da pasta do XSD e do manifesto de SHA-256. Esses três
+# caminhos vêm de fora (NL_ENSAIO_CLI, NL_ENSAIO_XSD_DIR, NL_ENSAIO_XSD_MANIFESTO): sem os três o ensaio reprova (código 11) e não
+# finge que conferiu. Códigos de saída próprios: 9 = o programa reprovou a DPS de teste (o motivo sai nos códigos de erro);
+# 11 = a conferência não pôde rodar (caminho errado, programa quebrado ou falha de ambiente). O código 1 do programa é toda
+# reprovação, não só o XSD; por isso a mensagem diz "reprovou", e os códigos de erro dizem o motivo.
+XSD_ESTADO="não conferido"
+XSD_SAIDA=""
+# Marca uma falha da conferência: conta na FALHAS, guarda o código de saída e o estado para o resumo.
+ensaio_xsd_falhou() {
+    FALHAS=$(( FALHAS + 1 ))
+    XSD_SAIDA="$1"
+    XSD_ESTADO="$2"
+}
+ensaio_xsd_aceita() {
+    local json="$RAIZ/aceita/dps-emitida.json" dir_xsd="${NL_ENSAIO_XSD_DIR:-}" manifesto="${NL_ENSAIO_XSD_MANIFESTO:-}"
+    local cli="${NL_ENSAIO_CLI:-}" pasta="$RAIZ/xsd" rc codigos
+    if [ -z "$dir_xsd" ] || [ -z "$manifesto" ] || [ -z "$cli" ]; then
+        printf 'FALHA xsd_24_11: não conferi a DPS de teste no modelo de 24/11/2026. Faltam caminhos: informe os três juntos, NL_ENSAIO_CLI (programa compilado), NL_ENSAIO_XSD_DIR (pasta do XSD) e NL_ENSAIO_XSD_MANIFESTO (SHA256SUMS). Sem eles o ensaio reprova.\n'
+        ensaio_xsd_falhou 11 "falhou (faltam caminhos do programa ou do modelo)"
+        return 0
+    fi
+    if [ ! -f "$json" ]; then
+        printf 'FALHA xsd_24_11: não achei a DPS do caso aceita para conferir.\n'
+        ensaio_xsd_falhou 11 "falhou (DPS do ensaio ausente)"
+        return 0
+    fi
+    if ! mkdir -p "$pasta"; then
+        printf 'FALHA xsd_24_11: não consegui criar a pasta da conferência.\n'
+        ensaio_xsd_falhou 11 "falhou (pasta da conferência)"
+        return 0
+    fi
+    "$cli" dps validar "$json" "$pasta/dps-validada.xml" --xsd "$dir_xsd" --manifesto "$manifesto" > /dev/null 2> "$pasta/saida-validacao.txt"
+    rc=$?
+    case "$rc" in
+        0)
+            printf 'ok xsd_24_11: a DPS de teste vale no modelo de 24/11/2026\n'
+            XSD_ESTADO="ok" ;;
+        1)
+            # Só os códigos de erro saem na tela: os valores (CNPJ, IM, texto do serviço) ficam no arquivo da pasta, nunca na saída.
+            codigos=$(sed -n 's/^erro \([^ :]*\).*/\1/p' "$pasta/saida-validacao.txt" | paste -sd, -)
+            printf 'FALHA xsd_24_11: o programa reprovou a DPS de teste no modelo de 24/11/2026 (códigos: %s). Nada foi enviado à Sefin neste ensaio.\n' "${codigos:-sem código}"
+            ensaio_xsd_falhou 9 "falhou (programa reprovou a DPS de teste)" ;;
+        *)
+            printf 'FALHA xsd_24_11: não consegui conferir a DPS de teste com o modelo de 24/11/2026 (o programa de conferência parou antes de validar, código %s). Confira o programa e os arquivos do modelo e rode o ensaio de novo.\n' "$rc"
+            ensaio_xsd_falhou 11 "falhou (conferência não pôde rodar)" ;;
+    esac
+    return 0
+}
+
 ensaio() {
     # Coordenação (G1c, item 3): o ensaio exige python3 (o parser da consulta à BrasilAPI). Sem ele, para no começo, sem pular caso.
     if ! command -v python3 >/dev/null 2>&1; then
@@ -1934,7 +1988,8 @@ ensaio() {
     mkdir -p "$RAIZ" || { echo "PARADA: não consegui criar a pasta do ensaio"; exit 1; }
     CASOS=0
     FALHAS=0
-    ensaio_caso aceita 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1
+    ensaio_caso aceita 0 "Nota de teste aceita" 1 1 "" NL_ENSAIO_SEQ=aceita NL_ENSAIO_NDPS_ESPERADO=1 NL_ENSAIO_DPS_ESPERADA='"indDest": "0"'
+    ensaio_xsd_aceita
     ensaio_dois_envios
     ensaio_caso rota_404_preserva_certificado 0 "Nota de teste aceita" 2 2 "[certificado]" NL_ENSAIO_SEQ=404,aceita NL_ENSAIO_NDPS_ESPERADO=2
     ensaio_caso rota_404_depois_aceita 0 "Nota de teste aceita" 2 2 "prefixo = /API/SefinNacional" NL_ENSAIO_SEQ=404,aceita NL_ENSAIO_NDPS_ESPERADO=2
@@ -2209,6 +2264,8 @@ ensaio() {
     fi
     CASOS=$(( CASOS + 1 ))
     echo "ensaio: casos=$CASOS falhas=$FALHAS (pasta: $RAIZ)"
+    echo "ensaio xsd_24_11: $XSD_ESTADO"
+    if [ -n "$XSD_SAIDA" ]; then return "$XSD_SAIDA"; fi
     [ "$FALHAS" -eq 0 ]
 }
 

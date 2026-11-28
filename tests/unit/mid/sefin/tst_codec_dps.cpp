@@ -8,7 +8,7 @@
 #include <nl/foundation/xml/erros_xsd.h>
 #include <nl/foundation/xml/esquema.h>
 #include <nl/foundation/xml/validador_xsd.h>
-#include <nl/mid/sefin/leiaute/prodrest_20261020/codec_dps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/codec_dps.h>
 
 #include <QByteArray>
 #include <QDir>
@@ -23,7 +23,7 @@
 
 namespace {
 
-namespace prod = nl::mid::sefin::prodrest_20261020;
+namespace prod = nl::mid::sefin::prodrest_20261124;
 using nl::foundation::xml::ErrosXsd;
 using nl::foundation::xml::Esquema;
 using nl::foundation::xml::ValidadorXsd;
@@ -88,6 +88,46 @@ QString textoDoElemento(const QByteArray& xml, QStringView nome)
     return {};
 }
 
+/// Nomes dos filhos diretos do elemento 'pai' (o primeiro com esse nome), na ordem do XML. Vazio se o pai não existe.
+QStringList filhosDiretos(const QByteArray& xml, QStringView pai)
+{
+    QXmlStreamReader leitor{xml};
+    QStringList filhos;
+    int profundidade = -1;
+    while (!leitor.atEnd()) {
+        const auto token = leitor.readNext();
+        if (token == QXmlStreamReader::StartElement) {
+            if (profundidade < 0 && leitor.name() == pai) {
+                profundidade = 0;
+                continue;
+            }
+            if (profundidade >= 0) {
+                if (profundidade == 0) {
+                    filhos << leitor.name().toString();
+                }
+                ++profundidade;
+            }
+        } else if (token == QXmlStreamReader::EndElement && profundidade >= 0) {
+            if (profundidade == 0) {
+                return filhos;
+            }
+            --profundidade;
+        }
+    }
+    return filhos;
+}
+
+/// Irmão seguinte de 'nome' entre os filhos de infDPS, ou vazio se 'nome' não está lá ou é o último.
+QString irmaoSeguinteEmInfDps(const QByteArray& xml, const QString& nome)
+{
+    const QStringList filhos = filhosDiretos(xml, u"infDPS");
+    const qsizetype posicao = filhos.indexOf(nome);
+    if (posicao < 0 || posicao + 1 >= filhos.size()) {
+        return {};
+    }
+    return filhos.at(posicao + 1);
+}
+
 } // namespace
 
 class TstCodecDps : public QObject
@@ -129,6 +169,11 @@ private slots:
     void cLocEmiValorExato();
     void vereditoDoValidadorBateComONomeDaFixture();
     void fixturesDpsIguaisAoCodec();
+    // NL-3.L: indDest na raiz de infDPS, entre toma e serv (leiaute de 24/11/2026, tiposComplexos_v1.01.xsd:845).
+    void indDestNaRaizDepoisDoToma();
+    void indDestDepoisDoPrestSemTomador();
+    void ibscbsSemIndDest();
+    void dpsMeiSemIbscbsLevaIndDestZero();
 };
 
 void TstCodecDps::dpsMeiMinimaValidaNoXsd()
@@ -461,6 +506,46 @@ void TstCodecDps::cpfTomadorComZeroInicialSaiIntacto()
     QVERIFY2(dps.has_value(), "builder do tomador com CPF de zero à frente recusou a entrada");
     const QByteArray xml = prod::CodecDps::serializar(*dps);
     QVERIFY2(xml.contains("<CPF>01234567890</CPF>"), "CPF do tomador com zero à frente saiu alterado");
+    const Veredito veredito = validar(xml);
+    QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
+}
+
+void TstCodecDps::indDestNaRaizDepoisDoToma()
+{
+    const auto dps = casos::dpsTomadorCpfSemEndereco();
+    QVERIFY2(dps.has_value(), "builder do tomador CPF recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QCOMPARE(irmaoSeguinteEmInfDps(xml, QStringLiteral("toma")), QStringLiteral("indDest"));
+    QCOMPARE(irmaoSeguinteEmInfDps(xml, QStringLiteral("indDest")), QStringLiteral("serv"));
+}
+
+void TstCodecDps::indDestDepoisDoPrestSemTomador()
+{
+    const auto dps = casos::dpsMei();
+    QVERIFY2(dps.has_value(), "builder da MEI mínima recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(!filhosDiretos(xml, u"infDPS").contains(QStringLiteral("toma")), "a MEI mínima não tem tomador");
+    QCOMPARE(irmaoSeguinteEmInfDps(xml, QStringLiteral("prest")), QStringLiteral("indDest"));
+}
+
+void TstCodecDps::ibscbsSemIndDest()
+{
+    const auto dps = casos::dpsSimplesIbsCbs();
+    QVERIFY2(dps.has_value(), "builder do Simples com IBS/CBS recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    const QStringList filhosIbscbs = filhosDiretos(xml, u"IBSCBS");
+    QVERIFY2(!filhosIbscbs.isEmpty(), "o grupo IBSCBS tem de sair no XML");
+    QVERIFY2(!filhosIbscbs.contains(QStringLiteral("indDest")), "indDest saiu do grupo IBSCBS no leiaute de 24/11/2026");
+    QVERIFY2(filhosDiretos(xml, u"infDPS").contains(QStringLiteral("indDest")), "indDest tem de sair na raiz de infDPS");
+}
+
+void TstCodecDps::dpsMeiSemIbscbsLevaIndDestZero()
+{
+    const auto dps = casos::dpsMei();
+    QVERIFY2(dps.has_value(), "builder da MEI mínima recusou a entrada");
+    const QByteArray xml = prod::CodecDps::serializar(*dps);
+    QVERIFY2(!xml.contains("<IBSCBS"), "a MEI mínima não tem o grupo IBS/CBS");
+    QCOMPARE(textoDoElemento(xml, u"indDest"), QStringLiteral("0"));
     const Veredito veredito = validar(xml);
     QVERIFY2(veredito.valido, qPrintable(veredito.detalhe));
 }

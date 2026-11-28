@@ -8,6 +8,8 @@
 #include <QDir>
 #include <QFile>
 #include <QIODevice>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QProcess>
 #include <QString>
 #include <QStringList>
@@ -128,6 +130,14 @@ private slots:
     void totTribPercentualAcimaDe100RecusaComFaixa();
     void totTribValorAcimaDoServicoRecusaComFaixa();
     void totTribDuasFormasRecusamConflito();
+
+    // NL-3.L: indDest na raiz da entrada (leiaute de 24/11/2026), opcional com padrão 0; o lugar antigo é recusado.
+    void indDestNaRaizDoJson();
+    void indDestDentroDeIbscbsRecusado();
+    void semIndDestUsaZero();
+    // NL-3.L (B2): indDest 1 na raiz sai no XML; indDest 2 é recusado pelo leitor. Variantes de tomador_cpf gravadas na pasta de saída.
+    void indDestUmNaRaizSaiNoXml();
+    void indDestDoisNaRaizRecusado();
 
     void jsonMalformadoReprova();
     void tipoInvalidoReprova();
@@ -325,6 +335,116 @@ void TstDpsValidar::totTribDuasFormasRecusamConflito()
 {
     verificaReprovaEntrada(QStringLiteral("totTrib_duas_formas"), QStringLiteral("entrada.campos_conflitantes"), QStringLiteral("valores.totTrib"),
                            QStringLiteral("não os dois"));
+}
+
+/// XML gerado pela CLI para a entrada dada; vazio se a CLI não saiu com rc 0 ou não gravou (o QVERIFY do chamador acusa).
+QByteArray xmlValidadoDe(const QString& nome)
+{
+    const QString saida = caminhoSaida(nome);
+    QFile::remove(saida);
+    const Execucao execucao = executarCli(argumentosValidar(caminhoEntrada(nome), saida));
+    if (!(execucao.terminou && execucao.codigo == 0)) {
+        qWarning("rc=%d stderr=%s", execucao.codigo, qPrintable(execucao.erro));
+        return {};
+    }
+    bool lido = false;
+    const QByteArray xml = lerArquivo(saida, &lido);
+    return lido ? xml : QByteArray{};
+}
+
+/// Grava na pasta de saída a entrada tomador_cpf com "indDest" valor na raiz. A variante fica fora de entradas/, porque cada JSON
+/// de lá pede exceção no portão de SPDX. Devolve o caminho, ou vazio se não conseguiu gravar.
+QString gravarVarianteIndDest(const QString& valor)
+{
+    bool lido = false;
+    const QByteArray base = lerArquivo(caminhoEntrada(QStringLiteral("tomador_cpf")), &lido);
+    if (!lido) {
+        return {};
+    }
+    QJsonObject raiz = QJsonDocument::fromJson(base).object();
+    raiz.insert(QStringLiteral("indDest"), valor);
+
+    const QString caminho = QStringLiteral("%1/indDest_%2.json").arg(kSaida, valor);
+    QFile arquivo{caminho};
+    if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return {};
+    }
+    arquivo.write(QJsonDocument{raiz}.toJson());
+    return caminho;
+}
+
+void TstDpsValidar::indDestNaRaizDoJson()
+{
+    // simples_ibscbs.json traz "indDest" na raiz e o grupo ibscbs sem ele: o XML sai com indDest entre prest e serv, fora de IBSCBS.
+    const QByteArray gerado = xmlValidadoDe(QStringLiteral("simples_ibscbs"));
+    QVERIFY2(!gerado.isEmpty(), "a CLI tinha de validar a entrada com indDest na raiz");
+    const qsizetype posPrest = gerado.indexOf("</prest>");
+    const qsizetype posIndDest = gerado.indexOf("<indDest>0</indDest>");
+    const qsizetype posServ = gerado.indexOf("<serv>");
+    const qsizetype posIbscbs = gerado.indexOf("<IBSCBS>");
+    QVERIFY2(posIndDest >= 0, "o XML tem de trazer <indDest>0</indDest>");
+    QVERIFY2(posPrest < posIndDest && posIndDest < posServ, "indDest tem de sair entre prest e serv, na raiz de infDPS");
+    QVERIFY2(posIbscbs > posServ && gerado.indexOf("<indDest>", posIbscbs) < 0, "IBSCBS não pode trazer indDest");
+}
+
+void TstDpsValidar::indDestDentroDeIbscbsRecusado()
+{
+    // Entrada no formato antigo (indDest dentro de ibscbs): recusada com o campo e o lugar novo na mensagem, sem XML.
+    verificaReprovaEntrada(QStringLiteral("inddest_dentro_de_ibscbs"), QStringLiteral("entrada.campo_fora_do_lugar"),
+                           QStringLiteral("ibscbs.indDest"), QStringLiteral("raiz da entrada"));
+}
+
+void TstDpsValidar::semIndDestUsaZero()
+{
+    // mei_minima.json não traz indDest: vale o padrão 0 (decisão do líder, 27/11/2026, "Raiz, padrão 0 (Recomendado)").
+    const QByteArray gerado = xmlValidadoDe(QStringLiteral("mei_minima"));
+    QVERIFY2(!gerado.isEmpty(), "a CLI tinha de validar a MEI mínima sem indDest");
+    QVERIFY2(gerado.contains("<indDest>0</indDest>"), "sem indDest na entrada, o XML tem de sair com indDest 0");
+}
+
+void TstDpsValidar::indDestUmNaRaizSaiNoXml()
+{
+    // Arrange: tomador_cpf com indDest "1" na raiz. O XSD de 24/11 aceita 1; a regra E0910 é local e a CLI não a liga (decisão de 27/11).
+    const QString entrada = gravarVarianteIndDest(QStringLiteral("1"));
+    QVERIFY2(!entrada.isEmpty(), "não consegui gravar a variante com indDest 1");
+    const QString saida = caminhoSaida(QStringLiteral("indDest_1"));
+    QFile::remove(saida);
+
+    // Act
+    const Execucao execucao = executarCli(argumentosValidar(entrada, saida));
+
+    // Assert: sai com rc 0 e o XML traz indDest 1 entre toma e serv.
+    QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1, stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
+    bool lido = false;
+    const QByteArray gerado = lerArquivo(saida, &lido);
+    QVERIFY2(lido, "não consegui ler o XML gravado pela CLI");
+    const qsizetype posToma = gerado.indexOf("</toma>");
+    const qsizetype posIndDest = gerado.indexOf("<indDest>1</indDest>");
+    const qsizetype posServ = gerado.indexOf("<serv>");
+    QVERIFY2(posToma >= 0, "o XML tem de trazer o grupo toma, que é o vizinho anterior do indDest");
+    QVERIFY2(posIndDest >= 0, "o XML tem de trazer <indDest>1</indDest>");
+    QVERIFY2(posToma < posIndDest && posIndDest < posServ, "indDest tem de sair entre toma e serv, na raiz de infDPS");
+}
+
+void TstDpsValidar::indDestDoisNaRaizRecusado()
+{
+    // Arrange: indDest "2" está fora do conjunto do XSD. O leitor recusa; a mensagem da CLI traz o código do valor, sem XML.
+    const QString entrada = gravarVarianteIndDest(QStringLiteral("2"));
+    QVERIFY2(!entrada.isEmpty(), "não consegui gravar a variante com indDest 2");
+    const QString saida = caminhoSaida(QStringLiteral("indDest_2"));
+    QFile::remove(saida);
+
+    // Act
+    const Execucao execucao = executarCli(argumentosValidar(entrada, saida));
+
+    // Assert
+    QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
+    QVERIFY2(execucao.codigo == 1, qPrintable(QStringLiteral("rc=%1, esperado 1 (reprovada). stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
+    QVERIFY2(execucao.erro.contains(QStringLiteral("indicadordestinatario.valor")), qPrintable(execucao.erro));
+    QVERIFY2(execucao.erro.contains(QStringLiteral("(indDest)")), qPrintable(QStringLiteral("campo indDest ausente. stderr: %1").arg(execucao.erro)));
+    QVERIFY2(execucao.erro.contains(QStringLiteral("valor fora do conjunto do XSD")), qPrintable(execucao.erro));
+    QVERIFY2(!QFile::exists(saida), "entrada reprovada não pode deixar XML gravado");
 }
 
 void TstDpsValidar::jsonMalformadoReprova()

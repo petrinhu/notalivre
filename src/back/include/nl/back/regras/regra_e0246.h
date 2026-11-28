@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Regra E0246 (NL-1.5): cPais do endereço no exterior do tomador existe na ISO2, é diferente de BR e não é ZZ. Linha Excel 284 da aba RN DPS_NFS-e 1.01 do Anexo I de 20/10/2026.
+// Regra E0246 (NL-1.5): cPais do endereço no exterior do tomador existe na ISO2, é diferente de BR e não é ZZ. Linha Excel 288 da aba RN DPS_NFS-e 1.01 do Anexo I de 24/11/2026 (era 284 no de 20/10).
 #ifndef NL_BACK_REGRAS_REGRA_E0246_H
 #define NL_BACK_REGRAS_REGRA_E0246_H
 

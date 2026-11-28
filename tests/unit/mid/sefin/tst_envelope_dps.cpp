@@ -4,7 +4,7 @@
 // (docs/pesquisa/onda2_api_sefin.md, seção 1.2), não de manual oficial. O comentário de cada teste diz isso.
 // A chave e o Content-Type vêm da pasta do leiaute (envelope_dps.h); a conformidade do GZip fica no teste de compressão.
 
-#include <nl/mid/sefin/leiaute/prodrest_20261020/envelope_dps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/envelope_dps.h>
 
 #include <QByteArray>
 #include <QJsonDocument>
@@ -16,7 +16,7 @@
 #include <cstddef>
 #include <string>
 
-namespace prod = nl::mid::sefin::prodrest_20261020;
+namespace prod = nl::mid::sefin::prodrest_20261124;
 
 namespace {
 

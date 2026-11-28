@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Codec da DPS (NL-1.6b): raiz DPS e grupo infDPS. Os grupos de pessoa, serviço e IBS/CBS ficam nos arquivos grupos_*.
-#include <nl/mid/sefin/leiaute/prodrest_20261020/codec_dps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/codec_dps.h>
 
 #include "codigos.h"
 #include "grupos.h"
 #include "limites_leiaute.h"
 
 #include <nl/back/dps/dps.h>
+#include <nl/back/dps/indicador_destinatario.h>
 #include <nl/back/dps/substituicao.h>
 
 #include <QDate>
@@ -16,7 +17,7 @@
 
 #include <string_view>
 
-namespace nl::mid::sefin::prodrest_20261020 {
+namespace nl::mid::sefin::prodrest_20261124 {
 
 namespace nb = nl::back;
 
@@ -47,6 +48,13 @@ void escreveSubstituicao(QXmlStreamWriter& w, const nb::Substituicao& substituic
     w.writeEndElement();
 }
 
+/// indDest (TSRTCIndDest) na raiz de infDPS, entre toma e serv, em toda DPS (leiaute de 24/11/2026,
+/// tiposComplexos_v1.01.xsd:845; NL-3.L). Sem tomador, vem logo depois de prest.
+void escreveIndicadorDestinatario(QXmlStreamWriter& w, const nb::IndicadorDestinatario& indDest)
+{
+    w.writeTextElement(QStringLiteral("indDest"), codigos::indDestinatario(indDest.valor()));
+}
+
 /// infDPS (TCInfDPS), na ordem da xs:sequence do XSD. tpEmit e finNFSe vêm das constantes da Dps (DA-1.3).
 void escreveInfDps(QXmlStreamWriter& w, const nb::Dps& dps)
 {
@@ -69,6 +77,7 @@ void escreveInfDps(QXmlStreamWriter& w, const nb::Dps& dps)
     if (dados.toma) {
         grupos::escreveTomador(w, *dados.toma);
     }
+    escreveIndicadorDestinatario(w, dados.indDest);
     grupos::escreveServico(w, dados.serv);
     grupos::escreveValores(w, dados.valores);
     if (dados.ibscbs) {
@@ -94,4 +103,4 @@ QByteArray CodecDps::serializar(const nb::Dps& dps)
     return xml;
 }
 
-} // namespace nl::mid::sefin::prodrest_20261020
+} // namespace nl::mid::sefin::prodrest_20261124

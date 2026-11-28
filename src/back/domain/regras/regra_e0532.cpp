@@ -29,7 +29,7 @@ std::optional<nl::base::Erro> RegraE0532::verificar(const Dps& dps) const
         return std::nullopt;
     }
     return nl::base::Erro{"E0532", std::string{"Dps.infDPS.valores.trib.tribMun.tribISSQN"},
-                          "cTribNac 99.XX.XX exige tribISSQN 4, não incidência (regra E0532, linha Excel 484)"};
+                          "cTribNac 99.XX.XX exige tribISSQN 4, não incidência (regra E0532, linha Excel 521)"};
 }
 
 } // namespace nl::back

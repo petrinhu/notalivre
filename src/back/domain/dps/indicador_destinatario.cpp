@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Unidade de compilação de IndicadorDestinatario (NL-1.4). Fonte: tiposSimples_v1.01.xsd:1758-1768 (TSRTCIndDest).
+// Unidade de compilação de IndicadorDestinatario (NL-1.4). Fonte: tiposSimples_v1.01.xsd:1793-1806 (TSRTCIndDest), leiaute de 24/11/2026.
 
 #include <nl/back/dps/indicador_destinatario.h>
 

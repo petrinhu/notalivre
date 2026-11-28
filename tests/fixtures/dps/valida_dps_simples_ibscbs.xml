@@ -29,6 +29,7 @@
                 <regEspTrib>0</regEspTrib>
             </regTrib>
         </prest>
+        <indDest>0</indDest>
         <serv>
             <locPrest>
                 <cLocPrestacao>4305108</cLocPrestacao>
@@ -61,7 +62,6 @@
         <IBSCBS>
             <cIndOp>000001</cIndOp>
             <tpOper>1</tpOper>
-            <indDest>0</indDest>
             <valores>
                 <trib>
                     <CST>000</CST>

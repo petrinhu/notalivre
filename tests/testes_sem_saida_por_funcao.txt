@@ -77,6 +77,7 @@ fedora45 servidor_falso.redirecionaRoteirizado servidor falso python (arnês de 
 fedora45 servidor_falso.rejeicaoRoteirizadaDevolveCodigoE servidor falso python (arnês de rede), sem junitxml por função
 fedora45 servidor_falso.rotasDeEventoEDfeRespondem501 servidor falso python (arnês de rede), sem junitxml por função
 fedora45 servidor_falso.semCertificadoRecusado servidor falso python (arnês de rede), sem junitxml por função
+fedora45 servidor_falso.status403HtmlSemCodigo servidor falso python (arnês de rede), sem junitxml por função
 fedora45 servidor_falso.tlsMaximoTls12LimitaVersao servidor falso python (arnês de rede), sem junitxml por função
 fedora45 servidor_falso.tlsMinimoTls12RecusaTls11 servidor falso python (arnês de rede), sem junitxml por função
 fedora45 servidor_falso.variavelSha1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função
@@ -175,6 +176,7 @@ ubuntu26.04 servidor_falso.redirecionaRoteirizado servidor falso python (arnês 
 ubuntu26.04 servidor_falso.rejeicaoRoteirizadaDevolveCodigoE servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.rotasDeEventoEDfeRespondem501 servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.semCertificadoRecusado servidor falso python (arnês de rede), sem junitxml por função
+ubuntu26.04 servidor_falso.status403HtmlSemCodigo servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.tlsMaximoTls12LimitaVersao servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.tlsMinimoTls12RecusaTls11 servidor falso python (arnês de rede), sem junitxml por função
 ubuntu26.04 servidor_falso.variavelSha1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função
@@ -273,6 +275,7 @@ manjaro servidor_falso.redirecionaRoteirizado servidor falso python (arnês de r
 manjaro servidor_falso.rejeicaoRoteirizadaDevolveCodigoE servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.rotasDeEventoEDfeRespondem501 servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.semCertificadoRecusado servidor falso python (arnês de rede), sem junitxml por função
+manjaro servidor_falso.status403HtmlSemCodigo servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.tlsMaximoTls12LimitaVersao servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.tlsMinimoTls12RecusaTls11 servidor falso python (arnês de rede), sem junitxml por função
 manjaro servidor_falso.variavelSha1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função
@@ -371,6 +374,7 @@ mint22.3 servidor_falso.redirecionaRoteirizado servidor falso python (arnês de 
 mint22.3 servidor_falso.rejeicaoRoteirizadaDevolveCodigoE servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.rotasDeEventoEDfeRespondem501 servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.semCertificadoRecusado servidor falso python (arnês de rede), sem junitxml por função
+mint22.3 servidor_falso.status403HtmlSemCodigo servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.tlsMaximoTls12LimitaVersao servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.tlsMinimoTls12RecusaTls11 servidor falso python (arnês de rede), sem junitxml por função
 mint22.3 servidor_falso.variavelSha1SoNaDistroBloqueada servidor falso python (arnês de rede), sem junitxml por função

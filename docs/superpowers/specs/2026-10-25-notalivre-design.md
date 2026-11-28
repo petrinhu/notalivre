@@ -321,7 +321,8 @@
 
 ### 4.11 IBS/CBS e regimes
 
-- **Regimes da v1:** não optante (opSimpNac 1), MEI (opSimpNac 2) e Simples Nacional ME/EPP (opSimpNac 3) (decisão do líder, 27/10/2026, opção escolhida: "Aceitar não optante (Recomendado)"; amplia a rodada 8, que dizia MEI e Simples Nacional, para incluir o autônomo pessoa física fora do MEI, que o consumidor da seção 1 nomeia). Domínio pelo XSD de 20/10/2026 (TSOpSimpNac, tiposSimples_v1.01.xsd:1003-1016; regApTribSN só com opSimpNac 3, tiposComplexos_v1.01.xsd:978), conforme a DA-1.16 do plano, agora ratificada.
+- **Regimes da v1:** não optante (opSimpNac 1), MEI (opSimpNac 2) e Simples Nacional ME/EPP (opSimpNac 3) (decisão do líder, 27/10/2026, opção escolhida: "Aceitar não optante (Recomendado)"; amplia a rodada 8, que dizia MEI e Simples Nacional, para incluir o autônomo pessoa física fora do MEI, que o consumidor da seção 1 nomeia). Domínio pelo XSD de Produção Restrita de 24/11/2026, Release 2 da NT 009 (ZIP `esquemas-xsd-producao-restrita-20261124.zip`, 39728 bytes, SHA-256 `1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0`; URL em 5.1; plano do CTO da NL-3.L, `docs/pesquisa/onda3_NL-3.L_plano.md`, seção 0): TSOpSimpNac continua 1, 2 e 3 (tiposSimples_v1.01.xsd:1029; mesmo plano, D10), e regApTribSN só com opSimpNac 3, conforme a DA-1.16 do plano, agora ratificada; a linha do regApTribSN no XSD de 24/11 não foi remedida. FATO medido em 27/11/2026: o gov.br tirou do ar o ZIP do XSD e o Anexo I de Produção Restrita de 20/10/2026 (302 para a página de login; mesmo plano, D3). Histórico, substituído em 27/11/2026 pela NL-3.L: o domínio era o do XSD de 20/10/2026 (TSOpSimpNac, tiposSimples_v1.01.xsd:1003-1016; regApTribSN só com opSimpNac 3, tiposComplexos_v1.01.xsd:978).
+- **indDest na raiz da DPS (XSD de Produção Restrita de 24/11/2026; NL-3.L).** FATO (plano do CTO da NL-3.L, D1): `indDest` saiu do grupo IBSCBS e virou campo obrigatório (1-1) da raiz de `infDPS`, entre `toma` e `serv` (tiposComplexos_v1.01.xsd:845; TSRTCIndDest, valores 0 e 1, tiposSimples_v1.01.xsd:1793), como a NT 009 §2.11 previa (5.2). Toda DPS leva o campo, com ou sem o grupo IBS/CBS. No JSON da CLI (decisão do líder, 27/11/2026, opção escolhida: "Raiz, padrão 0 (Recomendado)"), o campo fica na raiz, é opcional e vale 0 quando falta, e `ibscbs.indDest` é recusado com mensagem que aponta a raiz (paráfrase da opção). `indDest` 1 é recusado pela regra local E0910 enquanto o app não tiver o grupo `dest` (INBOX do `TODO.md`, NL-I.065).
 - **Grupo IBS/CBS:** já implementado. Opcional em 2026 e obrigatório em 2027 (decisão do líder, rodada 8, paráfrase; FATO, nota I336 do Anexo I v1.01: "Para optantes dos Simples Nacional, os grupos IBSCBS só serão obrigatórios a partir de 2027").
 - **Alerta do líder** (rodada 6). Verbatim: "Você está vendo os dados de ibs/cbs etc da nova nota fiscal? Cuidado com a legislacao fiscal!"
 - **O que o app informa:** classificação (CST, cClassTrib, cIndOp, indicadores). Não informa alíquota, porque a DPS v1.01 não tem esse campo (FATO). O cálculo vem da Calculadora (inferência de pesquisa).
@@ -347,7 +348,7 @@
 - **Decisão do líder** (rodada 3, paráfrase): teste sem A1 com servidor falso da API e certificado de teste.
 - **FATO:** não há teste oficial sem certificado (NÃO ENCONTRADO). A transmissão exige cadeia ICP-Brasil (E1203 a E1208).
 - **INFERÊNCIA:** o servidor falso valida o que o app faz, mas não a aceitação pela Sefin. A validação real depende de A1. [NL-2.10, 03/11/2026: INF-21 CONFIRMADA; ver `docs/pesquisa/onda2_producao_restrita.md`.]
-- **Qual XSD o servidor falso usa:** decisão do orquestrador, a confirmar (ver 4.14). O leiaute-alvo é o vigente em Produção Restrita, de 20/10/2026 (FATO, URLs na seção 5), com gerador e XSD versionados para trocar de leiaute sem reescrever.
+- **Qual XSD o servidor falso usa:** decisão do orquestrador, a confirmar (ver 4.14). O leiaute-alvo é o vigente em Produção Restrita, de 24/11/2026 desde a NL-3.L (FATO, URLs na seção 5), com gerador e XSD versionados para trocar de leiaute sem reescrever. Histórico, substituído em 27/11/2026: o leiaute-alvo era o de 20/10/2026, que o gov.br tirou do ar (4.11).
 - **EM ABERTO:**
   - origem do certificado de teste (gerado pelo app ou de AC de teste).
 
@@ -355,7 +356,7 @@
 
 Propostas do orquestrador, registradas em 25/10/2026 após a revisão com as respostas finais do líder. **Nenhuma está aprovada pelo líder.** Cada uma diz quando se desvia de decisão anterior do líder.
 
-- **Leiaute-alvo:** o vigente em Produção Restrita (20/10/2026), com gerador e XSD versionados para trocar de leiaute sem reescrever (ver 4.13).
+- **Leiaute-alvo:** o vigente em Produção Restrita (24/11/2026, desde a NL-3.L), com gerador e XSD versionados para trocar de leiaute sem reescrever (ver 4.13). Histórico, substituído em 27/11/2026 por fato, sem decisão nova do líder sobre esta proposta: a data era 20/10/2026; o gov.br trocou o leiaute em 24/11/2026 e tirou o de 20/10 do ar (4.11).
 - **Qt 6.12 no Flatpak:** se o runtime KDE do Flathub não tiver Qt 6.12, o Qt 6.12 é embutido no manifesto, cumprindo LGPL (ver 3.3 e 4.2). **Desvio:** a rodada 2 disse "via runtime". Precisa de confirmação do líder.
 - **Provedores SMTP sem documentação oficial encontrada** (Zoho, UOL, BOL, Terra, KingHost, Locaweb com host em conflito, Hostinger com página não lida): entram como sugestão marcada "não confirmada pelo provedor" e editável (ver 4.9). **Desvio:** a rodada 8 pediu verificação na documentação de cada um. Precisa de confirmação do líder.
 - **Fonte de cada tabela fiscal:** tabela sem URL oficial de download (cNBS) fica embutida e é atualizada por release. As que têm fonte oficial são conferidas e baixadas ao abrir, só quando há versão nova: IBGE pela API de localidades (documentação oficial lida em 25/10/2026) e cClassTrib e cIndOp pelos portais oficiais (ver 4.10). O formato de download de cClassTrib ainda não está confirmado. **Desvio:** a rodada 8 pediu atualização ao abrir de todas as tabelas. Precisa de confirmação do líder.
@@ -403,8 +404,10 @@ Cada item traz a URL da fonte. Quando a fonte é cópia, cópia e original estã
 
 - Anexo I, DPS v1.01 (09/02/2026): https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/anexo_i-sefin_adn-dps_nfse-snnfse-v1-01-20260209.xlsx
 - XSD v1.01 (09/02/2026): https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/nfse-esquemas_xsd-v1-01-20260209.zip
-- Anexo I de Produção Restrita, v1.01 (20/10/2026): https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/anexo_i-sefin_adn-dps_nfse-snnfse_prodrest-v1-01-20261020.xlsx
-- XSD de Produção Restrita (20/10/2026): https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas_prod_restrita_20261020.zip
+- Anexo I de Produção Restrita, v1.01 (24/11/2026, Release 2 da NT 009): https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/anexo_i-sefin_adn-dps_nfse-snnfse_prodrest-v1-01-20261124.xlsx (245045 bytes, SHA-256 `cf4d1d36daae5600060db2b36d9a84a703aa209cb099a0abbd7d3793c3e7e928`, baixado em 27/11/2026; plano do CTO da NL-3.L, seção 0)
+- XSD de Produção Restrita (24/11/2026): https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas-xsd-producao-restrita-20261124.zip (39728 bytes, SHA-256 `1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0`; dos dez arquivos, mudaram tiposComplexos_v1.01.xsd e tiposSimples_v1.01.xsd; mesmo plano, seção 0)
+- Anexo I de Produção Restrita, v1.01 (20/10/2026), fora do ar: medido em 27/11/2026, a URL devolve 302 para a página de login (mesmo plano, D3): https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/anexo_i-sefin_adn-dps_nfse-snnfse_prodrest-v1-01-20261020.xlsx
+- XSD de Produção Restrita (20/10/2026), fora do ar pela mesma medição: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas_prod_restrita_20261020.zip
 - Manual do contribuinte, API v1.2 (out/2025): https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/manual-contribuintes-emissor-publico-api-sistema-nacional-nfs-e-v1-2-out2025.pdf
 - Manual do contribuinte, ADN (fev/2026): https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/manual-contribuintes-apis-adn-sistema-nacional-nfse.pdf
 - Anexo II, eventos (22/01/2026): https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/anexo_ii-sefin_adn-pedregevt_evt-snnfse-v1-01-20260122.xlsx
@@ -596,7 +599,7 @@ Itens não decididos pelo líder. O construtor propõe, com busca prévia (L-22)
 - **Parser de CSV e XLSX** para o lote. Não escolhido.
 - **Credenciais.** QtKeychain e portal Secret. Não escolhido; ver riscos em 4.4.
 - **Driver MySQL.** QMYSQL ou biblioteca cliente direta. Presença no runtime KDE NÃO CONFIRMADA.
-- **Validação do XML.** Contra o XSD, conforme Fase 2 do brief. XSD de Produção Restrita de 20/10/2026, decisão do orquestrador a confirmar (ver 4.13 e 4.14).
+- **Validação do XML.** Contra o XSD, conforme Fase 2 do brief. XSD de Produção Restrita de 24/11/2026, desde a NL-3.L, decisão do orquestrador a confirmar (ver 4.13 e 4.14). Histórico, substituído em 27/11/2026: o XSD era o de 20/10/2026, que o gov.br tirou do ar (4.11).
 - **Esquema do banco.** Tabelas, índices, chaves. Não decidido. Depende de 4.4 (índice cego e chave mestra).
 - **Atualização de tabelas.** Mecanismo de versão, download e fallback offline. Depende das fontes em 4.10.
 - **Logs.** Política de campos. Ver 4.6.

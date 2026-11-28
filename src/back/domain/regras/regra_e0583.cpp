@@ -25,7 +25,7 @@ std::optional<nl::base::Erro> RegraE0583::verificar(const Dps& dps) const
         return std::nullopt;
     }
     return nl::base::Erro{"E0583", std::string{"Dps.infDPS.valores.trib.tribMun.tpRetISSQN"},
-                          "MEI não admite retenção do ISSQN: tpRetISSQN tem que ser 1 (regra E0583, linha Excel 513)"};
+                          "MEI não admite retenção do ISSQN: tpRetISSQN tem que ser 1 (regra E0583, linha Excel 550)"};
 }
 
 } // namespace nl::back

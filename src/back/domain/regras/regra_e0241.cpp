@@ -36,7 +36,7 @@ std::optional<nl::base::Erro> RegraE0241::verificar(const Dps& dps) const
         return std::nullopt;
     }
     return nl::base::Erro{"E0241", std::string{"Dps.infDPS.toma"},
-                          "com retenção pelo tomador, o tomador é CNPJ ou CPF e tem endereço nacional (regra E0241, linha Excel 278, ramo da retenção)"};
+                          "com retenção pelo tomador, o tomador é CNPJ ou CPF e tem endereço nacional (regra E0241, linha Excel 280, ramo da retenção)"};
 }
 
 } // namespace nl::back

@@ -17,12 +17,16 @@ permissions:
   contents: read
 
 # Base de temporários e de build (A0-08): padrão /var/tmp, trocável por variável; o preset exige NL_TMP_BASE.
-# ZIP do XSD de Produção Restrita (NL-1.6c): URL e SHA-256 espelham third_party/nfse-xsd/prodrest-20261020/SHA256SUMS
+# ZIP do XSD de Produção Restrita (NL-1.6c): URL e SHA-256 espelham third_party/nfse-xsd/prodrest-20261124/SHA256SUMS
 # (o passo do cache confere essa igualdade antes de usar). A chave do cache é o SHA-256: conteúdo fixo, chave fixa.
 env:
   NL_TMP_BASE: /var/tmp
-  NL_XSD_ZIP_SHA256: 25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
-  NL_XSD_ZIP_URL: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas_prod_restrita_20261020.zip
+  NL_XSD_ZIP_SHA256: 1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
+  NL_XSD_ZIP_URL: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas-xsd-producao-restrita-20261124.zip
+  # Espelho do mesmo ZIP, branch de dados espelho-xsd fixada pelo commit 4e2ced7 (decisão do líder, 27/11/2026, "Branch de dados, sem release (Recomendado)"): o gov.br recusa os
+  # runners do GitHub (run 46007980323, SSL connect error em todas as tentativas). O download tenta primeiro NL_XSD_ZIP_URL
+  # e, só se falhar no transporte, esta URL. O SHA-256 é conferido nas duas; divergência é fatal na hora.
+  NL_XSD_ZIP_ESPELHO: https://raw.githubusercontent.com/petrinhu/notalivre/4e2ced77726878fbbb2af83de82854ef84189533/esquemas-xsd-producao-restrita-20261124.zip
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -42,7 +46,10 @@ jobs:
         shell: bash
     steps:
       # A imagem ubuntu26.04 não traz git: o checkout sai sem histórico e o script de instalação traz o git e o aqt.
+      # NL-3.L (achado BAIXO da revisão de segurança): nenhum passo fala com o GitHub; o token não fica no .git.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Git e aqt (script de instalação da imagem ubuntu26.04)
         run: |
@@ -132,8 +139,11 @@ jobs:
 
   # NL-3.1v (run 45985663535): o job banco roda no host e não acha o cache do ZIP do XSD dos jobs nativos, gravado em
   # contêiner (o actions/cache põe o caminho na versão do cache), e o gov.br caiu 5 vezes com "SSL connect error" a partir
-  # do runner. Este job, na mesma imagem do qt-cache e com o mesmo path e a mesma chave dos jobs nativos, só restaura o
-  # cache (miss reprova, sem gov.br), confere o SHA-256 contra o manifesto e entrega o ZIP ao job banco por artefato, 1 dia.
+  # do runner. Este job, na mesma imagem do qt-cache e com o mesmo path e a mesma chave dos jobs nativos, restaura o
+  # cache, confere o SHA-256 contra o manifesto e entrega o ZIP ao job banco por artefato, 1 dia.
+  # NL-3.L: chave nova (leiaute de 24/11/2026). No cache miss, o job baixa do gov.br como o nativo (cmake -P, 5 tentativas por URL,
+  # e o espelho, SHA-256 conferido), no lugar do fail-on-cache-miss: com a chave nova o primeiro run é sempre miss, e sem o download o
+  # xsd-cache reprova e o banco (needs) não roda. O cmake e as raízes de TLS entram pelo apt da imagem, só no miss (NF-05).
   xsd-cache:
     name: xsd-cache
     runs-on: ubuntu-latest
@@ -150,12 +160,36 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Cache do ZIP do XSD (mesmo path e chave dos jobs nativos; falha se faltar, sem gov.br)
+      - name: Cache do ZIP do XSD (mesmo path e chave dos jobs nativos)
+        id: xsd-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/xsd-cache
-          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
-          fail-on-cache-miss: true
+          key: xsd-prodrest-20261124-1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
+
+      # Só no miss: cmake e ca-certificates pelo apt da imagem (NF-05, no CI sem pergunta, registrado no resumo) e o ZIP
+      # pelo mesmo tools/ci/baixar_zip_xsd.cmake do nativo. O SHA-256 é conferido depois do download; divergência é fatal na hora.
+      - name: ZIP do XSD do gov.br (só em cache miss; 5 tentativas, SHA-256 conferido)
+        if: steps.xsd-cache.outputs.cache-hit != 'true'
+        run: |
+          set -eu
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends cmake ca-certificates
+          pasta="$RUNNER_TEMP/xsd-cache"
+          mkdir -p "$pasta"
+          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261124/SHA256SUMS
+          cmake -DNL_URLS="$NL_XSD_ZIP_URL;$NL_XSD_ZIP_ESPELHO" -DNL_DESTINO="$pasta/esquemas-xsd-producao-restrita-20261124.zip" \
+                -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake
+          {
+            echo "## xsd-cache: instalado neste run (cache miss, NF-05)"
+            echo "| Item | Valor |"
+            echo "| --- | --- |"
+            echo "| O quê | cmake $(cmake --version | head -1 | cut -d' ' -f3) e ca-certificates, pelo apt da imagem |"
+            echo "| Onde | contêiner do job xsd-cache |"
+            echo "| ZIP baixado | $(stat -c %s "$pasta/esquemas-xsd-producao-restrita-20261124.zip") bytes |"
+            echo "| Motivo | chave nova do cache do ZIP do XSD (leiaute de 24/11/2026, NL-3.L) |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: SHA-256 do ZIP do XSD contra o manifesto
         run: bash tools/ci/zip_xsd.sh "$RUNNER_TEMP/xsd-cache"
@@ -164,7 +198,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: notalivre-xsd-zip
-          path: ${{ runner.temp }}/xsd-cache/esquemas_prod_restrita_20261020.zip
+          path: ${{ runner.temp }}/xsd-cache/esquemas-xsd-producao-restrita-20261124.zip
           retention-days: 1
           if-no-files-found: error
 
@@ -199,6 +233,8 @@ jobs:
       # no script de tools/conteiner/instalar, uma só fonte de pacotes (L-51). As outras três distros seguem com um checkout só.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: matrix.distro == 'ubuntu26.04'
+        with:
+          persist-credentials: false   # NL-3.L (achado BAIXO de segurança): os passos só leem o git local
 
       - name: "Git e ferramentas de build (só ubuntu26.04: script de instalação, antes do checkout com histórico)"
         if: matrix.distro == 'ubuntu26.04'
@@ -209,6 +245,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0   # NL-2.14 (DA-2.63, R5-3): histórico inteiro para o merge-base com a onda-2 no resumo do job
+          persist-credentials: false   # NL-3.L (achado BAIXO de segurança): git diff, cat-file e archive são locais
 
       - name: Ferramentas de build (mesmo script do Dockerfile)
         if: matrix.distro != 'ubuntu26.04'
@@ -247,26 +284,26 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/xsd-cache
-          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
+          key: xsd-prodrest-20261124-1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
 
       - name: ZIP do XSD (cache ou download com nova tentativa; SHA-256 conferido)
         id: xsd
         run: |
           set -eu
-          zip_nome=esquemas_prod_restrita_20261020.zip
+          zip_nome=esquemas-xsd-producao-restrita-20261124.zip
           pasta="$RUNNER_TEMP/xsd-cache"
           zip="$pasta/$zip_nome"
           mkdir -p "$pasta"
           # Cache e código têm de falar do mesmo ZIP: o SHA-256 do passo tem de ser o do manifesto da árvore.
-          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261020/SHA256SUMS
+          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261124/SHA256SUMS
           if [ -f "$zip" ]; then
               echo "ZIP do XSD: cache hit ($zip)"
           else
-              echo "ZIP do XSD: cache miss, baixando de $NL_XSD_ZIP_URL"
-              # cmake -P (file(DOWNLOAD), 5 tentativas, EXPECTED_HASH): o urllib do Python levou 403 do gov.br.
-              if ! cmake -DNL_URL="$NL_XSD_ZIP_URL" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+              echo "ZIP do XSD: cache miss, baixando de $NL_XSD_ZIP_URL e, se falhar, do espelho $NL_XSD_ZIP_ESPELHO"
+              # cmake -P (file(DOWNLOAD), 5 tentativas por URL, SHA-256 conferido depois): o urllib do Python levou 403 do gov.br.
+              if ! cmake -DNL_URLS="$NL_XSD_ZIP_URL;$NL_XSD_ZIP_ESPELHO" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
                   rm -f "$zip"
-                  echo "::error::ZIP do XSD não baixado do gov.br (5 tentativas, ou hash divergente)"
+                  echo "::error::ZIP do XSD não baixado (gov.br e espelho, 5 tentativas cada, ou hash divergente)"
                   exit 1
               fi
           fi
@@ -296,6 +333,73 @@ jobs:
       - name: Build (preset debug)
         id: build
         run: cmake --build --preset debug
+
+      # NL-3.L (passo 11; decisão do líder de 27/11/2026, "Ligar no CI e tornar obrigatório (Recomendado)"): o ensaio do
+      # emitir_teste.sh confere a DPS de teste no XSD de 24/11/2026 com a CLI que acabou de sair do build e com o XSD extraído
+      # no build. Fica neste job, e não no autotestes, porque a CLI só roda na imagem ubuntu26.04 (Qt, Connector/C e glibc
+      # de lá); o autotestes segue só com shell. Roda como uid 1000: o ensaio reprova dono diferente de quem o roda (caso p4,
+      # /etc/hosts), e como root o dono seria o próprio root. HOME descartável. Os test -x/-d/-f abaixo fazem o passo reprovar
+      # cedo, com 1, se o build não tiver a CLI, o XSD ou o manifesto; o script reprova com 11 se faltar algum dos três
+      # caminhos (NL_ENSAIO_CLI, NL_ENSAIO_XSD_DIR, NL_ENSAIO_XSD_MANIFESTO).
+      - name: "Ensaio do emitir_teste.sh no XSD de 24/11/2026 (NL-3.L, passo 11)"
+        if: matrix.distro == 'ubuntu26.04'
+        run: |
+          set -eu
+          cli="$NL_TMP_BASE/notalivre-build/debug/apps/cli/notalivre-cli"
+          test -x "$cli" || { echo "::error::CLI compilada ausente em $cli"; exit 1; }
+          xsd="$(sed -n 's/^NL_XSD_PRODREST_DIR:INTERNAL=//p' "$NL_TMP_BASE/notalivre-build/debug/CMakeCache.txt")"
+          test -d "$xsd" || { echo "::error::XSD do build ausente (NL_XSD_PRODREST_DIR vazio ou inexistente)"; exit 1; }
+          manifesto="$GITHUB_WORKSPACE/third_party/nfse-xsd/prodrest-20261124/SHA256SUMS"
+          test -f "$manifesto"
+          mkdir -p "$RUNNER_TEMP/home-ensaio"
+          chown 1000:1000 "$RUNNER_TEMP/home-ensaio"
+          setpriv --reuid=1000 --regid=1000 --clear-groups env HOME="$RUNNER_TEMP/home-ensaio" \
+            NL_ENSAIO_CLI="$cli" NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" \
+            bash tools/producao_restrita/emitir_teste.sh --ensaio
+
+      # NL-3.L (revisão de QA de 27/11/2026, B1; NF-33 e L-36): o ensaio acima tem de REPROVAR nos dois casos, e não só sair verde.
+      # Roda logo depois dele, no mesmo job e com o mesmo if. Controle 1: sem NL_ENSAIO_CLI, o ensaio sai com 11 e diz que faltam
+      # caminhos. Controle 2: com uma CLI falsa que sai com 1 e imprime uma linha de erro no formato da CLI, o ensaio sai com 9 e
+      # diz que o programa reprovou a DPS de teste. Cada controle exige o rc e a linha; se algum não morder, o job cai com ::error::.
+      - name: "Controle negativo do ensaio xsd (NL-3.L, B1: o portão tem de reprovar)"
+        if: matrix.distro == 'ubuntu26.04'
+        run: |
+          set -u
+          cli="$NL_TMP_BASE/notalivre-build/debug/apps/cli/notalivre-cli"
+          xsd="$(sed -n 's/^NL_XSD_PRODREST_DIR:INTERNAL=//p' "$NL_TMP_BASE/notalivre-build/debug/CMakeCache.txt")"
+          manifesto="$GITHUB_WORKSPACE/third_party/nfse-xsd/prodrest-20261124/SHA256SUMS"
+          test -x "$cli" && test -d "$xsd" && test -f "$manifesto" || { echo "::error::controle negativo sem CLI, XSD ou manifesto no build"; exit 1; }
+          ctl="$RUNNER_TEMP/controle-xsd"
+          mkdir -p "$ctl" "$RUNNER_TEMP/home-ensaio"
+          printf '%s\n' '#!/bin/sh' 'echo "erro XSD_CONTROLE: cli falsa do controle negativo" >&2; exit 1' > "$ctl/cli-falsa"
+          chmod 755 "$ctl/cli-falsa"
+          falhas=""
+          rc1=0
+          setpriv --reuid=1000 --regid=1000 --clear-groups env -u NL_ENSAIO_CLI HOME="$RUNNER_TEMP/home-ensaio" \
+            NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" \
+            bash tools/producao_restrita/emitir_teste.sh --ensaio > "$ctl/saida-sem-cli.txt" 2>&1 || rc1=$?
+          echo "controle 1 (sem NL_ENSAIO_CLI): rc=$rc1 (esperado 11)"
+          grep -F 'xsd_24_11' "$ctl/saida-sem-cli.txt" || true
+          if [ "$rc1" -eq 11 ] && grep -qF 'FALHA xsd_24_11: não conferi a DPS de teste no modelo de 24/11/2026. Faltam caminhos' "$ctl/saida-sem-cli.txt"; then
+            echo "controle 1 mordeu"
+          else
+            falhas="$falhas controle 1 (sem NL_ENSAIO_CLI: esperado rc 11 e a linha FALHA xsd_24_11 dos caminhos, veio rc $rc1);"
+          fi
+          rc2=0
+          setpriv --reuid=1000 --regid=1000 --clear-groups env HOME="$RUNNER_TEMP/home-ensaio" \
+            NL_ENSAIO_CLI="$ctl/cli-falsa" NL_ENSAIO_XSD_DIR="$xsd" NL_ENSAIO_XSD_MANIFESTO="$manifesto" \
+            bash tools/producao_restrita/emitir_teste.sh --ensaio > "$ctl/saida-cli-falsa.txt" 2>&1 || rc2=$?
+          echo "controle 2 (CLI falsa que reprova): rc=$rc2 (esperado 9)"
+          grep -F 'xsd_24_11' "$ctl/saida-cli-falsa.txt" || true
+          if [ "$rc2" -eq 9 ] && grep -qF 'FALHA xsd_24_11: o programa reprovou a DPS de teste no modelo de 24/11/2026 (códigos: XSD_CONTROLE)' "$ctl/saida-cli-falsa.txt"; then
+            echo "controle 2 mordeu"
+          else
+            falhas="$falhas controle 2 (CLI falsa que reprova: esperado rc 9 e a linha de reprovação com o código XSD_CONTROLE, veio rc $rc2);"
+          fi
+          if [ -n "$falhas" ]; then
+            echo "::error::controle negativo do ensaio xsd NÃO mordeu:$falhas"
+            exit 1
+          fi
 
       - name: ctest (preset debug)
         id: ctest
@@ -347,6 +451,44 @@ jobs:
           # roda como outro usuário no contêiner. Confiança declarada só para este caminho, no mesmo padrão dos portões.
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           bash tools/mutacao/mutante_mtls.sh "$GITHUB_WORKSPACE" "$GITHUB_SHA" "$RUNNER_TEMP/mutante-mtls"
+
+      # NL-3.L (passo 15, NF-12, L-35): caminhos tocados pelo diff. O ci.yml não tinha filtro por caminho; este passo é o
+      # filtro do mutante do log do 4xx. Base: pull_request.base.sha em PR, event.before em push. Fail-secure: sem base
+      # confiável (ausente, zerada ou fora do histórico), decide RODAR. Os caminhos são os do log do 4xx e os testes que o matam.
+      - name: "Caminhos do log do 4xx no diff (NL-3.L, NF-12)"
+        id: caminhos_log_4xx
+        if: matrix.distro == 'ubuntu26.04'
+        env:
+          BASE_PR: ${{ github.event.pull_request.base.sha }}
+          BASE_PUSH: ${{ github.event.before }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
+          base="${BASE_PR:-$BASE_PUSH}"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            decisao=true
+            echo "Base do diff ausente ou fora do histórico: o mutante do log do 4xx roda (fail-secure)."
+          elif ! lista=$(git diff --name-only "$base" "$GITHUB_SHA"); then
+            decisao=true
+            echo "git diff falhou entre $base e $GITHUB_SHA: o mutante do log do 4xx roda (fail-secure)."
+          else
+            casados=$(printf '%s\n' "$lista" | grep -E '^(src/mid/sefin/cliente/registro_resposta_sem_codigo|src/mid/sefin/cliente/allowlist_log_sefin[.]cpp|src/mid/sefin/cliente/cliente_sefin[.]cpp|src/foundation/log/|tests/unit/mid/sefin/cliente/tst_registro_resposta_sem_codigo[.]cpp|tests/unit/mid/sefin/cliente/tst_cliente_sefin_falhas_envio[.]cpp|tools/mutacao/mutante_log_4xx[.]sh|src/mid/include/nl/mid/sefin/cliente/allowlist_log_sefin[.]h|src/mid/include/nl/mid/sefin/cliente/registro_resposta_sem_codigo[.]h|src/mid/composicao/registro_cli[.]cpp|tools/servidor_falso/|src/foundation/transporte/)' || true)
+            if [ -n "$casados" ]; then decisao=true; else decisao=false; fi
+            echo "Caminhos do log do 4xx casados no diff de $base..$GITHUB_SHA:"
+            printf '%s\n' "${casados:-(nenhum)}"
+          fi
+          echo "tocou=$decisao" >> "$GITHUB_OUTPUT"
+          echo "Decisão do mutante do log do 4xx: tocou=$decisao"
+          echo "- Caminhos do log do 4xx no diff (NL-3.L): tocou=$decisao" >> "$GITHUB_STEP_SUMMARY"
+
+      # NL-3.L (passo 15, NF-12, B1 da revisão de QA): mutantes do log do 4xx sem código E. Mesma forma do mutante mTLS:
+      # cópia do SHA fora do workspace, pares (mutante, slot), morte só pela asserção exata. Pulado (skipped) quando o diff não toca o log.
+      - name: Mutantes do log do 4xx sem código E (NL-3.L, cópia fora do workspace)
+        id: mutante_log_4xx
+        if: matrix.distro == 'ubuntu26.04' && steps.caminhos_log_4xx.outputs.tocou == 'true'
+        run: |
+          # Mesmo caminho de confiança do mutante mTLS (dubious ownership no contêiner do runner).
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          bash tools/mutacao/mutante_log_4xx.sh "$GITHUB_WORKSPACE" "$GITHUB_SHA" "$RUNNER_TEMP/mutante-log-4xx"
 
       # A0-05 (L-36): o build nativo tem de REPROVAR uma sabotagem do próprio tst_sanidade, pelo motivo esperado.
       # Roda no mesmo contêiner, sobre uma cópia em NL_TMP_BASE. Este step passa só se a sabotagem reprovar.
@@ -435,26 +577,26 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/xsd-cache
-          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
+          key: xsd-prodrest-20261124-1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
 
       - name: ZIP do XSD (cache ou download com nova tentativa; SHA-256 conferido)
         id: xsd
         run: |
           set -eu
-          zip_nome=esquemas_prod_restrita_20261020.zip
+          zip_nome=esquemas-xsd-producao-restrita-20261124.zip
           pasta="$RUNNER_TEMP/xsd-cache"
           zip="$pasta/$zip_nome"
           mkdir -p "$pasta"
           # Cache e código têm de falar do mesmo ZIP: o SHA-256 do passo tem de ser o do manifesto da árvore.
-          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261020/SHA256SUMS
+          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261124/SHA256SUMS
           if [ -f "$zip" ]; then
               echo "ZIP do XSD: cache hit ($zip)"
           else
-              echo "ZIP do XSD: cache miss, baixando de $NL_XSD_ZIP_URL"
-              # cmake -P (file(DOWNLOAD), 5 tentativas, EXPECTED_HASH): o urllib do Python levou 403 do gov.br.
-              if ! cmake -DNL_URL="$NL_XSD_ZIP_URL" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+              echo "ZIP do XSD: cache miss, baixando de $NL_XSD_ZIP_URL e, se falhar, do espelho $NL_XSD_ZIP_ESPELHO"
+              # cmake -P (file(DOWNLOAD), 5 tentativas por URL, SHA-256 conferido depois): o urllib do Python levou 403 do gov.br.
+              if ! cmake -DNL_URLS="$NL_XSD_ZIP_URL;$NL_XSD_ZIP_ESPELHO" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
                   rm -f "$zip"
-                  echo "::error::ZIP do XSD não baixado do gov.br (5 tentativas, ou hash divergente)"
+                  echo "::error::ZIP do XSD não baixado (gov.br e espelho, 5 tentativas cada, ou hash divergente)"
                   exit 1
               fi
           fi
@@ -909,12 +1051,8 @@ jobs:
       - name: "Teto de processos em todo docker run, casos e varredura (NL-3.1h, v3.11)"
         run: bash tools/portoes/autoteste_pids_em_docker_run.sh "$GITHUB_WORKSPACE"
 
-      # NL-3.0i (revisão de edc4cde): o --ensaio do emitir_teste.sh roda no CI, com HOME descartável. Depende de bash,
-      # python3 (já usado por este job em outros passos), sha256sum, stat e coreutils, todos no runner ubuntu-latest.
-      - name: "Ensaio do emitir_teste.sh, contador durável e casos de revisão (NL-3.0i)"
-        run: |
-          mkdir -p "$RUNNER_TEMP/home-ensaio"
-          HOME="$RUNNER_TEMP/home-ensaio" bash tools/producao_restrita/emitir_teste.sh --ensaio
+      # NL-3.0i (revisão de edc4cde) e NL-3.L (passo 11): o --ensaio do emitir_teste.sh não roda mais aqui. Ele precisa da CLI
+      # compilada e do XSD de 24/11/2026 do build, e roda no job nativo (ubuntu26.04), depois do build (ver o passo lá).
 
   # Build Flatpak contra o SDK KDE 6.11 (NL-0.5). Portão ATIVO desde a NL-0.5: o plano exige o build a cada fatia,
   # e a API exclusiva do Qt 6.12 tem de quebrá-lo (ver o job mutacao). O CI nativo continua com Qt 6.12.
@@ -945,23 +1083,23 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/xsd-cache
-          key: xsd-prodrest-20261020-25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267
+          key: xsd-prodrest-20261124-1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
 
       - name: ZIP do XSD para o flatpak-builder (cache ou download com nova tentativa; SHA-256 conferido)
         id: xsd-flatpak
         run: |
           set -eu
-          zip_nome=esquemas_prod_restrita_20261020.zip
+          zip_nome=esquemas-xsd-producao-restrita-20261124.zip
           pasta="$RUNNER_TEMP/xsd-cache"
           zip="$pasta/$zip_nome"
           mkdir -p "$pasta"
-          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261020/SHA256SUMS
+          grep -q -F "# ZIP SHA-256: $NL_XSD_ZIP_SHA256 " third_party/nfse-xsd/prodrest-20261124/SHA256SUMS
           if [ -f "$zip" ]; then
               echo "ZIP do XSD (flatpak): cache hit ($zip)"
           else
-              echo "ZIP do XSD (flatpak): cache miss, baixando de $NL_XSD_ZIP_URL"
-              if ! cmake -DNL_URL="$NL_XSD_ZIP_URL" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
-                  echo "::error::ZIP do XSD não baixado do gov.br (flatpak): 5 tentativas, ou hash divergente"
+              echo "ZIP do XSD (flatpak): cache miss, baixando de $NL_XSD_ZIP_URL e, se falhar, do espelho $NL_XSD_ZIP_ESPELHO"
+              if ! cmake -DNL_URLS="$NL_XSD_ZIP_URL;$NL_XSD_ZIP_ESPELHO" -DNL_DESTINO="$zip" -DNL_SHA256="$NL_XSD_ZIP_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+                  echo "::error::ZIP do XSD não baixado (flatpak; gov.br e espelho, 5 tentativas cada, ou hash divergente)"
                   exit 1
               fi
           fi

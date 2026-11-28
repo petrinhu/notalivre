@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Testes do grupo IBS/CBS (NL-1.4, DA-1.5): gRefNFSe de 1 a 99 chaves e a regra tpOper 2 ou 3 (E0905 e E0906 da aba RN de 20/10).
+// Testes do grupo IBS/CBS (NL-1.4, DA-1.5): gRefNFSe de 1 a 99 chaves e a regra tpOper 2 ou 3 (E0905 e E0906 da aba RN do Anexo I de 24/11/2026).
 
 #include <nl/back/dps/codigo_classificacao_tributaria.h>
 #include <nl/back/dps/codigo_situacao_tributaria.h>
@@ -96,14 +96,12 @@ void TstIbscbs::gRefNFSeComCemChavesRejeitado()
 
 void TstIbscbs::tpOper2ExigeGRefNFSe()
 {
-    // E0905 (aba RN de 20/10, linha Excel 576): gRefNFSe obrigatório com tpOper 2 ou 3.
+    // E0905 (aba RN do Anexo I de 24/11/2026, linha Excel 610): gRefNFSe obrigatório com tpOper 2 ou 3.
     const auto tributacao = tributacaoValida();
     const auto tpOper = teste::valorSeOk(TipoOperacao::de(u"2"));
-    const auto indDest = teste::valorSeOk(IndicadorDestinatario::de(u"0"));
     QVERIFY(tributacao.has_value());
     QVERIFY(tpOper.has_value());
-    QVERIFY(indDest.has_value());
-    QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, std::nullopt, *indDest, *tributacao)),
+    QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, std::nullopt, *tributacao)),
              QStringLiteral("E0905"));
 }
 
@@ -111,65 +109,55 @@ void TstIbscbs::tpOper3ComGRefNFSeAceito()
 {
     const auto tributacao = tributacaoValida();
     const auto tpOper = teste::valorSeOk(TipoOperacao::de(u"3"));
-    const auto indDest = teste::valorSeOk(IndicadorDestinatario::de(u"0"));
     QVERIFY(tributacao.has_value());
     QVERIFY(tpOper.has_value());
-    QVERIFY(indDest.has_value());
     QVERIFY(umaReferencia().has_value());
-    QVERIFY(Ibscbs::montar(std::nullopt, *tpOper, umaReferencia(), *indDest, *tributacao).has_value());
+    QVERIFY(Ibscbs::montar(std::nullopt, *tpOper, umaReferencia(), *tributacao).has_value());
 }
 
 void TstIbscbs::tpOper1ComGRefNFSeRejeitado()
 {
-    // E0906 (aba RN de 20/10, linha Excel 577): gRefNFSe não pode existir com tpOper 1, 4 ou 5.
+    // E0906 (aba RN do Anexo I de 24/11/2026, linha Excel 611): gRefNFSe não pode existir com tpOper 1, 4 ou 5.
     const auto tributacao = tributacaoValida();
     const auto tpOper = teste::valorSeOk(TipoOperacao::de(u"1"));
-    const auto indDest = teste::valorSeOk(IndicadorDestinatario::de(u"0"));
     QVERIFY(tributacao.has_value());
     QVERIFY(tpOper.has_value());
-    QVERIFY(indDest.has_value());
     QVERIFY(umaReferencia().has_value());
-    QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, umaReferencia(), *indDest, *tributacao)),
+    QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, umaReferencia(), *tributacao)),
              QStringLiteral("E0906"));
 }
 
 void TstIbscbs::tpOper4ComGRefNFSeRejeitado()
 {
-    // E0906 (aba RN de 20/10, linha Excel 577): gRefNFSe não pode existir com tpOper 1, 4 ou 5.
+    // E0906 (aba RN do Anexo I de 24/11/2026, linha Excel 611): gRefNFSe não pode existir com tpOper 1, 4 ou 5.
     const auto tributacao = tributacaoValida();
     const auto tpOper = teste::valorSeOk(TipoOperacao::de(u"4"));
-    const auto indDest = teste::valorSeOk(IndicadorDestinatario::de(u"0"));
     QVERIFY(tributacao.has_value());
     QVERIFY(tpOper.has_value());
-    QVERIFY(indDest.has_value());
     QVERIFY(umaReferencia().has_value());
-    QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, umaReferencia(), *indDest, *tributacao)),
+    QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, umaReferencia(), *tributacao)),
              QStringLiteral("E0906"));
 }
 
 void TstIbscbs::tpOper5ComGRefNFSeRejeitado()
 {
-    // E0906 (aba RN de 20/10, linha Excel 577): tpOper 5 (fornecimento e recebimento concomitantes) também proíbe gRefNFSe.
+    // E0906 (aba RN do Anexo I de 24/11/2026, linha Excel 611): tpOper 5 (fornecimento e recebimento concomitantes) também proíbe gRefNFSe.
     const auto tributacao = tributacaoValida();
     const auto tpOper = teste::valorSeOk(TipoOperacao::de(u"5"));
-    const auto indDest = teste::valorSeOk(IndicadorDestinatario::de(u"0"));
     QVERIFY(tributacao.has_value());
     QVERIFY(tpOper.has_value());
-    QVERIFY(indDest.has_value());
     QVERIFY(umaReferencia().has_value());
-    QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, umaReferencia(), *indDest, *tributacao)),
+    QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, *tpOper, umaReferencia(), *tributacao)),
              QStringLiteral("E0906"));
 }
 
 void TstIbscbs::ibscbsValoresObrigatorioQuandoGrupoExiste()
 {
-    // IBSCBS/valores é 1-1 (Anexo de 20/10, linha Excel 390; tiposComplexos_v1.01.xsd:2387). Quando o grupo existe, trib vem com CST e cClassTrib.
+    // IBSCBS/valores é 1-1 (TCRTCInfoIBSCBS, tiposComplexos_v1.01.xsd:2392-2459 do leiaute de 24/11/2026). Quando o grupo existe, trib vem com CST e cClassTrib.
     // O tipo já impõe isso (sem valor padrão); o teste documenta a regra e pega qualquer afrouxamento futuro.
     const auto tributacao = tributacaoValida();
-    const auto indDest = teste::valorSeOk(IndicadorDestinatario::de(u"0"));
     QVERIFY(tributacao.has_value());
-    QVERIFY(indDest.has_value());
-    const auto ibscbs = Ibscbs::montar(std::nullopt, std::nullopt, std::nullopt, *indDest, *tributacao);
+    const auto ibscbs = Ibscbs::montar(std::nullopt, std::nullopt, std::nullopt, *tributacao);
     QVERIFY(ibscbs.has_value());
     QCOMPARE(ibscbs->trib().cst().texto(), QStringLiteral("000"));
     QCOMPARE(ibscbs->trib().cClassTrib().texto(), QStringLiteral("000001"));
@@ -178,21 +166,17 @@ void TstIbscbs::ibscbsValoresObrigatorioQuandoGrupoExiste()
 void TstIbscbs::semTpOperComGRefNFSeRejeitado()
 {
     const auto tributacao = tributacaoValida();
-    const auto indDest = teste::valorSeOk(IndicadorDestinatario::de(u"0"));
     QVERIFY(tributacao.has_value());
-    QVERIFY(indDest.has_value());
     QVERIFY(umaReferencia().has_value());
-    QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, std::nullopt, umaReferencia(), *indDest, *tributacao)),
+    QCOMPARE(teste::codigoDoErro(Ibscbs::montar(std::nullopt, std::nullopt, umaReferencia(), *tributacao)),
              QStringLiteral("E0906"));
 }
 
 void TstIbscbs::semTpOperSemGRefNFSeAceito()
 {
     const auto tributacao = tributacaoValida();
-    const auto indDest = teste::valorSeOk(IndicadorDestinatario::de(u"0"));
     QVERIFY(tributacao.has_value());
-    QVERIFY(indDest.has_value());
-    QVERIFY(Ibscbs::montar(std::nullopt, std::nullopt, std::nullopt, *indDest, *tributacao).has_value());
+    QVERIFY(Ibscbs::montar(std::nullopt, std::nullopt, std::nullopt, *tributacao).has_value());
 }
 
 void TstIbscbs::tipoOperacaoDeUmACinco()
@@ -206,7 +190,7 @@ void TstIbscbs::tipoOperacaoDeUmACinco()
 
 void TstIbscbs::indicadorDestinatarioZeroOuUm()
 {
-    // TSRTCIndDest (tiposSimples_v1.01.xsd:1758-1768): 0 e 1.
+    // TSRTCIndDest (tiposSimples_v1.01.xsd:1793-1806 do leiaute de 24/11/2026): 0 e 1.
     QVERIFY(IndicadorDestinatario::de(u"0").has_value());
     QVERIFY(IndicadorDestinatario::de(u"1").has_value());
     QCOMPARE(teste::codigoDoErro(IndicadorDestinatario::de(u"2")), QStringLiteral("indicadordestinatario.valor"));

@@ -220,6 +220,26 @@ class TesteServidorFalso(unittest.TestCase):
         self.assertIn("12345678909", corpo["Descricao"])
         self.assertEqual(rot.pendentes(), 0)
 
+    def test_status403HtmlSemCodigo(self):
+        # NL-3.L: a falha "status403_html" responde 403 com uma página HTML, sem JSON e sem código E (porta de entrada).
+        rot = roteiro.Roteiro()
+        rot.agendar("POST", "/nfse", "status403_html")
+        srv = self.subir(rot)
+        conn = self.conexao(srv)
+        try:
+            conn.request("POST", "/nfse", body=envelope.envelope(self.dps), headers={"Content-Type": "application/json"})
+            resp = conn.getresponse()
+            dados = resp.read()
+            self.assertEqual(resp.status, 403)
+            self.assertTrue(resp.getheader("Content-Type", "").startswith("text/html"))
+            self.assertTrue(dados.startswith(b"<!DOCTYPE html>"))
+            self.assertNotIn(b"Codigo", dados)
+        finally:
+            conn.close()
+        self.assertEqual(rot.pendentes(), 0)
+        with self.assertRaises(ValueError):
+            roteiro.Roteiro().agendar("GET", "/nfse", "status403_html")
+
     def test_variavelSha1SoNaDistroBloqueada(self):
         self.assertEqual(oraculo.ambiente_do_arnes({"ID": "fedora", "VERSION_ID": "45"}),
                          {"OPENSSL_ENABLE_SHA1_SIGNATURES": "1"})

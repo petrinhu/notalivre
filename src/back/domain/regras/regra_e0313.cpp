@@ -23,7 +23,7 @@ std::optional<nl::base::Erro> RegraE0313::verificar(const Dps& dps) const
         return std::nullopt;
     }
     return nl::base::Erro{"E0313", std::string{"Dps.infDPS.serv.cServ.cTribMun"},
-                          "Não é permitido informar cTribMun quando o emitente é MEI (regra E0313, linha Excel 340)"};
+                          "Não é permitido informar cTribMun quando o emitente é MEI (regra E0313, linha Excel 372)"};
 }
 
 } // namespace nl::back

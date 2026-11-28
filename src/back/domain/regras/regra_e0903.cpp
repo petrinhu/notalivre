@@ -28,7 +28,7 @@ std::optional<nl::base::Erro> RegraE0903::verificar(const Dps& dps) const
         return std::nullopt;
     }
     return nl::base::Erro{"E0903", std::string{"Dps.infDPS.IBSCBS.tpOper"},
-                          "tpOper obrigatório para cTribNac 25.05, 15.09, 17.12 e 10.05: preencha o grupo IBS/CBS com tpOper (regra E0903, linha Excel 574; ramo tpEnteGov fora do modelo)"};
+                          "tpOper obrigatório para cTribNac 25.05, 15.09, 17.12 e 10.05: preencha o grupo IBS/CBS com tpOper (regra E0903, linha Excel 608; ramo tpEnteGov fora do modelo)"};
 }
 
 } // namespace nl::back

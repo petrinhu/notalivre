@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
 // Falhas de envio do ClienteSefin (NL-3.C, S2 a S4; S5b, DA-3C.22): os 16 slots da causa tipada, movidos byte a byte de
-// tst_cliente_sefin.cpp. Montagem e apoio nos átomos de teste da S5c. Slot por CTest (mid.sefin.cliente.<nome>). Falha é QVERIFY.
+// tst_cliente_sefin.cpp, e o 403 sem código da NL-3.L (passo 15). Montagem e apoio nos átomos de teste da S5c. Slot por CTest (mid.sefin.cliente.<nome>). Falha é QVERIFY.
 #include <nl/back/dps/dps_assinada.h>
 #include <nl/back/identificacao/cnpj.h>
 #include <nl/back/identificacao/codigo_municipio.h>
@@ -443,6 +443,35 @@ private slots:
         const std::vector<std::string> esperado{"POST:409", "GET:200", "GET:503", "GET:503", "GET:503"};
         QVERIFY2(sequencia(m2->destino.str()) == esperado, "a busca da nota tentou três vezes e o POST não repetiu");
         QVERIFY2(postsNoServidor(segundo.porta(), *cred) == 1, "o servidor recebeu o POST uma vez");
+    }
+
+    // NL-3.L (passo 15): 403 da porta de entrada, em HTML e sem código E. É Definitiva, sem nova tentativa e sem consulta, e o
+    // log leva só o tipo de conteúdo e o tamanho do corpo (139 bytes, PAGINA_403 do servidor falso), nunca o texto dele.
+    void status403HtmlSemCodigoDefinitivoSemNovaTentativa()
+    {
+        auto cred = credencial();
+        QVERIFY2(cred.has_value(), "a fixture cnpj_ok tem de carregar");
+        auto dps = dpsAssinada(*cred);
+        QVERIFY2(dps.has_value(), "a DPS de referência tem de assinar");
+        ServidorDeTeste srv({QStringLiteral("POST /nfse status403_html")});
+        QVERIFY2(srv.porta() > 0, qPrintable(srv.diagnostico()));
+        mc::PoliticaRetry politica;
+        politica.base = 1ms;
+        auto m = montarComTls(configuracaoTls(*cred), srv.porta(), politica, true);
+        auto resultado = m->cliente->emitir(*dps);
+        QVERIFY2(!resultado.has_value(), "403 não pode emitir");
+        QVERIFY2(resultado.error().motivo == bk::MotivoFalhaSefin::Definitiva, "403 sem código é Definitiva");
+        QVERIFY2(resultado.error().causa == bk::CausaFalhaSefin::RespostaSemCodigoValido, "a causa é a resposta sem código válido");
+        QVERIFY2(resultado.error().codigoE.empty(), "403 sem código não ganha código E");
+        const std::vector<std::string> esperado{"POST:403"};
+        QVERIFY2(sequencia(m->destino.str()) == esperado, "403 não repete o POST nem consulta");
+        QVERIFY2(postsNoServidor(srv.porta(), *cred) == 1, "o servidor recebeu o POST uma vez");
+        const std::string saida = m->destino.str();
+        QVERIFY2(saida.find("sefin.resposta_sem_codigo") != std::string::npos, "o 403 sem código tem de ir ao log");
+        QVERIFY2(saida.find("\"tipoMidia\":\"html\"") != std::string::npos, "o log tem de dizer que o corpo era HTML");
+        QVERIFY2(saida.find("\"bytesResposta\":\"139\"") != std::string::npos, "o log tem de trazer o tamanho do corpo");
+        QVERIFY2(saida.find("12345678909") == std::string::npos, "o CPF do corpo não pode aparecer no log");
+        QVERIFY2(saida.find("Forbidden") == std::string::npos, "o texto do corpo não pode aparecer no log");
     }
 };
 

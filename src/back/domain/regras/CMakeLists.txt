@@ -9,6 +9,7 @@ target_sources(nl_back PRIVATE
     regra_e0202.cpp
     regra_e0204.cpp
     regra_e0237.cpp
+    regra_e0238.cpp
     regra_e0241.cpp
     regra_e0246.cpp
     regra_e0302.cpp
@@ -18,4 +19,5 @@ target_sources(nl_back PRIVATE
     regra_e0583.cpp
     regra_e0850.cpp
     regra_e0903.cpp
+    regra_e0910.cpp
 )

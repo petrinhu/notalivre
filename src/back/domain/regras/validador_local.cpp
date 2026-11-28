@@ -10,6 +10,7 @@
 #include <nl/back/regras/regra_e0202.h>
 #include <nl/back/regras/regra_e0204.h>
 #include <nl/back/regras/regra_e0237.h>
+#include <nl/back/regras/regra_e0238.h>
 #include <nl/back/regras/regra_e0241.h>
 #include <nl/back/regras/regra_e0246.h>
 #include <nl/back/regras/regra_e0302.h>
@@ -19,6 +20,7 @@
 #include <nl/back/regras/regra_e0583.h>
 #include <nl/back/regras/regra_e0850.h>
 #include <nl/back/regras/regra_e0903.h>
+#include <nl/back/regras/regra_e0910.h>
 
 namespace nl::back {
 
@@ -30,6 +32,7 @@ ValidadorLocal ValidadorLocal::padrao(const CatalogoLocalidades& catalogo)
     regras.push_back(std::make_unique<RegraE0202>());
     regras.push_back(std::make_unique<RegraE0204>());
     regras.push_back(std::make_unique<RegraE0237>());
+    regras.push_back(std::make_unique<RegraE0238>(catalogo));
     regras.push_back(std::make_unique<RegraE0241>());
     regras.push_back(std::make_unique<RegraE0246>(catalogo));
     regras.push_back(std::make_unique<RegraE0302>(catalogo));
@@ -40,6 +43,7 @@ ValidadorLocal ValidadorLocal::padrao(const CatalogoLocalidades& catalogo)
     regras.push_back(std::make_unique<RegraE0583>());
     regras.push_back(std::make_unique<RegraE0850>());
     regras.push_back(std::make_unique<RegraE0903>());
+    regras.push_back(std::make_unique<RegraE0910>());
 
     Avisos avisos;
     avisos.push_back(std::make_unique<AvisoD1>());

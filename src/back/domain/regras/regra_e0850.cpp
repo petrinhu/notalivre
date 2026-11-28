@@ -21,7 +21,7 @@ std::optional<nl::base::Erro> RegraE0850::verificar(const Dps& dps) const
         return std::nullopt;
     }
     return nl::base::Erro{"E0850", std::string{"Dps.infDPS.IBSCBS"},
-                          "IBS/CBS só com competência a partir de 01/01/2026 (regra E0850, linha Excel 566)"};
+                          "IBS/CBS só com competência a partir de 01/01/2026 (regra E0850, linha Excel 599)"};
 }
 
 } // namespace nl::back

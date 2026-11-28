@@ -22,6 +22,10 @@ std::expected<nb::DadosDps, nl::base::Erro> lerDadosDps(const QJsonObject& raiz)
     if (!tomador) {
         return std::unexpected(tomador.error());
     }
+    const auto indDest = lerIndicadorDestinatario(raiz);
+    if (!indDest) {
+        return std::unexpected(indDest.error());
+    }
     const auto servico = lerServico(raiz);
     if (!servico) {
         return std::unexpected(servico.error());
@@ -46,6 +50,7 @@ std::expected<nb::DadosDps, nl::base::Erro> lerDadosDps(const QJsonObject& raiz)
         .subst = std::nullopt,
         .prest = *prestador,
         .toma = *tomador,
+        .indDest = *indDest,
         .serv = *servico,
         .valores = *valores,
         .ibscbs = *ibscbs,

@@ -15,6 +15,25 @@ foreach(nome IN ITEMS eventoTemSoCamposFechados valorForaDoConjuntoVira_outro ca
                        DEPENDS cli.limpaLogsPii)
 endforeach()
 
+# Evento sefin.resposta_sem_codigo (NL-3.L, passo 15): átomo puro, sem rede; roda também no build Flatpak.
+add_executable(tst_registro_resposta_sem_codigo tst_registro_resposta_sem_codigo.cpp)
+target_link_libraries(tst_registro_resposta_sem_codigo PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_log nl_warnings)
+foreach(nome IN ITEMS eventoTemStatusTipoETamanho tipoConteudoSaiDoConjuntoFechado tipoConteudoForaDoConjuntoViraOutro semTipoConteudoViraAusente camposDoEventoNaoSaoProibidos)
+  nl_registra_teste_qt(NAME mid.sefin.respostaSemCodigo.${nome} COMMAND tst_registro_resposta_sem_codigo ${nome})
+  set_tests_properties(mid.sefin.respostaSemCodigo.${nome} PROPERTIES
+                       FAIL_REGULAR_EXPRESSION "FAIL!"
+                       ENVIRONMENT "NL_LOGS_PII_CLI_DIR=${CMAKE_BINARY_DIR}/logs_pii_cli"
+                       DEPENDS cli.limpaLogsPii)
+endforeach()
+
+# Catálogo de erros da Sefin (NL-3.L): átomo puro, sem rede; roda também no build Flatpak.
+add_executable(tst_catalogo_erros_sefin tst_catalogo_erros_sefin.cpp)
+target_link_libraries(tst_catalogo_erros_sefin PRIVATE Qt6::Core Qt6::Test nl_mid nl_warnings)
+foreach(nome IN ITEMS codigosDoEnderecoTemMensagemPropria e1235DizQueOLeiauteMudou codigoForaDoCatalogoFicaComAGenerica)
+  nl_registra_teste_qt(NAME mid.sefin.catalogoErros.${nome} COMMAND tst_catalogo_erros_sefin ${nome})
+  set_tests_properties(mid.sefin.catalogoErros.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
+endforeach()
+
 add_executable(tst_cliente_sefin tst_cliente_sefin.cpp)
 target_link_libraries(tst_cliente_sefin PRIVATE Qt6::Core Qt6::Network Qt6::Test nl_mid nl_back nl_foundation_pkcs12
                       nl_foundation_transporte nl_foundation_log OpenSSL::Crypto nl_warnings)
@@ -41,6 +60,7 @@ else()
         dps404E2404LiberaReenvio
         conflito409ConsultaENaoReenvia
         rejeicaoE0014NaoRepete
+        rejeicaoE0244NaoRepeteNemConsulta
         certificadoRevogadoMapeadoPelaRejeicaoDaSefin
         textoLivreDaApiComCpfSoLogaCodigoE
         getTransitorioRepeteComBackoff
@@ -92,7 +112,8 @@ foreach(nome IN LISTS NL_SLOTS_CLIENTE)
                        TIMEOUT 120)  # teto explícito por slot: sem ele o CTest espera 1500 s por teste travado
 endforeach()
 
-# Falhas de envio do cliente Sefin (NL-3.C; S5b, DA-3C.22): os 16 slots da causa tipada, em executável próprio. Mesmo nome de
+# Falhas de envio do cliente Sefin (NL-3.C; S5b, DA-3C.22): os 16 slots da causa tipada, em executável próprio, e o 403 sem
+# código da NL-3.L (passo 15). Mesmo nome de
 # CTest (mid.sefin.cliente.<nome>) e mesmas propriedades do laço de cima. Fora do build Flatpak, como eles (DA-2.28).
 if(NOT NL_FLATPAK_BUILD)
     add_executable(tst_cliente_sefin_falhas_envio tst_cliente_sefin_falhas_envio.cpp)
@@ -114,7 +135,8 @@ if(NOT NL_FLATPAK_BUILD)
         emitirSemTentativaNaoEnviaNada
         servidorDeOutraRaizSemBytesDaServidorNaoConfirmado
         zeroBytesNoReenvioDepoisDeE2404NaoDizNadaFoiEnviado
-        conflito409ComNotaIndisponivelPropagaACausa)
+        conflito409ComNotaIndisponivelPropagaACausa
+        status403HtmlSemCodigoDefinitivoSemNovaTentativa)
       nl_registra_teste_qt(NAME mid.sefin.cliente.${nome} COMMAND tst_cliente_sefin_falhas_envio ${nome})
       set_tests_properties(mid.sefin.cliente.${nome} PROPERTIES
                            FIXTURES_REQUIRED certificados_teste

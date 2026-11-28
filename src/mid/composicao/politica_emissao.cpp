@@ -5,7 +5,7 @@
 
 #include <optional>
 
-#include <nl/mid/sefin/leiaute/prodrest_20261020/hosts_sefin.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/hosts_sefin.h>
 
 #include <QUrl>
 
@@ -33,10 +33,10 @@ std::expected<Ambiente, nl::base::Erro> ambienteDoEndpoint(QStringView url)
         return std::unexpected(nl::base::Erro("emissao.endpoint_inseguro", std::nullopt, "o endpoint da Sefin tem de usar https"));
     }
     const QString host = endereco.host().toLower();
-    if (host == QString::fromLatin1(nl::mid::sefin::prodrest_20261020::kHostProducao.data(), static_cast<qsizetype>(nl::mid::sefin::prodrest_20261020::kHostProducao.size()))) {
+    if (host == QString::fromLatin1(nl::mid::sefin::prodrest_20261124::kHostProducao.data(), static_cast<qsizetype>(nl::mid::sefin::prodrest_20261124::kHostProducao.size()))) {
         return Ambiente::Producao;
     }
-    if (host == QString::fromLatin1(nl::mid::sefin::prodrest_20261020::kHostProducaoRestrita.data(), static_cast<qsizetype>(nl::mid::sefin::prodrest_20261020::kHostProducaoRestrita.size()))) {
+    if (host == QString::fromLatin1(nl::mid::sefin::prodrest_20261124::kHostProducaoRestrita.data(), static_cast<qsizetype>(nl::mid::sefin::prodrest_20261124::kHostProducaoRestrita.size()))) {
         return Ambiente::ProducaoRestrita;
     }
     if (host == QStringLiteral("127.0.0.1") || host == QStringLiteral("localhost")) {

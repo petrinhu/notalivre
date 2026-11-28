@@ -207,6 +207,8 @@ private slots:
     void campoObrigatorioAusenteReprova();
     void xmlMalformadoReprova();
     void idForaDoPatternReprova();
+    // NL-3.L: a DPS no formato de 20/10/2026 (indDest só dentro de IBSCBS) reprova no XSD de 24/11/2026.
+    void indDestNoGrupoIbscbsReprova();
     void shaErradoDoEsquemaRecusado();
     void fixturesConcordamComORegraDoNome();
     void xmlComDoctypeNoValidadorParaSemProcessar();
@@ -278,6 +280,27 @@ void TstValidadorXsd::idForaDoPatternReprova()
     // Formato "Element '{ns}infDPS', attribute 'Id': [facet 'pattern']...": sem "Expected is", o campo é o elemento citado.
     QVERIFY(resultado.error().erros().front().campo().has_value());
     QCOMPARE(QString::fromStdString(resultado.error().erros().front().campo().value()), QStringLiteral("infDPS"));
+}
+
+void TstValidadorXsd::indDestNoGrupoIbscbsReprova()
+{
+    // No leiaute de 24/11/2026 o indDest é obrigatório na raiz de infDPS (tiposComplexos_v1.01.xsd:845) e saiu de IBSCBS.
+    // A fixture tem a forma de 20/10: sem indDest na raiz e com ele dentro de IBSCBS. O motivo real que a libxml2 acusa é o
+    // primeiro desvio: o elemento serv aparece onde o XSD espera toma ou indDest (raiz). Esse é o motivo conferido aqui.
+    // A fixture não isola o indDest do IBSCBS: com a raiz presente, o erro passa a ser o do IBSCBS (fora deste teste).
+    const auto esquema = Esquema::abrir(kDiretorioXsd, kManifesto, kRaiz);
+    QVERIFY2(esquema.has_value(), qPrintable(descricaoDe(esquema)));
+    const QByteArray xml = lerFixture(QStringLiteral("invalida_inddest_no_ibscbs.xml"));
+
+    const auto resultado = ValidadorXsd::validar(xml, esquema.value());
+
+    QVERIFY(!resultado.has_value());
+    QCOMPARE(resultado.error().motivo(), ErrosXsd::Motivo::invalido);
+    const QString msg = mensagensDe(resultado.error());
+    QVERIFY2(msg.contains(QStringLiteral("}serv'")), qPrintable(msg));
+    QVERIFY2(msg.contains(QStringLiteral("not expected")), qPrintable(msg));
+    QVERIFY2(msg.contains(QStringLiteral("}toma")), qPrintable(msg));
+    QVERIFY2(msg.contains(QStringLiteral("}indDest")), qPrintable(msg));
 }
 
 void TstValidadorXsd::shaErradoDoEsquemaRecusado()

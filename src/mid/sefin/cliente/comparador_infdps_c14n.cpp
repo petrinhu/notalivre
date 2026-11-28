@@ -5,7 +5,7 @@
 #include <nl/mid/sefin/cliente/comparador_infdps_c14n.h>
 
 #include <nl/foundation/xmldsig/assinador_xml.h>
-#include <nl/mid/sefin/leiaute/prodrest_20261020/parametros_infdps.h>
+#include <nl/mid/sefin/leiaute/prodrest_20261124/parametros_infdps.h>
 
 namespace nl::mid::sefin::cliente {
 
@@ -13,7 +13,7 @@ ResultadoComparacaoInfDps ComparadorInfDpsC14n::comparar(const nl::back::IdDps& 
                                                          const QByteArray& nfseXml) const {
     namespace xd = nl::foundation::xmldsig;
     const QString idTexto = id.texto();
-    const auto parametros = nl::mid::sefin::prodrest_20261020::parametrosDoDigestDeComparacao();
+    const auto parametros = nl::mid::sefin::prodrest_20261124::parametrosDoDigestDeComparacao();
     const auto digestDps = xd::digestCanonicoDaReferencia(dpsXml, idTexto, parametros);
     const auto digestNfse = xd::digestCanonicoDaReferencia(nfseXml, idTexto, parametros);
     // Sem o infDPS numa das pontas, na forma que o motor aceita, não há comparação: Indisponivel (estado seguro).

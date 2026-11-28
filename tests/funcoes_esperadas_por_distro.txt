@@ -3,8 +3,27 @@
 # Contagem exata de funções por distro (NL-2.14, adendo 4 da DA-2.61; piso do tipo da DA-2.60). Uma linha por distro: distro N.
 # N é o total de testcases de todos os junitxml do build (initTestCase e cleanupTestCase incluídos). Comparada com ==.
 # Mudar a contagem é ato visível no diff, que a revisão confere contra os testes acrescentados ou retirados.
-fedora45 1791
-ubuntu26.04 1791
-manjaro 1791
-mint22.3 1791
-flatpak 1518
+# NL-3.L (passo 13): nativo 1791 -> 1857 (+66, medido no run 46010890525 do commit a63308f). Conta: 13 slots, sem rows
+#   novas, em classes que já existiam (e2e dps_validar +3, tst_dps +2, tst_regra_e0390 +2, tst_validador_local +1,
+#   tst_validador_xsd +1, tst_codec_dps +4); 2 classes novas registradas inteiras (tst_regra_e0238 3 slots, tst_regra_e0910
+#   3 slots) com +2 cada de initTestCase/cleanupTestCase = 10; 2 entradas por função novas (tst_cliente_sefin
+#   rejeicaoE0244 e falhas_envio status403, 1 slot + 2 cada = 6); tst_registro_resposta_sem_codigo, 5 entradas (5 + 10 = 15);
+#   tst_catalogo_erros_sefin, 3 entradas (14 rows + 1 + 1 slots = 16, mais 2 por entrada = 22). Soma: 13 + 10 + 6 + 15 + 22 = 66.
+# flatpak 1518 -> 1578 (+60, estimado no run 46010890525, em que o build Flatpak parou antes da contagem; medido depois, igual, no run 46014900162). Conta: as
+#   entradas novas que rodam no Flatpak são 10 (registro 5, catálogo 3, e0238 1, e0910 1; é o +10 do piso_suite). Funções
+#   delas: 15 + 22 + 5 + 5 = 47. Slots em classes existentes que rodam no Flatpak (sem guarda NL_FLATPAK_BUILD): e2e
+#   dps_validar +3, tst_dps +2, tst_validador_xsd +1, tst_regra_e0390 +2, tst_validador_local +1, tst_codec_dps +4 = 13.
+#   Soma: 47 + 13 = 60. Fora do Flatpak (não entram): cliente rejeicaoE0244 e falhas_envio status403 (6). 66 - 6 = 60.
+#   O próximo run mede; se divergir, o main corrige este número.
+# NL-3.L (B2, revisão QA da NL-3.L): nativo 1857 -> 1867 (+10, medido no run 46018747106, commit 93f3c3f). Conta: entrada nova
+#   mid.composicao.leitorIndicadorDestinatario (tst_leitor_indicador_destinatario, registrada inteira): 6 slots + 2 de
+#   initTestCase/cleanupTestCase = 8; em tst_dps_validar (entrada que já existia), 2 slots novos (indDestUmNaRaizSaiNoXml,
+#   indDestDoisNaRaizRecusado) = 2. Soma: 8 + 2 = 10. O Bx2 (tst_validador_xsd indDestNoGrupoIbscbsReprova) troca asserts, sem
+#   slot novo: soma 0.
+# flatpak 1578 -> 1588 (+10, medido no run 46018747106, commit 93f3c3f): a entrada nova roda no Flatpak (sem guarda NL_FLATPAK_BUILD), com os mesmos 8, e os 2
+#   slots do tst_dps_validar também entram.
+fedora45 1867
+ubuntu26.04 1867
+manjaro 1867
+mint22.3 1867
+flatpak 1588

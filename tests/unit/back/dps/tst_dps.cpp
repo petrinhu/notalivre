@@ -5,6 +5,7 @@
 
 #include <nl/back/dps/dados_dps.h>
 #include <nl/back/dps/dps.h>
+#include <nl/back/dps/indicador_destinatario.h>
 #include <nl/back/dps/indicador_total_tributos.h>
 #include <nl/back/dps/op_simp_nac.h>
 #include <nl/back/dps/reg_esp_trib.h>
@@ -58,6 +59,7 @@ std::optional<DadosDps> dadosValidos()
     const auto cnpj = teste::valorSeOk(Cnpj::de(u"11222333000181"));
     const auto opSimpNac = teste::valorSeOk(OpSimpNac::de(u"2"));
     const auto regEspTrib = teste::valorSeOk(RegEspTrib::de(u"0"));
+    const auto indDest = teste::valorSeOk(IndicadorDestinatario::de(u"0"));
     const auto cLocPrestacao = teste::valorSeOk(CodigoMunicipio::de(u"4305108"));
     const auto cTribNac = teste::valorSeOk(CodigoTribNacional::de(u"170201"));
     const auto xDescServ = teste::valorSeOk(DescricaoServico::de(u"Consultoria em tecnologia"));
@@ -66,7 +68,7 @@ std::optional<DadosDps> dadosValidos()
     const auto retencao = teste::valorSeOk(RetencaoIssqn::de(u"1"));
     const auto indTot = teste::valorSeOk(IndicadorTotalTributos::de(u"0"));
     if (!tpAmb || !verAplic || !serie || !nDps || !cLocEmi || !cnpj || !opSimpNac || !regEspTrib || !cLocPrestacao || !cTribNac
-        || !xDescServ || !vServ || !issqn || !retencao || !indTot) {
+        || !xDescServ || !vServ || !issqn || !retencao || !indTot || !indDest) {
         return std::nullopt;
     }
     const auto regime = teste::valorSeOk(RegimeTributacao::montar(*opSimpNac, std::nullopt, *regEspTrib));
@@ -86,6 +88,7 @@ std::optional<DadosDps> dadosValidos()
         .subst = std::nullopt,
         .prest = Prestador::montar(Inscricao{*cnpj}, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, *regime),
         .toma = std::nullopt,
+        .indDest = *indDest,
         .serv = Servico::montar(*cLocPrestacao, *cTribNac, std::nullopt, *xDescServ, std::nullopt),
         .valores = ValoresServico::montar(*vServ, Tributacao::montar(*municipal, TotalTributos{*indTot})),
         .ibscbs = std::nullopt,
@@ -107,6 +110,9 @@ private slots:
     void dCompetInvalidoRejeitado();
     void idDerivadoDaMontagem();
     void tipoAmbienteDeUmADois();
+    // NL-3.L: indDest na raiz de infDPS (leiaute de 24/11/2026), fora do grupo IBS/CBS.
+    void indDestFicaNaRaizDaDps();
+    void indDestUmSemIbscbsMontaNoDominio();
 };
 
 void TstDps::tpEmitSempre1()
@@ -120,7 +126,7 @@ void TstDps::tpEmitSempre1()
 
 void TstDps::grupoIbsCbsAusentePermitidoEm2026()
 {
-    // IBSCBS é 0-1 em infDPS (tiposComplexos_v1.01.xsd:851 e DPS linha 390 do Anexo de 20/10 para o trib). Opcional em 2026 (spec 4.11).
+    // IBSCBS é 0-1 em infDPS (tiposComplexos_v1.01.xsd:872 do leiaute de 24/11/2026). Opcional em 2026 (spec 4.11).
     const auto dados = dadosValidos();
     QVERIFY(dados.has_value());
     QVERIFY(!dados->ibscbs.has_value());
@@ -181,6 +187,30 @@ void TstDps::tipoAmbienteDeUmADois()
     QVERIFY(TipoAmbiente::de(u"1").has_value());
     QVERIFY(TipoAmbiente::de(u"2").has_value());
     QCOMPARE(teste::codigoDoErro(TipoAmbiente::de(u"3")), QStringLiteral("ambiente.valor"));
+}
+
+void TstDps::indDestFicaNaRaizDaDps()
+{
+    // Sem o grupo IBS/CBS, o indDest continua na DPS: é campo da raiz de infDPS desde o leiaute de 24/11/2026.
+    const auto dados = dadosValidos();
+    QVERIFY(dados.has_value());
+    QVERIFY(!dados->ibscbs.has_value());
+    const auto dps = Dps::montar(*dados);
+    QVERIFY(dps.has_value());
+    QVERIFY(dps->dados().indDest.valor() == nl::back::IndicadorDestinatario::Valor::tomadorEDestinatario);
+}
+
+void TstDps::indDestUmSemIbscbsMontaNoDominio()
+{
+    // O tipo aceita 1; quem recusa 1 sem o grupo dest é a regra E0910 (NL-3.L), não a montagem.
+    auto dados = dadosValidos();
+    QVERIFY(dados.has_value());
+    const auto um = teste::valorSeOk(nl::back::IndicadorDestinatario::de(u"1"));
+    QVERIFY(um.has_value());
+    dados->indDest = *um;
+    const auto dps = Dps::montar(*dados);
+    QVERIFY(dps.has_value());
+    QVERIFY(dps->dados().indDest.valor() == nl::back::IndicadorDestinatario::Valor::outroDestinatario);
 }
 
 QTEST_GUILESS_MAIN(TstDps)

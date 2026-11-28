@@ -16,13 +16,23 @@ std::string_view RegraE0390::codigo() const noexcept
     return "E0390";
 }
 
+namespace {
+
+/// Item 12 (cTribNac 12xxxx) ou subitem 17.10 (cTribNac 1710xx): os dois exigem atvEvento no Anexo I de 24/11/2026.
+bool exigeAtividadeEvento(const QString& cTribNac)
+{
+    return cTribNac.startsWith(QStringLiteral("12")) || cTribNac.startsWith(QStringLiteral("1710"));
+}
+
+} // namespace
+
 std::optional<nl::base::Erro> RegraE0390::verificar(const Dps& dps) const
 {
-    if (!dps.dados().serv.cTribNac().texto().startsWith(QStringLiteral("12"))) {
+    if (!exigeAtividadeEvento(dps.dados().serv.cTribNac().texto())) {
         return std::nullopt;
     }
     return nl::base::Erro{"E0390", std::string{"Dps.infDPS.serv.atvEvento"},
-                          "cTribNac do item 12 exige o grupo atvEvento; o app ainda não tem o grupo atvEvento, então a DPS é recusada aqui (regra E0390, linha Excel 380)"};
+                          "cTribNac do item 12 ou do subitem 17.10 exige o grupo atvEvento; o app ainda não tem o grupo atvEvento, então a DPS é recusada aqui (regra E0390, linha Excel 414)"};
 }
 
 } // namespace nl::back

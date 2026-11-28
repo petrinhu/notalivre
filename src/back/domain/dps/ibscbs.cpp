@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Unidade de compilação de Ibscbs (NL-1.4, DA-1.5). E0905 e E0906 da aba RN de 20/10 (linhas Excel 576 e 577).
+// Unidade de compilação de Ibscbs (NL-1.4, DA-1.5). E0905 e E0906 da aba RN do Anexo I de 24/11/2026 (linhas Excel 610 e 611).
 
 #include <nl/back/dps/ibscbs.h>
 
@@ -23,8 +23,7 @@ bool exigeReferencia(const std::optional<TipoOperacao>& tpOper)
 } // namespace
 
 std::expected<Ibscbs, nl::base::Erro> Ibscbs::montar(std::optional<CodigoIndicadorOperacao> cIndOp, std::optional<TipoOperacao> tpOper,
-                                                     std::optional<RefNfse> gRefNFSe, IndicadorDestinatario indDest,
-                                                     TributacaoIbscbs trib)
+                                                     std::optional<RefNfse> gRefNFSe, TributacaoIbscbs trib)
 {
     const bool exige = exigeReferencia(tpOper);
     if (exige && !gRefNFSe) {
@@ -35,7 +34,7 @@ std::expected<Ibscbs, nl::base::Erro> Ibscbs::montar(std::optional<CodigoIndicad
         return std::unexpected(nl::base::Erro{"E0906", std::string{"IBSCBS/gRefNFSe"},
                                               "gRefNFSe só pode existir com tpOper 2 ou 3"});
     }
-    return Ibscbs{std::move(cIndOp), std::move(tpOper), std::move(gRefNFSe), indDest, std::move(trib)};
+    return Ibscbs{std::move(cIndOp), std::move(tpOper), std::move(gRefNFSe), std::move(trib)};
 }
 
 } // namespace nl::back

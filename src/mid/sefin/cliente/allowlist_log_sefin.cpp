@@ -27,12 +27,16 @@ std::vector<fl::DeclaracaoCampo> allowlistLogSefin()
         fl::DeclaracaoCampo{"protocoloNegociado", fl::Regra::Cru},
         // NL-2.10e (DA-2.82): categoria do Qt num conjunto fechado (qt.network.ssl, qt.network.http2, qt.network.access, outro).
         fl::DeclaracaoCampo{"categoria", fl::Regra::Cru},
+        // NL-3.L (passo 15): 4xx do envio sem código E. Tipo de conteúdo num conjunto fechado e tamanho do corpo; o corpo nunca entra.
+        fl::DeclaracaoCampo{"tipoMidia", fl::Regra::Cru},
+        fl::DeclaracaoCampo{"bytesResposta", fl::Regra::Cru},
     };
 }
 
 std::vector<std::string> eventosLogSefin()
 {
-    return {"sefin.requisicao", "sefin.erro", "sefin.transporte_falhou", "emissao.aceita", "emissao.recusada"};
+    return {"sefin.requisicao", "sefin.erro", "sefin.transporte_falhou", "sefin.resposta_sem_codigo", "emissao.aceita",
+            "emissao.recusada"};
 }
 
 } // namespace nl::mid::sefin::cliente
