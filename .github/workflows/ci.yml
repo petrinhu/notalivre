@@ -596,6 +596,44 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           bash tools/mutacao/mutante_log_4xx.sh "$GITHUB_WORKSPACE" "$GITHUB_SHA" "$RUNNER_TEMP/mutante-log-4xx"
 
+      # NL-3.M (passo 15, NF-12, decisão do líder 28/11/2026): caminhos do catálogo de localidades no diff. Mesma forma do filtro
+      # do log do 4xx: base do PR ou do push, fail-secure (sem base confiável, decide RODAR). Os caminhos são os do catálogo.
+      - name: "Caminhos do catálogo de localidades no diff (NL-3.M, NF-12)"
+        id: caminhos_catalogo
+        if: matrix.distro == 'ubuntu26.04'
+        env:
+          BASE_PR: ${{ github.event.pull_request.base.sha }}
+          BASE_PUSH: ${{ github.event.before }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
+          base="${BASE_PR:-$BASE_PUSH}"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            decisao=true
+            echo "Base do diff ausente ou fora do histórico: o mutante do catálogo roda (fail-secure)."
+          elif ! lista=$(git diff --name-only "$base" "$GITHUB_SHA"); then
+            decisao=true
+            echo "git diff falhou entre $base e $GITHUB_SHA: o mutante do catálogo roda (fail-secure)."
+          else
+            casados=$(printf '%s\n' "$lista" | grep -E '^(src/mid/tabelas/|src/mid/include/nl/mid/tabelas/|apps/cli/configuracao_cli[.]|tests/unit/mid/tabelas/|tests/unit/cli/tst_configuracao_cli[.]cpp|tools/mutacao/mutante_catalogo[.]sh)' || true)
+            if [ -n "$casados" ]; then decisao=true; else decisao=false; fi
+            echo "Caminhos do catálogo casados no diff de $base..$GITHUB_SHA:"
+            printf '%s\n' "${casados:-(nenhum)}"
+          fi
+          echo "tocou=$decisao" >> "$GITHUB_OUTPUT"
+          echo "Decisão do mutante do catálogo: tocou=$decisao"
+          echo "- Caminhos do catálogo de localidades no diff (NL-3.M): tocou=$decisao" >> "$GITHUB_STEP_SUMMARY"
+
+      # NL-3.M (passo 15, NF-12): mutantes do catálogo de localidades (carga, hash por arquivo, pino, ordem e guarda da CLI).
+      # Mesma forma do mutante do log: cópia do SHA fora do workspace, pares, morte só pela asserção exata do slot.
+      # Pulado (skipped) quando o diff não toca o catálogo.
+      - name: Mutantes do catálogo de localidades (NL-3.M, cópia fora do workspace)
+        id: mutante_catalogo
+        if: matrix.distro == 'ubuntu26.04' && steps.caminhos_catalogo.outputs.tocou == 'true'
+        run: |
+          # Mesmo caminho de confiança do mutante do log (dubious ownership no contêiner do runner).
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          bash tools/mutacao/mutante_catalogo.sh "$GITHUB_WORKSPACE" "$GITHUB_SHA" "$RUNNER_TEMP/mutante-catalogo"
+
       # A0-05 (L-36): o build nativo tem de REPROVAR uma sabotagem do próprio tst_sanidade, pelo motivo esperado.
       # Roda no mesmo contêiner, sobre uma cópia em NL_TMP_BASE. Este step passa só se a sabotagem reprovar.
       - name: Sabotagem de estreia do tst_sanidade (deve reprovar)

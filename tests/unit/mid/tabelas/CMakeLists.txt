@@ -13,6 +13,7 @@ foreach(nome IN ITEMS
     fixtureCarregaERespondeExistencia
     manifestoForaDoPinRecusado
     tabelaDivergenteDoManifestoRecusada
+    tabelaAdulteradaEMalformadaRecusadaPeloHash
     tabelaAusenteRecusada
     jsonMalformadoRecusado
     manifestoMalformadoRecusado

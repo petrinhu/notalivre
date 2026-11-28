@@ -123,6 +123,10 @@ private slots:
     // JSON cujo SHA-256 não confere com o manifesto é recusado, mesmo com o pino certo.
     void tabelaDivergenteDoManifestoRecusada();
 
+    // Tabela adulterada E malformada, com o SHA256SUMS intacto: o hash vem antes do parse, então o erro é arquivo_divergente,
+    // nunca json_invalido. Se o parse rodasse antes da conferência, o slot cairia (NL-3.M, mutante de ordem).
+    void tabelaAdulteradaEMalformadaRecusadaPeloHash();
+
     // Pasta inexistente, ou um dos JSON faltando no diretório, é recusado como ausente.
     void tabelaAusenteRecusada();
 
@@ -195,6 +199,28 @@ void TstCatalogoLocalidades::tabelaDivergenteDoManifestoRecusada()
     QVERIFY2(!resultado.has_value(), "JSON divergente do manifesto tem de ser recusado");
     QCOMPARE(QString::fromStdString(resultado.error().codigo()), QStringLiteral("tabelas.arquivo_divergente"));
     QVERIFY2(!QString::fromStdString(resultado.error().mensagem()).contains(dir), "a mensagem não pode trazer o caminho");
+}
+
+void TstCatalogoLocalidades::tabelaAdulteradaEMalformadaRecusadaPeloHash()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString dir = temp.path() + QStringLiteral("/tabelas");
+    const QByteArray pino = gravaTabelas(dir);
+    QVERIFY(!pino.isEmpty());
+
+    // O municipios.json passa a ter bytes que NÃO batem com o SHA256SUMS e NÃO fazem parse. O manifesto não é regravado,
+    // então o pino continua valendo. Pré-condições: os bytes novos são de fato divergentes e malformados.
+    const QByteArray adulterado("{ \"registros\": [");
+    QVERIFY2(sha256Hex(adulterado) != sha256Hex(kMunicipiosJson), "pré-condição: os bytes novos têm de divergir do manifesto");
+    QVERIFY2(QJsonDocument::fromJson(adulterado).isNull(), "pré-condição: os bytes novos têm de ser JSON malformado");
+    QVERIFY(gravaArquivo(QDir(dir).filePath(QStringLiteral("municipios.json")), adulterado));
+
+    // A conferência do hash é o primeiro passo por arquivo: o erro tem de ser arquivo_divergente. Com o parse antes do hash,
+    // sairia json_invalido, e a asserção do código cai aqui.
+    const auto resultado = CatalogoLocalidadesEmbutido::carregar(dir, vista(pino));
+    QVERIFY2(!resultado.has_value(), "tabela adulterada e malformada tem de ser recusada");
+    QVERIFY2(resultado.error().codigo() == "tabelas.arquivo_divergente", "a conferência do hash vem antes do parse");
 }
 
 void TstCatalogoLocalidades::tabelaAusenteRecusada()
