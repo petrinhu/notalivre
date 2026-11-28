@@ -12,7 +12,8 @@ target_compile_definitions(tst_dps_validar PRIVATE
     "NL_SAIDA_DPS=\"${CMAKE_BINARY_DIR}/e2e_dps_validar/saida\""
     "NL_FIXTURES_DPS=\"${CMAKE_SOURCE_DIR}/tests/fixtures/dps\""
     "NL_XSD_PRODREST_DIR=\"${NL_XSD_PRODREST_DIR}\""
-    "NL_XSD_PRODREST_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\"")
+    "NL_XSD_PRODREST_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\""
+    "NL_TABELAS_DIR=\"${NL_TABELAS_DIR}\"")
 nl_registra_teste_qt(NAME tst_dps_validar COMMAND tst_dps_validar)
 
 # Oráculo: o mesmo script do validador da NL-1.6a (régua por nome: valida_* deve validar). Lê só a saída do arnês.

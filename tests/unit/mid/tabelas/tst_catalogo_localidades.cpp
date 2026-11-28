@@ -12,6 +12,9 @@
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QString>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -48,6 +51,18 @@ QByteArray sha256Hex(const QByteArray& bytes)
 std::string_view vista(const QByteArray& bytes)
 {
     return std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+}
+
+// Quantos registros a lista "registros" de um JSON de tabela tem, lidos à parte do adaptador: é o oráculo das contagens (L-43).
+// Devolve -1 se o arquivo não abre.
+int contaRegistros(const QString& caminho)
+{
+    QFile arquivo(caminho);
+    if (!arquivo.open(QIODevice::ReadOnly)) {
+        return -1;
+    }
+    const QJsonDocument documento = QJsonDocument::fromJson(arquivo.readAll());
+    return documento.object().value(QStringLiteral("registros")).toArray().size();
 }
 
 bool gravaArquivo(const QString& caminho, const QByteArray& bytes)
@@ -116,6 +131,10 @@ private slots:
 
     // SHA256SUMS fora do formato sha256sum, ou com tabela repetida, é recusado como manifesto inválido (pino batendo).
     void manifestoMalformadoRecusado();
+
+    // NL-3.M: as tabelas reais do build (NL_TABELAS_DIR) carregam com o pino do configure. Contagens 5.570, 250 e 1 (converter.py:30-37),
+    // conferidas nos JSON à parte; existência dos códigos que a CLI e as regras consultam.
+    void tabelasDoBuildCarregam();
 };
 
 void TstCatalogoLocalidades::fixtureCarregaERespondeExistencia()
@@ -254,6 +273,26 @@ void TstCatalogoLocalidades::manifestoMalformadoRecusado()
         QVERIFY2(!QString::fromStdString(resultado.error().mensagem()).contains(QString::fromLatin1(hashMunicipios)),
                  "a mensagem não pode ecoar o conteúdo do manifesto");
     }
+}
+
+void TstCatalogoLocalidades::tabelasDoBuildCarregam()
+{
+    const QString dir = QString::fromUtf8(NL_TABELAS_DIR);
+    const QByteArray pino = QByteArray(NL_TABELAS_MANIFESTO_SHA256);
+    const auto resultado = CatalogoLocalidadesEmbutido::carregar(dir, vista(pino));
+    QVERIFY2(resultado.has_value(), "as tabelas do build têm de carregar com o pino do configure");
+    const CatalogoLocalidadesEmbutido& catalogo = resultado.value();
+
+    QCOMPARE(contaRegistros(dir + QStringLiteral("/municipios.json")), 5570);
+    QCOMPARE(contaRegistros(dir + QStringLiteral("/paises.json")), 250);
+    QCOMPARE(contaRegistros(dir + QStringLiteral("/localidades.json")), 1);
+
+    QVERIFY(catalogo.municipioExiste(CodigoMunicipio::de(QStringLiteral("4305108")).value()));
+    QVERIFY(catalogo.municipioExiste(CodigoMunicipio::de(QStringLiteral("2611606")).value()));
+    QVERIFY(catalogo.municipioExiste(CodigoMunicipio::de(QStringLiteral("0000000")).value()));
+    QVERIFY(!catalogo.municipioExiste(CodigoMunicipio::de(QStringLiteral("9999999")).value()));
+    QVERIFY(catalogo.paisExiste(CodigoPais::de(QStringLiteral("US")).value()));
+    QVERIFY(!catalogo.paisExiste(CodigoPais::de(QStringLiteral("XX")).value()));
 }
 
 QTEST_APPLESS_MAIN(TstCatalogoLocalidades)

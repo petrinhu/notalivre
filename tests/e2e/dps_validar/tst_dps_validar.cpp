@@ -10,10 +10,17 @@
 #include <QIODevice>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QString>
 #include <QStringList>
 #include <QtTest>
+
+#include <cstddef>
+#include <initializer_list>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -23,6 +30,7 @@ const QString kSaida = QStringLiteral(NL_SAIDA_DPS);
 const QString kFixtures = QStringLiteral(NL_FIXTURES_DPS);
 const QString kXsd = QStringLiteral(NL_XSD_PRODREST_DIR);
 const QString kManifesto = QStringLiteral(NL_XSD_PRODREST_MANIFESTO);
+const QString kTabelas = QStringLiteral(NL_TABELAS_DIR);
 
 constexpr int kTempoMaximoMs = 60000;
 
@@ -56,11 +64,12 @@ Execucao executarCli(const QStringList& argumentos)
     return resultado;
 }
 
-/// Argumentos da subcomando `dps validar`: entrada, saída e a localização do XSD de Produção Restrita.
+/// Argumentos da subcomando `dps validar`: entrada, saída, o XSD de Produção Restrita, o manifesto e as tabelas do Anexo A (NL-3.M).
 QStringList argumentosValidar(const QString& entrada, const QString& saida)
 {
     return {QStringLiteral("dps"), QStringLiteral("validar"), entrada, saida,
-            QStringLiteral("--xsd"), kXsd, QStringLiteral("--manifesto"), kManifesto};
+            QStringLiteral("--xsd"), kXsd, QStringLiteral("--manifesto"), kManifesto,
+            QStringLiteral("--tabelas"), kTabelas};
 }
 
 QString caminhoEntrada(const QString& nome)
@@ -99,6 +108,156 @@ void verificaReprovaEntrada(const QString& nome, const QString& codigoErro, cons
     QVERIFY2(!QFile::exists(saida), "entrada reprovada não pode deixar XML gravado");
 }
 
+// NL-3.M (passo 4, seção 4.2): cada variante abaixo dispara SÓ a regra local da linha, a partir de uma entrada base. Vão para a
+// pasta de saída (nunca para entradas/, que pede exceção de SPDX por arquivo).
+
+/// Texto JSON. QT_NO_CAST_FROM_ASCII está ligado no projeto: o literal passa por fromUtf8.
+QJsonValue txt(const char* valor)
+{
+    return QJsonValue(QString::fromUtf8(valor));
+}
+
+/// Objeto JSON a partir de pares chave-valor de literais.
+QJsonObject objetoDe(std::initializer_list<std::pair<const char*, QJsonValue>> pares)
+{
+    QJsonObject objeto;
+    for (const auto& par : pares) {
+        objeto.insert(QString::fromUtf8(par.first), par.second);
+    }
+    return objeto;
+}
+
+/// Endereço nacional com os cinco campos obrigatórios da entrada e o código do município dado.
+QJsonObject enderecoNacional(const char* cMun)
+{
+    return objetoDe({{"cMun", txt(cMun)}, {"cep", txt("01001-000")}, {"xLgr", txt("Rua das Flores")}, {"nro", txt("10")},
+                     {"xBairro", txt("Centro")}});
+}
+
+/// Troca um campo de um grupo de primeiro nível. QJsonObject é por valor: copia o grupo, altera e reinsere.
+void defineNoGrupo(QJsonObject& raiz, const char* grupo, const char* campo, const QJsonValue& valor)
+{
+    const QString chave = QString::fromUtf8(grupo);
+    QJsonObject alvo = raiz.value(chave).toObject();
+    alvo.insert(QString::fromUtf8(campo), valor);
+    raiz.insert(chave, alvo);
+}
+
+/// Troca um campo de valores.tribMun.
+void defineTribMun(QJsonObject& raiz, const char* campo, const QJsonValue& valor)
+{
+    QJsonObject valores = raiz.value(QStringLiteral("valores")).toObject();
+    QJsonObject tribMun = valores.value(QStringLiteral("tribMun")).toObject();
+    tribMun.insert(QString::fromUtf8(campo), valor);
+    valores.insert(QStringLiteral("tribMun"), tribMun);
+    raiz.insert(QStringLiteral("valores"), valores);
+}
+
+/// Grava na pasta de saída a entrada base com a mutação aplicada, como regra_<nome>.json. Devolve o caminho, ou vazio se falhar.
+QString gravarVariante(const QString& base, const QString& nome, void (*mutar)(QJsonObject&))
+{
+    bool lido = false;
+    const QByteArray conteudo = lerArquivo(caminhoEntrada(base), &lido);
+    if (!lido) {
+        return {};
+    }
+    QJsonObject raiz = QJsonDocument::fromJson(conteudo).object();
+    mutar(raiz);
+
+    const QString caminho = QStringLiteral("%1/regra_%2.json").arg(kSaida, nome);
+    QFile arquivo{caminho};
+    if (!arquivo.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return {};
+    }
+    arquivo.write(QJsonDocument{raiz}.toJson());
+    return caminho;
+}
+
+/// Pares "código|campo" de cada linha "erro <código> (<campo>): ..." do stderr, ordenados. Linha de erro sem campo vira "código|".
+QStringList paresDeErro(const QString& stderrTexto)
+{
+    static const QRegularExpression linhaDeErro{QStringLiteral(R"re(^erro (\S+)(?: \(([^)]*)\))?: )re")};
+    QStringList pares;
+    for (const QString& linha : stderrTexto.split(QLatin1Char('\n'))) {
+        const QRegularExpressionMatch casou = linhaDeErro.match(linha);
+        if (casou.hasMatch()) {
+            pares.append(casou.captured(1) + QLatin1Char('|') + casou.captured(2));
+        }
+    }
+    pares.sort();
+    return pares;
+}
+
+/// Um código e o campo em que ele tem de aparecer na linha de erro.
+struct ParEsperado
+{
+    const char* codigo;
+    const char* campo;
+};
+
+/// Uma linha da tabela de NL-3.M (seção 4.2): nome da linha, entrada base, mutação e o conjunto exato de código|campo esperado.
+struct VarianteRegraLocal
+{
+    const char* nome;
+    const char* base;
+    void (*mutar)(QJsonObject&);
+    std::vector<ParEsperado> esperados;
+};
+
+std::vector<VarianteRegraLocal> variantesRegraLocal()
+{
+    return {
+        {"e0202_cnpj_do_tomador_igual_ao_prestador", "tomador_cpf",
+         [](QJsonObject& r) {
+             r.insert(QStringLiteral("tomador"),
+                      objetoDe({{"cnpj", txt("11222333000181")}, {"xNome", txt("Cliente Empresa")}, {"endereco", enderecoNacional("4305108")}}));
+         },
+         {{"E0202", "Dps.infDPS.toma.CNPJ"}}},
+        {"e0204_e0237_e0241_retencao_sem_tomador", "simples_ibscbs",
+         [](QJsonObject& r) { defineTribMun(r, "tpRetISSQN", txt("2")); },
+         {{"E0204", "Dps.infDPS.toma"}, {"E0237", "Dps.infDPS.toma.end.endNac"}, {"E0241", "Dps.infDPS.toma"}}},
+        {"e0237_e0241_retencao_tomador_cpf_sem_endereco", "simples_ibscbs",
+         [](QJsonObject& r) {
+             defineTribMun(r, "tpRetISSQN", txt("2"));
+             r.insert(QStringLiteral("tomador"), objetoDe({{"cpf", txt("52998224725")}, {"xNome", txt("Cliente Pessoa Fisica")}}));
+         },
+         {{"E0237", "Dps.infDPS.toma.end.endNac"}, {"E0241", "Dps.infDPS.toma"}}},
+        {"e0238_municipio_do_tomador_inexistente", "tomador_cpf",
+         [](QJsonObject& r) { defineNoGrupo(r, "tomador", "endereco", enderecoNacional("9999999")); },
+         {{"E0238", "Dps.infDPS.toma.end.endNac.cMun"}}},
+        {"e0302_local_da_prestacao_inexistente", "mei_minima",
+         [](QJsonObject& r) { defineNoGrupo(r, "servico", "cLocPrestacao", txt("9999999")); },
+         {{"E0302", "Dps.infDPS.serv.locPrest.cLocPrestacao"}}},
+        {"e0313_mei_com_ctribmun", "mei_minima",
+         [](QJsonObject& r) { defineNoGrupo(r, "servico", "cTribMun", txt("501")); },
+         {{"E0313", "Dps.infDPS.serv.cServ.cTribMun"}}},
+        {"e0390_ctribnac_item_12_sem_atvevento", "mei_minima",
+         [](QJsonObject& r) { defineNoGrupo(r, "servico", "cTribNac", txt("120101")); },
+         {{"E0390", "Dps.infDPS.serv.atvEvento"}}},
+        {"e0390_ctribnac_subitem_17_10_sem_atvevento", "mei_minima",
+         [](QJsonObject& r) { defineNoGrupo(r, "servico", "cTribNac", txt("171001")); },
+         {{"E0390", "Dps.infDPS.serv.atvEvento"}}},
+        {"e0532_ctribnac_99_com_issqn_1", "mei_minima",
+         [](QJsonObject& r) {
+             defineNoGrupo(r, "servico", "cTribNac", txt("990101"));
+             defineTribMun(r, "tribISSQN", txt("1"));
+         },
+         {{"E0532", "Dps.infDPS.valores.trib.tribMun.tribISSQN"}}},
+        {"e0583_mei_com_retencao_pelo_intermediario", "mei_minima",
+         [](QJsonObject& r) { defineTribMun(r, "tpRetISSQN", txt("3")); },
+         {{"E0583", "Dps.infDPS.valores.trib.tribMun.tpRetISSQN"}}},
+        {"e0850_ibscbs_com_competencia_de_2025", "simples_ibscbs",
+         [](QJsonObject& r) { r.insert(QStringLiteral("dCompet"), txt("2025-12-31")); },
+         {{"E0850", "Dps.infDPS.IBSCBS"}}},
+        {"e0903_ctribnac_2505_sem_tpoper", "mei_minima",
+         [](QJsonObject& r) { defineNoGrupo(r, "servico", "cTribNac", txt("250501")); },
+         {{"E0903", "Dps.infDPS.IBSCBS.tpOper"}}},
+        {"e0910_indest_1_sem_grupo_dest", "tomador_cpf",
+         [](QJsonObject& r) { r.insert(QStringLiteral("indDest"), txt("1")); },
+         {{"E0910", "Dps.infDPS.dest"}}},
+    };
+}
+
 } // namespace
 
 class TstDpsValidar : public QObject
@@ -135,8 +294,7 @@ private slots:
     void indDestNaRaizDoJson();
     void indDestDentroDeIbscbsRecusado();
     void semIndDestUsaZero();
-    // NL-3.L (B2): indDest 1 na raiz sai no XML; indDest 2 é recusado pelo leitor. Variantes de tomador_cpf gravadas na pasta de saída.
-    void indDestUmNaRaizSaiNoXml();
+    // NL-3.L (B2): indDest 2 é recusado pelo leitor. Variante de tomador_cpf gravada na pasta de saída.
     void indDestDoisNaRaizRecusado();
 
     void jsonMalformadoReprova();
@@ -153,6 +311,14 @@ private slots:
     void manifestoIlegivelRetornaAmbiente();
     void opcaoDesconhecidaRetornaUso();
     void opcaoRepetidaRetornaUso();
+
+    // NL-3.M (passo 4): cada regra local reprova com o código e o campo da tabela; o aviso D1 não impede a gravação.
+    void regraLocalReprovaComCodigoECampo_data();
+    void regraLocalReprovaComCodigoECampo();
+    void avisoD1NaoImpedeAGravacao();
+    // NL-3.M: --tabelas é obrigatório como --xsd; diretório ausente é ambiente (rc 2).
+    void tabelasAusentesRetornaAmbiente();
+    void tabelasFaltandoRetornaUso();
 };
 
 void TstDpsValidar::initTestCase()
@@ -402,31 +568,6 @@ void TstDpsValidar::semIndDestUsaZero()
     QVERIFY2(gerado.contains("<indDest>0</indDest>"), "sem indDest na entrada, o XML tem de sair com indDest 0");
 }
 
-void TstDpsValidar::indDestUmNaRaizSaiNoXml()
-{
-    // Arrange: tomador_cpf com indDest "1" na raiz. O XSD de 24/11 aceita 1; a regra E0910 é local e a CLI não a liga (decisão de 27/11).
-    const QString entrada = gravarVarianteIndDest(QStringLiteral("1"));
-    QVERIFY2(!entrada.isEmpty(), "não consegui gravar a variante com indDest 1");
-    const QString saida = caminhoSaida(QStringLiteral("indDest_1"));
-    QFile::remove(saida);
-
-    // Act
-    const Execucao execucao = executarCli(argumentosValidar(entrada, saida));
-
-    // Assert: sai com rc 0 e o XML traz indDest 1 entre toma e serv.
-    QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
-    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1, stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
-    bool lido = false;
-    const QByteArray gerado = lerArquivo(saida, &lido);
-    QVERIFY2(lido, "não consegui ler o XML gravado pela CLI");
-    const qsizetype posToma = gerado.indexOf("</toma>");
-    const qsizetype posIndDest = gerado.indexOf("<indDest>1</indDest>");
-    const qsizetype posServ = gerado.indexOf("<serv>");
-    QVERIFY2(posToma >= 0, "o XML tem de trazer o grupo toma, que é o vizinho anterior do indDest");
-    QVERIFY2(posIndDest >= 0, "o XML tem de trazer <indDest>1</indDest>");
-    QVERIFY2(posToma < posIndDest && posIndDest < posServ, "indDest tem de sair entre toma e serv, na raiz de infDPS");
-}
-
 void TstDpsValidar::indDestDoisNaRaizRecusado()
 {
     // Arrange: indDest "2" está fora do conjunto do XSD. O leitor recusa; a mensagem da CLI traz o código do valor, sem XML.
@@ -495,14 +636,15 @@ void TstDpsValidar::argumentoFaltandoRetornaUso()
     const QString saida = caminhoSaida(QStringLiteral("argumento_faltando"));
     QFile::remove(saida);
 
-    // Falta --manifesto: a linha de comando é incompleta e a CLI tem de recusar antes de ler qualquer arquivo.
+    // Falta só --manifesto (as tabelas vêm): a linha de comando é incompleta e a CLI tem de recusar antes de ler qualquer arquivo.
+    // O detalhe tem de nomear a opção que falta; a linha de uso cita --manifesto sempre, então não serve de prova.
     const QStringList argumentos{QStringLiteral("dps"), QStringLiteral("validar"), caminhoEntrada(QStringLiteral("mei_minima")), saida,
-                                 QStringLiteral("--xsd"), kXsd};
+                                 QStringLiteral("--xsd"), kXsd, QStringLiteral("--tabelas"), kTabelas};
     const Execucao execucao = executarCli(argumentos);
     QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
     QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1, esperado 2 (uso). stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
     QVERIFY2(execucao.erro.contains(QStringLiteral("uso:")), qPrintable(execucao.erro));
-    QVERIFY2(execucao.erro.contains(QStringLiteral("--manifesto")), qPrintable(execucao.erro));
+    QVERIFY2(execucao.erro.contains(QStringLiteral("falta --manifesto")), qPrintable(execucao.erro));
     QVERIFY2(!QFile::exists(saida), "linha de comando recusada não pode gravar XML");
 }
 
@@ -536,23 +678,28 @@ void TstDpsValidar::xsdAusenteRetornaAmbiente()
 {
     const QString saida = caminhoSaida(QStringLiteral("xsd_ausente"));
     const QStringList argumentos{QStringLiteral("dps"), QStringLiteral("validar"), caminhoEntrada(QStringLiteral("mei_minima")), saida,
-                                 QStringLiteral("--xsd"), QStringLiteral("/nao_existe_xsd_dps"), QStringLiteral("--manifesto"), kManifesto};
+                                 QStringLiteral("--xsd"), QStringLiteral("/nao_existe_xsd_dps"), QStringLiteral("--manifesto"), kManifesto,
+                                 QStringLiteral("--tabelas"), kTabelas};
     verificaRecusaRc2(argumentos, saida, QStringLiteral("xsd.esquema"));
 }
 
 void TstDpsValidar::manifestoIlegivelRetornaAmbiente()
 {
+    // O manifesto não abre: a abertura do esquema recusa com xsd.esquema e a mensagem "manifesto ilegível". O trecho é essa frase
+    // inteira; "manifesto" sozinho também casa com a linha de uso e passaria por acaso.
     const QString saida = caminhoSaida(QStringLiteral("manifesto_ilegivel"));
     const QStringList argumentos{QStringLiteral("dps"), QStringLiteral("validar"), caminhoEntrada(QStringLiteral("mei_minima")), saida,
-                                 QStringLiteral("--xsd"), kXsd, QStringLiteral("--manifesto"), QStringLiteral("/nao_existe_manifesto_dps")};
-    verificaRecusaRc2(argumentos, saida, QStringLiteral("manifesto"));
+                                 QStringLiteral("--xsd"), kXsd, QStringLiteral("--manifesto"), QStringLiteral("/nao_existe_manifesto_dps"),
+                                 QStringLiteral("--tabelas"), kTabelas};
+    verificaRecusaRc2(argumentos, saida, QStringLiteral("manifesto ilegível"));
 }
 
 void TstDpsValidar::opcaoDesconhecidaRetornaUso()
 {
     const QString saida = caminhoSaida(QStringLiteral("opcao_desconhecida"));
     const QStringList argumentos{QStringLiteral("dps"), QStringLiteral("validar"), caminhoEntrada(QStringLiteral("mei_minima")), saida,
-                                 QStringLiteral("--xsd"), kXsd, QStringLiteral("--manifesto"), kManifesto, QStringLiteral("--foo")};
+                                 QStringLiteral("--xsd"), kXsd, QStringLiteral("--manifesto"), kManifesto, QStringLiteral("--tabelas"),
+                                 kTabelas, QStringLiteral("--foo")};
     verificaRecusaRc2(argumentos, saida, QStringLiteral("opção desconhecida: --foo"));
 }
 
@@ -560,8 +707,85 @@ void TstDpsValidar::opcaoRepetidaRetornaUso()
 {
     const QString saida = caminhoSaida(QStringLiteral("opcao_repetida"));
     const QStringList argumentos{QStringLiteral("dps"), QStringLiteral("validar"), caminhoEntrada(QStringLiteral("mei_minima")), saida,
-                                 QStringLiteral("--xsd"), kXsd, QStringLiteral("--xsd"), kXsd, QStringLiteral("--manifesto"), kManifesto};
+                                 QStringLiteral("--xsd"), kXsd, QStringLiteral("--xsd"), kXsd, QStringLiteral("--manifesto"), kManifesto,
+                                 QStringLiteral("--tabelas"), kTabelas};
     verificaRecusaRc2(argumentos, saida, QStringLiteral("opção repetida: --xsd"));
+}
+
+void TstDpsValidar::regraLocalReprovaComCodigoECampo_data()
+{
+    QTest::addColumn<int>("indice");
+    const std::vector<VarianteRegraLocal> variantes = variantesRegraLocal();
+    for (std::size_t i = 0; i < variantes.size(); ++i) {
+        QTest::newRow(variantes[i].nome) << static_cast<int>(i);
+    }
+}
+
+void TstDpsValidar::regraLocalReprovaComCodigoECampo()
+{
+    // Arrange: a variante da linha. Act: a CLI com o catálogo real. Assert: rc 1, sem XML, e o conjunto exato de código|campo.
+    QFETCH(int, indice);
+    const VarianteRegraLocal variante = variantesRegraLocal().at(static_cast<std::size_t>(indice));
+    const QString entrada = gravarVariante(QString::fromUtf8(variante.base), QString::fromUtf8(variante.nome), variante.mutar);
+    QVERIFY2(!entrada.isEmpty(), "não consegui gravar a variante da regra local");
+    const QString saida = caminhoSaida(QString::fromUtf8(variante.nome));
+    QFile::remove(saida);
+
+    const Execucao execucao = executarCli(argumentosValidar(entrada, saida));
+    QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
+    QVERIFY2(execucao.codigo == 1,
+             qPrintable(QStringLiteral("rc=%1, esperado 1 (reprovada por regra local). stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
+    QVERIFY2(!QFile::exists(saida), "DPS reprovada por regra local não pode deixar XML gravado");
+
+    QStringList esperados;
+    for (const ParEsperado& par : variante.esperados) {
+        esperados.append(QString::fromUtf8(par.codigo) + QLatin1Char('|') + QString::fromUtf8(par.campo));
+    }
+    esperados.sort();
+    QCOMPARE(paresDeErro(execucao.erro), esperados);
+}
+
+void TstDpsValidar::avisoD1NaoImpedeAGravacao()
+{
+    // Tomador por CNPJ válido, diferente do prestador, sem endereço: o aviso D1 sai no stderr, sem linha de erro, e a DPS é gravada.
+    const QString entrada = gravarVariante(QStringLiteral("tomador_cpf"), QStringLiteral("aviso_d1"), [](QJsonObject& r) {
+        r.insert(QStringLiteral("tomador"), objetoDe({{"cnpj", txt("11444777000161")}, {"xNome", txt("Cliente Empresa")}}));
+    });
+    QVERIFY2(!entrada.isEmpty(), "não consegui gravar a variante do aviso D1");
+    const QString saida = caminhoSaida(QStringLiteral("aviso_d1"));
+    QFile::remove(saida);
+
+    const Execucao execucao = executarCli(argumentosValidar(entrada, saida));
+    QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
+    QVERIFY2(execucao.codigo == 0, qPrintable(QStringLiteral("rc=%1, stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
+    QVERIFY2(execucao.erro.contains(QStringLiteral("aviso D1 (Dps.infDPS.toma.end):")), qPrintable(execucao.erro));
+    QVERIFY2(!execucao.erro.contains(QStringLiteral("erro ")), qPrintable(execucao.erro));
+    QVERIFY2(QFile::exists(saida), "aviso não impede a gravação: o XML tem de sair com rc 0");
+}
+
+void TstDpsValidar::tabelasAusentesRetornaAmbiente()
+{
+    const QString saida = caminhoSaida(QStringLiteral("tabelas_ausentes"));
+    const QStringList argumentos{QStringLiteral("dps"), QStringLiteral("validar"), caminhoEntrada(QStringLiteral("mei_minima")), saida,
+                                 QStringLiteral("--xsd"), kXsd, QStringLiteral("--manifesto"), kManifesto, QStringLiteral("--tabelas"),
+                                 QStringLiteral("/nao_existe_tabelas_dps")};
+    verificaRecusaRc2(argumentos, saida, QStringLiteral("tabelas.ausente"));
+}
+
+void TstDpsValidar::tabelasFaltandoRetornaUso()
+{
+    // Sem --tabelas a linha é incompleta: rc 2, o detalhe nomeia a opção que falta e a linha de uso a cita.
+    const QString saida = caminhoSaida(QStringLiteral("tabelas_faltando"));
+    QFile::remove(saida);
+    const QStringList argumentos{QStringLiteral("dps"), QStringLiteral("validar"), caminhoEntrada(QStringLiteral("mei_minima")), saida,
+                                 QStringLiteral("--xsd"), kXsd, QStringLiteral("--manifesto"), kManifesto};
+    const Execucao execucao = executarCli(argumentos);
+    QVERIFY2(execucao.terminou, qPrintable(execucao.erro));
+    QVERIFY2(execucao.codigo == 2, qPrintable(QStringLiteral("rc=%1, esperado 2 (uso). stderr: %2").arg(execucao.codigo).arg(execucao.erro)));
+    QVERIFY2(execucao.erro.contains(QStringLiteral("uso:")) && execucao.erro.contains(QStringLiteral("--tabelas <diretorio>")),
+             qPrintable(QStringLiteral("a linha de uso tem de citar --tabelas. stderr: %1").arg(execucao.erro)));
+    QVERIFY2(execucao.erro.contains(QStringLiteral("falta --tabelas")), qPrintable(execucao.erro));
+    QVERIFY2(!QFile::exists(saida), "linha de comando recusada não pode gravar XML");
 }
 
 QTEST_GUILESS_MAIN(TstDpsValidar)
