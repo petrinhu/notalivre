@@ -29,16 +29,41 @@ ou não).
 
 Saída: proposta `${CMAKE_BINARY_DIR}/tabelas/` no build (fora de `src/`). Nesta fatia a saída de referência foi
 gerada em `/var/tmp/notalivre-tabelas-saida/` (fora da árvore), pelo conversor rodando dentro do contêiner.
-Ligar a conversão ao CMake como comando de build fica para a NL-5.2 e depende de decisão sobre embutir o
-resultado no binário.
+Ligar a conversão ao CMake como comando de build: a NL-3.M (passo 1, decisão do líder de 28/11/2026, opção 1)
+roda o modo `--so-anexo-a` no configure, sobre o XLSX do Anexo A baixado do espelho `espelho-xsd`. A NL-5.2 e a
+NL-5.3 reaproveitam a carga.
 
 ## Uso
+
+Modo completo (Anexos A e B, as cinco tabelas):
 
 ```
 python3 -I tools/tabelas/converter.py --xlsx-dir /var/tmp/notalivre-tabelas-fontes --saida DIR_DE_SAIDA
 ```
 
+Modo só Anexo A (`--so-anexo-a`, NL-3.M passo 1): converte `municipios.json`, `paises.json` e `localidades.json`.
+Não lê, não confere e não exige o `anexo_b.xlsx`; a saída de cada um desses três JSON é a mesma do modo completo.
+Não grava `ctribnac.json` nem `nbs.json`.
+
+```
+python3 -I tools/tabelas/converter.py --so-anexo-a --xlsx-dir DIR_COM_O_ANEXO_A --saida DIR_DE_SAIDA
+```
+
 Só stdlib (`zipfile`, `xml.etree`, `json`, `hashlib`), sem pip (L-51).
+
+## Pinos do modo só-A (medidos em 28/11/2026)
+
+Com o XLSX do Anexo A do espelho (`bde0e131644364825cd3d4459e075812ac65b572`, 238b715a..., 218140 bytes) e a URL
+com hífens de `fontes.json`, o modo `--so-anexo-a` grava (contagens 5570, 250 e 1):
+
+| Arquivo | Bytes | SHA-256 |
+|---|---|---|
+| `municipios.json` | 413558 | `5669f588290dcf6664b4de46cbd659e19de151b979f4bd4ff3233502acbc6d03` |
+| `paises.json` | 13965 | `d7dae75da8a9b489addfdd5f516a55257f0c1b2257a4f487b8759dfce450bc37` |
+| `localidades.json` | 732 | `22c67ff4822c11491ee4be2ad7f63c8a59899535b88f298230158c14a4a9f0c0` |
+
+A proveniência de cada JSON traz a URL do Anexo A, então trocar a URL em `fontes.json` muda os hashes. Por isso
+a URL com hífens (página `documentacao-atual` do gov.br) é a que vale; a URL com sublinhados dava 404.
 
 ## Guardas do XLSX (DA-1.12)
 
