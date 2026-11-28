@@ -15,7 +15,7 @@ Decisão que abre a fatia: líder, 27/11/2026, por AskUserQuestion, verbatim: "F
 
 Legenda: **FATO** (lido ou medido, com fonte), **INFERÊNCIA** (conclusão minha, com a base), **NÃO MEDIDO**, **DECISÃO DO CTO** (técnica e reversível, registrada na seção 7).
 
-Para a thread principal: em todo despacho desta fatia, ponha no prompt o caminho dos manuais, `/home/petrus/IDrive/Documentos/projetos_claudebrain/Projects/plugin_bigtech/docs/house/` (CONTRACT.md e TESTES.md), o caminho deste plano e a frase-guarda verbatim; o subagente não herda o contexto da sessão.
+Para a thread principal: em todo despacho desta fatia, ponha no prompt o caminho dos manuais CONTRACT.md e TESTES.md do plugin bigtech, o caminho deste plano e a frase-guarda verbatim; o subagente não herda o contexto da sessão.
 
 ---
 

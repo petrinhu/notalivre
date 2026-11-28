@@ -59,3 +59,35 @@ Aceites de risco de segurança e privacidade, com o controle compensatório e o 
 - **Não provado:** que o hash confere com o que o gov.br publicou. Não há fonte independente publicada pelo gov.br para o SHA-256 deste ZIP.
 - **Como verificar:** baixar o ZIP direto do gov.br, numa pasta vazia fora do CI, e rodar `sha256sum` sobre ele; comparar cada `.xsd` com o `SHA256SUMS`. Se o gov.br passar a publicar um hash ou um manifesto assinado, conferir contra ele e reabrir este aceite.
 - **Relação com outros itens:** o parecer K2 (licença CC BY-ND do gov.br sobre o XSD redistribuído) segue aberto em `TODO.md`, NL-I.393. Este aceite não o substitui.
+
+### Cadeia do Anexo A v1.00 de 10/12/2025 (tabelas de municípios, países e localidades)
+
+- **Aceite:** Narciso (CISO), 28/11/2026, 13:06, sobre o commit 46f61db da NL-3.M. Pedido da revisão de segurança da NL-3.M (security-engineer, 28/11/2026, 13:01, APROVA condicionado, achados M-1 e M-2); a NL-3.M fica em `TODO.md`.
+- **Objeto:** o XLSX do Anexo A v1.00, 218140 bytes, SHA-256 `238b715ab2dcc2c9e0857c44d69048e0af806b45ec8499568342de4a37f4419d` (âncora em `tools/tabelas/fontes.json`), e os três JSON derivados dele no configure (`municipios.json`, `paises.json`, `localidades.json`), fixados em `third_party/nfse-tabelas/anexo-a-20251210/SHA256SUMS`.
+- **Risco:** o mesmo modelo de confiança do XSD. O hash do XLSX foi medido pelo próprio projeto, e o gov.br não publica hash para conferir. O espelho é a branch `espelho-xsd`, commit `bde0e13`, com o link raw fixado por esse SHA, no mesmo repositório que guarda o hash. Há dois riscos que o XSD não tem:
+  - os JSON são derivados, então o conversor (`tools/tabelas/converter.py`) entra na cadeia de confiança. O `SHA256SUMS` prova que o build gerou os mesmos bytes da conversão de 28/11/2026, não que a conversão esteja certa;
+  - o conversor parseia o XML de dentro do XLSX no configure, uma superfície nova no build.
+- **Por que o aceite:** como no XSD, quem troca o hash no repositório também troca o código que o confere, então o espelho não abre um domínio de confiança novo. O parse do XLSX só acontece depois que os bytes batem com a âncora, então a superfície do parser só é alcançada por quem já pode alterar o repositório.
+- **Fatos e quem os mediu:**
+  - medido pelo CISO em 28/11/2026: o blob do XLSX no commit `bde0e13` tem 218140 bytes e o SHA-256 da âncora, e `refs/heads/espelho-xsd` no origin aponta para `bde0e13`;
+  - medido pelo projeto e relatado pelo revisor: o SHA-256 gravado em `fontes.json` (download de 25/10/2026) e o medido pelo main em 28/11/2026, na URL nova do gov.br, são iguais. São duas medições do projeto, não uma fonte independente;
+  - relatado no `TODO.md` (NL-3.M): o run 46158328529, sobre o commit d68b78e, ficou verde nas 4 distros e no asan, com a conversão conferida contra o `SHA256SUMS`. O CISO não abriu o log desse run.
+- **Controles compensatórios:**
+  - o SHA-256 do XLSX é conferido em todo caminho de download: `tools/ci/baixar_zip_xsd.cmake`, chamado por `third_party/nfse-tabelas/anexo-a-20251210/CMakeLists.txt:65`; `.github/workflows/ci.yml` (que confere também que o hash do `env` é o de `fontes.json`); e `flatpak/io.github.petrinhu.notalivre.yml`, com `sha256` na fonte;
+  - o conversor confere tamanho e SHA-256 dos bytes antes de abrir o ZIP e lê só esses bytes (`tools/tabelas/fontes.py:20-30`), recusa DOCTYPE e ENTITY pelo próprio expat antes do parse (`tools/tabelas/xlsx_leitor.py:50-69`), tem teto de 16 MiB por parte e de 256 entradas (`xlsx_leitor.py:20-21` e `:37-47`) e não extrai arquivo para o disco;
+  - o conversor confere as contagens fixadas (5570 municípios, 250 países, 1 localidade) e a consistência linha a linha, e qualquer divergência sai com status 1 sem gravar nada; o CMake trata status diferente de zero como erro fatal;
+  - os três JSON são comparados com o `SHA256SUMS` versionado, e qualquer divergência aborta o configure (`CMakeLists.txt:88-107` do mesmo diretório);
+  - o SHA-256 desse `SHA256SUMS` é embutido na Mid (`NL_TABELAS_MANIFESTO_SHA256`, `src/mid/composicao/dps_validar.cpp:52`, com `static_assert` de 64 caracteres), e a carga (`src/mid/tabelas/carregar_catalogo.cpp:211`) confere o pino, depois o hash de cada JSON e só então faz o parse, com os códigos validados pelo domínio;
+  - o `dps validar` e o `emitir` (antes da senha e de novo na fachada) passam pela mesma carga com o pino embutido (`apps/cli/comando_dps_validar.cpp:75`, `apps/cli/comando_emitir.cpp:103`, `src/mid/composicao/emissao_cli.cpp:193`), e falha de carga para a operação: no `dps validar`, como erro de ambiente; no `emitir`, com a linha de DPS reprovada, que é enganosa para ambiente (NL-I.400), mas a emissão para;
+  - a chave `[tabelas]` só pode ser definida em Homologação (`apps/cli/configuracao_cli.cpp:53-55`), e mesmo lá o pino vale.
+- **Lacuna aceita (BAIXA):** algumas exceções do leitor (por exemplo índice ou número inválido numa célula, ou entrada cifrada no ZIP) não são capturadas pelo conversor (`converter.py:142`) e saem com traceback e status 1. A falha é fechada (o configure para), e só é alcançada depois de o SHA-256 bater. O conserto, capturar essas exceções e sair pelo mesmo caminho de parada, vai à INBOX.
+- **Pior caso:** uma tabela adulterada afrouxa E0238, E0246 e E0302 na conferência local, e a Sefin aplica as mesmas regras de novo. Ou a tabela bloqueia DPS válida: o emitente não emite pelo app até sair uma versão nova, porque o pino embutido não tem contorno pelo usuário. Esse é um risco de disponibilidade, que o XSD também tem, mas aqui ele vem de dado. O mesmo efeito vem de tabela vencida: a v1.00 fica fixada até uma fatia trocar a âncora.
+- **Não provado:**
+  - que o SHA-256 do XLSX confere com o que o gov.br publicou. O gov.br não publica hash para este arquivo;
+  - que a conversão está correta além das contagens e da consistência que o conversor confere;
+  - que um mutante na ordem ou na presença das conferências da carga morre nos testes. A mutação dos passos 2 e 5 roda pela NF-12 e vai à decisão do líder, pela decisão dele de 21/11/2026 sobre mutação e sabotagem em segurança.
+- **Como verificar:**
+  - baixar o XLSX direto do gov.br, numa pasta vazia fora do CI, e rodar `sha256sum` sobre ele; comparar com a âncora;
+  - comparar os códigos de `municipios.json` com a lista de municípios do IBGE e os de `paises.json` com a ISO 3166-1 alfa-2, que são fontes independentes do gov.br/nfse, e explicar cada diferença de contagem (a tabela tem 250 países; o número de códigos atribuídos da ISO 3166-1 não foi conferido para este registro);
+  - se o gov.br passar a publicar hash ou manifesto assinado, conferir contra ele e reabrir este aceite.
+- **Relação com outros itens:** o parecer K2 segue aberto em `TODO.md` (NL-I.077 e NL-I.393). Os JSON são derivados de dado sob CC BY-ND, o que torna o K2 mais relevante para esta cadeia do que para o XSD intacto. Este aceite não o substitui.
