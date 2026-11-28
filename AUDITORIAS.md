@@ -85,7 +85,7 @@ Aceites de risco de segurança e privacidade, com o controle compensatório e o 
 - **Não provado:**
   - que o SHA-256 do XLSX confere com o que o gov.br publicou. O gov.br não publica hash para este arquivo;
   - que a conversão está correta além das contagens e da consistência que o conversor confere;
-  - que um mutante na ordem ou na presença das conferências da carga morre nos testes. A mutação dos passos 2 e 5 roda pela NF-12 e vai à decisão do líder, pela decisão dele de 21/11/2026 sobre mutação e sabotagem em segurança.
+  - que um mutante na ordem ou na presença das conferências da carga morre nos testes. A mutação dos passos 2 e 5 roda pela NF-12 e vai à decisão do líder, pela decisão dele de 21/11/2026 sobre mutação e sabotagem em segurança. **Provado depois, em 28/11/2026:** no run 46166336001 (commit 06de792), os mutantes do catálogo (pino sem conferência, hash por arquivo sem conferência, guarda de [tabelas] desligada e parse antes do hash) deram encontradas=4 aplicadas=4 mortas=4 sobreviventes=0, cada morte pela asserção exata do slot; conferido pelo Narciso às 14:00.
 - **Como verificar:**
   - baixar o XLSX direto do gov.br, numa pasta vazia fora do CI, e rodar `sha256sum` sobre ele; comparar com a âncora;
   - comparar os códigos de `municipios.json` com a lista de municípios do IBGE e os de `paises.json` com a ISO 3166-1 alfa-2, que são fontes independentes do gov.br/nfse, e explicar cada diferença de contagem (a tabela tem 250 países; o número de códigos atribuídos da ISO 3166-1 não foi conferido para este registro);

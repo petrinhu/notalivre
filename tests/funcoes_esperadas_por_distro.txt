@@ -38,8 +38,8 @@
 # NL-3.M flatpak 1588 -> 1646 (+58, ESTIMADO; o próximo run mede): os 61 menos cliMostraAvisoAntesDaSenha (1 + 2 = 3), que está em
 #   flatpak/testes_fora_do_flatpak.txt. A guarda NL_FLATPAK_BUILD de tests/unit/cli/CMakeLists.txt desliga só cli.portaoPiiVarreLogsDaCli,
 #   não os slots novos. Os outros 58 entram no Flatpak pela mesma regra.
-# NL-3.M, revisões (28/11/2026): 1928 -> 1934 e flatpak 1646 -> 1652 (+6 nos dois), estimado pela mesma regra: mid.tabelas.tabelaAdulteradaEMalformadaRecusadaPeloHash, 1 entrada, 1 x (1 + 2) = 3; e2e.cliEmitir.cliRecusaXsdNaoMostraOValorDaDps,
-#   1 entrada nas duas listas (nativo e Flatpak), 1 x (1 + 2) = 3. O 1646 de antes foi medido no run 46160644843; o próximo run mede estes.
+# NL-3.M, revisões (28/11/2026): 1928 -> 1934 e flatpak 1646 -> 1652 (+6 nos dois), medido no run 46166336001 (commit 06de792), pela mesma regra: mid.tabelas.tabelaAdulteradaEMalformadaRecusadaPeloHash, 1 entrada, 1 x (1 + 2) = 3; e2e.cliEmitir.cliRecusaXsdNaoMostraOValorDaDps,
+#   1 entrada nas duas listas (nativo e Flatpak), 1 x (1 + 2) = 3. O 1646 de antes foi medido no run 46160644843.
 fedora45 1934
 ubuntu26.04 1934
 manjaro 1934
