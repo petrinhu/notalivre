@@ -14,4 +14,7 @@ add_subdirectory(sefin)
 add_subdirectory(composicao)
 add_subdirectory(cofre)
 add_subdirectory(persistencia)
+# NL-3.M passo 1: tabelas do Anexo A no configure (NL_TABELAS_*), antes do adaptador que as usa.
+add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/nfse-tabelas/anexo-a-20251210
+                 ${CMAKE_BINARY_DIR}/third_party/nfse-tabelas/anexo-a-20251210)
 add_subdirectory(tabelas)

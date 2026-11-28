@@ -69,8 +69,10 @@ target_compile_definitions(tst_instalacao_bundle PRIVATE
     "NL_CMAKE=\"${CMAKE_COMMAND}\""
     "NL_DIRETORIO_BUILD=\"${CMAKE_BINARY_DIR}\""
     "NL_ICP_MANIFESTO=\"${NL_ICP_RAIZES_MANIFESTO}\""
-    "NL_XSD_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\"")
-foreach(nome IN ITEMS raizesIcpInstaladasNoBundle xsdInstaladosNoBundle)
+    "NL_XSD_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\""
+    "NL_TABELAS_MANIFESTO=\"${NL_TABELAS_MANIFESTO}\""
+    "NL_TABELAS_MANIFESTO_SHA256=\"${NL_TABELAS_MANIFESTO_SHA256}\"")
+foreach(nome IN ITEMS raizesIcpInstaladasNoBundle xsdInstaladosNoBundle tabelasInstaladasNoBundle)
   nl_registra_teste_qt(NAME cli.bundle.${nome} COMMAND tst_instalacao_bundle ${nome})
   set_tests_properties(cli.bundle.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()

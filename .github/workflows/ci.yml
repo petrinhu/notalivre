@@ -28,6 +28,12 @@ env:
   # e, só se falhar no transporte, esta URL. O SHA-256 é conferido nas duas; divergência é fatal na hora.
   NL_XSD_ZIP_ESPELHO: https://raw.githubusercontent.com/petrinhu/notalivre/4e2ced77726878fbbb2af83de82854ef84189533/esquemas-xsd-producao-restrita-20261124.zip
 
+  # XLSX do anexo A (NL-3.M, passo 1, opção 1; decisão do líder, 28/11/2026): URL e SHA-256 espelham tools/tabelas/fontes.json
+  # (conferido no passo do cache). Mesmo diretório do ZIP do XSD (NL_XSD_ZIP_CACHE), chave de cache própria.
+  NL_TABELAS_XLSX_SHA256: 238b715ab2dcc2c9e0857c44d69048e0af806b45ec8499568342de4a37f4419d
+  NL_TABELAS_XLSX_URL: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/anexo-a-municipio-ibge-paises-iso2-snnfse-v1.00-20251210.xlsx
+  NL_TABELAS_XLSX_ESPELHO: https://raw.githubusercontent.com/petrinhu/notalivre/bde0e131644364825cd3d4459e075812ac65b572/anexo-a-municipio-ibge-paises-iso2-snnfse-v1.00-20251210.xlsx
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -194,11 +200,51 @@ jobs:
       - name: SHA-256 do ZIP do XSD contra o manifesto
         run: bash tools/ci/zip_xsd.sh "$RUNNER_TEMP/xsd-cache"
 
+      - name: Cache do XLSX do anexo A (chave pelo SHA-256 do XLSX, mesmo diretório do ZIP do XSD)
+        id: tabelas-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/xsd-cache
+          key: tabelas-anexo-a-v1.00-${{ env.NL_TABELAS_XLSX_SHA256 }}
+
+      - name: XLSX do anexo A (cache ou download; SHA-256 conferido)
+        run: |
+          set -eu
+          if ! command -v cmake >/dev/null; then
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends cmake ca-certificates
+          fi
+          pasta="$RUNNER_TEMP/xsd-cache"
+          xlsx="$pasta/anexo_a.xlsx"
+          mkdir -p "$pasta"
+          # Cache e código têm de falar do mesmo XLSX: o SHA-256 do passo tem de ser o de tools/tabelas/fontes.json.
+          grep -q -F "\"sha256\": \"$NL_TABELAS_XLSX_SHA256\"" tools/tabelas/fontes.json
+          if [ -f "$xlsx" ]; then
+              echo "XLSX do anexo A: cache hit ($xlsx)"
+          else
+              echo "XLSX do anexo A: cache miss, baixando de $NL_TABELAS_XLSX_URL e, se falhar, do espelho $NL_TABELAS_XLSX_ESPELHO"
+              if ! cmake -DNL_URLS="$NL_TABELAS_XLSX_URL;$NL_TABELAS_XLSX_ESPELHO" -DNL_DESTINO="$xlsx" -DNL_SHA256="$NL_TABELAS_XLSX_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+                  rm -f "$xlsx"
+                  echo "::error::XLSX do anexo A não baixado (gov.br e espelho, 5 tentativas cada, ou hash divergente)"
+                  exit 1
+              fi
+          fi
+          # Conferência ANTES do configure (L-36): divergência apaga o XLSX e derruba o passo.
+          if ! (cd "$pasta" && echo "$NL_TABELAS_XLSX_SHA256  anexo_a.xlsx" | sha256sum -c -); then
+              rm -f "$xlsx"
+              echo "::error::SHA-256 do XLSX do anexo A divergente ($NL_TABELAS_XLSX_SHA256): trocar a chave do cache"
+              exit 1
+          fi
+
+
       - name: ZIP do XSD como artefato para o job banco (retenção de 1 dia)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: notalivre-xsd-zip
-          path: ${{ runner.temp }}/xsd-cache/esquemas-xsd-producao-restrita-20261124.zip
+          path: |
+            ${{ runner.temp }}/xsd-cache/esquemas-xsd-producao-restrita-20261124.zip
+            ${{ runner.temp }}/xsd-cache/anexo_a.xlsx
           retention-days: 1
           if-no-files-found: error
 
@@ -315,6 +361,39 @@ jobs:
           fi
           # Exportado para o configure e para o configure aninhado do sabotar_sanidade.sh (CMakeLists lê o ambiente).
           echo "NL_XSD_ZIP_CACHE=$pasta" >> "$GITHUB_ENV"
+
+      - name: Cache do XLSX do anexo A (chave pelo SHA-256 do XLSX, mesmo diretório do ZIP do XSD)
+        id: tabelas-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/xsd-cache
+          key: tabelas-anexo-a-v1.00-${{ env.NL_TABELAS_XLSX_SHA256 }}
+
+      - name: XLSX do anexo A (cache ou download com nova tentativa; SHA-256 conferido)
+        run: |
+          set -eu
+          pasta="$RUNNER_TEMP/xsd-cache"
+          xlsx="$pasta/anexo_a.xlsx"
+          mkdir -p "$pasta"
+          # Cache e código têm de falar do mesmo XLSX: o SHA-256 do passo tem de ser o de tools/tabelas/fontes.json.
+          grep -q -F "\"sha256\": \"$NL_TABELAS_XLSX_SHA256\"" tools/tabelas/fontes.json
+          if [ -f "$xlsx" ]; then
+              echo "XLSX do anexo A: cache hit ($xlsx)"
+          else
+              echo "XLSX do anexo A: cache miss, baixando de $NL_TABELAS_XLSX_URL e, se falhar, do espelho $NL_TABELAS_XLSX_ESPELHO"
+              if ! cmake -DNL_URLS="$NL_TABELAS_XLSX_URL;$NL_TABELAS_XLSX_ESPELHO" -DNL_DESTINO="$xlsx" -DNL_SHA256="$NL_TABELAS_XLSX_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+                  rm -f "$xlsx"
+                  echo "::error::XLSX do anexo A não baixado (gov.br e espelho, 5 tentativas cada, ou hash divergente)"
+                  exit 1
+              fi
+          fi
+          # Conferência ANTES do configure (L-36): divergência apaga o XLSX e derruba o passo.
+          if ! (cd "$pasta" && echo "$NL_TABELAS_XLSX_SHA256  anexo_a.xlsx" | sha256sum -c -); then
+              rm -f "$xlsx"
+              echo "::error::SHA-256 do XLSX do anexo A divergente ($NL_TABELAS_XLSX_SHA256): trocar a chave do cache"
+              exit 1
+          fi
+
 
       - name: Configure (preset debug)
         id: configure
@@ -609,6 +688,39 @@ jobs:
           # Exportado para o configure e para o configure aninhado do sabotar_sanidade.sh (CMakeLists lê o ambiente).
           echo "NL_XSD_ZIP_CACHE=$pasta" >> "$GITHUB_ENV"
 
+      - name: Cache do XLSX do anexo A (chave pelo SHA-256 do XLSX, mesmo diretório do ZIP do XSD)
+        id: tabelas-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/xsd-cache
+          key: tabelas-anexo-a-v1.00-${{ env.NL_TABELAS_XLSX_SHA256 }}
+
+      - name: XLSX do anexo A (cache ou download com nova tentativa; SHA-256 conferido)
+        run: |
+          set -eu
+          pasta="$RUNNER_TEMP/xsd-cache"
+          xlsx="$pasta/anexo_a.xlsx"
+          mkdir -p "$pasta"
+          # Cache e código têm de falar do mesmo XLSX: o SHA-256 do passo tem de ser o de tools/tabelas/fontes.json.
+          grep -q -F "\"sha256\": \"$NL_TABELAS_XLSX_SHA256\"" tools/tabelas/fontes.json
+          if [ -f "$xlsx" ]; then
+              echo "XLSX do anexo A: cache hit ($xlsx)"
+          else
+              echo "XLSX do anexo A: cache miss, baixando de $NL_TABELAS_XLSX_URL e, se falhar, do espelho $NL_TABELAS_XLSX_ESPELHO"
+              if ! cmake -DNL_URLS="$NL_TABELAS_XLSX_URL;$NL_TABELAS_XLSX_ESPELHO" -DNL_DESTINO="$xlsx" -DNL_SHA256="$NL_TABELAS_XLSX_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+                  rm -f "$xlsx"
+                  echo "::error::XLSX do anexo A não baixado (gov.br e espelho, 5 tentativas cada, ou hash divergente)"
+                  exit 1
+              fi
+          fi
+          # Conferência ANTES do configure (L-36): divergência apaga o XLSX e derruba o passo.
+          if ! (cd "$pasta" && echo "$NL_TABELAS_XLSX_SHA256  anexo_a.xlsx" | sha256sum -c -); then
+              rm -f "$xlsx"
+              echo "::error::SHA-256 do XLSX do anexo A divergente ($NL_TABELAS_XLSX_SHA256): trocar a chave do cache"
+              exit 1
+          fi
+
+
       - name: Configure (preset asan-ubsan)
         run: cmake --preset asan-ubsan
 
@@ -719,6 +831,13 @@ jobs:
         with:
           name: notalivre-xsd-zip
           path: ${{ env.NL_TMP_BASE }}/notalivre-xsd-cache
+
+      - name: XLSX do anexo A do job xsd-cache conferido antes do build (artefato; sem download, --network none)
+        run: |
+          set -eu
+          cd "$NL_TMP_BASE/notalivre-xsd-cache"
+          test -f anexo_a.xlsx || { echo "::error::XLSX do anexo A ausente no artefato do xsd-cache"; exit 1; }
+          echo "$NL_TABELAS_XLSX_SHA256  anexo_a.xlsx" | sha256sum -c -
 
       - name: ZIP do XSD conferido de novo antes do build (SHA-256 do manifesto; sem download)
         id: xsd
@@ -1112,6 +1231,47 @@ jobs:
           mkdir -p "$destino"
           cp "$zip" "$destino/$zip_nome"
           echo "ZIP do XSD copiado para o caminho de checksum do flatpak-builder: $destino/$zip_nome"
+
+      - name: Cache do XLSX do anexo A (chave pelo SHA-256 do XLSX, mesmo diretório do ZIP do XSD)
+        id: tabelas-cache-flatpak
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/xsd-cache
+          key: tabelas-anexo-a-v1.00-${{ env.NL_TABELAS_XLSX_SHA256 }}
+
+      - name: XLSX do anexo A para o flatpak-builder (cache ou download; SHA-256 conferido)
+        run: |
+          set -eu
+          pasta="$RUNNER_TEMP/xsd-cache"
+          xlsx="$pasta/anexo_a.xlsx"
+          mkdir -p "$pasta"
+          # Cache e código têm de falar do mesmo XLSX: o SHA-256 do passo tem de ser o de tools/tabelas/fontes.json.
+          grep -q -F "\"sha256\": \"$NL_TABELAS_XLSX_SHA256\"" tools/tabelas/fontes.json
+          if [ -f "$xlsx" ]; then
+              echo "XLSX do anexo A: cache hit ($xlsx)"
+          else
+              echo "XLSX do anexo A: cache miss, baixando de $NL_TABELAS_XLSX_URL e, se falhar, do espelho $NL_TABELAS_XLSX_ESPELHO"
+              if ! cmake -DNL_URLS="$NL_TABELAS_XLSX_URL;$NL_TABELAS_XLSX_ESPELHO" -DNL_DESTINO="$xlsx" -DNL_SHA256="$NL_TABELAS_XLSX_SHA256" -P tools/ci/baixar_zip_xsd.cmake; then
+                  rm -f "$xlsx"
+                  echo "::error::XLSX do anexo A não baixado (gov.br e espelho, 5 tentativas cada, ou hash divergente)"
+                  exit 1
+              fi
+          fi
+          # Conferência ANTES do configure (L-36): divergência apaga o XLSX e derruba o passo.
+          if ! (cd "$pasta" && echo "$NL_TABELAS_XLSX_SHA256  anexo_a.xlsx" | sha256sum -c -); then
+              rm -f "$xlsx"
+              echo "::error::SHA-256 do XLSX do anexo A divergente ($NL_TABELAS_XLSX_SHA256): trocar a chave do cache"
+              exit 1
+          fi
+
+      - name: XLSX do anexo A copiado para o caminho de checksum do flatpak-builder
+        run: |
+          set -eu
+          nome_url=anexo-a-municipio-ibge-paises-iso2-snnfse-v1.00-20251210.xlsx
+          destino="$GITHUB_WORKSPACE/.flatpak-builder/downloads/$NL_TABELAS_XLSX_SHA256"
+          mkdir -p "$destino"
+          cp "$RUNNER_TEMP/xsd-cache/anexo_a.xlsx" "$destino/$nome_url"
+          echo "XLSX do anexo A copiado para $destino/$nome_url (flatpak-builder indexa pelo basename da URL)"
 
       - name: Build do manifesto e bundle (flatpak-builder)
         id: builder
