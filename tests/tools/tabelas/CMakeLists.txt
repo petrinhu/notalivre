@@ -26,7 +26,9 @@ foreach(nome IN ITEMS
     xlsxUtf16ComEntityRecusado
     xlsxUtf8ComBomLido
     xlsxUtf16SemDoctypeLido
-    conversorRecusaXmlComDoctypeRc1)
+    conversorRecusaXmlComDoctypeRc1
+    soAnexoANaoExigeAnexoB
+    semFlagSemAnexoBContinuaParando)
   add_test(NAME tabelas.${nome}
            COMMAND Python3::Interpreter -I "${NL_TESTE_TABELAS}" ${nome})
 endforeach()

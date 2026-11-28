@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Subcomando `notalivre dps validar` (NL-1.7): o XML só vai para o disco depois que a fachada devolve a DPS validada.
+// Subcomando `notalivre dps validar` (NL-1.7; NL-3.M): lê a entrada, chama a fachada da Mid e grava o XML só se a DPS passar.
+// Avisos vão ao stderr e não mudam o código de saída (DA-3M.3).
 #include "comando_dps_validar.h"
 
 #include "argumentos_dps_validar.h"
+#include "saida_validacao.h"
 
-#include <nl/base/erro.h>
 #include <nl/mid/composicao/dps_validar.h>
 
 #include <QByteArray>
@@ -15,7 +16,6 @@
 #include <QTextStream>
 
 #include <cstdio>
-#include <vector>
 
 namespace nl::cli {
 
@@ -24,25 +24,6 @@ namespace {
 constexpr int kCodigoGravado = 0;
 constexpr int kCodigoReprovado = 1;
 constexpr int kCodigoUsoOuAmbiente = 2;
-
-/// Uma linha por erro: "erro <codigo> (<campo>): <mensagem>". O campo é omitido quando o erro não tem um.
-QString linhaDeErro(const nl::base::Erro& erro)
-{
-    const QString codigo = QString::fromStdString(erro.codigo());
-    const QString mensagem = QString::fromStdString(erro.mensagem());
-    if (erro.campo()) {
-        return QStringLiteral("erro %1 (%2): %3").arg(codigo, QString::fromStdString(*erro.campo()), mensagem);
-    }
-    return QStringLiteral("erro %1: %2").arg(codigo, mensagem);
-}
-
-void mostrarErros(const std::vector<nl::base::Erro>& erros)
-{
-    QTextStream saida{stderr};
-    for (const nl::base::Erro& erro : erros) {
-        saida << linhaDeErro(erro) << Qt::endl;
-    }
-}
 
 void mostrarTexto(const QString& texto)
 {
@@ -90,14 +71,17 @@ int executarDpsValidar(const QStringList& argumentos)
     }
 
     const nl::mid::composicao::LocalizacaoEsquemaDps esquema{lidos->diretorioXsd, lidos->manifesto};
-    const auto xml = nl::mid::composicao::DpsValidar::executar(*entrada, esquema);
-    if (!xml) {
-        mostrarErros(xml.error().erros);
-        return xml.error().natureza == nl::mid::composicao::NaturezaFalha::ambiente ? kCodigoUsoOuAmbiente : kCodigoReprovado;
+    const nl::mid::composicao::LocalizacaoTabelas tabelas{lidos->tabelas};
+    const auto validada = nl::mid::composicao::DpsValidar::executar(*entrada, esquema, tabelas);
+    if (!validada) {
+        mostrarAvisos(validada.error().avisos);
+        mostrarErros(validada.error().erros);
+        return validada.error().natureza == nl::mid::composicao::NaturezaFalha::ambiente ? kCodigoUsoOuAmbiente : kCodigoReprovado;
     }
 
+    mostrarAvisos(validada->avisos);
     QString motivo;
-    if (!gravarSaida(lidos->saida, *xml, &motivo)) {
+    if (!gravarSaida(lidos->saida, validada->xml, &motivo)) {
         mostrarTexto(motivo);
         return kCodigoUsoOuAmbiente;
     }

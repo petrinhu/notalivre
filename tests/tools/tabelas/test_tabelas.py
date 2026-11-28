@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -122,11 +123,11 @@ def _cenario(diretorio, bytes_a=None, sha_a_errado=False):
     return caminho_fontes, os.path.join(diretorio, "saida")
 
 
-def _rodar(diretorio, caminho_fontes, saida, esperado):
+def _rodar(diretorio, caminho_fontes, saida, esperado, extras=()):
     """Roda o conversor com ESPERADO trocado; a saída do stdout e do stderr fica fora do log do teste."""
     with mock.patch.dict(converter.ESPERADO, esperado), \
             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-        return converter.main(["--xlsx-dir", diretorio, "--saida", saida, "--fontes", caminho_fontes])
+        return converter.main(["--xlsx-dir", diretorio, "--saida", saida, "--fontes", caminho_fontes, *extras])
 
 
 def _sem_saida(saida):
@@ -261,6 +262,28 @@ class TestesTabelas(unittest.TestCase):
         with tempfile.TemporaryDirectory() as diretorio:
             caminho_fontes, saida = _cenario(diretorio, bytes_a=_xlsx(_abas_a(), sheet1=xml))
             self.assertEqual(_rodar(diretorio, caminho_fontes, saida, ESPERADO_FABRICADO), 1)
+            self.assertTrue(_sem_saida(saida))
+
+    # NL-3.M passo 1: --so-anexo-a converte só as tabelas do Anexo A e não lê nem exige o Anexo B.
+    def soAnexoANaoExigeAnexoB(self):
+        with tempfile.TemporaryDirectory() as diretorio:
+            caminho_fontes, _ = _cenario(diretorio)
+            soa = os.path.join(diretorio, "so_a")
+            os.makedirs(soa)
+            shutil.copy(os.path.join(diretorio, "anexo_a.xlsx"), soa)
+            saida = os.path.join(diretorio, "saida_so_a")
+            self.assertEqual(_rodar(soa, caminho_fontes, saida, ESPERADO_FABRICADO, ["--so-anexo-a"]), 0)
+            self.assertEqual(sorted(os.listdir(saida)), ["localidades.json", "municipios.json", "paises.json"])
+
+    def semFlagSemAnexoBContinuaParando(self):
+        # Controle: sem a opção nova, a ausência do Anexo B continua sendo falha com rc 1 e nada gravado.
+        with tempfile.TemporaryDirectory() as diretorio:
+            caminho_fontes, _ = _cenario(diretorio)
+            soa = os.path.join(diretorio, "so_a")
+            os.makedirs(soa)
+            shutil.copy(os.path.join(diretorio, "anexo_a.xlsx"), soa)
+            saida = os.path.join(diretorio, "saida_sem_flag")
+            self.assertEqual(_rodar(soa, caminho_fontes, saida, ESPERADO_FABRICADO), 1)
             self.assertTrue(_sem_saida(saida))
 
 

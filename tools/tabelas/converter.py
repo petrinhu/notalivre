@@ -6,6 +6,8 @@
 #
 # Uso (stdlib, sem pip; L-51):
 #   python3 -I tools/tabelas/converter.py --xlsx-dir DIR_COM_OS_XLSX --saida DIR_DE_SAIDA
+#   python3 -I tools/tabelas/converter.py --so-anexo-a --xlsx-dir DIR_COM_O_XLSX_A --saida DIR_DE_SAIDA
+#   (--so-anexo-a: converte só municipios, paises e localidades, do Anexo A; não lê nem exige o Anexo B)
 #
 # Regras: confere o SHA-256 de cada XLSX contra tools/tabelas/fontes.json antes de ler; confere as contagens
 # fixadas (ESPERADO) e a consistência linha a linha. Qualquer divergência sai com status 1 e NADA é gravado.
@@ -51,6 +53,8 @@ def _argumentos(argv):
     analisador.add_argument("--xlsx-dir", required=True, help="diretório com os XLSX dos Anexos A e B")
     analisador.add_argument("--saida", required=True, help="diretório de saída dos JSON")
     analisador.add_argument("--fontes", default=str(FONTES_PADRAO), help="fontes.json com as âncoras")
+    analisador.add_argument("--so-anexo-a", action="store_true",
+                            help="converte só as tabelas do Anexo A e não exige o Anexo B")
     return analisador.parse_args(argv)
 
 
@@ -97,22 +101,41 @@ def _gravar(diretorio, arquivo, documento):
     os.replace(temporario, destino)
 
 
-def executar(argumentos):
-    documento_fontes = fontes.carregar_fontes(argumentos.fontes)
+def _tabelas_da_execucao(so_anexo_a):
+    """Tabelas a converter: todas, ou só as do Anexo A com --so-anexo-a. A ordem de TABELAS não muda."""
+    if so_anexo_a:
+        return [tabela for tabela in TABELAS if tabela[1] == "A"]
+    return list(TABELAS)
+
+
+def _letras_de_anexo(tabelas):
+    """Anexos que as tabelas pedem, na ordem A, B. Anexo sem tabela selecionada não é lido."""
+    return [letra for letra in ("A", "B") if any(tabela[1] == letra for tabela in tabelas)]
+
+
+def _conferir_anexos(diretorio_xlsx, documento_fontes, letras):
+    """Confere SHA-256 e tamanho de cada anexo pedido. Devolve (anexos, falhas)."""
     anexos = {}
     falhas = []
-    for letra in ("A", "B"):
+    for letra in letras:
         anexo = dict(documento_fontes["anexos"][letra], letra=letra)
-        conteudo, motivo = fontes.conferir_anexo(argumentos.xlsx_dir, anexo)
+        conteudo, motivo = fontes.conferir_anexo(diretorio_xlsx, anexo)
         if motivo:
             falhas.append(f"anexo {letra}: {motivo}")
         else:
             anexos[letra] = (anexo, conteudo)
+    return anexos, falhas
+
+
+def executar(argumentos):
+    documento_fontes = fontes.carregar_fontes(argumentos.fontes)
+    tabelas = _tabelas_da_execucao(argumentos.so_anexo_a)
+    anexos, falhas = _conferir_anexos(argumentos.xlsx_dir, documento_fontes, _letras_de_anexo(tabelas))
     if falhas:
         return _parar(falhas)
 
     documentos = {}
-    for nome, letra, aba, conversor, arquivo in TABELAS:
+    for nome, letra, aba, conversor, arquivo in tabelas:
         anexo, conteudo = anexos[letra]
         try:
             linhas = xlsx_leitor.ler_aba(conteudo, aba)

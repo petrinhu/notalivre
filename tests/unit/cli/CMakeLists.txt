@@ -3,6 +3,7 @@
 # Testes da linha de comando de `notalivre emitir` e da exceção do topo (NL-2.9). Slots sem vírgula (L-45).
 # Os fontes da CLI entram direto nos testes, porque o executável notalivre-cli não é biblioteca.
 set(NL_FONTES_CLI ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/comando_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/configuracao_cli.cpp
+    ${CMAKE_SOURCE_DIR}/apps/cli/saida_validacao.cpp
 )
 
 add_executable(tst_argumentos_emitir tst_argumentos_emitir.cpp ${CMAKE_SOURCE_DIR}/apps/cli/argumentos_emitir.cpp)
@@ -69,8 +70,10 @@ target_compile_definitions(tst_instalacao_bundle PRIVATE
     "NL_CMAKE=\"${CMAKE_COMMAND}\""
     "NL_DIRETORIO_BUILD=\"${CMAKE_BINARY_DIR}\""
     "NL_ICP_MANIFESTO=\"${NL_ICP_RAIZES_MANIFESTO}\""
-    "NL_XSD_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\"")
-foreach(nome IN ITEMS raizesIcpInstaladasNoBundle xsdInstaladosNoBundle)
+    "NL_XSD_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\""
+    "NL_TABELAS_MANIFESTO=\"${NL_TABELAS_MANIFESTO}\""
+    "NL_TABELAS_MANIFESTO_SHA256=\"${NL_TABELAS_MANIFESTO_SHA256}\"")
+foreach(nome IN ITEMS raizesIcpInstaladasNoBundle xsdInstaladosNoBundle tabelasInstaladasNoBundle)
   nl_registra_teste_qt(NAME cli.bundle.${nome} COMMAND tst_instalacao_bundle ${nome})
   set_tests_properties(cli.bundle.${nome} PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
 endforeach()

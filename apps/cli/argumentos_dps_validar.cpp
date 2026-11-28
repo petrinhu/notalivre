@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Interpretação dos argumentos de `notalivre dps validar` (NL-1.7): posicionais, --xsd e --manifesto, em qualquer ordem.
+// Interpretação dos argumentos de `notalivre dps validar` (NL-1.7; NL-3.M): posicionais, --xsd, --manifesto e --tabelas, em qualquer ordem.
 #include "argumentos_dps_validar.h"
 
 namespace nl::cli {
@@ -8,11 +8,27 @@ namespace nl::cli {
 namespace {
 
 const QString kUso = QStringLiteral(
-    "uso: notalivre dps validar <entrada.json> <saida.xml> --xsd <diretorio> --manifesto <arquivo>");
+    "uso: notalivre dps validar <entrada.json> <saida.xml> --xsd <diretorio> --manifesto <arquivo> --tabelas <diretorio>");
 
 QString comDetalhe(const QString& detalhe)
 {
     return kUso + QStringLiteral(" (") + detalhe + QStringLiteral(")");
+}
+
+bool ehOpcaoDeCaminho(const QString& token)
+{
+    return token == QLatin1String("--xsd") || token == QLatin1String("--manifesto") || token == QLatin1String("--tabelas");
+}
+
+void guardaValor(ArgumentosDpsValidar& lidos, const QString& opcao, const QString& valor)
+{
+    if (opcao == QLatin1String("--xsd")) {
+        lidos.diretorioXsd = valor;
+    } else if (opcao == QLatin1String("--manifesto")) {
+        lidos.manifesto = valor;
+    } else {
+        lidos.tabelas = valor;
+    }
 }
 
 } // namespace
@@ -26,7 +42,7 @@ std::expected<ArgumentosDpsValidar, QString> lerArgumentosDpsValidar(const QStri
 
     for (qsizetype i = kPrimeiroArgumento; i < argumentos.size(); ++i) {
         const QString& token = argumentos.at(i);
-        if (token == QLatin1String("--xsd") || token == QLatin1String("--manifesto")) {
+        if (ehOpcaoDeCaminho(token)) {
             if (opcoesVistas.contains(token)) {
                 return std::unexpected(comDetalhe(QStringLiteral("opção repetida: %1").arg(token)));
             }
@@ -35,11 +51,7 @@ std::expected<ArgumentosDpsValidar, QString> lerArgumentosDpsValidar(const QStri
                 return std::unexpected(comDetalhe(QStringLiteral("falta o valor de %1").arg(token)));
             }
             i += 1;
-            if (token == QLatin1String("--xsd")) {
-                lidos.diretorioXsd = argumentos.at(i);
-            } else {
-                lidos.manifesto = argumentos.at(i);
-            }
+            guardaValor(lidos, token, argumentos.at(i));
             continue;
         }
         if (token.startsWith(QLatin1String("--"))) {
@@ -51,8 +63,14 @@ std::expected<ArgumentosDpsValidar, QString> lerArgumentosDpsValidar(const QStri
     if (posicionais.size() != 2) {
         return std::unexpected(comDetalhe(QStringLiteral("informe a entrada e a saída, nesta ordem")));
     }
-    if (lidos.diretorioXsd.isEmpty() || lidos.manifesto.isEmpty()) {
-        return std::unexpected(comDetalhe(QStringLiteral("informe --xsd e --manifesto")));
+    if (lidos.diretorioXsd.isEmpty()) {
+        return std::unexpected(comDetalhe(QStringLiteral("falta --xsd")));
+    }
+    if (lidos.manifesto.isEmpty()) {
+        return std::unexpected(comDetalhe(QStringLiteral("falta --manifesto")));
+    }
+    if (lidos.tabelas.isEmpty()) {
+        return std::unexpected(comDetalhe(QStringLiteral("falta --tabelas")));
     }
     lidos.entrada = posicionais.at(0);
     lidos.saida = posicionais.at(1);

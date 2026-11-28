@@ -57,7 +57,7 @@ modules:
     build-commands:
       # NL-1.6a: o build não tem rede. O ZIP do XSD entra como fonte com SHA-256 (flatpak-builder confere) e o
       # CMake o lê por NL_XSD_ZIP_CACHE (diretório do próprio build, $PWD); o SHA do ZIP é conferido de novo pelo CMake.
-      - cmake -S . -B _build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNL_XSD_ZIP_CACHE="$PWD" -DNL_FLATPAK_BUILD=ON -DNL_MARIADB_PREFIX=/app
+      - cmake -S . -B _build -G Ninja -DCMAKE_BUILD_TYPE=Release -DNL_XSD_ZIP_CACHE="$PWD" -DNL_TABELAS_XLSX_CACHE="$PWD" -DNL_FLATPAK_BUILD=ON -DNL_MARIADB_PREFIX=/app
       # NL-3.0k (ordem do CTO): o --jobs do flatpak-builder chega aqui por FLATPAK_BUILDER_N_JOBS; sem a variável, usa nproc.
       # A linha jobs-do-build prova no log qual valor chegou (o espelho reprova "ausente"). Sem cota fixa: a cota é da máquina.
       - echo "jobs-do-build=${FLATPAK_BUILDER_N_JOBS:-ausente}"
@@ -69,6 +69,10 @@ modules:
     # exatamente 1 slot (piso, L-36) ou se o slot não passar exatamente 1 vez.
     run-tests: true
     test-commands:
+      # NL-3.M (passo 6, seção 4.2): o pacote instalado em /app valida uma DPS válida pelo XSD e pelas regras locais (--tabelas
+      # de /app/share/notalivre/tabelas). A entrada é a base do e2e (mei_minima.json) e o rc tem de ser 0. A saída vai para _build.
+      - |
+        sh -c '/app/bin/notalivre-cli dps validar tests/e2e/dps_validar/entradas/mei_minima.json _build/nl-validar-pacote.xml --xsd /app/share/notalivre/xsd --manifesto /app/share/notalivre/xsd/SHA256SUMS --tabelas /app/share/notalivre/tabelas > _build/nl-validar-pacote.txt 2>&1; rc=$?; cat _build/nl-validar-pacote.txt; echo "dps validar do pacote: rc=$rc"; [ "$rc" = 0 ] || { echo "PARADA: dps validar do pacote saiu com $rc, esperado 0"; exit 1; }'
       - |
         sh -c 'ctest --test-dir _build -N -R "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" > _build/nl-slot-listado.txt 2>&1; n=$(grep -c "xmldsig[.]assinaSha1NoSdkKdeSemVariavel$" _build/nl-slot-listado.txt || true); echo "slot listado pelo ctest: $n"; [ "$n" = 1 ] || { echo "PARADA: o ctest tem de listar exatamente 1 slot assinaSha1NoSdkKdeSemVariavel, achei $n"; exit 1; }'
       - |
@@ -96,6 +100,15 @@ modules:
           - https://raw.githubusercontent.com/petrinhu/notalivre/4e2ced77726878fbbb2af83de82854ef84189533/esquemas-xsd-producao-restrita-20261124.zip
         sha256: 1ca83c1a7929f6d5684c9a17700fe3d3a375e4ea12b7ccb832bfc369768902c0
         dest-filename: esquemas-xsd-producao-restrita-20261124.zip
+      # NL-3.M (passo 1, opção 1; decisão do líder, 28/11/2026): XLSX do anexo A, convertido pelo CMake de third_party/nfse-tabelas.
+      # O nome do destino é o de fontes.json (anexo_a.xlsx); o cache do flatpak-builder usa o basename da URL (ci.yml copia para lá).
+      - type: file
+        url: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/anexo-a-municipio-ibge-paises-iso2-snnfse-v1.00-20251210.xlsx
+        # Espelho (decisão do líder, 27/11/2026, "Branch de dados, sem release"; fixado em 28/11/2026 no commit bde0e13). O sha256 vale para as duas.
+        mirror-urls:
+          - https://raw.githubusercontent.com/petrinhu/notalivre/bde0e131644364825cd3d4459e075812ac65b572/anexo-a-municipio-ibge-paises-iso2-snnfse-v1.00-20251210.xlsx
+        sha256: 238b715ab2dcc2c9e0857c44d69048e0af806b45ec8499568342de4a37f4419d
+        dest-filename: anexo_a.xlsx
   - name: notalivre-qml-smoke
     buildsystem: cmake-ninja
     sources:

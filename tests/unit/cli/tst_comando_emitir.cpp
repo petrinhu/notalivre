@@ -116,6 +116,9 @@ private slots:
     void executarEmitirRecusaXsdEmProducao();
     // NL-2.10b, R9 (qa, ALTO): [xsd] definido em Produção Restrita sai com 10 pela emissão.
     void executarEmitirRecusaXsdEmProducaoRestrita();
+    // NL-3.M (DA-3M.5): [tabelas] definido fora de Homologação sai com 10 antes de qualquer outra recusa.
+    void executarEmitirRecusaTabelasEmProducao();
+    void executarEmitirRecusaTabelasEmProducaoRestrita();
 };
 
 void TstComandoEmitir::producaoBloqueadaSaiAntesDaSenha()
@@ -281,6 +284,31 @@ void TstComandoEmitir::executarEmitirRecusaXsdEmProducaoRestrita()
         "[sefin]\nurl = https://sefin.producaorestrita.nfse.gov.br/SefinNacional\nprefixo = /SefinNacional\n"
         "[certificado]\ncaminho = /tmp/x.pfx\n"
         "[xsd]\ndiretorio = /tmp/xsd\nmanifesto = /tmp/xsd/MANIFESTO.sha256\n"
+        "[emissao]\nproducao_liberada = false\n");
+    ConfigTemporaria config(ini);
+    const QStringList argumentos{"emitir", "dps.json", "--serie", "1", "--numero", "1", "--ambiente", "producao-restrita"};
+    QCOMPARE(emitirComRegistro(argumentos), 10);
+}
+
+void TstComandoEmitir::executarEmitirRecusaTabelasEmProducao()
+{
+    // NL-3.M (DA-3M.5): [tabelas] com URL de Produção sai com 10, como [xsd] (guarda ao lado da do XSD em comando_emitir.cpp).
+    const QString ini = QStringLiteral(
+        "[sefin]\nurl = https://sefin.nfse.gov.br/SefinNacional\nprefixo = /SefinNacional\n"
+        "[certificado]\ncaminho = /tmp/x.pfx\n"
+        "[tabelas]\ndiretorio = /tmp/tabelas\n"
+        "[emissao]\nproducao_liberada = false\n");
+    ConfigTemporaria config(ini);
+    const QStringList argumentos{"emitir", "dps.json", "--serie", "1", "--numero", "1", "--ambiente", "producao"};
+    QCOMPARE(emitirComRegistro(argumentos), 10);
+}
+
+void TstComandoEmitir::executarEmitirRecusaTabelasEmProducaoRestrita()
+{
+    const QString ini = QStringLiteral(
+        "[sefin]\nurl = https://sefin.producaorestrita.nfse.gov.br/SefinNacional\nprefixo = /SefinNacional\n"
+        "[certificado]\ncaminho = /tmp/x.pfx\n"
+        "[tabelas]\ndiretorio = /tmp/tabelas\n"
         "[emissao]\nproducao_liberada = false\n");
     ConfigTemporaria config(ini);
     const QStringList argumentos{"emitir", "dps.json", "--serie", "1", "--numero", "1", "--ambiente", "producao-restrita"};

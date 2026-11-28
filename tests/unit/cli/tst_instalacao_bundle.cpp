@@ -86,6 +86,7 @@ class TstInstalacaoBundle : public QObject
 private slots:
     void raizesIcpInstaladasNoBundle();
     void xsdInstaladosNoBundle();
+    void tabelasInstaladasNoBundle();
 };
 
 void TstInstalacaoBundle::raizesIcpInstaladasNoBundle()
@@ -106,6 +107,19 @@ void TstInstalacaoBundle::xsdInstaladosNoBundle()
     conferirConjunto(prefixo.path() + QStringLiteral("/share/notalivre/xsd"), QStringLiteral(NL_XSD_MANIFESTO));
     QVERIFY2(QFileInfo::exists(prefixo.path() + QStringLiteral("/bin/notalivre-cli")), "binário da CLI não instalado em bin");
     QVERIFY2(QFileInfo::exists(prefixo.path() + QStringLiteral("/bin/notalivre-gui")), "binário da GUI não instalado em bin");
+}
+
+// NL-3.M passo 1: as três tabelas do anexo A e o SHA256SUMS vão para share/notalivre/tabelas, batem com o manifesto de
+// origem e o SHA256SUMS instalado tem o pino embutido (NL_TABELAS_MANIFESTO_SHA256, como o do XSD).
+void TstInstalacaoBundle::tabelasInstaladasNoBundle()
+{
+    QTemporaryDir prefixo;
+    QVERIFY(prefixo.isValid());
+    const QString falha = instalarNoPrefixo(prefixo.path());
+    QVERIFY2(falha.isEmpty(), qPrintable(falha));
+    const QString pasta = prefixo.path() + QStringLiteral("/share/notalivre/tabelas");
+    conferirConjunto(pasta, QStringLiteral(NL_TABELAS_MANIFESTO));
+    QCOMPARE(sha256DoArquivo(pasta + QStringLiteral("/SHA256SUMS")), QStringLiteral(NL_TABELAS_MANIFESTO_SHA256));
 }
 
 QTEST_APPLESS_MAIN(TstInstalacaoBundle)

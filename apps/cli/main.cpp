@@ -36,7 +36,7 @@ int despachar(const QStringList& argumentos, nl::mid::composicao::RegistroCli& r
         return nl::cli::executarConfig(argumentos);
     }
     QTextStream erro{stderr};
-    erro << QStringLiteral("uso: notalivre dps validar <entrada.json> <saida.xml> --xsd <diretorio> --manifesto <arquivo>") << Qt::endl;
+    erro << QStringLiteral("uso: notalivre dps validar <entrada.json> <saida.xml> --xsd <diretorio> --manifesto <arquivo> --tabelas <diretorio>") << Qt::endl;
     erro << QStringLiteral("     notalivre emitir <entrada.json> --serie <S> --numero <N> --ambiente <A>") << Qt::endl;
     return 2;
 }

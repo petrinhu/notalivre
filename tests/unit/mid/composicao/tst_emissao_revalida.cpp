@@ -12,6 +12,8 @@
 #include <QByteArray>
 #include <QFile>
 #include <QIODevice>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QString>
 #include <QtTest>
 
@@ -48,6 +50,14 @@ QString caminhoDoCertificado(const char* nome)
     return QString::fromUtf8(NL_CERTIFICADOS_EMISSAO) + QStringLiteral("/") + QString::fromUtf8(nome);
 }
 
+// DPS de entrada com indDest 1 na raiz: a regra E0910 (local) recusa a DPS, e o XSD aceita o XML.
+QByteArray entradaComIndDest1(const QByteArray& json)
+{
+    QJsonObject raiz = QJsonDocument::fromJson(json).object();
+    raiz.insert(QStringLiteral("indDest"), QStringLiteral("1"));
+    return QJsonDocument(raiz).toJson(QJsonDocument::Compact);
+}
+
 } // namespace
 
 class TstEmissaoRevalida : public QObject
@@ -57,6 +67,8 @@ class TstEmissaoRevalida : public QObject
 private slots:
     // XML assinado que não confere no XSD: a emissão sai com xsd.pos_assinatura e nenhuma chamada de envio chega a ser feita.
     void xmlInvalidoAposAssinarSaiComXsdPosAssinatura();
+    // Guarda do passo 1 (NL-3.M, DA-3M.6): regra local reprovada na fachada sai antes da fábrica do assinador, sem assinar.
+    void regraLocalNaFachadaRecusaAntesDeAssinar();
 };
 
 void TstEmissaoRevalida::xmlInvalidoAposAssinarSaiComXsdPosAssinatura()
@@ -75,6 +87,7 @@ void TstEmissaoRevalida::xmlInvalidoAposAssinarSaiComXsdPosAssinatura()
         caminhoDoCertificado("ac.pem"),
         QString(),
     };
+    pedido.tabelas = comp::LocalizacaoTabelas{QString::fromUtf8(NL_TABELAS_DIR)};
     std::ostringstream destino;
     auto registro = comp::criarLogDaCli(destino);
     const comp::FabricaAssinador fabrica = [](const fp::CredencialX509&) {
@@ -86,6 +99,38 @@ void TstEmissaoRevalida::xmlInvalidoAposAssinarSaiComXsdPosAssinatura()
     QVERIFY2(!emitido.has_value(), "XML assinado inválido no XSD tem de ser recusado");
     QCOMPARE(QString::fromStdString(emitido.error().codigo), QStringLiteral("xsd.pos_assinatura"));
     QCOMPARE(senha.tamanho(), std::size_t{0});
+}
+
+void TstEmissaoRevalida::regraLocalNaFachadaRecusaAntesDeAssinar()
+{
+    const QByteArray json = entradaComIndDest1(lerArquivo(QString::fromUtf8(NL_ENTRADA_MEI)));
+    QVERIFY2(!json.isEmpty(), "a entrada de teste tem de existir");
+    QByteArray senhaBruta = lerArquivo(caminhoDoCertificado("senha_teste.txt")).trimmed();
+    QVERIFY2(!senhaBruta.isEmpty(), "a senha da fixture sintética tem de existir");
+    auto senha = fp::SenhaSegura::de(senhaBruta);
+
+    comp::PedidoEmissao pedido{
+        json,
+        comp::LocalizacaoEsquemaDps{QString::fromUtf8(NL_XSD_PRODREST_DIR), QString::fromUtf8(NL_XSD_PRODREST_MANIFESTO)},
+        caminhoDoCertificado("cnpj_ok.pfx"),
+        QStringLiteral("https://127.0.0.1:9"),  // inalcançável: a emissão não pode chegar ao envio
+        caminhoDoCertificado("ac.pem"),
+        QString(),
+    };
+    pedido.tabelas = comp::LocalizacaoTabelas{QString::fromUtf8(NL_TABELAS_DIR)};
+    std::ostringstream destino;
+    auto registro = comp::criarLogDaCli(destino);
+    // Contagem de chamadas da fábrica: a regra local tem de recusar antes de qualquer assinatura (DA-3M.6).
+    int chamadasDaFabrica = 0;
+    const comp::FabricaAssinador fabrica = [&chamadasDaFabrica](const fp::CredencialX509&) {
+        ++chamadasDaFabrica;
+        return std::unique_ptr<nl::back::AssinadorDps>(new AssinadorInvalido());
+    };
+
+    const auto emitido = comp::emitirDpsComAssinador(pedido, std::move(senha), *registro, fabrica);
+    QVERIFY2(!emitido.has_value(), "DPS reprovada por regra local tem de ser recusada na fachada");
+    QCOMPARE(QString::fromStdString(emitido.error().codigo), QStringLiteral("E0910"));
+    QCOMPARE(chamadasDaFabrica, 0);
 }
 
 QTEST_MAIN(TstEmissaoRevalida)  // QTEST_MAIN cria a QCoreApplication: o envio (caminho do revisor) usa QEventLoop

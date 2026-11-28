@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
+# Tabelas derivadas do Anexo A v1.00 (Municípios IBGE, países ISO2 e localidades), NL-3.M passo 1, opção 1 (decisão do líder, 28/11/2026).
+# Formato do sha256sum; os três JSON são GERADOS no configure (tools/tabelas/converter.py --so-anexo-a) e NÃO entram na árvore.
+# Origem: XLSX do Anexo A, SHA-256 238b715ab2dcc2c9e0857c44d69048e0af806b45ec8499568342de4a37f4419d (218140 bytes), a âncora
+# de tools/tabelas/fontes.json. Os pinos abaixo foram medidos pelo conversor em 28/11/2026, com a URL nova do gov.br.
+# Divergência de qualquer JSON gerado com estas linhas aborta o configure.
+5669f588290dcf6664b4de46cbd659e19de151b979f4bd4ff3233502acbc6d03  municipios.json
+d7dae75da8a9b489addfdd5f516a55257f0c1b2257a4f487b8759dfce450bc37  paises.json
+22c67ff4822c11491ee4be2ad7f63c8a59899535b88f298230158c14a4a9f0c0  localidades.json

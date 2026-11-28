@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Leitura da linha de comando de `notalivre dps validar` (NL-1.7). Só interpreta argumentos; não abre arquivo.
+// Leitura da linha de comando de `notalivre dps validar` (NL-1.7; NL-3.M). Só interpreta argumentos; não abre arquivo.
 #ifndef NL_CLI_ARGUMENTOS_DPS_VALIDAR_H
 #define NL_CLI_ARGUMENTOS_DPS_VALIDAR_H
 
@@ -11,18 +11,19 @@
 
 namespace nl::cli {
 
-/// Argumentos já conferidos: caminhos de entrada, de saída e a localização do XSD de Produção Restrita.
+/// Argumentos já conferidos: caminhos de entrada e de saída, o XSD de Produção Restrita, o manifesto e o diretório das tabelas do Anexo A.
 struct ArgumentosDpsValidar
 {
     QString entrada;
     QString saida;
     QString diretorioXsd;
     QString manifesto;
+    QString tabelas;
 };
 
 /// Espera a lista inteira da linha de comando, começando por "dps" e "validar".
-/// Uso: notalivre dps validar <entrada.json> <saida.xml> --xsd <diretorio> --manifesto <arquivo>.
-/// Falha: texto de uso em pt-br, com o motivo.
+/// Uso: notalivre dps validar <entrada.json> <saida.xml> --xsd <diretorio> --manifesto <arquivo> --tabelas <diretorio>.
+/// Falha: texto de uso em pt-br, com o motivo; o motivo nomeia a opção que falta (por exemplo "falta --tabelas").
 std::expected<ArgumentosDpsValidar, QString> lerArgumentosDpsValidar(const QStringList& argumentos);
 
 } // namespace nl::cli

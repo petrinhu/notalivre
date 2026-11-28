@@ -6,6 +6,7 @@ add_executable(notalivre-cli
     main.cpp
     argumentos_dps_validar.cpp
     comando_dps_validar.cpp
+    saida_validacao.cpp
     argumentos_emitir.cpp
     comando_emitir.cpp
     comando_config.cpp

@@ -14,7 +14,7 @@ class TstCodigoSaida : public QObject
     Q_OBJECT
 
 private slots:
-    // Documento reprovado no leiaute (entrada, XML assinado, identificação) sai com 4.
+    // Documento reprovado no leiaute (entrada, XML assinado, identificação) e regra local (E + 4 dígitos, sem prefixo) saem com 4.
     void codigosDeDocumentoSaemComQuatro();
     // Ambiente do XSD (esquema ou libxml2) sai com 2: não é culpa do documento.
     void codigosDeAmbienteXsdSaemComDois();
@@ -98,7 +98,9 @@ void TstCodigoSaida::codigosDeDocumentoSaemComQuatro()
                                "dps.nao_suportado_v1", "entrada.campo_ausente", "entrada.campos_conflitantes", "entrada.json_invalido",
                                "entrada.tipo_invalido", "entrada.xml", "entrada.numero_invalido",
                                // NL-2.21 (Emenda 2 do CTO): DOCTYPE no XML da DPS é recusa do documento, não falha interna.
-                               "xml.com_dtd"}) {
+                               "xml.com_dtd",
+                               // NL-3.M (DA-3M.8): regra local, código E seguido de 4 dígitos e sem prefixo, é culpa do documento.
+                               "E0910", "E0302"}) {
         QCOMPARE(codigoDeSaidaDaEmissao(codigo), 4);
     }
 }
@@ -107,11 +109,17 @@ void TstCodigoSaida::codigosDeAmbienteXsdSaemComDois()
 {
     QCOMPARE(codigoDeSaidaDaEmissao("xsd.esquema"), 2);
     QCOMPARE(codigoDeSaidaDaEmissao("xsd.interno"), 2);
+    // NL-3.M (DA-3M.8): tabelas do Anexo A ausentes ou divergentes são ambiente, como o esquema do XSD.
+    for (const char* codigo : {"tabelas.ausente", "tabelas.arquivo_divergente", "tabelas.json_invalido", "tabelas.manifesto_invalido"}) {
+        QCOMPARE(codigoDeSaidaDaEmissao(codigo), 2);
+    }
 }
 
 void TstCodigoSaida::codigosDeRecusaSaemComUm()
 {
-    for (const char* codigo : {"credencial.nao_carregou", "assinatura.algoritmo_bloqueado", "confirmacao.diferente_do_a1", "sefin.E1207"}) {
+    // NL-3.M: o código E da Sefin chega com o prefixo "sefin." e continua na recusa de 1, mesmo com a forma E + 4 dígitos.
+    for (const char* codigo : {"credencial.nao_carregou", "assinatura.algoritmo_bloqueado", "confirmacao.diferente_do_a1", "sefin.E1207",
+                               "sefin.E0910"}) {
         QCOMPARE(codigoDeSaidaDaEmissao(codigo), 1);
     }
 }
@@ -133,7 +141,9 @@ void TstCodigoSaida::configuracaoSaiComDez()
                                "assinatura.algoritmo_invalido", "configuracao.ancoras_a1_fora_de_homologacao",
                                "configuracao.ancoras_tls_fora_de_homologacao", "configuracao.raizes_diretorio_vazio",
                                "configuracao.xsd_manifesto_nao_fixado", "configuracao.xsd_fora_de_homologacao",
-                               "configuracao.chave_duplicada", "configuracao.chave_vazia"}) {
+                               "configuracao.chave_duplicada", "configuracao.chave_vazia",
+                               // NL-3.M (DA-3M.5): [tabelas] fora de Homologação e manifesto das tabelas fora do pino são configuração.
+                               "configuracao.tabelas_manifesto_nao_fixado", "configuracao.tabelas_fora_de_homologacao"}) {
         QCOMPARE(codigoDeSaidaDaEmissao(codigo), 10);
     }
 }
@@ -145,6 +155,9 @@ void TstCodigoSaida::codigoDesconhecidoSaiComSetenta()
     QCOMPARE(codigoDeSaidaDaEmissao("codigo_que_nao_existe"), 70);
     // NL-2.10b, MÉDIA-1: ambiente do pedido divergente do host sai com 70, por entrada explícita (interno, não recusa).
     QCOMPARE(codigoDeSaidaDaEmissao("emissao.ambiente_divergente"), 70);
+    // NL-3.M: a forma da regra local é exatamente E + 4 dígitos; com 3 ou 5 dígitos não é regra local e sai com 70.
+    QCOMPARE(codigoDeSaidaDaEmissao("E091"), 70);
+    QCOMPARE(codigoDeSaidaDaEmissao("E09100"), 70);
 }
 
 void TstCodigoSaida::certificadoProvavelSaiComOito()

@@ -8,8 +8,8 @@
 
 namespace nl::cli {
 
-/// Código de saída: 0 DPS gravada; 1 entrada ou DPS reprovada (erros no stderr); 2 uso, erro de arquivo ou falha de ambiente
-/// (XSD ausente, manifesto ilegível, libxml2 com falha interna).
+/// Código de saída: 0 DPS gravada (avisos no stderr, se houver); 1 entrada ou DPS reprovada (erros no stderr); 2 uso, erro de arquivo
+/// ou falha de ambiente (XSD ou tabelas ausentes, manifesto ilegível, libxml2 com falha interna).
 int executarDpsValidar(const QStringList& argumentos);
 
 } // namespace nl::cli

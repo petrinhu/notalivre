@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Petrus Alves da Silva Costa
-// Código de saída da emissão (NL-2.9, DA-2.57c). Ver codigo_saida.h. Listas exatas primeiro; prefixos depois; o resto é 70.
+// Código de saída da emissão (NL-2.9, DA-2.57c). Ver codigo_saida.h. Listas exatas primeiro; prefixos depois; regra local (E + 4
+// dígitos) com 4; o resto é 70.
 #include <nl/mid/composicao/codigo_saida.h>
 
 #include <nl/mid/composicao/codigos_falha_envio.h>
@@ -31,6 +32,21 @@ bool comecaCom(std::string_view texto, std::string_view prefixo)
     return texto.substr(0, prefixo.size()) == prefixo;
 }
 
+// Regra local (NL-3.M, DA-3M.8): código E seguido de exatamente 4 dígitos e sem prefixo (ex.: "E0910"). O código E da Sefin chega
+// com o prefixo "sefin." (emissao_cli.cpp), por isso não casa aqui e segue com 1.
+bool ehRegraLocal(std::string_view codigo)
+{
+    if (codigo.size() != 5 || codigo[0] != 'E') {
+        return false;
+    }
+    for (char digito : codigo.substr(1)) {
+        if (digito < '0' || digito > '9') {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 int codigoDeSaidaDaEmissao(std::string_view codigo)
@@ -45,7 +61,12 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
         "cnbs.", "cod_trib_municipal.", "cod_trib_nacional.", "cst.", "dhemi.", "indicadordestinatario.", "indtottrib.", "municipio.",
         "nif.", "numero.", "pais.", "percentual.", "percentual_sn.", "ref_nfse.", "regime.", "retencao.", "serie.", "servico.",
         "substituicao.", "telefone.", "tipooperacao.", "tribissqn."};
-    constexpr std::array<std::string_view, 2> ambienteXsd{"xsd.esquema", "xsd.interno"};
+    if (ehRegraLocal(codigo)) {
+        return kSaidaDocumento;
+    }
+    // NL-3.M (DA-3M.8): tabelas do Anexo A ausentes ou divergentes são ambiente, como o esquema do XSD.
+    constexpr std::array<std::string_view, 6> ambienteXsd{"xsd.esquema", "xsd.interno", "tabelas.ausente", "tabelas.arquivo_divergente",
+                                                          "tabelas.json_invalido", "tabelas.manifesto_invalido"};
     constexpr std::array<std::string_view, 5> recusaPrefixo{"credencial.", "assinatura.", "confirmacao.", "cofre.", "sefin."};
     // Falha do envio sem código E (NL-3.C, plano 1.6): lista exata por código estável do catálogo, antes dos prefixos.
     // Preparo e resposta sem código saem com 70 por entrada explícita; o envio.* sem entrada cai no 70 final.
@@ -68,12 +89,14 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
     // Configuração (NL-2.10a, emenda 4): saída 10 por entrada explícita, antes de qualquer prefixo, porque "assinatura." e
     // "certificado." não podem cair na recusa comum.
     // Âncora definida fora de Homologação (NL-2.10b, condição do CISO de 31/10/2026, emenda 2): também sai com 10.
-    constexpr std::array<std::string_view, 11> configuracaoExato{"configuracao.chave_ausente", "configuracao.arquivo_ilegivel",
-                                                                "certificado.caminho_ilegivel", "assinatura.algoritmo_invalido",
-                                                                "configuracao.ancoras_a1_fora_de_homologacao",
-                                                                "configuracao.ancoras_tls_fora_de_homologacao", "configuracao.raizes_diretorio_vazio",
-                                                                "configuracao.xsd_manifesto_nao_fixado", "configuracao.xsd_fora_de_homologacao",
-                                                                "configuracao.chave_duplicada", "configuracao.chave_vazia"};
+    // NL-3.M (DA-3M.5): [tabelas] fora de Homologação e manifesto das tabelas fora do pino também saem com 10.
+    constexpr std::array<std::string_view, 13> configuracaoExato{"configuracao.chave_ausente", "configuracao.arquivo_ilegivel",
+                                                                 "certificado.caminho_ilegivel", "assinatura.algoritmo_invalido",
+                                                                 "configuracao.ancoras_a1_fora_de_homologacao",
+                                                                 "configuracao.ancoras_tls_fora_de_homologacao", "configuracao.raizes_diretorio_vazio",
+                                                                 "configuracao.xsd_manifesto_nao_fixado", "configuracao.xsd_fora_de_homologacao",
+                                                                 "configuracao.chave_duplicada", "configuracao.chave_vazia",
+                                                                 "configuracao.tabelas_manifesto_nao_fixado", "configuracao.tabelas_fora_de_homologacao"};
     for (auto exato : configuracaoExato) {
         if (codigo == exato) {
             return kSaidaConfiguracao;

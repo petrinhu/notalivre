@@ -56,6 +56,7 @@ struct PedidoEmissao
     QString caminhoAncorasTls = QString();  ///< PEM das âncoras do servidor TLS (config [sefin] ancoras_tls, NL-2.10a); a CLI sempre o preenche
     std::optional<Ambiente> ambiente = std::nullopt;  ///< ambiente que o chamador afirma (NL-2.10b, MÉDIA-1): sem valor padrão; a Mid deriva de urlSefin
     QString diretorioRaizesIcp = QString();     ///< diretório das raízes ICP do bundle, <prefixo>/share/notalivre/icp-brasil (NL-2.10b, emenda 5)
+    LocalizacaoTabelas tabelas = {};            ///< diretório das tabelas do Anexo A para as regras locais (NL-3.M, DA-3M.4); padrão vazio = tabelas.ausente
 };
 
 /// Falha da emissão: o código é estável; a mensagem vem do catálogo, nunca do texto livre da API.

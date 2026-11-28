@@ -188,13 +188,15 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
         return std::unexpected(falha("emissao.ambiente_divergente", "o ambiente afirmado não confere com o endpoint da configuração"));
     }
     // 1. DPS de entrada: JSON validado no XSD. Reprovação vem com o primeiro código do validador.
-    auto xml = DpsValidar::executar(pedido.dpsJson, pedido.esquema);
-    if (!xml) {
-        const std::string codigo = xml.error().erros.empty() ? std::string("dps.invalida") : xml.error().erros.front().codigo();
+    // Guarda (NL-3.M, DA-3M.6): a mesma fachada do dps validar, com as regras locais; a CLI já confere antes da senha, e esta
+    // chamada não confia no chamador (a GUI também chamará esta fachada).
+    auto validada = DpsValidar::executar(pedido.dpsJson, pedido.esquema, pedido.tabelas);
+    if (!validada) {
+        const std::string codigo = validada.error().erros.empty() ? std::string("dps.invalida") : validada.error().erros.front().codigo();
         return std::unexpected(falha(codigo, "a DPS de entrada foi reprovada na validação"));
     }
     // 2. Id da DPS, a partir do próprio XML validado.
-    auto idDps = idDoXml(*xml);
+    auto idDps = idDoXml(validada->xml);
     if (!idDps) {
         return std::unexpected(idDps.error());
     }
@@ -222,7 +224,7 @@ std::expected<QString, FalhaEmissao> emitirDpsComAssinador(const PedidoEmissao& 
         return std::unexpected(recusada(registro, *idDps, falha("assinatura.sem_assinador", "a fábrica não devolveu assinador")));
     }
     EmissaoNota raiz(std::move(assinador));
-    auto assinado = raiz.emitirNota().executar(*xml, idDps->texto());
+    auto assinado = raiz.emitirNota().executar(validada->xml, idDps->texto());
     if (!assinado) {
         return std::unexpected(recusada(registro, *idDps, falha(assinado.error().codigo(), assinado.error().mensagem())));
     }

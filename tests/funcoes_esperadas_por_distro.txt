@@ -22,8 +22,26 @@
 #   slot novo: soma 0.
 # flatpak 1578 -> 1588 (+10, medido no run 46018747106, commit 93f3c3f): a entrada nova roda no Flatpak (sem guarda NL_FLATPAK_BUILD), com os mesmos 8, e os 2
 #   slots do tst_dps_validar também entram.
-fedora45 1867
-ubuntu26.04 1867
-manjaro 1867
-mint22.3 1867
-flatpak 1588
+# NL-3.M (passo 7): nativo 1867 -> 1928 (+61, medido no run 46158328529, commit d68b78e). Conta pela regra deste cabeçalho:
+#   cada entrada de CTest que roda um slot soma 1 + initTestCase + cleanupTestCase (+2); classe registrada inteira soma só os slots novos.
+#   tst_dps_validar (classe inteira): +13 linhas de dados (regraLocalReprovaComCodigoECampo, 13 variantes), +3 slots (avisoD1NaoImpedeAGravacao,
+#   tabelasAusentesRetornaAmbiente, tabelasFaltandoRetornaUso), -1 (indDestUmNaRaizSaiNoXml, retirado) = +15.
+#   tst_cli_emitir, 2 entradas (cliRecusaRegraLocalAntesDaSenha, cliMostraAvisoAntesDaSenha): 2 x (1 + 2) = 6.
+#   tst_comando_emitir (cli.comandoEmitir, classe inteira): +2 slots (executarEmitirRecusaTabelasEmProducao e ...Restrita) = 2.
+#   tst_configuracao_cli (cli.configuracao, classe inteira): +2 slots (tabelasPadraoDoBundle, tabelasPorConfiguracaoRecusadoForaDeHomologacao) = 2.
+#   tst_instalacao_bundle, 1 entrada (cli.bundle.tabelasInstaladasNoBundle): 1 x (1 + 2) = 3.
+#   tst_validar_xml, 2 entradas (executarTabelasAusentesSaemComAmbiente, executarRegraLocalReprovaAntesDoXsd): 2 x (1 + 2) = 6.
+#   tst_emissao_revalida, 1 entrada (regraLocalNaFachadaRecusaAntesDeAssinar): 1 x (1 + 2) = 3.
+#   tst_catalogo_localidades (classe nova, 8 entradas mid.tabelas.*): 8 x (1 + 2) = 24.
+#   Soma: 15 + 6 + 2 + 2 + 3 + 6 + 3 + 24 = 61. tst_codigo_saida: só laços dentro dos slots existentes, sem slot nem newRow novo = 0.
+#   Os dois tabelas.* em Python (tests/tools/tabelas) não geram junitxml e não entram.
+# NL-3.M flatpak 1588 -> 1646 (+58, ESTIMADO; o próximo run mede): os 61 menos cliMostraAvisoAntesDaSenha (1 + 2 = 3), que está em
+#   flatpak/testes_fora_do_flatpak.txt. A guarda NL_FLATPAK_BUILD de tests/unit/cli/CMakeLists.txt desliga só cli.portaoPiiVarreLogsDaCli,
+#   não os slots novos. Os outros 58 entram no Flatpak pela mesma regra.
+# NL-3.M, revisões (28/11/2026): 1928 -> 1934 e flatpak 1646 -> 1652 (+6 nos dois), estimado pela mesma regra: mid.tabelas.tabelaAdulteradaEMalformadaRecusadaPeloHash, 1 entrada, 1 x (1 + 2) = 3; e2e.cliEmitir.cliRecusaXsdNaoMostraOValorDaDps,
+#   1 entrada nas duas listas (nativo e Flatpak), 1 x (1 + 2) = 3. O 1646 de antes foi medido no run 46160644843; o próximo run mede estes.
+fedora45 1934
+ubuntu26.04 1934
+manjaro 1934
+mint22.3 1934
+flatpak 1652
