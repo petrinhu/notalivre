@@ -64,7 +64,9 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
     if (ehRegraLocal(codigo)) {
         return kSaidaDocumento;
     }
-    constexpr std::array<std::string_view, 2> ambienteXsd{"xsd.esquema", "xsd.interno"};
+    // NL-3.M (DA-3M.8): tabelas do Anexo A ausentes ou divergentes são ambiente, como o esquema do XSD.
+    constexpr std::array<std::string_view, 6> ambienteXsd{"xsd.esquema", "xsd.interno", "tabelas.ausente", "tabelas.arquivo_divergente",
+                                                          "tabelas.json_invalido", "tabelas.manifesto_invalido"};
     constexpr std::array<std::string_view, 5> recusaPrefixo{"credencial.", "assinatura.", "confirmacao.", "cofre.", "sefin."};
     // Falha do envio sem código E (NL-3.C, plano 1.6): lista exata por código estável do catálogo, antes dos prefixos.
     // Preparo e resposta sem código saem com 70 por entrada explícita; o envio.* sem entrada cai no 70 final.
@@ -87,12 +89,14 @@ int codigoDeSaidaDaEmissao(std::string_view codigo)
     // Configuração (NL-2.10a, emenda 4): saída 10 por entrada explícita, antes de qualquer prefixo, porque "assinatura." e
     // "certificado." não podem cair na recusa comum.
     // Âncora definida fora de Homologação (NL-2.10b, condição do CISO de 31/10/2026, emenda 2): também sai com 10.
-    constexpr std::array<std::string_view, 11> configuracaoExato{"configuracao.chave_ausente", "configuracao.arquivo_ilegivel",
-                                                                "certificado.caminho_ilegivel", "assinatura.algoritmo_invalido",
-                                                                "configuracao.ancoras_a1_fora_de_homologacao",
-                                                                "configuracao.ancoras_tls_fora_de_homologacao", "configuracao.raizes_diretorio_vazio",
-                                                                "configuracao.xsd_manifesto_nao_fixado", "configuracao.xsd_fora_de_homologacao",
-                                                                "configuracao.chave_duplicada", "configuracao.chave_vazia"};
+    // NL-3.M (DA-3M.5): [tabelas] fora de Homologação e manifesto das tabelas fora do pino também saem com 10.
+    constexpr std::array<std::string_view, 13> configuracaoExato{"configuracao.chave_ausente", "configuracao.arquivo_ilegivel",
+                                                                 "certificado.caminho_ilegivel", "assinatura.algoritmo_invalido",
+                                                                 "configuracao.ancoras_a1_fora_de_homologacao",
+                                                                 "configuracao.ancoras_tls_fora_de_homologacao", "configuracao.raizes_diretorio_vazio",
+                                                                 "configuracao.xsd_manifesto_nao_fixado", "configuracao.xsd_fora_de_homologacao",
+                                                                 "configuracao.chave_duplicada", "configuracao.chave_vazia",
+                                                                 "configuracao.tabelas_manifesto_nao_fixado", "configuracao.tabelas_fora_de_homologacao"};
     for (auto exato : configuracaoExato) {
         if (codigo == exato) {
             return kSaidaConfiguracao;

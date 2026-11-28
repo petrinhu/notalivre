@@ -10,11 +10,11 @@ target_link_libraries(nl_mid PRIVATE nl_back nl_foundation nl_foundation_pkcs12 
 target_link_libraries(nl_mid PRIVATE Qt6::Network nl_warnings)
 
 # Ganchos da NL-1.0 (costura de build): diretórios que as fatias da Onda 1 enchem.
+# NL-3.M passo 1: tabelas do Anexo A no configure (NL_TABELAS_*), antes da composicao (pino NL_TABELAS_MANIFESTO_SHA256) e do adaptador.
+add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/nfse-tabelas/anexo-a-20251210
+                 ${CMAKE_BINARY_DIR}/third_party/nfse-tabelas/anexo-a-20251210)
 add_subdirectory(sefin)
 add_subdirectory(composicao)
 add_subdirectory(cofre)
 add_subdirectory(persistencia)
-# NL-3.M passo 1: tabelas do Anexo A no configure (NL_TABELAS_*), antes do adaptador que as usa.
-add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/nfse-tabelas/anexo-a-20251210
-                 ${CMAKE_BINARY_DIR}/third_party/nfse-tabelas/anexo-a-20251210)
 add_subdirectory(tabelas)

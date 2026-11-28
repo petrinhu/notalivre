@@ -109,6 +109,10 @@ void TstCodigoSaida::codigosDeAmbienteXsdSaemComDois()
 {
     QCOMPARE(codigoDeSaidaDaEmissao("xsd.esquema"), 2);
     QCOMPARE(codigoDeSaidaDaEmissao("xsd.interno"), 2);
+    // NL-3.M (DA-3M.8): tabelas do Anexo A ausentes ou divergentes são ambiente, como o esquema do XSD.
+    for (const char* codigo : {"tabelas.ausente", "tabelas.arquivo_divergente", "tabelas.json_invalido", "tabelas.manifesto_invalido"}) {
+        QCOMPARE(codigoDeSaidaDaEmissao(codigo), 2);
+    }
 }
 
 void TstCodigoSaida::codigosDeRecusaSaemComUm()
@@ -137,7 +141,9 @@ void TstCodigoSaida::configuracaoSaiComDez()
                                "assinatura.algoritmo_invalido", "configuracao.ancoras_a1_fora_de_homologacao",
                                "configuracao.ancoras_tls_fora_de_homologacao", "configuracao.raizes_diretorio_vazio",
                                "configuracao.xsd_manifesto_nao_fixado", "configuracao.xsd_fora_de_homologacao",
-                               "configuracao.chave_duplicada", "configuracao.chave_vazia"}) {
+                               "configuracao.chave_duplicada", "configuracao.chave_vazia",
+                               // NL-3.M (DA-3M.5): [tabelas] fora de Homologação e manifesto das tabelas fora do pino são configuração.
+                               "configuracao.tabelas_manifesto_nao_fixado", "configuracao.tabelas_fora_de_homologacao"}) {
         QCOMPARE(codigoDeSaidaDaEmissao(codigo), 10);
     }
 }

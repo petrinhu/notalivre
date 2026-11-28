@@ -6,6 +6,7 @@ target_sources(nl_mid PRIVATE
     confirmacao_inscricao.cpp
     campos_json.cpp
     dps_validar.cpp
+    regras_locais.cpp
     emissao_nota.cpp
     manipulador_qt.cpp
     guarda_manipulador_qt.cpp
@@ -33,3 +34,7 @@ target_sources(nl_mid PRIVATE
 
 # Pin do manifesto do XSD (NL-2.10b, BAIXA-4): só dps_validar.cpp lê a definição; o hash é o do SHA256SUMS de third_party.
 target_compile_definitions(nl_mid PRIVATE "NL_XSD_MANIFESTO_SHA256=\"${NL_XSD_PRODREST_MANIFESTO_SHA256}\"")
+# Pin do manifesto das tabelas (NL-3.M, DA-3M.4): mesmo molde do XSD. BLOQUEIO: este arquivo é processado antes do bloco de
+# third_party/nfse-tabelas em src/mid/CMakeLists.txt, então NL_TABELAS_MANIFESTO_SHA256 ainda não existe aqui e o static_assert de
+# dps_validar.cpp para o build. A correção é mover aquele bloco para antes de add_subdirectory(composicao); precisa de autorização do CTO.
+target_compile_definitions(nl_mid PRIVATE "NL_TABELAS_MANIFESTO_SHA256=\"${NL_TABELAS_MANIFESTO_SHA256}\"")

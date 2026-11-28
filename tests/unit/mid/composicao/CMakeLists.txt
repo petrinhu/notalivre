@@ -44,12 +44,18 @@ add_executable(tst_validar_xml tst_validar_xml.cpp)
 target_compile_definitions(tst_validar_xml PRIVATE
     "NL_XSD_PRODREST_DIR=\"${NL_XSD_PRODREST_DIR}\""
     "NL_XSD_PRODREST_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\""
+    "NL_TABELAS_DIR=\"${NL_TABELAS_DIR}\""
     "NL_ENTRADA_MEI=\"${CMAKE_SOURCE_DIR}/tests/e2e/dps_validar/entradas/mei_minima.json\"")
 target_link_libraries(tst_validar_xml PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation nl_foundation_base nl_warnings)
 nl_registra_teste_qt(NAME mid.composicao.validarXmlAceitaDpsValida COMMAND tst_validar_xml validarXmlAceitaDpsValida)
 set_tests_properties(mid.composicao.validarXmlAceitaDpsValida PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
 nl_registra_teste_qt(NAME mid.composicao.validarXmlRecusaXmlQueNaoConfereNoXsd COMMAND tst_validar_xml validarXmlRecusaXmlQueNaoConfereNoXsd)
 set_tests_properties(mid.composicao.validarXmlRecusaXmlQueNaoConfereNoXsd PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
+# NL-3.M (DA-3M.2, DA-3M.4): ordem das etapas da fachada e tabelas ausentes.
+nl_registra_teste_qt(NAME mid.composicao.executarTabelasAusentesSaemComAmbiente COMMAND tst_validar_xml executarTabelasAusentesSaemComAmbiente)
+set_tests_properties(mid.composicao.executarTabelasAusentesSaemComAmbiente PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
+nl_registra_teste_qt(NAME mid.composicao.executarRegraLocalReprovaAntesDoXsd COMMAND tst_validar_xml executarRegraLocalReprovaAntesDoXsd)
+set_tests_properties(mid.composicao.executarRegraLocalReprovaAntesDoXsd PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL!")
 
 add_executable(tst_codigo_saida tst_codigo_saida.cpp)
 target_link_libraries(tst_codigo_saida PRIVATE Qt6::Core Qt6::Test nl_mid nl_foundation_base nl_warnings)
@@ -64,10 +70,16 @@ target_compile_definitions(tst_emissao_revalida PRIVATE
     "NL_CERTIFICADOS_EMISSAO=\"${CMAKE_BINARY_DIR}/certificados_teste\""
     "NL_XSD_PRODREST_DIR=\"${NL_XSD_PRODREST_DIR}\""
     "NL_XSD_PRODREST_MANIFESTO=\"${NL_XSD_PRODREST_MANIFESTO}\""
+    "NL_TABELAS_DIR=\"${NL_TABELAS_DIR}\""
     "NL_ENTRADA_MEI=\"${CMAKE_SOURCE_DIR}/tests/e2e/dps_validar/entradas/mei_minima.json\"")
 target_link_libraries(tst_emissao_revalida PRIVATE Qt6::Core Qt6::Test nl_mid nl_back nl_foundation nl_foundation_pkcs12 nl_foundation_base nl_warnings)
 nl_registra_teste_qt(NAME mid.composicao.emissaoRevalida.xmlInvalidoAposAssinarSaiComXsdPosAssinatura COMMAND tst_emissao_revalida xmlInvalidoAposAssinarSaiComXsdPosAssinatura)
 set_tests_properties(mid.composicao.emissaoRevalida.xmlInvalidoAposAssinarSaiComXsdPosAssinatura PROPERTIES
+                     FIXTURES_REQUIRED certificados_teste
+                     FAIL_REGULAR_EXPRESSION "FAIL!")
+# Guarda do passo 1 da emissão (NL-3.M, DA-3M.6): a regra local recusa na fachada, antes da fábrica do assinador.
+nl_registra_teste_qt(NAME mid.composicao.emissaoRevalida.regraLocalNaFachadaRecusaAntesDeAssinar COMMAND tst_emissao_revalida regraLocalNaFachadaRecusaAntesDeAssinar)
+set_tests_properties(mid.composicao.emissaoRevalida.regraLocalNaFachadaRecusaAntesDeAssinar PROPERTIES
                      FIXTURES_REQUIRED certificados_teste
                      FAIL_REGULAR_EXPRESSION "FAIL!")
 

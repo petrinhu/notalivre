@@ -90,14 +90,17 @@ int executarDpsValidar(const QStringList& argumentos)
     }
 
     const nl::mid::composicao::LocalizacaoEsquemaDps esquema{lidos->diretorioXsd, lidos->manifesto};
-    const auto xml = nl::mid::composicao::DpsValidar::executar(*entrada, esquema);
-    if (!xml) {
-        mostrarErros(xml.error().erros);
-        return xml.error().natureza == nl::mid::composicao::NaturezaFalha::ambiente ? kCodigoUsoOuAmbiente : kCodigoReprovado;
+    // NL-3.M, passo 3: a fachada pede as tabelas. Ainda sem --tabelas (passo 4): diretório vazio, que sai com tabelas.ausente (rc 2).
+    // Os avisos ainda não são impressos (passo 4).
+    const nl::mid::composicao::LocalizacaoTabelas tabelas{};
+    const auto validada = nl::mid::composicao::DpsValidar::executar(*entrada, esquema, tabelas);
+    if (!validada) {
+        mostrarErros(validada.error().erros);
+        return validada.error().natureza == nl::mid::composicao::NaturezaFalha::ambiente ? kCodigoUsoOuAmbiente : kCodigoReprovado;
     }
 
     QString motivo;
-    if (!gravarSaida(lidos->saida, *xml, &motivo)) {
+    if (!gravarSaida(lidos->saida, validada->xml, &motivo)) {
         mostrarTexto(motivo);
         return kCodigoUsoOuAmbiente;
     }
