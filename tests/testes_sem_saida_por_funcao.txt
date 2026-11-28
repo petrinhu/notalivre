@@ -94,7 +94,9 @@ fedora45 tabelas.cTribNacConfereComItemSubitemDesdobro ferramenta python de tabe
 fedora45 tabelas.municipioComSeteDigitos ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 fedora45 tabelas.nbsComFormatoPontuadoPreservado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 fedora45 tabelas.nbsSemDescricaoMantidaEContada ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.semFlagSemAnexoBContinuaParando ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 fedora45 tabelas.servicoItemSubitemDesdobroInconsistenteFalha ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+fedora45 tabelas.soAnexoANaoExigeAnexoB ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 fedora45 tabelas.xlsxArquivoDescompactadoGrandeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 fedora45 tabelas.xlsxComArquivosDemaisRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 fedora45 tabelas.xlsxComDoctypeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
@@ -193,7 +195,9 @@ ubuntu26.04 tabelas.cTribNacConfereComItemSubitemDesdobro ferramenta python de t
 ubuntu26.04 tabelas.municipioComSeteDigitos ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 ubuntu26.04 tabelas.nbsComFormatoPontuadoPreservado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 ubuntu26.04 tabelas.nbsSemDescricaoMantidaEContada ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+ubuntu26.04 tabelas.semFlagSemAnexoBContinuaParando ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 ubuntu26.04 tabelas.servicoItemSubitemDesdobroInconsistenteFalha ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+ubuntu26.04 tabelas.soAnexoANaoExigeAnexoB ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 ubuntu26.04 tabelas.xlsxArquivoDescompactadoGrandeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 ubuntu26.04 tabelas.xlsxComArquivosDemaisRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 ubuntu26.04 tabelas.xlsxComDoctypeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
@@ -292,7 +296,9 @@ manjaro tabelas.cTribNacConfereComItemSubitemDesdobro ferramenta python de tabel
 manjaro tabelas.municipioComSeteDigitos ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 manjaro tabelas.nbsComFormatoPontuadoPreservado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 manjaro tabelas.nbsSemDescricaoMantidaEContada ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+manjaro tabelas.semFlagSemAnexoBContinuaParando ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 manjaro tabelas.servicoItemSubitemDesdobroInconsistenteFalha ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+manjaro tabelas.soAnexoANaoExigeAnexoB ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 manjaro tabelas.xlsxArquivoDescompactadoGrandeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 manjaro tabelas.xlsxComArquivosDemaisRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 manjaro tabelas.xlsxComDoctypeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
@@ -391,7 +397,9 @@ mint22.3 tabelas.cTribNacConfereComItemSubitemDesdobro ferramenta python de tabe
 mint22.3 tabelas.municipioComSeteDigitos ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 mint22.3 tabelas.nbsComFormatoPontuadoPreservado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 mint22.3 tabelas.nbsSemDescricaoMantidaEContada ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+mint22.3 tabelas.semFlagSemAnexoBContinuaParando ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 mint22.3 tabelas.servicoItemSubitemDesdobroInconsistenteFalha ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+mint22.3 tabelas.soAnexoANaoExigeAnexoB ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 mint22.3 tabelas.xlsxArquivoDescompactadoGrandeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 mint22.3 tabelas.xlsxComArquivosDemaisRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 mint22.3 tabelas.xlsxComDoctypeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
@@ -465,7 +473,9 @@ flatpak tabelas.cTribNacConfereComItemSubitemDesdobro ferramenta python de tabel
 flatpak tabelas.municipioComSeteDigitos ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 flatpak tabelas.nbsComFormatoPontuadoPreservado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 flatpak tabelas.nbsSemDescricaoMantidaEContada ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+flatpak tabelas.semFlagSemAnexoBContinuaParando ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 flatpak tabelas.servicoItemSubitemDesdobroInconsistenteFalha ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
+flatpak tabelas.soAnexoANaoExigeAnexoB ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 flatpak tabelas.xlsxArquivoDescompactadoGrandeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 flatpak tabelas.xlsxComArquivosDemaisRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
 flatpak tabelas.xlsxComDoctypeRecusado ferramenta python de tabelas (xlsx, CNAE, municípios), sem junitxml por função
