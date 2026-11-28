@@ -5,11 +5,16 @@
 
 #include "argumentos_emitir.h"
 #include "configuracao_cli.h"
+#include "saida_validacao.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <optional>
 #include <string>
+#include <vector>
 
+#include <nl/mid/composicao/dps_validar.h>
 #include <nl/mid/composicao/emissao_cli.h>
 #include <nl/mid/composicao/catalogo_falha_envio.h>
 #include <nl/mid/composicao/codigo_saida.h>
@@ -80,6 +85,40 @@ std::expected<void, nl::mid::composicao::FalhaEmissao> conferirEntradaDaSenha(co
         return nl::mid::composicao::conferirEntradaDaSenhaPeloDescritor(*lidos.descritorSenha);
     }
     return nl::mid::composicao::conferirEntradaDaSenhaPeloTerminal();
+}
+
+// Código de regra local: E seguido de exatamente quatro dígitos (NL-3.M, DA-3M.8). Só essas linhas saem com o texto na recusa (DA-3M.7).
+bool ehCodigoDeRegraLocal(const std::string& codigo)
+{
+    return codigo.size() == 5 && codigo.front() == 'E'
+           && std::all_of(codigo.begin() + 1, codigo.end(), [](unsigned char caractere) { return std::isdigit(caractere) != 0; });
+}
+
+// Conferência da DPS pela fachada, antes de a senha ser lida (NL-3.M, DA-3M.6). Avisos saem sempre. Reprovação: as linhas das regras
+// locais (código e texto literal) e, por último, a linha de hoje com o primeiro código; os demais erros saem só com o código, que a
+// linha final já traz. Devolve o código de saída da reprovação, ou vazio quando a DPS passou.
+std::optional<int> conferirDpsAntesDaSenha(const QByteArray& dpsJson, const nl::mid::composicao::LocalizacaoEsquemaDps& esquema,
+                                           const nl::mid::composicao::LocalizacaoTabelas& tabelas)
+{
+    auto validada = nl::mid::composicao::DpsValidar::executar(dpsJson, esquema, tabelas);
+    if (validada) {
+        nl::cli::mostrarAvisos(validada->avisos);
+        return std::nullopt;
+    }
+    const nl::mid::composicao::FalhaDpsValidar& falha = validada.error();
+    nl::cli::mostrarAvisos(falha.avisos);
+    std::vector<nl::base::Erro> regrasLocais;
+    for (const nl::base::Erro& erro : falha.erros) {
+        if (ehCodigoDeRegraLocal(erro.codigo())) {
+            regrasLocais.push_back(erro);
+        }
+    }
+    nl::cli::mostrarErros(regrasLocais);
+    const std::string primeiro = falha.erros.empty() ? std::string("dps.invalida") : falha.erros.front().codigo();
+    QTextStream erro{stderr};
+    erro << QStringLiteral("emissão recusada (%1): a DPS de entrada foi reprovada na validação").arg(QString::fromStdString(primeiro))
+         << Qt::endl;
+    return nl::mid::composicao::codigoDeSaidaDaEmissao(primeiro);
 }
 
 } // namespace
@@ -157,6 +196,12 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         erro << QString::fromStdString(xsdConferido.error().codigo) << ": " << xsdConferido.error().mensagem << Qt::endl;
         return nl::mid::composicao::codigoDeSaidaDaEmissao(xsdConferido.error().codigo);
     }
+    // [tabelas] definido fora de Homologação é erro de configuração, código 10 (NL-3.M, DA-3M.5), como o [xsd].
+    const auto tabelasConferidas = conferirTabelasDeAmbiente(*config, homologacao);
+    if (!tabelasConferidas) {
+        erro << QString::fromStdString(tabelasConferidas.error().codigo) << ": " << tabelasConferidas.error().mensagem << Qt::endl;
+        return nl::mid::composicao::codigoDeSaidaDaEmissao(tabelasConferidas.error().codigo);
+    }
     const auto conferido = nl::mid::composicao::conferirFlagDoAmbiente(*ambiente, *derivado);
     if (!conferido) {
         erro << QString::fromStdString(conferido.error().mensagem()) << Qt::endl;
@@ -221,6 +266,7 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
         config->ancorasTls,
         *derivado,
         diretorioPadraoDasRaizesIcp(QCoreApplication::applicationDirPath()),
+        nl::mid::composicao::LocalizacaoTabelas{config->tabelasDiretorio},
     };
     // NL-2.27b (DA-2.72): na leitura, só vale o descritor tomado na entrada (mesmo dispositivo e inode).
     if (lidos->descritorSenha && tomada != nullptr) {
@@ -228,6 +274,10 @@ int executarEmitir(const QStringList& argumentos, nl::mid::composicao::RegistroC
             erro << QString::fromStdString(conferida.error().codigo) << ": " << QString::fromStdString(conferida.error().mensagem) << Qt::endl;
             return nl::mid::composicao::codigoDeSaidaDaEmissao(conferida.error().codigo);
         }
+    }
+    // NL-3.M (DA-3M.6): a DPS passa pela fachada antes de a senha ser lida. Os pontos de saída anteriores não mudam de ordem.
+    if (const auto recusada = conferirDpsAntesDaSenha(pedido.dpsJson, pedido.esquema, pedido.tabelas); recusada) {
+        return *recusada;
     }
     // A senha entra pela fachada, do terminal sem eco ou do descritor dado por --senha-certificado-fd: a CLI nunca a vê (DA-2.57b).
     const auto chave = lidos->descritorSenha

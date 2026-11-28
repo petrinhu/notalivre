@@ -25,9 +25,12 @@
 #include <unistd.h>
 
 #include <QElapsedTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QRandomGenerator>
 
 #include <cerrno>
+#include <functional>
 #include <cstdlib>
 #include <vector>
 
@@ -41,6 +44,7 @@ const QString kEntradas = QStringLiteral(NL_ENTRADAS_EMITIR);
 const QString kXsd = QStringLiteral(NL_XSD_EMITIR);
 const QString kManifesto = QStringLiteral(NL_MANIFESTO_EMITIR);
 const QString kTabelaSha1 = QStringLiteral(NL_TABELA_SHA1_EMITIR);
+const QString kTabelas = QStringLiteral(NL_TABELAS_EMITIR);
 
 QByteArray lerArquivo(const QString& caminho);
 
@@ -441,9 +445,11 @@ void escreverConfigRecusa(const QTemporaryDir& pasta, bool producaoLiberada, con
     const QString ancoras = homologacao ? QStringLiteral("ancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\n")
                                         : QStringLiteral("[certificado]\n");
     const QString xsd = homologacao ? QStringLiteral("[xsd]\ndiretorio = %1\nmanifesto = %2\n").arg(kXsd, kManifesto) : QString();
-    const QString texto = QStringLiteral("[sefin]\nurl = %1\nprefixo = /SefinNacional\n%2caminho = %3/cnpj_ok.pfx\n%4"
-                                         "[emissao]\nproducao_liberada = %5\n")
-                              .arg(url, ancoras.arg(kCertificados), kCertificados, xsd,
+    // NL-3.M (DA-3M.5): [tabelas] também só em Homologação; fora dela, a chave definida sai com 10.
+    const QString tabelas = homologacao ? QStringLiteral("[tabelas]\ndiretorio = %1\n").arg(kTabelas) : QString();
+    const QString texto = QStringLiteral("[sefin]\nurl = %1\nprefixo = /SefinNacional\n%2caminho = %3/cnpj_ok.pfx\n%4%5"
+                                         "[emissao]\nproducao_liberada = %6\n")
+                              .arg(url, ancoras.arg(kCertificados), kCertificados, xsd, tabelas,
                                    producaoLiberada ? QStringLiteral("true") : QStringLiteral("false"));
     arquivo.write(texto.toUtf8());
 }
@@ -499,7 +505,7 @@ private slots:
     void cliRecusaProducaoSemCnpjDigitado();
     // Senha por argumento: a CLI recusa sem pedir a senha no terminal, e o valor não aparece na saída nem no log (DA-2.52).
     void senhaNaoApareceEmArgvNemLog();
-    // DPS de entrada que não confere no leiaute: sai com 4, e o servidor falso recebe zero requisições (DA-2.51, mutante H).
+    // DPS de entrada que não confere no leiaute: sai com 4, e o servidor falso recebe zero requisições (DA-2.51).
     void cliRecusaDpsInvalidaSemPost();
     // NL-2.10h (H1): cTribMun 501 de ME/EPP sai assinado e é aceito pelo servidor falso (XSD confere a ordem); cTribMun 000 para antes do envio.
     void cliEmiteComCTribMunPeloServidorFalso();
@@ -563,6 +569,9 @@ private slots:
     void descritorRecusadoNaoNomeiaOArquivo();
     void semConexaoSaiComSeisETextoDoCatalogo();
     void estadoIncertoSaiComSeteERepetirRecuperaANota();
+    // NL-3.M (DA-3M.6, DA-3M.3): regra local reprova antes da senha; aviso sai antes da senha e o fluxo segue.
+    void cliRecusaRegraLocalAntesDaSenha();
+    void cliMostraAvisoAntesDaSenha();
 };
 
 void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
@@ -585,12 +594,15 @@ void TstCliEmitir::cliEmiteDpsAceitaPeloServidorFalso()
         "[xsd]\n"
         "diretorio = %3\n"
         "manifesto = %4\n"
+        "[tabelas]\n"
+        "diretorio = %5\n"
         "[emissao]\n"
         "producao_liberada = false\n")
                              .arg(servidor.porta())
                              .arg(kCertificados)
                              .arg(kXsd)
-                             .arg(kManifesto);
+                             .arg(kManifesto)
+                             .arg(kTabelas);
     QFile arquivoConfig(configDir.filePath(QStringLiteral("notalivre/config.ini")));
     QVERIFY(arquivoConfig.open(QIODevice::WriteOnly | QIODevice::Text));
     arquivoConfig.write(config.toUtf8());
@@ -698,8 +710,9 @@ void TstCliEmitir::cliRecusaDpsInvalidaSemPost()
     QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
     // Fixture xdescserv_2001.json: xDescServ com 2001 caracteres. O domínio (Back) não limita o texto; o XSD limita em 2000
     // (third_party, cache do XSD: tiposSimples_v1.01.xsd, linha 1442, TSDesc2000, maxLength 2000). Sem dado real.
-    // A entrada passa no domínio (Back) e reprova no XSD ANTES da assinatura: o código tem de ser xsd.invalido. Se a validação de
-    // entrada for pulada (mutante H), a reprovação vem só depois de assinar, como xsd.pos_assinatura, e o teste reprova.
+    // A entrada passa no domínio (Back) e reprova no XSD ANTES da assinatura: o código tem de ser xsd.invalido. Desde a NL-3.M,
+    // a conferência da CLI responde antes do prompt da senha, então este slot não prova mais a guarda do passo 1 da emissão
+    // (emissao_cli.cpp). Essa guarda, sem a CLI na frente, vai ter teste direto em tst_emissao_revalida (passo 3 da fatia).
     QVERIFY2(execucao.saida.contains("xsd.invalido"), "a DPS tem de sair reprovada pela validação de entrada, antes da assinatura");
     QVERIFY2(!execucao.saida.contains("xsd.pos_assinatura"), "a reprovação não pode vir da revalidação depois de assinar");
     QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
@@ -902,7 +915,8 @@ void escreverConfigPrefixo(const QTemporaryDir& pasta, const QString& url, const
     texto += QStringLiteral("ancoras_tls = %1/ac.pem\n[certificado]\nancoras = %1/ac.pem\n").arg(kCertificados);
     const QString caminho = caminhoCertificado.isEmpty() ? kCertificados + QStringLiteral("/cnpj_ok.pfx") : caminhoCertificado;
     texto += QStringLiteral("caminho = %1\n").arg(caminho);
-    texto += QStringLiteral("[xsd]\ndiretorio = %1\nmanifesto = %2\n[emissao]\nproducao_liberada = false\n").arg(kXsd, kManifesto);
+    texto += QStringLiteral("[xsd]\ndiretorio = %1\nmanifesto = %2\n[tabelas]\ndiretorio = %3\n[emissao]\nproducao_liberada = false\n")
+                 .arg(kXsd, kManifesto, kTabelas);
     if (!algoritmo.isEmpty()) {
         texto += QStringLiteral("[assinatura]\nalgoritmo = %1\n").arg(algoritmo);
     }
@@ -1116,13 +1130,14 @@ void TstCliEmitir::ancorasTlsSozinhasValidamOServidor()
     QVERIFY(config.open(QIODevice::WriteOnly | QIODevice::Text));
     config.write(QStringLiteral("[sefin]\nurl = https://127.0.0.1:%1\nprefixo = /SefinNacional\nancoras_tls = %2\n"
                                 "[certificado]\nancoras = %3/ac.pem\ncaminho = %3/cnpj_ok.pfx\n"
-                                "[xsd]\ndiretorio = %4\nmanifesto = %5\n[emissao]\nproducao_liberada = false\n"
+                                "[xsd]\ndiretorio = %4\nmanifesto = %5\n[tabelas]\ndiretorio = %6\n[emissao]\nproducao_liberada = false\n"
                                 "[assinatura]\nalgoritmo = rsa-sha256\n")
                      .arg(servidor.porta())
                      .arg(vazio)
                      .arg(kCertificados)
                      .arg(kXsd)
                      .arg(kManifesto)
+                     .arg(kTabelas)
                      .toUtf8());
     config.close();
     const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
@@ -1508,6 +1523,93 @@ void TstCliEmitir::descritorRecusadoNaoNomeiaOArquivo()
     QFile logPii(pastaPii + QStringLiteral("/emitir_e2e_descritor_tipo.log"));
     QVERIFY2(logPii.open(QIODevice::WriteOnly), "o log do e2e tem de abrir na pasta de logs da CLI");
     logPii.write(execucao.saida);
+}
+
+namespace {
+
+// Variante da entrada mei_minima, gravada na pasta do caso (NL-3.M, DA-3M.10): nenhum arquivo novo em entradas/. Vazio se não gravou.
+QString gravarVarianteDaEntrada(const QTemporaryDir& pasta, const QString& nome, const std::function<void(QJsonObject&)>& muda)
+{
+    QFile base(kEntradas + QStringLiteral("/mei_minima.json"));
+    if (!base.open(QIODevice::ReadOnly)) {
+        return QString();
+    }
+    QJsonObject dps = QJsonDocument::fromJson(base.readAll()).object();
+    muda(dps);
+    QFile destino(pasta.filePath(nome));
+    if (!destino.open(QIODevice::WriteOnly)) {
+        return QString();
+    }
+    destino.write(QJsonDocument(dps).toJson(QJsonDocument::Compact));
+    return destino.fileName();
+}
+
+} // namespace
+
+void TstCliEmitir::cliRecusaRegraLocalAntesDaSenha()
+{
+    // NL-3.M (DA-3M.6, DA-3M.8, 4.2): a regra local reprova na CLI antes de a senha ser pedida, com saída 4. Variante de
+    // mei_minima com indDest 1 na raiz (E0910) e cLocPrestacao 9999999 (E0302). Sem servidor: nada chega a ser enviado.
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    QTemporaryDir entradas;
+    QVERIFY(entradas.isValid());
+    escreverConfigRecusa(configDir, false, QStringLiteral("https://127.0.0.1:9443"));
+    const QString entrada = gravarVarianteDaEntrada(entradas, QStringLiteral("regra_local.json"), [](QJsonObject& dps) {
+        dps.insert(QStringLiteral("indDest"), QStringLiteral("1"));
+        QJsonObject servico = dps.value(QStringLiteral("servico")).toObject();
+        servico.insert(QStringLiteral("cLocPrestacao"), QStringLiteral("9999999"));
+        dps.insert(QStringLiteral("servico"), servico);
+    });
+    QVERIFY2(!entrada.isEmpty(), "a variante da entrada tem de ser gravada na pasta do caso");
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), entrada, QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo != -3, "a escrita da senha no terminal falhou: o caso não pode passar em silêncio");
+    QVERIFY2(gravarSaidaParaPii(execucao.saida, QStringLiteral("emitir_e2e_regra_local.log")),
+             "a saída do e2e tem de ir para a pasta de logs da CLI (portão de PII)");
+    QVERIFY2(execucao.codigo == 4, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    QVERIFY2(execucao.saida.contains("erro E0302 ("), "a linha da regra E0302 tem de sair com o campo");
+    QVERIFY2(execucao.saida.contains("erro E0910 ("), "a linha da regra E0910 tem de sair com o campo");
+    QVERIFY2(execucao.saida.contains("emissão recusada (E0302)"), "a linha final tem de trazer o primeiro código");
+    QVERIFY2(!execucao.saida.contains("senha do certificado"), "a senha não pode ser pedida antes da recusa por regra local");
+    QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
+}
+
+void TstCliEmitir::cliMostraAvisoAntesDaSenha()
+{
+    // NL-3.M (DA-3M.3, 4.2): tomador com CNPJ e sem endereço. O aviso D1 sai antes do prompt da senha, e o fluxo segue depois dela:
+    // a conexão falha de propósito (127.0.0.1:1), como em semConexaoSaiComSeisETextoDoCatalogo, então o rc é o 6 do envio.
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    QTemporaryDir entradas;
+    QVERIFY(entradas.isValid());
+    escreverConfigPrefixo(configDir, QStringLiteral("https://127.0.0.1:1"), QStringLiteral("/SefinNacional"),
+                          QStringLiteral("rsa-sha256"), kCertificados + QStringLiteral("/cnpj_ok.pfx"));
+    const QString entrada = gravarVarianteDaEntrada(entradas, QStringLiteral("aviso_d1.json"), [](QJsonObject& dps) {
+        QJsonObject tomador;
+        tomador.insert(QStringLiteral("cnpj"), QStringLiteral("11444777000161"));
+        tomador.insert(QStringLiteral("xNome"), QStringLiteral("Tomador de teste"));
+        dps.insert(QStringLiteral("tomador"), tomador);
+    });
+    QVERIFY2(!entrada.isEmpty(), "a variante da entrada tem de ser gravada na pasta do caso");
+    const QByteArray senha = lerArquivo(kCertificados + QStringLiteral("/senha_teste.txt")).trimmed();
+    const QStringList argumentos{QStringLiteral("emitir"), entrada, QStringLiteral("--serie"), QStringLiteral("1"),
+                                 QStringLiteral("--numero"), QStringLiteral("1"), QStringLiteral("--ambiente"), QStringLiteral("homologacao")};
+    const Execucao execucao = rodarCliNoTerminal(argumentos, configDir.path(), senha);
+    QVERIFY2(execucao.codigo != -3, "a escrita da senha no terminal falhou: o caso não pode passar em silêncio");
+    QVERIFY2(gravarSaidaParaPii(execucao.saida, QStringLiteral("emitir_e2e_aviso_d1.log")),
+             "a saída do e2e tem de ir para a pasta de logs da CLI (portão de PII)");
+    QVERIFY2(execucao.codigo == 6, qPrintable(QStringLiteral("rc=%1; saída: %2").arg(execucao.codigo).arg(QString::fromUtf8(execucao.saida))));
+    const qsizetype posAviso = execucao.saida.indexOf("aviso D1 (Dps.infDPS.toma.end)");
+    const qsizetype posSenha = execucao.saida.indexOf("senha do certificado");
+    QVERIFY2(posAviso >= 0, "o aviso D1 tem de sair com o campo do tomador");
+    QVERIFY2(posSenha > posAviso, "o aviso tem de sair antes do prompt da senha");
+    QVERIFY2(execucao.saida.contains("(envio.rede_antes_do_envio)"), "a falha de conexão tem de sair com o código da classe");
+    QVERIFY2(!execucao.saida.contains("emissão recusada"), "aviso não pode virar recusa");
+    QVERIFY2(!execucao.saida.contains("11444777000161"), "o CNPJ do tomador não pode aparecer na saída");
+    QVERIFY2(!execucao.saida.contains(senha), "a senha não pode aparecer no terminal");
 }
 
 QTEST_APPLESS_MAIN(TstCliEmitir)

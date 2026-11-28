@@ -3,8 +3,8 @@
 # E2E de `notalivre emitir` contra o servidor falso (NL-2.9, DA-2.44, DA-2.45) e os casos de recusa do plano. Só fixtures
 # sintéticas. Só em contêiner. A saída de cada caso vai para a pasta de logs da CLI, que o portão de PII varre (ADR-0005 e).
 # Build Flatpak (NL_FLATPAK_BUILD=ON, DA-2.28; NL-2.15 emenda 1 do CTO): os doze slots que sobem o servidor falso com oráculo
-# (xmlsec1) ou usam o segredo de referência ficam desligados lá, com motivo em flatpak/testes_fora_do_flatpak.txt. Os cinco
-# slots sem servidor nem segredo (trava de Produção e senha fora de argv e de log) rodam nos dois builds.
+# (xmlsec1) ou usam o segredo de referência ficam desligados lá, com motivo em flatpak/testes_fora_do_flatpak.txt. Os slots sem
+# servidor nem segredo (trava de Produção, senha fora de argv e de log, recusa por regra local) rodam nos dois builds.
 find_package(Python3 3.11 COMPONENTS Interpreter REQUIRED)
 
 add_executable(tst_cli_emitir tst_cli_emitir.cpp)
@@ -18,7 +18,8 @@ target_compile_definitions(tst_cli_emitir PRIVATE
     "NL_ENTRADAS_EMITIR=\"${CMAKE_SOURCE_DIR}/tests/e2e/dps_validar/entradas\""
     "NL_XSD_EMITIR=\"${NL_XSD_PRODREST_DIR}\""
     "NL_MANIFESTO_EMITIR=\"${NL_XSD_PRODREST_MANIFESTO}\""
-    "NL_TABELA_SHA1_EMITIR=\"${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/tabela_sha1_por_distro.txt\"")
+    "NL_TABELA_SHA1_EMITIR=\"${CMAKE_SOURCE_DIR}/tests/fixtures/xmldsig/tabela_sha1_por_distro.txt\""
+    "NL_TABELAS_EMITIR=\"${NL_TABELAS_DIR}\"")
 
 set(NL_SEGREDOS_PII_REF "${CMAKE_BINARY_DIR}/segredos_pii_execucao.txt")
 set(NL_AMBIENTE_E2E_EMITIR
@@ -29,7 +30,8 @@ if(NOT NL_FLATPAK_BUILD)
     string(APPEND NL_AMBIENTE_E2E_EMITIR ";NL_XMLLINT=${NL_XMLLINT_EMITIR};NL_XMLSEC1=${NL_XMLSEC1_EMITIR}")
 endif()
 
-# Os cinco slots sem servidor falso nem segredo de referência rodam nos dois builds (NL-2.15, emenda 1).
+# Os slots sem servidor falso nem segredo de referência rodam nos dois builds (NL-2.15, emenda 1). Desde a NL-3.M, a recusa por
+# regra local (cliRecusaRegraLocalAntesDaSenha) entra aqui: sai antes da senha e de qualquer envio.
 set(NL_SLOTS_E2E_SEM_SERVIDOR
     cliRecusaProducaoBloqueada
     cliRecusaProducaoSemCnpjDigitado
@@ -45,7 +47,8 @@ set(NL_SLOTS_E2E_SEM_SERVIDOR
     cliSenhaVaziaNoTerminalSaiCom2
     cliDescritorFechadoNaEntradaSaiCom2
     cliDescritorFechadoNaEntradaSaiCom2Fd9
-    descritorRecusadoNaoNomeiaOArquivo)
+    descritorRecusadoNaoNomeiaOArquivo
+    cliRecusaRegraLocalAntesDaSenha)
 
 set(NL_SLOTS_E2E
     cliEmiteDpsAceitaPeloServidorFalso
@@ -85,7 +88,9 @@ set(NL_SLOTS_E2E
     cliRecusaIndTotTribMeEppSemPost
     cliRecusaPercentualMalFormadoSaiCom4
     semConexaoSaiComSeisETextoDoCatalogo
-    estadoIncertoSaiComSeteERepetirRecuperaANota)
+    estadoIncertoSaiComSeteERepetirRecuperaANota
+    cliRecusaRegraLocalAntesDaSenha
+    cliMostraAvisoAntesDaSenha)
 
 if(NL_FLATPAK_BUILD)
     message(STATUS "e2e cli_emitir: slots com servidor falso ou segredo desligados no build Flatpak (NL-2.15, NL-2.27)")

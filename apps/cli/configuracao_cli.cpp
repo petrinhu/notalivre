@@ -48,6 +48,15 @@ std::expected<void, ErroConfiguracao> conferirXsdDeAmbiente(const ConfiguracaoCl
     return {};
 }
 
+std::expected<void, ErroConfiguracao> conferirTabelasDeAmbiente(const ConfiguracaoCli& cfg, bool homologacao)
+{
+    if (!homologacao && cfg.tabelasDefinido) {
+        return std::unexpected(ErroConfiguracao{"configuracao.tabelas_fora_de_homologacao",
+                                                 QStringLiteral("[tabelas] não se define fora de Homologação: as tabelas vêm do bundle, com o pino embutido")});
+    }
+    return {};
+}
+
 QString diretorioPadraoDasRaizesIcp(const QString& dirExecutavel)
 {
     return QDir::cleanPath(shareDoBundle(dirExecutavel) + QStringLiteral("/icp-brasil"));
@@ -129,6 +138,10 @@ std::expected<ConfiguracaoCli, ErroConfiguracao> lerConfiguracao(const QString& 
     cfg.xsdDiretorio = diretorio.isEmpty() ? shareDoBundle(dirExecutavel) + QStringLiteral("/xsd") : diretorio;
     cfg.xsdManifesto = manifesto.isEmpty() ? cfg.xsdDiretorio + QStringLiteral("/SHA256SUMS") : manifesto;
     cfg.xsdDefinido = valores.contains(QStringLiteral("xsd.diretorio")) || valores.contains(QStringLiteral("xsd.manifesto"));
+    // [tabelas] diretorio (NL-3.M, DA-3M.4): sem a chave, vale o padrão do bundle; a chave definida fora de Homologação sai com 10.
+    const QString diretorioTabelas = valores.value(QStringLiteral("tabelas.diretorio"));
+    cfg.tabelasDiretorio = diretorioTabelas.isEmpty() ? shareDoBundle(dirExecutavel) + QStringLiteral("/tabelas") : diretorioTabelas;
+    cfg.tabelasDefinido = valores.contains(QStringLiteral("tabelas.diretorio"));
     // Produção só liga com a chave em "true" (go/no-go do líder). Qualquer outro valor, ou ausência, fica bloqueada.
     cfg.producaoLiberada = valores.value(QStringLiteral("emissao.producao_liberada")) == QStringLiteral("true");
     // [assinatura] algoritmo: ausente ou rsa-sha1 é o padrão (DA-2.2); rsa-sha256 é a alternativa. Qualquer outro valor sai com 10.

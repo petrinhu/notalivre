@@ -32,6 +32,8 @@ struct ConfiguracaoCli
     QString xsdDiretorio;          ///< [xsd] diretorio
     QString xsdManifesto;          ///< [xsd] manifesto
     bool xsdDefinido = false;      ///< [xsd] diretorio ou manifesto estão no arquivo (NL-2.10b, BAIXA-4): definido fora de Homologação é erro
+    QString tabelasDiretorio;      ///< [tabelas] diretorio: o padrão é <bin>/../share/notalivre/tabelas (NL-3.M, DA-3M.4)
+    bool tabelasDefinido = false;  ///< [tabelas] diretorio está no arquivo (NL-3.M, DA-3M.5): definido fora de Homologação é erro
     bool producaoLiberada = false; ///< [emissao] producao_liberada: nasce falso (go/no-go, Onda 12)
     AlgoritmoConfigurado algoritmoAssinatura = AlgoritmoConfigurado::RsaSha1; ///< [assinatura] algoritmo
 };
@@ -51,6 +53,10 @@ std::expected<void, ErroConfiguracao> conferirAncorasDeAmbiente(const Configurac
 /// XSD por configuração (condição do CISO, NL-2.10b, BAIXA-4): [xsd] diretorio e manifesto só valem em Homologação; fora dela, chave
 /// definida é configuracao.xsd_fora_de_homologacao (código 10).
 std::expected<void, ErroConfiguracao> conferirXsdDeAmbiente(const ConfiguracaoCli& cfg, bool homologacao);
+
+/// Tabelas do Anexo A por configuração (NL-3.M, DA-3M.5): [tabelas] diretorio só vale em Homologação; fora dela, chave definida é
+/// configuracao.tabelas_fora_de_homologacao (código 10), como o [xsd].
+std::expected<void, ErroConfiguracao> conferirTabelasDeAmbiente(const ConfiguracaoCli& cfg, bool homologacao);
 
 /// Diretório padrão das raízes ICP do bundle (NL-2.10b, A2): <dir do executável>/../share/notalivre/icp-brasil.
 QString diretorioPadraoDasRaizesIcp(const QString& dirExecutavel);

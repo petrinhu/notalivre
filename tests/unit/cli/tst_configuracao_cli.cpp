@@ -75,6 +75,10 @@ private slots:
     void chaveVaziaNaoContornaAGuarda();
     // NL-2.10b, BAIXA-4: [xsd] definido fora de Homologação é erro de configuração, código 10.
     void xsdPorConfiguracaoRecusadoForaDeHomologacao();
+    // NL-3.M (DA-3M.5): sem [tabelas], o padrão é share/notalivre/tabelas do bundle, achado a partir do executável.
+    void tabelasPadraoDoBundle();
+    // NL-3.M (DA-3M.5): [tabelas] definido fora de Homologação é erro de configuração, código 10.
+    void tabelasPorConfiguracaoRecusadoForaDeHomologacao();
     // NL-2.10b, A2: o diretório padrão das raízes ICP sai de <dir do executável>/../share/notalivre/icp-brasil.
     void diretorioPadraoDasRaizesIcp();
 };
@@ -249,6 +253,36 @@ void TstConfiguracaoCli::xsdPorConfiguracaoRecusadoForaDeHomologacao()
     QVERIFY2(!foraDeHomologacao.has_value(), "[xsd] definido fora de Homologação tem de ser recusado");
     QCOMPARE(QString::fromStdString(foraDeHomologacao.error().codigo), QStringLiteral("configuracao.xsd_fora_de_homologacao"));
     QVERIFY2(nl::cli::conferirXsdDeAmbiente(*lida, true).has_value(), "em Homologação, [xsd] é aceito");
+}
+
+void TstConfiguracaoCli::tabelasPadraoDoBundle()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    // kCompleta não traz [tabelas]: o padrão do bundle vale e a chave não consta como definida.
+    const auto lida = nl::cli::lerConfiguracao(escrever(pasta, kCompleta), kDirExecutavel);
+    QVERIFY2(lida.has_value(), "sem [tabelas], a configuração tem de ser lida e o padrão do bundle vale");
+    QCOMPARE(lida->tabelasDiretorio, QStringLiteral("/app/share/notalivre/tabelas"));
+    QVERIFY(!lida->tabelasDefinido);
+}
+
+void TstConfiguracaoCli::tabelasPorConfiguracaoRecusadoForaDeHomologacao()
+{
+    QTemporaryDir pasta;
+    QVERIFY(pasta.isValid());
+    const QString prodComTabelas = QStringLiteral(
+        "[sefin]\nurl = https://sefin.producaorestrita.nfse.gov.br/SefinNacional\nprefixo = /SefinNacional\n"
+        "[certificado]\ncaminho = /tmp/a1.pfx\n"
+        "[tabelas]\ndiretorio = /tmp/tabelas\n"
+        "[emissao]\nproducao_liberada = false\n");
+    const auto lida = nl::cli::lerConfiguracao(escrever(pasta, prodComTabelas), kDirExecutavel);
+    QVERIFY2(lida.has_value(), "a configuração com [tabelas] tem de ser lida; a recusa é da conferência por ambiente");
+    QCOMPARE(lida->tabelasDiretorio, QStringLiteral("/tmp/tabelas"));
+    QVERIFY(lida->tabelasDefinido);
+    const auto foraDeHomologacao = nl::cli::conferirTabelasDeAmbiente(*lida, false);
+    QVERIFY2(!foraDeHomologacao.has_value(), "[tabelas] definido fora de Homologação tem de ser recusado");
+    QCOMPARE(QString::fromStdString(foraDeHomologacao.error().codigo), QStringLiteral("configuracao.tabelas_fora_de_homologacao"));
+    QVERIFY2(nl::cli::conferirTabelasDeAmbiente(*lida, true).has_value(), "em Homologação, [tabelas] é aceito");
 }
 
 void TstConfiguracaoCli::diretorioPadraoDasRaizesIcp()
