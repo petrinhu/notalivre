@@ -6,7 +6,10 @@
 # de processo da CLI dentro do sandbox, o repasse do descritor 3 pelo `flatpak run` e a CLI sem descritor sob um pseudo-terminal
 # real. Só executa o programa já instalado em --user. Não lê nenhum segredo: o descritor da prova é um arquivo sintético, recusado
 # antes de qualquer leitura. Antes das medidas, grava no sandbox um config.ini mínimo de Produção Restrita, um certificado de faz de
-# conta (arquivo sintético, nunca um A1 real) e uma DPS vazia `{}`: sem isso a CLI cai na configuração antes do canal da senha.
+# conta (arquivo sintético, nunca um A1 real) e uma DPS de faz de conta, a fixture `tests/e2e/dps_validar/entradas/mei_minima.json`
+# (fixture de teste, sem dado real; válida em Produção Restrita, sem tomador): sem isso a CLI cai na configuração antes do canal da
+# senha. A DPS tem de ser válida, não vazia: desde a NL-3.M o `emitir` confere a DPS (entrada, montagem, catálogo de localidades,
+# regras locais, XML, XSD) antes de ler a senha, e uma DPS vazia reprovaria em `entrada.campo_ausente` antes do canal da senha.
 #
 # Uso: senha_fd.sh <app-id>
 # Variáveis: NL_FLATPAK_BIN (padrão flatpak; o autoteste troca por um stub); NL_SENHA_FD_TIMEOUT (segundos, padrão 60) para cada
@@ -20,6 +23,12 @@ APP="${1:?uso: senha_fd.sh <app-id>}"
 for ferramenta in script timeout; do
     command -v "$ferramenta" >/dev/null 2>&1 || { echo "FALHA: falta o utilitário '$ferramenta' (util-linux/coreutils): a medição não roda"; exit 1; }
 done
+# DPS de faz de conta: a fixture `mei_minima.json` da raiz do repositório (o script fica em flatpak/host/, então a raiz é dois níveis
+# acima). Sem ela a medição não roda, e a falha diz o motivo (L-36).
+RAIZ="$(cd "$(dirname "$0")/../.." && pwd)"
+FIXTURE_DPS="$RAIZ/tests/e2e/dps_validar/entradas/mei_minima.json"
+[ -r "$FIXTURE_DPS" ] || { echo "FALHA: falta a fixture da DPS de faz de conta ($FIXTURE_DPS): a medição não roda"; exit 1; }
+DPS_CONTEUDO="$(cat "$FIXTURE_DPS")"
 FLATPAK="${NL_FLATPAK_BIN:-flatpak}"
 TEMPO="${NL_SENHA_FD_TIMEOUT:-60}"
 TMP="${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/senha-fd"
@@ -68,15 +77,16 @@ FD3_FORA=$(classifica_fd3 "$(tipo_bruto_fd3)")
 FD3_DENTRO=$(classifica_fd3 "$(com_teto "$FLATPAK" run --user --command=sh "$APP" -c 'command -v stat >/dev/null 2>&1 || { echo indisponivel; exit 0; }; stat -L -c %F /proc/self/fd/3 2>/dev/null || echo fechado')")
 echo "MEDIDA: fd3_herdado_tipo_fora=$FD3_FORA tipo_dentro_sandbox=$FD3_DENTRO"
 
-# (a3) preparo do sandbox: config.ini mínimo de Produção Restrita, certificado de faz de conta e DPS `{}` no XDG_CONFIG_HOME do app.
-# Tudo sintético: o caminho do certificado não existe de verdade e nada aponta para dado do líder. O config.ini sai em 0600 (BAIXA-S3).
+# (a3) preparo do sandbox: config.ini mínimo de Produção Restrita, certificado de faz de conta e a DPS de faz de conta (a fixture,
+# passada como argumento do `sh` do sandbox, $1) no XDG_CONFIG_HOME do app. Tudo sintético: o caminho do certificado não existe de
+# verdade e nada aponta para dado do líder. O config.ini sai em 0600 (BAIXA-S3).
 preparar_sandbox() {
-    com_teto "$FLATPAK" run --user --command=sh "$APP" -s <<'PREP'
+    com_teto "$FLATPAK" run --user --command=sh "$APP" -s "$DPS_CONTEUDO" <<'PREP'
 umask 077
 d="${XDG_CONFIG_HOME:-$HOME/.config}/notalivre"
 mkdir -p "$d" || exit 1
 printf 'sintetico\n' > "$d/faz-de-conta.txt" || exit 1
-printf '{}\n' > "$d/dps-faz-de-conta.json" || exit 1
+printf '%s\n' "$1" > "$d/dps-faz-de-conta.json" || exit 1
 cat > "$d/config.ini" <<CFG || exit 1
 [sefin]
 url = https://sefin.producaorestrita.nfse.gov.br
